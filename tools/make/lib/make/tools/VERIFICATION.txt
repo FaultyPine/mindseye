@@ -1,0 +1,7 @@
+The contents of this folder were downloaded as follows:
+    - From:     https://sourceforge.net/projects/ezwinports/files/make-4.4.1-without-guile-w32-bin.zip/download
+    - On:       Tuesday, 23-May-23 20:55:01 CDT
+    - Hash:     fb66a02b530f7466f6222ce53c0b602c5288e601547a034e4156a512dd895ee7
+
+This file was created by chauto package generator.
+
