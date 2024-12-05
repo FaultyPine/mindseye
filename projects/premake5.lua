@@ -1,2 +1,2 @@
 -- include projects to compile here
-include "synod/premake5.lua"
+include "testbed/premake5.lua"

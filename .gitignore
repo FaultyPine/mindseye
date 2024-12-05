@@ -2,3 +2,6 @@ bin/
 build/
 *.make
 Makefile
+.ninja_deps
+.ninja_log
+*.ninja
