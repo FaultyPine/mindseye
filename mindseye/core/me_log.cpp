@@ -1,10 +1,11 @@
 
 #include "me_log.h"
 
-#include <stdio.h>
-#include <stdarg.h>
-#include <string.h>
-#include <iostream>
+#include <stdio.h> // printf
+#define STB_SPRINTF_IMPLEMENTATION
+#include "external/stb_sprintf.h"
+#undef STB_SPRINTF_IMPLEMENTATION
+#include "core/me_memory.h"
 
 static u32 LOG_LEVELS_ENABLED = 0;
 
@@ -40,9 +41,23 @@ void SetLogLevel(LogLevel level, bool toggle)
 
 static const char* level_strings[6] = {"[FATAL]", "[ERROR]", "[WARN]", "[INFO]", "[DEBUG]", "[TRACE]"};
 #ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN 
-#include <windows.h>
-#undef WIN32_LEAN_AND_MEAN
+// #define WIN32_LEAN_AND_MEAN 
+// #include <windows.h>
+// #undef WIN32_LEAN_AND_MEAN
+
+#ifndef STD_INPUT_HANDLE
+#define STD_INPUT_HANDLE    (-10)
+#define STD_OUTPUT_HANDLE   (-11)
+#define STD_ERROR_HANDLE    (-12)
+#endif
+
+MEAPI int
+SetConsoleTextAttribute(
+    void* hConsoleOutput,
+    unsigned short wAttributes);
+MEAPI void*
+GetStdHandle(
+    unsigned long nStdHandle);
 static int terminal_colors[6] = {4, 4, 6, 2, 1, 1};
 #else
 static const char* terminal_colors[6] = {"\033[0;31m", "\033[0;31m", "\033[0;33m", "\033[0;32m", "\033[0;34m", "\033[0;34m"};
@@ -51,7 +66,7 @@ static const char* terminal_colors[6] = {"\033[0;31m", "\033[0;31m", "\033[0;33m
 void SetTerminalColor(LogLevel level)
 {
 #ifdef _WIN32
-    HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+    void* hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
     if (level < 0)
     {
         int defaultWhite = 7;
@@ -77,6 +92,12 @@ void LogMessage(LogLevel level, const char* message, ...)
 {
     if ((LOG_LEVELS_ENABLED & (1 << level)) == 0)
     {
+        static bool OneTimeWarning = false;
+        if (!OneTimeWarning && LOG_LEVELS_ENABLED == 0)
+        {
+            OneTimeWarning = true;
+            printf("[WARNING] No log levels enabled, logs will not be displayed"); // did you forget InitializeLogger()?
+        }
         return;
     }
 
@@ -85,7 +106,7 @@ void LogMessage(LogLevel level, const char* message, ...)
 
     va_list args;
     va_start(args, message);
-    s32 bytesWritten = vsnprintf(out_msg, log_message_limit, message, args);
+    s32 bytesWritten = stbsp_vsnprintf(out_msg, log_message_limit, message, args);
     va_end(args);
     ME_ASSERT(bytesWritten < log_message_limit);
 
@@ -112,15 +133,15 @@ const char *TextFormat(const char *text, ...)
 #endif
 
     // We create an array of buffers so strings don't expire until MAX_TEXTFORMAT_BUFFERS invocations
-    static char buffers[MAX_TEXTFORMAT_BUFFERS][MAX_TEXT_BUFFER_LENGTH] = { 0 };
+    static char buffers[MAX_TEXTFORMAT_BUFFERS][MAX_TEXT_BUFFER_LENGTH] = { {0} };
     static int index = 0;
 
     char *currentBuffer = buffers[index];
-    memset(currentBuffer, 0, MAX_TEXT_BUFFER_LENGTH);   // Clear buffer before using
+    MEMCLEAR(currentBuffer, MAX_TEXT_BUFFER_LENGTH);   // Clear buffer before using
 
     va_list args;
     va_start(args, text);
-    vsnprintf(currentBuffer, MAX_TEXT_BUFFER_LENGTH, text, args);
+    stbsp_vsnprintf(currentBuffer, MAX_TEXT_BUFFER_LENGTH, text, args);
     va_end(args);
 
     index += 1;     // Move to next buffer for next function call

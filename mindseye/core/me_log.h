@@ -1,5 +1,4 @@
-#ifndef _MINDSEYE_LOG_H
-#define _MINDSEYE_LOG_H
+#pragma once 
 
 #include "me_defines.h"
 // NOTE: logger includes both logging *and* assertions
@@ -45,4 +44,3 @@ MEAPI void LogMessage(LogLevel level, const char* message, ...);
 #define ME_ASSERT(x)
 #endif
 
-#endif

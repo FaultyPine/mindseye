@@ -11,12 +11,19 @@ typedef long long s64;
 typedef unsigned long long u64;
 typedef float f32;
 typedef double f64;
+typedef wchar_t wchar;
 
 #define ME_DEBUG
 
 // assertions only in debug mode
 #ifdef ME_DEBUG
 #define ME_ASSERTIONS_ENABLED
+#endif
+
+#define REF(x) (void)(x)
+
+#if defined(_WIN32) && !defined(OS_WINDOWS)
+#define OS_WINDOWS
 #endif
 
 #if defined(__clang__) || defined(__GNUC__)
@@ -64,6 +71,8 @@ typedef double f64;
 #define MEAPI
 #endif
 #endif
+
+#define C_LINKAGE extern "C"
 
 #ifdef _MSC_VER
 #define ME_ALIGN(n) __declspec(align(n))

@@ -1,12 +1,15 @@
 #include "testbed.h"
 
-#include "core/me_log.h"
+#include "mindseye/core/me_log.h"
+#include "mindseye/me_os_win.h"
 
-#pragma comment(lib, "mindseye")
-
-int main(int argc, char* argv[])
+int me_main(int argc, char** argv)
 {
+    InitializeLogger();
     int x = 1;
-    LOG_TRACE("HJello world");
+    REF(x);
+    LOG_TRACE("Hello world");
     return 0;
 }
+
+REGISTER_OS_ENTRY_POINT(me_main);

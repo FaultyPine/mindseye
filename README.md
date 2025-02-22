@@ -4,7 +4,6 @@
 ## Building
 
 Must be on windows.
-run `generate.bat`
 then `build.bat`
 
 
@@ -20,8 +19,9 @@ then `build.bat`
 
 
 - bring over good bits of tiny engine
-    - math, mem, containers, logging, defines
-- 
+    - math, mem, containers, ~~logging~~, ~~defines~~
+- open an os window
+- begin vulkan renderer
 
 ### Stuff i want to look into
 - https://gpuopen.com/learn/mesh_shaders/mesh_shaders-procedural_grass_rendering/

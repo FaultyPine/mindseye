@@ -1,0 +1,23 @@
+{
+    "files.associations": {
+        "bitset": "cpp",
+        "xlocale": "cpp",
+        "random": "cpp",
+        "array": "cpp",
+        "deque": "cpp",
+        "format": "cpp",
+        "initializer_list": "cpp",
+        "list": "cpp",
+        "queue": "cpp",
+        "stack": "cpp",
+        "utility": "cpp",
+        "vector": "cpp",
+        "xhash": "cpp",
+        "xstring": "cpp",
+        "xtree": "cpp",
+        "xutility": "cpp",
+        "*.inc": "cpp",
+        "future": "cpp",
+        "system_error": "cpp"
+    }
+}
