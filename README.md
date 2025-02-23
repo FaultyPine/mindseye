@@ -48,3 +48,10 @@ to support, for instance, rendering frame X, then rendering frame X+20, then fra
 *Game Simulation*:
 A purposely single-threaded simulation to ensure determinism. 
 Potentially could allow users to do whatever they want with threads, but at their own risk of desyncs in replays.
+
+Stretch goal: "reversible" physics/simulation?
+- idea: imagine a simple gear spinning clockwise. This "physics simulation" is very simple, just rotating the object by some amount in a certain direction
+    this is a "reversible" simulation - in that it is very easy to imagine just inverting the direction of the rotation to simulate backwards.
+    Could this concept be extrapolated to more complex senarios? Large parts of a given game/physics/etc simulation may be deterministic. For those parts,
+    making it "reversible" would mean creating equivalent logic to simulate backward. Since many simulations end up inevitably doing "destructive" operations,
+    that is an operation that fully overwrites some state that cannot be derived from future states, non-deterministic events would need to be recorded during forward simulation, and used while doing backward simulation. 

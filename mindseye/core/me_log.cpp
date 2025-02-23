@@ -2,9 +2,7 @@
 #include "me_log.h"
 
 #include <stdio.h> // printf
-#define STB_SPRINTF_IMPLEMENTATION
 #include "external/stb_sprintf.h"
-#undef STB_SPRINTF_IMPLEMENTATION
 #include "core/me_memory.h"
 
 static u32 LOG_LEVELS_ENABLED = 0;
@@ -40,17 +38,14 @@ void SetLogLevel(LogLevel level, bool toggle)
 #define TERMINAL_COLORED_OUTPUT_ENABLED 1
 
 static const char* level_strings[6] = {"[FATAL]", "[ERROR]", "[WARN]", "[INFO]", "[DEBUG]", "[TRACE]"};
-#ifdef _WIN32
-// #define WIN32_LEAN_AND_MEAN 
-// #include <windows.h>
-// #undef WIN32_LEAN_AND_MEAN
+
+#ifdef OS_WINDOWS
 
 #ifndef STD_INPUT_HANDLE
 #define STD_INPUT_HANDLE    (-10)
 #define STD_OUTPUT_HANDLE   (-11)
 #define STD_ERROR_HANDLE    (-12)
 #endif
-
 MEAPI int
 SetConsoleTextAttribute(
     void* hConsoleOutput,
@@ -59,13 +54,14 @@ MEAPI void*
 GetStdHandle(
     unsigned long nStdHandle);
 static int terminal_colors[6] = {4, 4, 6, 2, 1, 1};
+
 #else
 static const char* terminal_colors[6] = {"\033[0;31m", "\033[0;31m", "\033[0;33m", "\033[0;32m", "\033[0;34m", "\033[0;34m"};
 #endif
 
 void SetTerminalColor(LogLevel level)
 {
-#ifdef _WIN32
+#ifdef OS_WINDOWS
     void* hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
     if (level < 0)
     {
@@ -122,7 +118,6 @@ void LogMessage(LogLevel level, const char* message, ...)
 
 
 // yoinked from raylib
-// https://github.com/raysan5/raylib/blob/master/src/rcore.c#L7169
 const char *TextFormat(const char *text, ...)
 {
 #ifndef MAX_TEXTFORMAT_BUFFERS
@@ -137,7 +132,7 @@ const char *TextFormat(const char *text, ...)
     static int index = 0;
 
     char *currentBuffer = buffers[index];
-    MEMCLEAR(currentBuffer, MAX_TEXT_BUFFER_LENGTH);   // Clear buffer before using
+    ME_MEMCLEAR(currentBuffer, MAX_TEXT_BUFFER_LENGTH);   // Clear buffer before using
 
     va_list args;
     va_start(args, text);

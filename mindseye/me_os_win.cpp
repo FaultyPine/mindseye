@@ -40,11 +40,10 @@ int me_os_win_main(int argc, char** argv)
 }
 int me_os_win_main(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine, int nCmdShow)
 {
-    //AllocConsole();
     #define MAX_COMMAND_LINE_OPTIONS 50
     #define MAX_COMMAND_LINE_OPTION_LENGTH 100
     char formattedCmdLine[MAX_COMMAND_LINE_OPTIONS][MAX_COMMAND_LINE_OPTION_LENGTH];
-    MEMCLEAR(formattedCmdLine, sizeof(formattedCmdLine));
+    ME_MEMCLEAR(formattedCmdLine, sizeof(formattedCmdLine));
     int argc;
     LPWSTR* argv = CommandLineToArgvW(lpCmdLine, &argc);
     for (int i = 0; i < argc; i++)

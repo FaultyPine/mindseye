@@ -22,8 +22,18 @@ typedef wchar_t wchar;
 
 #define REF(x) (void)(x)
 
+#if defined(__clang__) && !defined(COMPILER_CLANG)
+#define COMPILER_CLANG
+#endif
+#if defined(__GNUC__) && !defined(COMPILER_GCC)
+#define COMPILER_GCC
+#endif
+
 #if defined(_WIN32) && !defined(OS_WINDOWS)
 #define OS_WINDOWS
+#endif
+#if defined(COMPILER_CLANG) && defined(__linux__) && !defined(OS_LINUX)
+#define OS_LINUX
 #endif
 
 #if defined(__clang__) || defined(__GNUC__)
@@ -31,6 +41,8 @@ typedef wchar_t wchar;
 #else
 #define STATIC_ASSERT static_assert
 #endif
+
+#define ME_NODISCARD [[nodiscard]]
 
 #ifndef ARRAY_SIZE
 #define ARRAY_SIZE(arr) ( sizeof((arr))/sizeof((arr)[0]) )

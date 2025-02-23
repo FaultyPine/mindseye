@@ -1,7 +1,40 @@
 
+#include "core/me_defines.h"
+#include "me_string.h"
+#include <string>
 
+static size_t CStringLength(const char* str)
+{
+    size_t len = 0;
+    while (str[len] != '\0') 
+    {
+        len++;
+    }
+    return len;
+}
 
+String FromCString(const char* str, s32 strLen)
+{
+    if (strLen == -1)
+    {
+        strLen = CStringLength(str);
+    }
+    String result = {(char*)str, static_cast<size_t>(strLen)};
+    return result;
+}
 
+Result<void, size_t> StringCopy(String dst, String src)
+{
+    if (src.len > dst.len)
+    {
+        return Err(src.len);
+    } 
+    for (int i = 0; i < dst.len && i < src.len; i++)
+    {
+        
+    }
+    return Ok();
+}
 
 size_t wcharToNarrow(const wchar_t * src, char * dest, size_t dest_len)
 {

@@ -36,12 +36,12 @@ if "%~1"=="" echo [full build] && set "mindseye=1" && set "testbed=1"
 @REM common compile flags
 set compile_flags_common= -I%root% -I%root%\mindseye -DOS_WINDOWS -DCOMPILER_CLANG -D_UNICODE -g -gcodeview -gno-column-info -std=c++20 -Wall -ferror-limit=10000
 for /f %%i in ('call git describe --always --dirty')   do set compile_flags_common=%compile_flags_common% -DBUILD_GIT_HASH=\"%%i\"
-set linker_flags_common= -luser32 -Wl,-subsystem:console 
+set linker_flags_common= -luser32 -Wl,-subsystem:console
 
 :: mindseye engine
 set compile_mindseye_dbg= -O0 -DBUILD_DEBUG=1 -DMEEXPORT -D_USRDLL -D_WINDLL -D_DLL -shared
 set compile_mindseye_rel= -O2 -DBUILD_DEBUG=0 -DMEEXPORT -D_USRDLL -D_WINDLL -D_DLL -shared 
-set link_mindseye= 
+set link_mindseye= %linker_flags_common% -Wl,msvcrt.lib,/DLL,/NODEFAULTLIB:libcmt.lib,/NODEFAULTLIB:libcmtd.lib,/NODEFAULTLIB:msvcrtd.lib
 
 :: testbed
 set compile_testbed_dbg= -O0 -DBUILD_DEBUG=1 
