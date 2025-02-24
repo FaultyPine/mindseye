@@ -53,6 +53,14 @@ types::Err<CleanE> Err(E&& val) {
 }
 
 template<typename T, typename E> struct Result;
+typedef const char* ErrMsg;
+struct ErrorDefault
+{
+    ErrMsg errMsg;
+    size_t errCode;
+    ErrorDefault() : errMsg("An error occurred"), errCode(0) {}
+    ErrorDefault(ErrMsg msg, size_t code) : errMsg(msg), errCode(code) {}
+};
 
 namespace details {
 
