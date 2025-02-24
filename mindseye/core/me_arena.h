@@ -11,7 +11,7 @@ struct Arena
     size_t prev_offset = 0;
 };
 
-#define arena_alloc_type(arena, type, num) ((type*)arena_alloc(arena, sizeof(type) * num))
+#define ArenaAllocType(arena, type, num) ((type*)ArenaAlloc(arena, sizeof(type) * num))
 #define ARENA_MAX_NAME_LEN 30
 
 MEAPI Arena ArenaInit(void* backingBuffer, size_t arenaSize);

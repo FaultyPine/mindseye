@@ -19,9 +19,12 @@ then `build.bat`
 
 
 - bring over good bits of tiny engine
-    - math, mem, containers, ~~logging~~, ~~defines~~
+    - ~~math~~, ~~mem~~, containers, ~~logging~~, ~~defines~~
 - open an os window
 - begin vulkan renderer
+    - honestly..... should i just use bgfx or something? As fun as graphics prog is, The point of this engine isn't to do a whole bunch of graphics programming
+    and if im gonna do vulkan most of my time with this engine will be spent there inevitably....
+    - maybe design a "frontend" and have bgfx as my backend which i could swap out for a custom thing if i feel like diving into that
 
 ### Stuff i want to look into
 - https://gpuopen.com/learn/mesh_shaders/mesh_shaders-procedural_grass_rendering/

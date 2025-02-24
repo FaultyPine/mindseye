@@ -3,7 +3,23 @@
 #include "me_string.h"
 #include <string>
 
-static size_t CStringLength(const char* str)
+bool StringView::operator == (const StringView& sv) const 
+{
+    return sv.len == this->len && ME_MEMCMP(this->data, sv.data, sv.len) == 0;
+}
+
+StringView String::CreateView(size_t offset, size_t len) 
+{ 
+    return {data + offset, this->len < len ? this->len : len};
+}
+
+StringView String::CreateView(size_t offset) 
+{ 
+    offset = offset > len ? len : offset;
+    return {data + offset, len - offset};
+}
+
+size_t CStringLength(const char* str)
 {
     size_t len = 0;
     while (str[len] != '\0') 
@@ -23,17 +39,34 @@ String FromCString(const char* str, s32 strLen)
     return result;
 }
 
-Result<void, size_t> StringCopy(String dst, String src)
+Result<void, ErrMsg> StringCopy(String dst, String src)
 {
     if (src.len > dst.len)
     {
-        return Err(src.len);
+        return Err("Source string smaller than dst string!");
     } 
-    for (int i = 0; i < dst.len && i < src.len; i++)
-    {
-        
-    }
+    // source length will always be less than or equal to dst len
+    size_t amountToCopy = src.len;
+    ME_MEMCPY(dst.data, src.data, amountToCopy);
     return Ok();
+}
+
+Result<StringView, ErrMsg> FindInString(StringView haystack, StringView needle)
+{
+    if (!needle.data || !needle.len || *needle.data == '\0') 
+    {
+        return Ok(haystack);
+    }
+
+    while (haystack.len && *haystack.data != '\0') 
+    {
+        if (needle == haystack) 
+        {
+            return Ok(haystack);
+        }
+        haystack = haystack.CreateView(1);
+    }
+    return Err("needle not in haystack!");
 }
 
 size_t wcharToNarrow(const wchar_t * src, char * dest, size_t dest_len)

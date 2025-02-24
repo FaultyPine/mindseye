@@ -13,10 +13,9 @@ typedef float f32;
 typedef double f64;
 typedef wchar_t wchar;
 
-#define ME_DEBUG
 
 // assertions only in debug mode
-#ifdef ME_DEBUG
+#if BUILD_DEBUG
 #define ME_ASSERTIONS_ENABLED
 #endif
 
@@ -28,6 +27,9 @@ typedef wchar_t wchar;
 #if defined(__GNUC__) && !defined(COMPILER_GCC)
 #define COMPILER_GCC
 #endif
+#if defined(_MSC_VER) && !defined(COMPILER_MSVC)
+#define COMPILER_MSVC
+#endif
 
 #if defined(_WIN32) && !defined(OS_WINDOWS)
 #define OS_WINDOWS
@@ -36,17 +38,31 @@ typedef wchar_t wchar;
 #define OS_LINUX
 #endif
 
-#if defined(__clang__) || defined(__GNUC__)
+#if defined(COMPILER_CLANG) || defined(COMPILER_GCC)
 #define STATIC_ASSERT _Static_assert
 #else
 #define STATIC_ASSERT static_assert
 #endif
 
-#define ME_NODISCARD [[nodiscard]]
+#if __cplusplus < 202002L
+#error Expected C++ 20 standard or above
+#endif
+#define _CRT_SECURE_NO_WARNINGS
+
+#define NODISCARD [[nodiscard]]
+
+#define Likely [[likely]]
+#define Unlikely [[unlikely]]
+
+#define KILOBYTES_BYTES(kb) (kb*1024)
+#define MEGABYTES_BYTES(mb) (mb*KILOBYTES_BYTES(1024))
+#define GIGABYTES_BYTES(gb) (gb*MEGABYTES_BYTES(1024))
 
 #ifndef ARRAY_SIZE
 #define ARRAY_SIZE(arr) ( sizeof((arr))/sizeof((arr)[0]) )
 #endif
+
+#define CLAMP(x, min, max) (x < min ? min : (x > max ? max : x))
 
 #define SET_NTH_BIT(bitfield, n_bit, onoff) \
     (bitfield = (bitfield & ~((u32)1 << n_bit)) | ((u32)onoff << n_bit) )
@@ -70,14 +86,14 @@ typedef wchar_t wchar;
 
 // exports
 #ifdef MEEXPORT
-#ifdef _MSC_VER
+#ifdef COMPILER_MSVC
 #define MEAPI __declspec(dllexport)
 #else
 #define MEAPI __attribute__((visibility("default")))
 #endif
 // imports
 #else 
-#ifdef _MSC_VER
+#ifdef COMPILER_MSVC
 #define MEAPI __declspec(dllimport)
 #else
 #define MEAPI
@@ -86,13 +102,13 @@ typedef wchar_t wchar;
 
 #define C_LINKAGE extern "C"
 
-#ifdef _MSC_VER
+#ifdef COMPILER_MSVC
 #define ME_ALIGN(n) __declspec(align(n))
 #else
 #define ME_ALIGN(n) __attribute__((aligned(n)))
 #endif
 
-#ifdef _MSC_VER
+#ifdef COMPILER_MSVC
 #define ME_INLINE __forceinline
 #define ME_NOINLINE __declspec(noinline)
 #else

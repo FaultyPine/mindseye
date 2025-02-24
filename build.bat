@@ -10,7 +10,7 @@ pushd %root%
 
 if not exist "tools\clang" (
     echo [First time setup] downloading clang binaries...
-    call "tools/download.bat"
+    call "tools/download_clang.bat"
 )
 IF %ERRORLEVEL% NEQ 0 (echo Error:%ERRORLEVEL% && exit /b)
 set clang_bin_dir=tools\clang\bin
@@ -34,7 +34,7 @@ if "%~1"=="" echo [full build] && set "mindseye=1" && set "testbed=1"
 @REM currently assuming we do compile+link all in one step, this may change.
 
 @REM common compile flags
-set compile_flags_common= -I%root% -I%root%\mindseye -DOS_WINDOWS -DCOMPILER_CLANG -D_UNICODE -g -gcodeview -gno-column-info -std=c++20 -Wall -ferror-limit=10000
+set compile_flags_common= -I%root% -I%root%\mindseye -DOS_WINDOWS -DCOMPILER_CLANG -D_UNICODE -Wno-deprecated-declarations -g -gcodeview -gno-column-info -std=c++20 -Wall -ferror-limit=10000
 for /f %%i in ('call git describe --always --dirty')   do set compile_flags_common=%compile_flags_common% -DBUILD_GIT_HASH=\"%%i\"
 set linker_flags_common= -luser32 -Wl,-subsystem:console
 

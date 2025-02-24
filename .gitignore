@@ -6,3 +6,5 @@ Makefile
 .ninja_log
 *.ninja
 tools/clang
+.vscode
+.vs

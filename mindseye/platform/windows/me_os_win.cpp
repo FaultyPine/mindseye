@@ -1,6 +1,7 @@
 
 
 #include "me_os_win.h"
+#include "core/me_string.h"
 
 #include <stdlib.h>
 #include <shellapi.h>
@@ -9,24 +10,7 @@
 #include "core/me_log.h"
 #include "core/me_memory.h"
 
-static EntryPointFunc globalEntryPointFunc = nullptr;
-
-
-void __InternalRegisterOSEntryPoint(EntryPointFunc entryPoint)
-{
-    if (globalEntryPointFunc)
-    {
-        LOG_ERROR("Cannot register OS entry point more than once!");
-    }
-    globalEntryPointFunc = entryPoint;
-}
-
-void ConsolePrint(const char* text, u32 textLen) 
-{
-    HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
-    DWORD charsWritten;
-    WriteConsole(hConsole, text, textLen, &charsWritten, nullptr);
-}
+C_LINKAGE MEAPI EntryPointFunc globalEntryPointFunc;
 
 // from shell32
 MEAPI LPWSTR * CommandLineToArgvW(

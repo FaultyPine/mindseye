@@ -1,9 +1,9 @@
 
 #include "me_log.h"
 
-#include <stdio.h> // printf
 #include "external/stb_sprintf.h"
 #include "core/me_memory.h"
+#include "platform/me_os.h"
 
 static u32 LOG_LEVELS_ENABLED = 0;
 
@@ -75,11 +75,11 @@ void SetTerminalColor(LogLevel level)
 #else
     if (level < 0)
     {
-        printf("\033[0m");
+        ConsolePrint("\033[0m");
     }
     else
     {
-        printf("%s", terminal_colors[level]);
+        ConsolePrint("%s", terminal_colors[level]);
     }
 #endif
 }
@@ -92,7 +92,7 @@ void LogMessage(LogLevel level, const char* message, ...)
         if (!OneTimeWarning && LOG_LEVELS_ENABLED == 0)
         {
             OneTimeWarning = true;
-            printf("[WARNING] No log levels enabled, logs will not be displayed"); // did you forget InitializeLogger()?
+            ConsolePrint("[WARNING] No log levels enabled, logs will not be displayed"); // did you forget InitializeLogger()?
         }
         return;
     }
@@ -109,10 +109,10 @@ void LogMessage(LogLevel level, const char* message, ...)
     // append (optional)color and log level to message
 #if TERMINAL_COLORED_OUTPUT_ENABLED
     SetTerminalColor(level);
-    printf("%s %s\n", level_strings[level], out_msg);
+    ConsolePrint("%s %s\n", level_strings[level], out_msg);
     SetTerminalColor((LogLevel)-1);
 #else
-    printf("%s %s\n", level_strings[level], out_msg);
+    ConsolePrint("%s %s\n", level_strings[level], out_msg);
 #endif
 }
 

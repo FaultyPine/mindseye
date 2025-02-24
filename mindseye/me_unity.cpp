@@ -9,18 +9,18 @@
 #include "external/result.h"
 
 // HEADER
-#ifdef OS_WINDOWS
-#include "me_os_win.h"
-#endif
+#include "platform/me_os.h"
 #include "core/me_log.h"
 #include "core/me_string.h"
 #include "core/me_arena.h"
+#include "core/me_math.h"
+#include "core/me_core.h"
 
 // SOURCE
-#ifdef OS_WINDOWS
-#include "me_os_win.cpp"
-#endif
+#include "platform/me_os.cpp"
 #include "core/me_log.cpp"
 #include "core/me_string.cpp"
 #include "core/me_arena.cpp"
+#include "core/me_math.cpp"
+#include "core/me_core.cpp"
 

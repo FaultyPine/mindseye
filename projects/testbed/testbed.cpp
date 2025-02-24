@@ -1,9 +1,10 @@
 #include "testbed.h"
 
 #include "mindseye/core/me_log.h"
-#include "mindseye/me_os_win.h"
+#include "mindseye/platform/me_os.h"
 #include "mindseye/core/me_arena.h"
 #include "mindseye/core/me_memory.h"
+#include "mindseye/core/me_result.h"
 
 int me_main(int argc, char** argv)
 {
