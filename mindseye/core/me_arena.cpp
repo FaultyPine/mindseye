@@ -12,7 +12,7 @@ Arena ArenaInit(void* backing_buffer, size_t arena_size)
     a.backing_mem_size = arena_size;
     a.offset = 0;
     a.prev_offset = 0;
-    //TMEMSET(backing_buffer, 0, arena_size);
+    //ME_MEMCLEAR(backing_buffer, arena_size);
     return a;
 }
 

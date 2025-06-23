@@ -1,7 +1,6 @@
 #pragma once
 
 #include "me_defines.h"
-// ARENAS
 
 struct Arena 
 {

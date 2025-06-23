@@ -5,6 +5,9 @@
 #include "mindseye/core/me_arena.h"
 #include "mindseye/core/me_memory.h"
 #include "mindseye/core/me_result.h"
+#include "mindseye/core/containers/dynarray.h"
+#include "mindseye/core/containers/blocklist.h"
+#include "mindseye/core/containers/fixed_growable_array.h"
 
 int me_main(int argc, char** argv)
 {

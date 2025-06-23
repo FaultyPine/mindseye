@@ -19,17 +19,13 @@ then `build.bat`
 
 
 - bring over good bits of tiny engine
-    - ~~math~~, ~~mem~~, containers, ~~logging~~, ~~defines~~
+    - ~~math~~, ~~mem~~, ~~containers~~, ~~logging~~, ~~defines~~
+- refactor containers to use a general allocator scheme. 
 - open an os window
 - begin vulkan renderer
     - honestly..... should i just use bgfx or something? As fun as graphics prog is, The point of this engine isn't to do a whole bunch of graphics programming
     and if im gonna do vulkan most of my time with this engine will be spent there inevitably....
     - maybe design a "frontend" and have bgfx as my backend which i could swap out for a custom thing if i feel like diving into that
-
-### Stuff i want to look into
-- https://gpuopen.com/learn/mesh_shaders/mesh_shaders-procedural_grass_rendering/
-- meshlet compression (research said up to 60% savings from normal mesh storage holy crap)
-
 
 ## R&R
 
@@ -50,7 +46,12 @@ to support, for instance, rendering frame X, then rendering frame X+20, then fra
 
 *Game Simulation*:
 A purposely single-threaded simulation to ensure determinism. 
-Potentially could allow users to do whatever they want with threads, but at their own risk of desyncs in replays.
+Potentially could allow users to do whatever they want with threads, but at their own risk of "moment-to-moment debugging" desyncs in replays.
+I.E. it is possible to allow multiple threads to be replayed if we assume (or internally ensure) there aren't race conditions/there is proper synchronization.
+But if you pause in a debugger during a replay, there's no way to ensure threads are in the same *exact* place in the replay that they were in when the program originally ran (we can get kinda close w/ipt & etw, but at that point it's not worth the effort).
+
+*Core Engine*
+
 
 Stretch goal: "reversible" physics/simulation?
 - idea: imagine a simple gear spinning clockwise. This "physics simulation" is very simple, just rotating the object by some amount in a certain direction
@@ -58,3 +59,18 @@ Stretch goal: "reversible" physics/simulation?
     Could this concept be extrapolated to more complex senarios? Large parts of a given game/physics/etc simulation may be deterministic. For those parts,
     making it "reversible" would mean creating equivalent logic to simulate backward. Since many simulations end up inevitably doing "destructive" operations,
     that is an operation that fully overwrites some state that cannot be derived from future states, non-deterministic events would need to be recorded during forward simulation, and used while doing backward simulation. 
+
+
+Engine design to support above:
+
+
+
+
+### Extra stuff i want to look into
+- https://gpuopen.com/learn/mesh_shaders/mesh_shaders-procedural_grass_rendering/
+- meshlet compression (research said up to 60% savings from normal mesh storage holy crap)
+
+
+### Game
+A short&sweet experience centered around the concepts in Courage To Create by Rollo May
+walking simulator-esc. No combat/levels/objectives/etc. Just telling a story & discussing creativity
