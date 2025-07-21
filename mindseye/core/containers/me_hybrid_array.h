@@ -11,10 +11,10 @@
 // I won't be allowing those to be allocated with an Arena or things like that
 
 template <typename T, u32 fixedSize>
-struct FixedGrowableArray
+struct HybridArray
 {
-    MEAPI FixedGrowableArray();
-    MEAPI FixedGrowableArray(const FixedGrowableArray&& arr)
+    MEAPI HybridArray();
+    MEAPI HybridArray(const HybridArray&& arr)
     {
         size = arr.size;
         capacity = arr.capacity;
@@ -24,7 +24,7 @@ struct FixedGrowableArray
             ME_MEMCPY(fixedMem, arr.fixedMem, sizeof(T) * size);
         }
     }
-    MEAPI FixedGrowableArray& operator=(const FixedGrowableArray& arr)
+    MEAPI HybridArray& operator=(const HybridArray& arr)
     {
         size = arr.size;
         capacity = arr.capacity;
@@ -35,7 +35,7 @@ struct FixedGrowableArray
         }
         return *this;
     }
-    MEAPI ~FixedGrowableArray()
+    MEAPI ~HybridArray()
     {
         if (elements != &fixedMem[0])
         {

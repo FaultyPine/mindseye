@@ -18,7 +18,7 @@
 #include "core/me_memory.h"
 
 #include "core/containers/dynarray.h"
-#include "core/containers/fixed_growable_array.h"
+#include "core/containers/me_hybrid_array.h"
 
 
 // SOURCE
@@ -31,7 +31,7 @@
 #include "core/me_memory.cpp"
 
 #include "core/containers/dynarray.cpp"
-#include "core/containers/fixed_growable_array.cpp"
+#include "core/containers/me_hybrid_array.cpp"
 
 
 // SUBMODULES

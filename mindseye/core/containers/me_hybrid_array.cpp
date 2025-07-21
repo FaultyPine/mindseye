@@ -1,11 +1,11 @@
-#include "fixed_growable_array.h"
+#include "me_hybrid_array.h"
 
 #include "core/me_log.h"
 #include "core/me_memory.h"
 
 constexpr u32 FIXEDGROWABLE_GROWTH_FACTOR = 2;
 template <typename T, u32 fixedSize>
-static void CheckArrayResize(FixedGrowableArray<T, fixedSize>& array)
+static void CheckArrayResize(HybridArray<T, fixedSize>& array)
 {
     ME_ASSERT(array.size <= array.capacity);
     if (array.size >= array.capacity)
@@ -26,7 +26,7 @@ static void CheckArrayResize(FixedGrowableArray<T, fixedSize>& array)
 }
 
 template <typename T, u32 fixedSize>
-FixedGrowableArray<T, fixedSize>::FixedGrowableArray()
+HybridArray<T, fixedSize>::HybridArray()
 {
     elements = &fixedMem[0];
     capacity = fixedSize;
@@ -34,7 +34,7 @@ FixedGrowableArray<T, fixedSize>::FixedGrowableArray()
 }
 
 template <typename T, u32 fixedSize>
-void FixedGrowableArray<T, fixedSize>::push_back(const T& element)
+void HybridArray<T, fixedSize>::push_back(const T& element)
 {
     CheckArrayResize(*this);
     DynArrayGet<T>(elements, size) = element;
@@ -42,12 +42,12 @@ void FixedGrowableArray<T, fixedSize>::push_back(const T& element)
 }
 
 template <typename T, u32 fixedSize>
-void FixedGrowableArray<T, fixedSize>::insert(const T& element, u32 index)
+void HybridArray<T, fixedSize>::insert(const T& element, u32 index)
 {
     CheckArrayResize(*this);
     if (index >= size)
     {
-        LOG_ERROR("Attempted to insert into FixedGrowableArray at invalid index");
+        LOG_ERROR("Attempted to insert into HybridArray at invalid index");
         return;
     }
     if (index == size)
@@ -64,7 +64,7 @@ void FixedGrowableArray<T, fixedSize>::insert(const T& element, u32 index)
 }
 
 template <typename T, u32 fixedSize>
-T FixedGrowableArray<T, fixedSize>::erase_and_fill(u32 index)
+T HybridArray<T, fixedSize>::erase_and_fill(u32 index)
 {
     if (index >= size)
     {
@@ -79,7 +79,7 @@ T FixedGrowableArray<T, fixedSize>::erase_and_fill(u32 index)
 }
 
 template <typename T, u32 fixedSize>
-T FixedGrowableArray<T, fixedSize>::erase(u32 index)
+T HybridArray<T, fixedSize>::erase(u32 index)
 {
     if (index >= size)
     {
@@ -95,7 +95,7 @@ T FixedGrowableArray<T, fixedSize>::erase(u32 index)
 }
 
 template <typename T, u32 fixedSize>
-T FixedGrowableArray<T, fixedSize>::pop()
+T HybridArray<T, fixedSize>::pop()
 {
     ME_ASSERT(size > 0 && "Cannot pop from empty array");
     T value = elements[size - 1];
@@ -104,20 +104,20 @@ T FixedGrowableArray<T, fixedSize>::pop()
 }
 
 template <typename T, u32 fixedSize>
-T& FixedGrowableArray<T, fixedSize>::at(u32 index)
+T& HybridArray<T, fixedSize>::at(u32 index)
 {
     ME_ASSERT(index < size);
     return DynArrayGet<T>(elements, index);
 }
 template <typename T, u32 fixedSize>
-const T& FixedGrowableArray<T, fixedSize>::at(u32 index) const
+const T& HybridArray<T, fixedSize>::at(u32 index) const
 {
     ME_ASSERT(index < size);
     return DynArrayGet<T>(elements, index);
 }
 
 template <typename T, u32 fixedSize>
-void FixedGrowableArray<T, fixedSize>::clear()
+void HybridArray<T, fixedSize>::clear()
 {
     size = 0;
 }
@@ -125,9 +125,9 @@ void FixedGrowableArray<T, fixedSize>::clear()
 
 void FixedGrowableArrayTests()
 {
-    LOG_INFO("Running FixedGrowableArray tests...");
+    LOG_INFO("Running HybridArray tests...");
     constexpr u32 testFixedSize = 10;
-    FixedGrowableArray<u32, testFixedSize> arr = {};
+    HybridArray<u32, testFixedSize> arr = {};
     ME_ASSERT(arr.size == 0);
     arr.push_back(0);
     arr.push_back(1);
@@ -162,5 +162,5 @@ void FixedGrowableArrayTests()
     arr.clear();
     ME_ASSERT(arr.size == 0);
     //arr.insert(999, 3); // should report an error
-    LOG_INFO("FixedGrowableArray tests successful!");
+    LOG_INFO("HybridArray tests successful!");
 }

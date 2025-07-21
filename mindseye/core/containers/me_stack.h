@@ -1,11 +1,11 @@
 #pragma once
 
-#include "fixed_growable_array.h"
+#include "me_hybrid_array.h"
 
 template<typename T, int FIXED_SIZE = 100>
 struct Stack 
 {
-    FixedGrowableArray<T, FIXED_SIZE> data;
+    HybridArray<T, FIXED_SIZE> data;
 
     Stack() = default;
 
