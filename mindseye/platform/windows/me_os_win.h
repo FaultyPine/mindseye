@@ -11,21 +11,15 @@
 
 
 
-
 #ifdef OS_WINDOWS
 MEAPI int me_os_win_main(int argc, char** argv);
 MEAPI int me_os_win_main(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine, int nCmdShow);
 
-int main(int argc, char** argv)
-{
-    return me_os_win_main(argc, argv);
-}
 // int wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine, int nCmdShow)
 // {
 //     return me_os_win_main(hInstance, hPrevInstance, lpCmdLine, nCmdShow);
 // }
 #endif
-
 
 
 

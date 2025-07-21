@@ -13,7 +13,7 @@
 C_LINKAGE MEAPI EntryPointFunc globalEntryPointFunc;
 
 // from shell32
-MEAPI LPWSTR * CommandLineToArgvW(
+EXT_IMPORT LPWSTR * CommandLineToArgvW(
     LPCWSTR lpCmdLine,
     int     *pNumArgs
 );
@@ -22,6 +22,7 @@ int me_os_win_main(int argc, char** argv)
 {
     return globalEntryPointFunc ? globalEntryPointFunc(argc, argv) : 1;
 }
+
 int me_os_win_main(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine, int nCmdShow)
 {
     #define MAX_COMMAND_LINE_OPTIONS 50
@@ -35,4 +36,12 @@ int me_os_win_main(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLin
         wcharToNarrow(argv[i], formattedCmdLine[i], MAX_COMMAND_LINE_OPTION_LENGTH);
     }
     return globalEntryPointFunc ? globalEntryPointFunc(argc, (char**)formattedCmdLine) : 1;
+}
+
+
+
+
+void* LoadDynamicLibrary(const char* name)
+{
+    return (void*)LoadLibraryA(name);
 }

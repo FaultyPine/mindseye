@@ -23,6 +23,8 @@ struct EngineContext
     u64 randomSeed = 0;
 };
 
+MEAPI void InitializeEngine();
+
 // returns the current time since app launch
 MEAPI f64 GetTime();
 // just casts GetTime to f32

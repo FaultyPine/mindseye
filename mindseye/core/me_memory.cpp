@@ -51,6 +51,7 @@ void AllocatorPush(const meAllocator& allocator)
 
 meAllocator AllocatorPop()
 {
+    ME_ASSERT(g_allocators.size() > 1); // can't pop system allocator, which is always the bottom of the stack
     return g_allocators.pop();
 }
 

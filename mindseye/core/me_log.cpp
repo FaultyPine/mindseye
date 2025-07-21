@@ -46,11 +46,11 @@ static const char* level_strings[6] = {"[FATAL]", "[ERROR]", "[WARN]", "[INFO]",
 #define STD_OUTPUT_HANDLE   (-11)
 #define STD_ERROR_HANDLE    (-12)
 #endif
-MEAPI int
+EXT_IMPORT int
 SetConsoleTextAttribute(
     void* hConsoleOutput,
     unsigned short wAttributes);
-MEAPI void*
+EXT_IMPORT void*
 GetStdHandle(
     unsigned long nStdHandle);
 static int terminal_colors[6] = {4, 4, 6, 2, 1, 1};
@@ -79,7 +79,7 @@ void SetTerminalColor(LogLevel level)
     }
     else
     {
-        ConsolePrint("%s", terminal_colors[level]);
+        ConsolePrint(terminal_colors[level]);
     }
 #endif
 }
@@ -109,10 +109,10 @@ void LogMessage(LogLevel level, const char* message, ...)
     // append (optional)color and log level to message
 #if TERMINAL_COLORED_OUTPUT_ENABLED
     SetTerminalColor(level);
-    ConsolePrint("%s %s\n", level_strings[level], out_msg);
+    ConsolePrint(out_msg);
     SetTerminalColor((LogLevel)-1);
 #else
-    ConsolePrint("%s %s\n", level_strings[level], out_msg);
+    ConsolePrint(out_msg);
 #endif
 }
 

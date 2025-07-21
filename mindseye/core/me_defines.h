@@ -21,22 +21,26 @@ typedef wchar_t wchar;
 
 #define REF(x) (void)(x)
 
-#if defined(__clang__) && !defined(COMPILER_CLANG)
+#if defined(__clang__)
 #define COMPILER_CLANG
-#endif
-#if defined(__GNUC__) && !defined(COMPILER_GCC)
+#elif defined(__GNUC__)
 #define COMPILER_GCC
-#endif
-#if defined(_MSC_VER) && !defined(COMPILER_MSVC)
+#elif defined(_MSC_VER)
 #define COMPILER_MSVC
+#else
+#error "Unrecognized compiler
 #endif
 
-#if defined(_WIN32) && !defined(OS_WINDOWS)
+#if defined(_WIN32)
+#undef OS_WINDOWS
 #define OS_WINDOWS
-#endif
-#if defined(COMPILER_CLANG) && defined(__linux__) && !defined(OS_LINUX)
+#elif defined(__linux__)
+#undef OS_LINUX
 #define OS_LINUX
+#else
+#error "Unrecogized platform"
 #endif
+
 
 #if defined(COMPILER_CLANG) || defined(COMPILER_GCC)
 #define STATIC_ASSERT _Static_assert
@@ -86,12 +90,16 @@ typedef wchar_t wchar;
 
 #ifdef COMPILER_MSVC
 #define EXT_IMPORT __declspec(dllimport)
+#elif defined(COMPILER_CLANG)
+#define EXT_IMPORT __attribute__((dllimport))
 #else
 #define EXT_IMPORT
 #endif
 
 #ifdef COMPILER_MSVC
 #define EXT_EXPORT __declspec(dllexport)
+#elif defined(COMPILER_CLANG)
+#define EXT_EXPORT __attribute__((dllexport))
 #else
 #define EXT_EXPORT __attribute__((visibility("default")))
 #endif

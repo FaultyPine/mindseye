@@ -39,9 +39,9 @@ struct meAllocator
     u64 currentSize;
 };
 
+MEAPI const meAllocator& AllocatorGet();
+MEAPI void AllocatorPush(const meAllocator& allocator);
+MEAPI meAllocator AllocatorPop();
+
 
 void InitializeAllocatorSystem();
-
-const meAllocator& AllocatorGet();
-void AllocatorPush(const meAllocator& allocator);
-meAllocator AllocatorPop();

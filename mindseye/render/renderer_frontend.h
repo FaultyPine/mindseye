@@ -2,4 +2,5 @@
 
 
 
-
+void RendererInitialize();
+void RendererTeardown();

@@ -2,7 +2,8 @@
 
 #include "me_core.h"
 #include "core/me_log.h"
-
+#include "core/me_memory.h"
+#include "render/renderer_frontend.h"
 
 // sanity
 STATIC_ASSERT(sizeof(s8) == 1);
@@ -112,4 +113,11 @@ u32 HashBytes(u8* data, u32 size)
         hash = hash * FNV_prime;
     }
     return hash;
+}
+
+void InitializeEngine()
+{
+    InitializeLogger();
+    InitializeAllocatorSystem();
+    RendererInitialize();
 }
