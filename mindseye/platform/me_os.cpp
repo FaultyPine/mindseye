@@ -12,7 +12,11 @@ static EntryPointFunc globalEntryPointFunc = nullptr;
 
 int me_os_platform_main(int argc, char** argv)
 {
+#ifdef OS_WINDOWS
     return me_os_win_main(argc, argv);
+#else
+#error "Unimplemented OS entrypoint"
+#endif
 }
 
 void __InternalRegisterOSEntryPoint(EntryPointFunc entryPoint)
@@ -26,6 +30,8 @@ void __InternalRegisterOSEntryPoint(EntryPointFunc entryPoint)
 
 void ConsolePrint(const char* text) 
 {
+#ifdef OS_WINDOWS
     OutputDebugStringA(text);
+#endif
 }
 

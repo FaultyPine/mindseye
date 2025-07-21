@@ -4,7 +4,7 @@
 
 
 void ConsolePrint(const char* text);
-
+void* LoadDynamicLibrary(const char* name);
 
 typedef int(*EntryPointFunc)(int argc, char** argv);
 MEAPI void __InternalRegisterOSEntryPoint(EntryPointFunc entryPoint);
@@ -22,4 +22,3 @@ MEAPI int me_os_platform_main(int argc, char** argv);
         return me_os_platform_main(argc, argv);\
     }\
 
-void* LoadDynamicLibrary(const char* name);
