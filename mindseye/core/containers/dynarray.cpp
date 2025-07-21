@@ -1,8 +1,8 @@
 #include "dynarray.h"
 
 
-#include "me_log.h"
-#include "me_memory.h"
+#include "core/me_log.h"
+#include "core/me_memory.h"
 
 #define ARRAY_CHECKS 1
 
@@ -15,9 +15,7 @@ struct DynArrayHeader
     u32 capacity;
     // size in bytes of each element
     u32 stride;
-    // allocation function
-    DynArrayAllocFunc allocFunc;
-    DynArrayFreeFunc freeFunc;
+    meAllocator* allocator;
 };
 
 inline DynArrayHeader* GetHeaderPointer(DynArray array)
@@ -30,45 +28,30 @@ inline DynArrayHeader* GetHeaderPointer(DynArray array)
 
 // ===== Create & Destroy =====
 
-void* DynArrayInternalAlloc(DynArrayAllocFunc allocFunc, size_t size)
+Allocation DynArrayInternalAlloc(meAllocator* allocator, size_t size)
 {
-    if (allocFunc == nullptr)
-    {
-        return SYSTEM_MALLOC(size);
-    }
-    else
-    {
-        return allocFunc(size);
-    }
+    return allocator->alloc(size);
 }
 
-void DynArrayInternalFree(DynArrayFreeFunc freeFunc, void* data)
+void DynArrayInternalFree(meAllocator* allocator, Allocation data)
 {
-    if (freeFunc == nullptr)
-    {
-        SYSTEM_FREE(data);
-    }
-    else
-    {
-        freeFunc(data);
-    }
+    allocator->free(data);
 }
 
-DynArray __DynArrayCreate(u32 stride, u32 initialCapacity, DynArrayAllocFunc allocFunc, DynArrayFreeFunc freeFunc)
+DynArray __DynArrayCreate(u32 stride, u32 initialCapacity, meAllocator* allocator)
 {
     u32 headerSize = sizeof(DynArrayHeader);
     u32 arraySize = initialCapacity * stride;
     u32 allocSize = headerSize + arraySize;
-    // TODO: allow custom allocator
-    u8* arrayBackingMem = (u8*)DynArrayInternalAlloc(allocFunc, allocSize);
+    Allocation arrayBackingAlloc = DynArrayInternalAlloc(allocator, allocSize);
+    u8* arrayBackingMem = (u8*)arrayBackingAlloc.data;
     ME_MEMCLEAR(arrayBackingMem, allocSize);
     // populate header
     DynArrayHeader* headerPointer = (DynArrayHeader*)arrayBackingMem;
     headerPointer->size = 0;
     headerPointer->capacity = initialCapacity;
     headerPointer->stride = stride;
-    headerPointer->allocFunc = allocFunc;
-    headerPointer->freeFunc = freeFunc;
+    headerPointer->allocator = allocator;
     // our DynArray is a pointer to our array elements, and metadata about the array
     // is stored just before that pointer
     DynArray result = arrayBackingMem + headerSize; 
@@ -79,19 +62,19 @@ void DynArrayDestroy(DynArray& array)
 {
     // since header info is stored before the array pointer, move back to the beginning of the allocation to free it
     DynArrayHeader* baseArrayPtr = GetHeaderPointer(array);
-    DynArrayInternalFree(baseArrayPtr->freeFunc, baseArrayPtr);
+    DynArrayInternalFree(baseArrayPtr->allocator, Allocation(baseArrayPtr, baseArrayPtr->size));
     array = (void*)0;
 }
 
-constexpr static u32 GROWTH_FACTOR = 2;
+constexpr static u32 DYNARRAY_GROWTH_FACTOR = 2;
 DynArray DynArrayResize(DynArray array)
 {
     DynArrayHeader* header = GetHeaderPointer(array);
 #if ARRAY_CHECKS
     ME_ASSERT(header->capacity != 0 && "resize called on array with 0 capacity");
 #endif
-    u32 newCapacity = header->size * GROWTH_FACTOR;
-    DynArray newArray = __DynArrayCreate(header->stride, newCapacity, header->allocFunc, header->freeFunc);
+    u32 newCapacity = header->size * DYNARRAY_GROWTH_FACTOR;
+    DynArray newArray = __DynArrayCreate(header->stride, newCapacity, header->allocator);
     DynArrayHeader* newArrayBasePtr = GetHeaderPointer(newArray);
     u32 totalOldArraySize = (header->size * header->stride) + sizeof(DynArrayHeader);
     ME_MEMCPY(newArrayBasePtr, header, totalOldArraySize);
@@ -117,7 +100,7 @@ void* __DynArrayPushAt(DynArray array, void* obj, u32 index)
         array = DynArrayResize(array);
         header = GetHeaderPointer(array);
     }
-    u32 arrSize =header->size;
+    u32 arrSize = header->size;
     u32 stride = header->stride;
     u8* arrayMem = (u8*)array;
     // if not on last element, copy all elements 1 to the right
@@ -145,7 +128,6 @@ void __DynArrayPopAt(DynArray array, u32 index, void* out)
 {
     DynArrayHeader* header = GetHeaderPointer(array);
     u32 arrSize = header->size;
-    u32 capacity = header->capacity;
     u32 stride = header->stride;
 #if ARRAY_CHECKS
     if (index >= arrSize)
@@ -249,7 +231,7 @@ void DynArrayTests()
     DynArrayClear(arr);
     ME_ASSERT(DynArrayGetSize(arr) == 0);
 
-    s32 shouldntChange = 0xDEADBEEF;
+    u32 shouldntChange = 0xDEADBEEF;
     LOG_INFO("Expecting two fatal errors here:");
     DynArrayPop(arr, shouldntChange);
     DynArrayPopAt(arr, 0, shouldntChange);

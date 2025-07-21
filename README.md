@@ -46,9 +46,7 @@ to support, for instance, rendering frame X, then rendering frame X+20, then fra
 
 *Game Simulation*:
 A purposely single-threaded simulation to ensure determinism. 
-Potentially could allow users to do whatever they want with threads, but at their own risk of "moment-to-moment debugging" desyncs in replays.
-I.E. it is possible to allow multiple threads to be replayed if we assume (or internally ensure) there aren't race conditions/there is proper synchronization.
-But if you pause in a debugger during a replay, there's no way to ensure threads are in the same *exact* place in the replay that they were in when the program originally ran (we can get kinda close w/ipt & etw, but at that point it's not worth the effort).
+Potentially could allow users to do whatever they want with threads, but at their own risk of "moment-to-moment debugging" desyncs in replays from any race conditions. though this might be good, since if multiple runs of the same replay desync we know there's a race condition
 
 *Core Engine*
 
@@ -67,6 +65,8 @@ Engine design to support above:
 
 
 ### Extra stuff i want to look into
+- procedural animation combined with flocking
+    - imagining a swarm of small "feather" meshes all combining like a pointcloud to create a procedurally animated huge hawk boss
 - https://gpuopen.com/learn/mesh_shaders/mesh_shaders-procedural_grass_rendering/
 - meshlet compression (research said up to 60% savings from normal mesh storage holy crap)
 
@@ -74,3 +74,4 @@ Engine design to support above:
 ### Game
 A short&sweet experience centered around the concepts in Courage To Create by Rollo May
 walking simulator-esc. No combat/levels/objectives/etc. Just telling a story & discussing creativity
+throw in some non euclidean portal nonsense

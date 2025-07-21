@@ -47,10 +47,11 @@ struct FixedGrowableArray
     MEAPI void push_back(const T& element);
     // inserts element at specified index - pushes elements to the right. Clamps index to within bounds
     MEAPI void insert(const T& element, u32 index);
-    // zeroes out specified element (*DOES NOT CALL DTOR/DELETE*) and places the rightmost element in it's place
+    // (*DOES NOT CALL DTOR/DELETE*) and places the rightmost element in it's place
     MEAPI T erase_and_fill(u32 index);
-    // zeroes out specified element (*DOES NOT CALL DTOR/DELETE*) and moves elements to the right of it to fill the gap
+    // (*DOES NOT CALL DTOR/DELETE*) and moves elements to the right of it to fill the gap
     MEAPI T erase(u32 index);
+    MEAPI T pop();
 
     // returns element at index
     MEAPI T& at(u32 index);

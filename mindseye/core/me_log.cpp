@@ -97,7 +97,7 @@ void LogMessage(LogLevel level, const char* message, ...)
         return;
     }
 
-    constexpr u32 log_message_limit = 16000;
+    constexpr s32 log_message_limit = 16000;
     char out_msg[log_message_limit]; // hardcoded log limit...
 
     va_list args;

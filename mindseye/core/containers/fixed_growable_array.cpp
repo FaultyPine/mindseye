@@ -1,18 +1,18 @@
 #include "fixed_growable_array.h"
 
-#include "me_log.h"
-#include "me_memory.h"
+#include "core/me_log.h"
+#include "core/me_memory.h"
 
-constexpr u32 GROWTH_FACTOR = 2;
+constexpr u32 FIXEDGROWABLE_GROWTH_FACTOR = 2;
 template <typename T, u32 fixedSize>
 static void CheckArrayResize(FixedGrowableArray<T, fixedSize>& array)
 {
     ME_ASSERT(array.size <= array.capacity);
     if (array.size >= array.capacity)
     {
-        array.capacity = array.size * GROWTH_FACTOR;
+        array.capacity = array.size * FIXEDGROWABLE_GROWTH_FACTOR;
         // moving old buffer (could be our fixed mem or a dyn alloc) to a new allocation
-        T* prevAlloc = array.elements == &array.fixedMem[0] ? nullptr : array.elements;
+        //T* prevAlloc = array.elements == &array.fixedMem[0] ? nullptr : array.elements;
         T* prevElements = array.elements;
         array.elements = (T*)SYSTEM_MALLOC(sizeof(T) * array.capacity);
         ME_MEMMOVE(array.elements, prevElements, sizeof(T) * array.size);
@@ -92,6 +92,15 @@ T FixedGrowableArray<T, fixedSize>::erase(u32 index)
     ME_MEMMOVE(&DynArrayGet<T>(elements, index), &DynArrayGet<T>(elements, index+1), moveSize); 
     size--;
     return tmp;
+}
+
+template <typename T, u32 fixedSize>
+T FixedGrowableArray<T, fixedSize>::pop()
+{
+    ME_ASSERT(size > 0 && "Cannot pop from empty array");
+    T value = elements[size - 1];
+    --size;
+    return value;
 }
 
 template <typename T, u32 fixedSize>

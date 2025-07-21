@@ -14,11 +14,11 @@ typedef void* (*DynArrayAllocFunc)(size_t size);
 typedef void (*DynArrayFreeFunc)(void* data);
 
 // Create an array with an optional initial capacity (number of elements)
-DynArray __DynArrayCreate(u32 stride, u32 initialCapacity, DynArrayAllocFunc allocFunc, DynArrayFreeFunc freeFunc);
+DynArray __DynArrayCreate(u32 stride, u32 initialCapacity, meAllocator* allocator);
 template<typename T>
-T* DynArrayCreate(u32 initialCapacity = INITIAL_CAPACITY, DynArrayAllocFunc allocFunc = nullptr, DynArrayFreeFunc freeFunc = nullptr)
+T* DynArrayCreate(u32 initialCapacity = INITIAL_CAPACITY, meAllocator* allocator = nullptr)
 {
-    return (T*)__DynArrayCreate(sizeof(T), initialCapacity, allocFunc, freeFunc);
+    return (T*)__DynArrayCreate(sizeof(T), initialCapacity, allocator);
 }
 // Frees backing memory
 void DynArrayDestroy(DynArray& array);

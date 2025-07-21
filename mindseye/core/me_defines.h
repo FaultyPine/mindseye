@@ -84,20 +84,24 @@ typedef wchar_t wchar;
 
 #define U32_INVALID_ID 999999999U
 
+#ifdef COMPILER_MSVC
+#define EXT_IMPORT __declspec(dllimport)
+#else
+#define EXT_IMPORT
+#endif
+
+#ifdef COMPILER_MSVC
+#define EXT_EXPORT __declspec(dllexport)
+#else
+#define EXT_EXPORT __attribute__((visibility("default")))
+#endif
+
 // exports
 #ifdef MEEXPORT
-#ifdef COMPILER_MSVC
-#define MEAPI __declspec(dllexport)
-#else
-#define MEAPI __attribute__((visibility("default")))
-#endif
+#define MEAPI EXT_EXPORT
 // imports
 #else 
-#ifdef COMPILER_MSVC
-#define MEAPI __declspec(dllimport)
-#else
-#define MEAPI
-#endif
+#define MEAPI EXT_IMPORT
 #endif
 
 #define C_LINKAGE extern "C"
@@ -115,5 +119,28 @@ typedef wchar_t wchar;
 #define ME_INLINE static inline
 #define ME_NOINLINE
 #endif
+
+
+#ifdef COMPILER_MSVC
+C_LINKAGE void __cdecl __debugbreak(void);
+#define DEBUG_BREAK __debugbreak()
+#else
+#define DEBUG_BREAK __builtin_trap()
+#endif
+
+#ifdef ME_ASSERTIONS_ENABLED
+    #ifdef LOG_FATAL
+        #define ME_ASSERT(x) \
+            if (!(x)) Unlikely { LOG_FATAL("%s | %s:%i", #x, __FILE__, __LINE__); DEBUG_BREAK; }
+    #else
+        #define ME_ASSERT(x) \
+            if (!(x)) Unlikely { DEBUG_BREAK; }
+    #endif
+    #define UNIMPLEMENTED() ME_ASSERT(!"Unimplemented!");
+#else
+    #define ME_ASSERT(x)
+    #define UNIMPLEMENTED()
+#endif
+
 
 #endif

@@ -33,10 +33,14 @@ if "%~1"=="" echo [full build] && set "mindseye=1" && set "testbed=1"
 
 @REM currently assuming we do compile+link all in one step, this may change.
 
+@REM lib flags
+set link_libs= -L%root%/mindseye/external/vulkan_lib/Lib -lvulkan-1
+set include_libs= 
+
 @REM common compile flags
-set compile_flags_common= -I%root% -I%root%\mindseye -DOS_WINDOWS -DCOMPILER_CLANG -D_UNICODE -Wno-deprecated-declarations -g -gcodeview -gno-column-info -std=c++20 -Wall -ferror-limit=10000
+set compile_flags_common= -I%root% -I%root%\mindseye -I%root%/mindseye/external %include_libs% -DNOMINMAX -DOS_WINDOWS -DCOMPILER_CLANG -D_UNICODE -Wno-deprecated-declarations -g -gcodeview -gno-column-info -std=c++20 -Wall -Wextra -Wno-unused-parameter -ferror-limit=10000
 for /f %%i in ('call git describe --always --dirty')   do set compile_flags_common=%compile_flags_common% -DBUILD_GIT_HASH=\"%%i\"
-set linker_flags_common= -luser32 -Wl,-subsystem:console
+set linker_flags_common= %link_libs% -luser32 -Wl,-subsystem:console
 
 :: mindseye engine
 set compile_mindseye_dbg= -O0 -DBUILD_DEBUG=1 -DMEEXPORT -D_USRDLL -D_WINDLL -D_DLL -shared

@@ -15,12 +15,6 @@ enum LogLevel
     LOG_NUM_LEVELS,
 };
 
-#ifdef COMPILER_MSVC
-C_LINKAGE void __cdecl __debugbreak(void);
-#define DEBUG_BREAK __debugbreak()
-#else
-#define DEBUG_BREAK __builtin_trap()
-#endif
 
 MEAPI bool InitializeLogger();
 MEAPI void ShutdownLogger();
@@ -36,12 +30,4 @@ MEAPI void LogMessage(LogLevel level, const char* message, ...);
 #define LOG_TRACE(message, ...) LogMessage(LOG_LEVEL_TRACE, message, __VA_ARGS__)
 
 
-#ifdef ME_ASSERTIONS_ENABLED
-#define ME_ASSERT(x) \
-    if (!(x)) Unlikely { LOG_FATAL("%s | %s:%i", #x, __FILE__, __LINE__); DEBUG_BREAK; }
-#define UNIMPLEMENTED() ME_ASSERT(!"Unimplemented!");
-#else
-#define ME_ASSERT(x)
-#define UNIMPLEMENTED()
-#endif
 
