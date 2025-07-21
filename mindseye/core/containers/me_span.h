@@ -14,6 +14,11 @@ struct meSpan
         ME_ASSERT(size >= offset);
         return meSpan(((u8*)data)+offset, size - offset);
     }
+    template<typename T>
+    operator T*() const 
+    {
+        return (T*)data; 
+    }
 };
 
 // for extra markup

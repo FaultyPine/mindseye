@@ -2,24 +2,22 @@
 #define ME_DYNARRAY_H
 
 #include "core/me_defines.h"
+#include "core/me_memory.h"
 
 // "stretchy buffer" implementation
 // dynamic array that resizes itself when capacity is reached
 // stores capacity/size in a header section stored *before* the actual array pointer
 
 typedef void* DynArray;
-constexpr static u32 INITIAL_CAPACITY = 5;
-
-typedef void* (*DynArrayAllocFunc)(size_t size);
-typedef void (*DynArrayFreeFunc)(void* data);
 
 // Create an array with an optional initial capacity (number of elements)
 DynArray __DynArrayCreate(u32 stride, u32 initialCapacity, meAllocator* allocator);
 template<typename T>
-T* DynArrayCreate(u32 initialCapacity = INITIAL_CAPACITY, meAllocator* allocator = nullptr)
+T* DynArrayCreate(meAllocator* allocator, u32 initialCapacity = 5)
 {
     return (T*)__DynArrayCreate(sizeof(T), initialCapacity, allocator);
 }
+
 // Frees backing memory
 void DynArrayDestroy(DynArray& array);
 
@@ -29,6 +27,7 @@ u32 DynArrayGetSize(DynArray array);
 u32 DynArrayGetCapacity(DynArray array);
 // Retrives the stride from the DynArray header
 u32 DynArrayGetStride(DynArray array);
+meAllocator* DynArrayGetAllocator(DynArray array);
 
 template <typename T>
 inline T& DynArrayGet(DynArray array, u32 index)
@@ -80,4 +79,4 @@ void DynArrayClear(DynArray array);
 #endif
 
 
-void DynArrayTests();
+MEAPI void DynArrayTests();

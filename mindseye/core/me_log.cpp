@@ -105,14 +105,15 @@ void LogMessage(LogLevel level, const char* message, ...)
     s32 bytesWritten = stbsp_vsnprintf(out_msg, log_message_limit, message, args);
     va_end(args);
     ME_ASSERT(bytesWritten < log_message_limit);
+    const char* processedMsg = TextFormat("%s\n", out_msg);
 
     // append (optional)color and log level to message
 #if TERMINAL_COLORED_OUTPUT_ENABLED
     SetTerminalColor(level);
-    ConsolePrint(out_msg);
+    ConsolePrint(processedMsg);
     SetTerminalColor((LogLevel)-1);
 #else
-    ConsolePrint(out_msg);
+    ConsolePrint(processedMsg);
 #endif
 }
 
@@ -124,7 +125,7 @@ const char *TextFormat(const char *text, ...)
     #define MAX_TEXTFORMAT_BUFFERS      12        // Maximum number of static buffers for text formatting
 #endif
 #ifndef MAX_TEXT_BUFFER_LENGTH
-    #define MAX_TEXT_BUFFER_LENGTH   1024        // Maximum size of static text buffer
+    #define MAX_TEXT_BUFFER_LENGTH   16000        // Maximum size of static text buffer
 #endif
 
     // We create an array of buffers so strings don't expire until MAX_TEXTFORMAT_BUFFERS invocations

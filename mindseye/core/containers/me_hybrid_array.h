@@ -13,7 +13,7 @@
 template <typename T, u32 fixedSize>
 struct HybridArray
 {
-    MEAPI HybridArray();
+    MEAPI HybridArray(meAllocator* allocator = nullptr);
     MEAPI HybridArray(const HybridArray&& arr)
     {
         size = arr.size;
@@ -35,13 +35,7 @@ struct HybridArray
         }
         return *this;
     }
-    MEAPI ~HybridArray()
-    {
-        if (elements != &fixedMem[0])
-        {
-            SYSTEM_FREE(elements);
-        }
-    }
+    MEAPI ~HybridArray();
 
     // adds element to end of array
     MEAPI void push_back(const T& element);
@@ -69,6 +63,7 @@ struct HybridArray
     // both in terms of number of elements
     u32 size = 0;
     u32 capacity = 0;
+    meAllocator* allocator = nullptr;
 };
 
-MEAPI void FixedGrowableArrayTests();
+MEAPI void HybridArrayTests();

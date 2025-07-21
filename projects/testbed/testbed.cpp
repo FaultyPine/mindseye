@@ -6,10 +6,17 @@
 #include "mindseye/core/me_memory.h"
 #include "mindseye/core/me_result.h"
 
+// tests
+#include "mindseye/core/containers/dynarray.h"
+#include "mindseye/core/containers/me_hybrid_array.h"
+
+
 int testbed_main(int argc, char** argv)
 {
     InitializeEngine();
-    Arena arena = ArenaInit(AllocatorGet().alloc(500).data, 500, "somearena"); 
+    DynArrayTests();
+    HybridArrayTests();
+    Arena arena = ArenaInit(500, "somearena"); 
     int something = sizeof(Result<void, int>);
     REF(something);
     REF(arena);

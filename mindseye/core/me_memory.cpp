@@ -3,8 +3,14 @@
 
 static Stack<meAllocator, 10> g_allocators;
 
+EXT_IMPORT C_LINKAGE void*  malloc (size_t _Size);
+EXT_IMPORT C_LINKAGE void   free   (void *_Block);
+EXT_IMPORT C_LINKAGE void*  realloc(void *_Block, size_t newSize);
+#define SYSTEM_MALLOC(size) malloc(size)
+#define SYSTEM_FREE(ptr) free(ptr)
+#define SYSTEM_REALLOC(ptr, newSize) realloc(ptr, newSize)
 
-const meAllocator& AllocatorGet()
+meAllocator& AllocatorGet()
 {
     return g_allocators.top();
 }
@@ -16,9 +22,9 @@ static Allocation SystemAlloc(
 }
 
 static void SystemFree(
-    const Allocation& mem)
+    void* mem)
 {
-    SYSTEM_FREE(mem.data);
+    SYSTEM_FREE(mem);
 }
 
 static Allocation SystemRealloc(

@@ -4,24 +4,20 @@
 #include "core/me_string.h"
 #include "core/me_memory.h"
 
-
-Arena ArenaInit(void* backing_buffer, size_t arena_size) 
+Arena ArenaInit(size_t arena_size, const char* name, void* backing_buffer) 
 {
     Arena a;
-    a.backing_mem = (unsigned char*)backing_buffer;
+    a.backing_mem = (unsigned char*) (backing_buffer != nullptr ? backing_buffer : ME_MALLOC(arena_size).data);
     a.backing_mem_size = arena_size;
     a.offset = 0;
     a.prev_offset = 0;
     //ME_MEMCLEAR(backing_buffer, arena_size);
-    return a;
-}
-
-Arena ArenaInit(void* backing_buffer, size_t arena_size, const char* name) 
-{
-    Arena a = ArenaInit(backing_buffer, arena_size);
-    char* name_mem = (char*)ArenaAlloc(&a, ARENA_MAX_NAME_LEN); 
-    ME_MEMCLEAR(name_mem, ARENA_MAX_NAME_LEN);
-    StringCopy(FromCString(name_mem, ARENA_MAX_NAME_LEN), FromCString(name, ARENA_MAX_NAME_LEN)).expect("Failed to copy arena name");
+    if (name != nullptr)
+    {
+        char* name_mem = (char*)ArenaAlloc(&a, ARENA_MAX_NAME_LEN); 
+        ME_MEMCLEAR(name_mem, ARENA_MAX_NAME_LEN);
+        StringCopy(FromCString(name_mem, ARENA_MAX_NAME_LEN), FromCString(name, ARENA_MAX_NAME_LEN)).expect("Failed to copy arena name");
+    }
     return a;
 }
 
@@ -100,7 +96,7 @@ void ArenaFreeAll(Arena* arena)
 {
     ArenaClear(arena);
     arena->backing_mem_size = 0;
-    SYSTEM_FREE(arena->backing_mem);
+    ME_FREE(arena->backing_mem);
 }
 
 ArenaTemp ArenaTempInit(Arena* arena) 

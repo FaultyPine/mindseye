@@ -1,6 +1,7 @@
 #pragma once
 
 #include "me_defines.h"
+#include "me_memory.h"
 
 struct Arena 
 {
@@ -13,8 +14,7 @@ struct Arena
 #define ArenaAllocType(arena, type, num) ((type*)ArenaAlloc(arena, sizeof(type) * num))
 #define ARENA_MAX_NAME_LEN 30
 
-MEAPI Arena ArenaInit(void* backingBuffer, size_t arenaSize);
-MEAPI Arena ArenaInit(void* backingBuffer, size_t arenaSize, const char* name);
+MEAPI Arena ArenaInit(size_t arenaSize, const char* name = nullptr, void* backingBuffer = nullptr);
 MEAPI void* ArenaAlloc(Arena* arena, size_t allocSize);
 MEAPI void* ArenaResize(Arena* arena, void* oldMem, size_t oldSize, size_t newSize);
 MEAPI void ArenaClear(Arena* arena);

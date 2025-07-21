@@ -183,11 +183,16 @@ u32 DynArrayGetStride(DynArray array)
     return headerPtr->stride;
 }
 
+meAllocator* DynArrayGetAllocator(DynArray array)
+{
+    DynArrayHeader* headerPtr = GetHeaderPointer(array);
+    return headerPtr->allocator;
+}
 
 void DynArrayTests()
 {
     LOG_INFO("Testing DynArray...");
-    s32* arr = DynArrayCreate<s32>();
+    s32* arr = DynArrayCreate<s32>(&AllocatorGet());
     s32 x = 1;
     DynArrayPush(arr, x);
     ME_ASSERT(DynArrayGetSize(arr) == 1);
