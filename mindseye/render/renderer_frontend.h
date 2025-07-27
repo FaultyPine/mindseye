@@ -1,6 +1,6 @@
 #pragma once
 
+struct EngineContext;
 
-
-void RendererInitialize();
+void RendererInitialize(EngineContext* engine);
 void RendererTeardown();

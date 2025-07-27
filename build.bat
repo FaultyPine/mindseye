@@ -30,7 +30,7 @@ for %%a in (%*) do set "%%a=1"
 if not "%release%"=="1" set debug=1
 if "%debug%"=="1"   set release=0 && echo [debug mode]
 if "%release%"=="1" set debug=0 && echo [release mode]
-if "%~1"=="" echo [full build] && set "mindseye=1" && set "testbed=1"
+if "%~1"=="" echo [full build] && set "mindseye=1" && set "testbed=1" && set "driver=1"
 
 
 :: recursive fs search for specified file extensions
@@ -47,9 +47,9 @@ set link_libs=
 set include_libs= 
 
 @REM common compile flags
-set compile_flags_common= -I%root% -I%root%\mindseye -I%root%/mindseye/external %include_libs% -DNOMINMAX -D_UNICODE -Wno-deprecated-declarations -g -gcodeview -gno-column-info -std=c++20 -Wall -Wextra -Wno-unused-parameter -ferror-limit=10000
+set compile_flags_common= -I%root% -I%root%\mindseye -I%root%/mindseye/external %include_libs% -DNOMINMAX -DUNICODE -Wno-deprecated-declarations -g -gcodeview -gno-column-info -std=c++20 -Wall -Wextra -Wno-unused-parameter -ferror-limit=10000
 for /f %%i in ('call git describe --always --dirty')   do set compile_flags_common=%compile_flags_common% -DBUILD_GIT_HASH=\"%%i\"
-set linker_flags_common= %link_libs% -luser32 -Wl,-subsystem:console
+set linker_flags_common= %link_libs% -luser32 -Wl,-subsystem:windows
 
 :: mindseye engine
 set compile_mindseye_dbg= -O0 -DBUILD_DEBUG=1 -DMEEXPORT -D_USRDLL -D_WINDLL -D_DLL -shared
@@ -57,17 +57,26 @@ set compile_mindseye_rel= -O2 -DBUILD_DEBUG=0 -DMEEXPORT -D_USRDLL -D_WINDLL -D_
 set link_mindseye= %linker_flags_common% -Wl,msvcrt.lib,/DLL,/NODEFAULTLIB:libcmt.lib,/NODEFAULTLIB:libcmtd.lib,/NODEFAULTLIB:msvcrtd.lib
 
 :: testbed
-set compile_testbed_dbg= -O0 -DBUILD_DEBUG=1 
-set compile_testbed_rel= -O2 -DBUILD_DEBUG=0
-set link_testbed=  -L%root%\build -lmindseye %linker_flags_common%
+set compile_testbed_dbg= -O0 -DBUILD_DEBUG=1 -D_USRDLL -D_WINDLL -D_DLL -shared
+set compile_testbed_rel= -O2 -DBUILD_DEBUG=0 -D_USRDLL -D_WINDLL -D_DLL -shared
+set link_testbed=  -L%root%\build -lmindseye %linker_flags_common% %linker_flags_common% -Wl,msvcrt.lib,/DLL,/NODEFAULTLIB:libcmt.lib,/NODEFAULTLIB:libcmtd.lib,/NODEFAULTLIB:msvcrtd.lib
+
+::driver
+::BOOKMARK(create main driver program that loads engine and game dlls, then initializes engine to point to the game)
+:: that way, everything can be dll reloaded, and the editor can also be loaded from the engine to have context of the game
+set compile_driver_dbg= -O0 -DBUILD_DEBUG=1
+set compile_driver_rel= -O2 -DBUILD_DEBUG=0
+set link_driver= -L%root%\build -lmindseye %linker_flags_common%
 
 if "%debug%"=="1" (
     set compile_mindseye=call clang %compile_mindseye_dbg% %compile_flags_common% %link_mindseye%
     set compile_testbed=call clang %compile_testbed_dbg% %compile_flags_common% %link_testbed%
+    set compile_driver=call clang %compile_driver_dbg% %compile_flags_common% %link_driver%
 )
 if "%release%"=="1" ( 
     set compile_mindseye=call clang %compile_mindseye_rel% %compile_flags_common% %link_mindseye%
     set compile_testbed=call clang %compile_testbed_rel% %compile_flags_common% %link_testbed%
+    set compile_driver=call clang %compile_driver_rel% %compile_flags_common% %link_driver%
 )
 
 if not exist build mkdir build
@@ -75,8 +84,10 @@ pushd build
 
 if "%mindseye%"=="1" echo [mindseye compile] && %compile_mindseye% %root%\mindseye\me_unity.cpp -o mindseye.dll
 IF %ERRORLEVEL% NEQ 0 (echo [mindseye compile] Error:%ERRORLEVEL% && exit /b)
-if "%testbed%"=="1" echo [testbed compile] && %compile_testbed% %root%\projects\testbed\testbed.cpp -o testbed.exe
+if "%testbed%"=="1" echo [testbed compile] && %compile_testbed% %root%\projects\testbed\testbed.cpp -o testbed.dll
 IF %ERRORLEVEL% NEQ 0 (echo [testbed compile] Error:%ERRORLEVEL% && exit /b)
+if "%driver%"=="1" echo [driver compile] && %compile_driver% %root%\mindseye\platform\driver.cpp -o driver.exe
+IF %ERRORLEVEL% NEQ 0 (echo [driver compile] Error:%ERRORLEVEL% && exit /b)
 echo Successfully built
 
 if "%run%"=="1" echo Running... && call testbed.exe

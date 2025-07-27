@@ -4,7 +4,7 @@
 #include "vulkan_backend/vulkan_backend.h"
 
 
-void RendererInitialize()
+void RendererInitialize(EngineContext* engine)
 {
     VulkanBackendInitialize();
 }

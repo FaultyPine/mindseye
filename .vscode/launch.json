@@ -5,10 +5,10 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "testbed",
+            "name": "driver",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceFolder}\\build\\testbed.exe",
+            "program": "${workspaceFolder}\\build\\driver.exe",
             "args": [],
             "stopAtEntry": false,
             //"preLaunchTask": "build_all",

@@ -1,7 +1,7 @@
 #include "me_memory.h"
 #include "core/containers/me_stack.h"
-
-static Stack<meAllocator, 10> g_allocators;
+#include "core/me_core.h"
+#include "platform/me_os.h"
 
 EXT_IMPORT C_LINKAGE void*  malloc (size_t _Size);
 EXT_IMPORT C_LINKAGE void   free   (void *_Block);
@@ -10,55 +10,56 @@ EXT_IMPORT C_LINKAGE void*  realloc(void *_Block, size_t newSize);
 #define SYSTEM_FREE(ptr) free(ptr)
 #define SYSTEM_REALLOC(ptr, newSize) realloc(ptr, newSize)
 
-meAllocator& AllocatorGet()
-{
-    return g_allocators.top();
-}
-
-static Allocation SystemAlloc(
+Allocation SystemAlloc(
     u64 size)
 {
     return Allocation((u8*)SYSTEM_MALLOC(size), size);
 }
 
-static void SystemFree(
+Allocation SystemReserve(
+    u64 size)
+{
+    return Allocation(meOSReserveVirtualMemory(size), size);
+}
+
+void SystemFree(
     void* mem)
 {
     SYSTEM_FREE(mem);
 }
 
-static Allocation SystemRealloc(
+Allocation SystemRealloc(
     const Allocation& mem, 
     u64 newSize)
 {
     return Allocation((u8*)SYSTEM_REALLOC(mem.data, newSize), newSize);
 }
 
-static void SystemClear()
+meAllocator* GetSystemAllocator()
 {
-    UNIMPLEMENTED();
+    static meAllocator system;
+    if (system.alloc == nullptr)
+    {
+        system.alloc = SystemAlloc;
+        system.realloc = SystemRealloc;
+        system.reserve = SystemReserve;
+        system.free = SystemFree;
+        system.currentSize = 0;
+    }
+    return &system;
 }
 
+#define ENGINE_INITIAL_RESERVED_MEMSIZE GIGABYTES_BYTES(1)
 
-void InitializeAllocatorSystem()
+void InitializeAllocatorSystem(EngineContext* engine)
 {
-    meAllocator systemAllocator;
-    systemAllocator.alloc = SystemAlloc;
-    systemAllocator.free = SystemFree;
-    systemAllocator.realloc = SystemRealloc;
-    systemAllocator.clear = SystemClear;
-    AllocatorPush(systemAllocator);
+    meAllocator* systemAllocator = GetSystemAllocator();
+    engine->engineArena = ArenaInit(ENGINE_INITIAL_RESERVED_MEMSIZE, "Engine", systemAllocator->reserve(ENGINE_INITIAL_RESERVED_MEMSIZE));
+    engine->engineFrameAllocator = ArenaInit(ENGINE_INITIAL_RESERVED_MEMSIZE, "Engine Frame", systemAllocator->reserve(ENGINE_INITIAL_RESERVED_MEMSIZE));
+    engine->engineSceneAllocator = ArenaInit(ENGINE_INITIAL_RESERVED_MEMSIZE, "Engine Scene", systemAllocator->reserve(ENGINE_INITIAL_RESERVED_MEMSIZE));
+    engine->gameArena = ArenaInit(ENGINE_INITIAL_RESERVED_MEMSIZE, "Game", systemAllocator->reserve(ENGINE_INITIAL_RESERVED_MEMSIZE));
+    engine->scratchWork = ArenaInit(ENGINE_INITIAL_RESERVED_MEMSIZE, "Scratch", systemAllocator->reserve(ENGINE_INITIAL_RESERVED_MEMSIZE));
 }
 
-void AllocatorPush(const meAllocator& allocator)
-{
-    g_allocators.push(allocator);
-}
-
-meAllocator AllocatorPop()
-{
-    ME_ASSERT(g_allocators.size() > 1); // can't pop system allocator, which is always the bottom of the stack
-    return g_allocators.pop();
-}
 
 

@@ -152,7 +152,7 @@ void HybridArrayTests()
 {
     LOG_INFO("Running HybridArray tests...");
     constexpr u32 testFixedSize = 10;
-    HybridArray<u32, testFixedSize> arr(&AllocatorGet());
+    HybridArray<u32, testFixedSize> arr(GetSystemAllocator());
     ME_ASSERT(arr.size == 0);
     arr.push_back(0);
     arr.push_back(1);

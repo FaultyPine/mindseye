@@ -1,7 +1,7 @@
 #pragma once 
 
 #include "me_defines.h"
-// NOTE: logger includes both logging *and* assertions
+struct EngineContext;
 
 enum LogLevel
 {
@@ -15,8 +15,7 @@ enum LogLevel
     LOG_NUM_LEVELS,
 };
 
-
-MEAPI bool InitializeLogger();
+MEAPI bool InitializeLogger(EngineContext* engine);
 MEAPI void ShutdownLogger();
 MEAPI void SetLogLevel(LogLevel level, bool toggle);
 MEAPI const char* TextFormat(const char *text, ...);

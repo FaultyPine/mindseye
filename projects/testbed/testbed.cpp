@@ -13,16 +13,22 @@
 
 int testbed_main(int argc, char** argv)
 {
-    InitializeEngine();
+    EngineContext engine = {};
+    InitializeEngine(&engine);
     DynArrayTests();
     HybridArrayTests();
     Arena arena = ArenaInit(500, "somearena"); 
+    meOSCreateWindow({.name = STRING_LIT("Mindseye")}, &engine);
     int something = sizeof(Result<void, int>);
     REF(something);
     REF(arena);
     int x = 1;
     REF(x);
     LOG_TRACE("Hello world");
+    while (engine.isRunning)
+    {
+        meOSTick(&engine);
+    }
     return 0;
 }
 

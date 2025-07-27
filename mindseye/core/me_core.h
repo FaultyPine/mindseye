@@ -2,6 +2,7 @@
 
 #include "core/me_defines.h"
 #include "core/me_arena.h"
+#include "core/containers/me_stack.h"
 
 struct EngineContext
 {
@@ -15,15 +16,19 @@ struct EngineContext
     Arena engineArena = {}; // persistent
     Arena engineFrameAllocator = {}; // cleared at the end of each frame
     Arena engineSceneAllocator = {}; // persistent for a scene
+    Arena scratchWork = {}; // individual systems are in charge of handling their own allocations here.
 
     f32 deltaTime = 0.0f;
     f32 lastFrameTime = 0.0f;
     u32 frameCount = 0;
-    //GLFWwindow* glob_glfw_window = nullptr;
     u64 randomSeed = 0;
+
+    bool isRunning = false;
+    bool isIdle = false;
 };
 
-MEAPI void InitializeEngine();
+// Call this before any other mindseye functions
+MEAPI void InitializeEngine(EngineContext* engine);
 
 // returns the current time since app launch
 MEAPI f64 GetTime();

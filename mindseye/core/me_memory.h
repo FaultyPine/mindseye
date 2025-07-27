@@ -3,6 +3,7 @@
 
 #include "me_defines.h"
 #include "containers/me_span.h"
+struct EngineContext;
 
 C_LINKAGE void* memcpy(void *_Dst, const void *_Src, size_t _Size);
 C_LINKAGE void* memmove(void *_Dst, const void *_Src, size_t _Size);
@@ -26,6 +27,7 @@ typedef void(*ClearFn)();
 struct meAllocator
 {
     AllocateFn alloc;
+    AllocateFn reserve;
     FreeFn free;
     ReallocFn realloc;
     ClearFn clear;
@@ -33,13 +35,10 @@ struct meAllocator
     u64 currentSize;
 };
 
+meAllocator* GetSystemAllocator();
 
-MEAPI meAllocator& AllocatorGet();
-MEAPI void AllocatorPush(const meAllocator& allocator);
-MEAPI meAllocator AllocatorPop();
-
-#define ME_MALLOC(size) AllocatorGet().alloc(size)
-#define ME_FREE(ptr) AllocatorGet().free(ptr)
+#define ME_MALLOC(size) GetSystemAllocator()->alloc(size)
+#define ME_FREE(ptr) GetSystemAllocator()->free(ptr)
 
 
-void InitializeAllocatorSystem();
+void InitializeAllocatorSystem(EngineContext* engine);

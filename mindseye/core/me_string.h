@@ -9,6 +9,7 @@ struct String
     size_t len = 0;
     StringView CreateView(size_t offset = 0);
     StringView CreateView(size_t offset, size_t len);
+    String(char* data, size_t len) : data(data), len(len) {};
 };
 
 struct StringView // non-owning
@@ -41,7 +42,7 @@ struct StringView // non-owning
 
 Result<void, ErrMsg> StringCopy(String dst, String src);
 Result<StringView, ErrMsg> FindInString(StringView haystack, StringView needle);
-size_t wcharToNarrow(const wchar_t * src, char * dest, size_t destLen);
+size_t wcharToNarrow(const wchar_t* src, char * dest, size_t destLen);
 
 
 size_t CStringLength(const char* str);

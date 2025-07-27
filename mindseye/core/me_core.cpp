@@ -4,6 +4,7 @@
 #include "core/me_log.h"
 #include "core/me_memory.h"
 #include "render/renderer_frontend.h"
+#include "platform/me_os.h"
 
 // sanity
 STATIC_ASSERT(sizeof(s8) == 1);
@@ -115,9 +116,10 @@ u32 HashBytes(u8* data, u32 size)
     return hash;
 }
 
-void InitializeEngine()
+void InitializeEngine(EngineContext* engine)
 {
-    InitializeLogger();
-    InitializeAllocatorSystem();
-    RendererInitialize();
+    engine->isRunning = true;
+    InitializeLogger(engine);
+    InitializeAllocatorSystem(engine);
+    RendererInitialize(engine);
 }

@@ -7,13 +7,40 @@
 #include "windows/me_os_win.cpp"
 #endif
 
-
 static EntryPointFunc globalEntryPointFunc = nullptr;
 
-int me_os_platform_main(int argc, char** argv)
+
+void meOSCreateWindow(WindowCreationParams creationParams, EngineContext* engine)
 {
 #ifdef OS_WINDOWS
-    return me_os_win_main(argc, argv);
+    return meOSWinCreateWindow(creationParams, engine);
+#else
+#error "Unimplemented OS entrypoint"
+#endif
+}
+struct EngineContext;
+void meOSTick(EngineContext* engine)
+{
+#ifdef OS_WINDOWS
+    return meOSWinTick(engine);
+#else
+#error "Unimplemented OS entrypoint"
+#endif
+}
+
+void* meOSReserveVirtualMemory(u64 size)
+{
+#ifdef OS_WINDOWS
+    return meOSWinReserveVirtualMemory(size);
+#else
+#error "Unimplemented OS entrypoint"
+#endif
+}
+
+int meOSPlatformMain(int argc, char** argv)
+{
+#ifdef OS_WINDOWS
+    return meOSWinMain(argc, argv);
 #else
 #error "Unimplemented OS entrypoint"
 #endif

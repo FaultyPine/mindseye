@@ -15,7 +15,7 @@ static u32 LOG_LEVELS_ENABLED = 0;
 #define LOG_LEVEL_DEBUG_ENABLED 1
 #define LOG_LEVEL_TRACE_ENABLED 1
 
-bool InitializeLogger()
+bool InitializeLogger(EngineContext* engine)
 {
     SetLogLevel(LOG_LEVEL_FATAL, LOG_LEVEL_FATAL_ENABLED);
     SetLogLevel(LOG_LEVEL_ERROR, LOG_LEVEL_ERROR_ENABLED);

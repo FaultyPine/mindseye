@@ -1,14 +1,27 @@
 #pragma once
 
 #include "core/me_defines.h"
+#include "core/me_arena.h"
+#include "core/me_string.h"
 
+struct WindowCreationParams
+{
+    String name = STRING_LIT("Unknown Window");
+    u32 width = 800;
+    u32 height = 600;
+};
+struct EngineContext;
 
 void ConsolePrint(const char* text);
 void* LoadDynamicLibrary(const char* name);
+void* GetFunctionPtr(void* module, String functionName);
+
+MEAPI void meOSCreateWindow(WindowCreationParams creationParams, EngineContext* engine);
+MEAPI void meOSTick(EngineContext* engine);
+MEAPI void* meOSReserveVirtualMemory(u64 size);
 
 typedef int(*EntryPointFunc)(int argc, char** argv);
 MEAPI void __InternalRegisterOSEntryPoint(EntryPointFunc entryPoint);
-MEAPI int me_os_platform_main(int argc, char** argv);
 
 // register the *one* entry point of a program
 // entry point function must follow EntryPointFunc signature
@@ -16,9 +29,4 @@ MEAPI int me_os_platform_main(int argc, char** argv);
     struct ENTRY_POINT_STRUCT { \
         ENTRY_POINT_STRUCT() { __InternalRegisterOSEntryPoint(entryPointFunction); } \
     }; \
-    static ENTRY_POINT_STRUCT globalEntryPointHolder = {};\
-    int main(int argc, char** argv)\
-    {\
-        return me_os_platform_main(argc, argv);\
-    }\
-
+    static ENTRY_POINT_STRUCT globalEntryPointHolder = {};
