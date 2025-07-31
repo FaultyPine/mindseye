@@ -4,6 +4,12 @@
 #include "core/me_string.h"
 #include "core/me_memory.h"
 
+Allocation Arena::meAlloc(u64 size) { return {ArenaAlloc(this, size), size}; }
+Allocation Arena::meReserve(u64 size) { return {ArenaAlloc(this, size), size}; }
+void Arena::meFree(void* allocation) { ME_ASSERT(backing_mem <= allocation && allocation <= (backing_mem + backing_mem_size)); }
+Allocation Arena::meRealloc(const Allocation& allocation, u64 newSize) { UNIMPLEMENTED(); }
+void Arena::meClear() { ArenaClear(this); }
+
 Arena ArenaInit(size_t arena_size, const char* name, void* backing_buffer) 
 {
     Arena a;
@@ -16,7 +22,7 @@ Arena ArenaInit(size_t arena_size, const char* name, void* backing_buffer)
     {
         char* name_mem = (char*)ArenaAlloc(&a, ARENA_MAX_NAME_LEN); 
         ME_MEMCLEAR(name_mem, ARENA_MAX_NAME_LEN);
-        StringCopy(FromCString(name_mem, ARENA_MAX_NAME_LEN), FromCString(name, ARENA_MAX_NAME_LEN)).expect("Failed to copy arena name");
+        StringCopy(FromCString(name_mem, ARENA_MAX_NAME_LEN), FromCString(name, ARENA_MAX_NAME_LEN));
     }
     return a;
 }

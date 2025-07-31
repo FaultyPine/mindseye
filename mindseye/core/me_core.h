@@ -2,33 +2,40 @@
 
 #include "core/me_defines.h"
 #include "core/me_arena.h"
-#include "core/containers/me_stack.h"
+#include "platform/me_os.h" 
 
+struct Renderer;
 struct EngineContext
 {
-    // u32 windowWidth = 0;
-    // u32 windowHeight = 0; 
-    // u32 aspectRatioW = 0; 
-    // u32 aspectRatioH = 0;
-    // const char* appName = nullptr;
-
+    // allocators
     Arena gameArena = {};
-    Arena engineArena = {}; // persistent
+    Arena engineArena = {}; // persistent, never cleared
     Arena engineFrameAllocator = {}; // cleared at the end of each frame
     Arena engineSceneAllocator = {}; // persistent for a scene
     Arena scratchWork = {}; // individual systems are in charge of handling their own allocations here.
+    
+    // systems
+    Renderer* renderer = nullptr;
 
+    // engine state
     f32 deltaTime = 0.0f;
     f32 lastFrameTime = 0.0f;
     u32 frameCount = 0;
     u64 randomSeed = 0;
+
+    u32 windowWidth = 0;
+    u32 windowHeight = 0; 
+    // u32 aspectRatioW = 0; 
+    // u32 aspectRatioH = 0;
+    String appName = {};
+    OSCookbook* osData = {};
 
     bool isRunning = false;
     bool isIdle = false;
 };
 
 // Call this before any other mindseye functions
-MEAPI void InitializeEngine(EngineContext* engine);
+MEAPI void InitializeEngine(EngineContext* engine, WindowCreationParams windowCreationParams);
 
 // returns the current time since app launch
 MEAPI f64 GetTime();

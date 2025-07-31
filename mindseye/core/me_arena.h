@@ -3,16 +3,23 @@
 #include "me_defines.h"
 #include "me_memory.h"
 
-struct Arena 
+#define ArenaAllocType(arena, type, num) ((type*)ArenaAlloc(arena, sizeof(type) * num))
+#define ARENA_MAX_NAME_LEN 30
+
+// BOOKMARK/TODO: make this chained.
+struct Arena : public meAllocator 
 {
     unsigned char* backing_mem = 0;
     size_t backing_mem_size = 0;
     size_t offset = 0;
     size_t prev_offset = 0;
-};
 
-#define ArenaAllocType(arena, type, num) ((type*)ArenaAlloc(arena, sizeof(type) * num))
-#define ARENA_MAX_NAME_LEN 30
+    Allocation meAlloc(u64 size);
+    Allocation meReserve(u64 size);
+    void meFree(void* allocation);
+    Allocation meRealloc(const Allocation& allocation, u64 newSize);
+    void meClear();
+};
 
 MEAPI Arena ArenaInit(size_t arenaSize, const char* name = nullptr, void* backingBuffer = nullptr);
 MEAPI void* ArenaAlloc(Arena* arena, size_t allocSize);

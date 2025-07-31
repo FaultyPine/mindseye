@@ -7,18 +7,8 @@
 #define ARRAY_CHECKS 1
 
 
-struct DynArrayHeader
-{
-    // number of elements currently in the array
-    u32 size;
-    // number of *elements* we can hold in our backing memory
-    u32 capacity;
-    // size in bytes of each element
-    u32 stride;
-    meAllocator* allocator;
-};
 
-inline DynArrayHeader* GetHeaderPointer(DynArray array)
+DynArrayHeader* GetHeaderPointer(DynArray array)
 {
     u32 headerSize = sizeof(DynArrayHeader);
     // our header will always be 'behind' our array pointer.
@@ -30,12 +20,12 @@ inline DynArrayHeader* GetHeaderPointer(DynArray array)
 
 Allocation DynArrayInternalAlloc(meAllocator* allocator, size_t size)
 {
-    return allocator->alloc(size);
+    return allocator->meAlloc(size);
 }
 
 void DynArrayInternalFree(meAllocator* allocator, Allocation data)
 {
-    allocator->free(data);
+    allocator->meFree(data);
 }
 
 DynArray __DynArrayCreate(u32 stride, u32 initialCapacity, meAllocator* allocator)

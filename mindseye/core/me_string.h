@@ -1,6 +1,5 @@
 #pragma once
 
-#include "core/me_result.h"
 
 struct StringView;
 struct String
@@ -10,6 +9,8 @@ struct String
     StringView CreateView(size_t offset = 0);
     StringView CreateView(size_t offset, size_t len);
     String(char* data, size_t len) : data(data), len(len) {};
+    String() = default;
+    operator char*() { return data; }
 };
 
 struct StringView // non-owning
@@ -40,8 +41,8 @@ struct StringView // non-owning
 #define STRING_LIT(strlit) (String{(char*)(strlit), sizeof(strlit)-1})
 
 
-Result<void, ErrMsg> StringCopy(String dst, String src);
-Result<StringView, ErrMsg> FindInString(StringView haystack, StringView needle);
+bool StringCopy(String dst, String src);
+StringView FindInString(StringView haystack, StringView needle);
 size_t wcharToNarrow(const wchar_t* src, char * dest, size_t destLen);
 
 

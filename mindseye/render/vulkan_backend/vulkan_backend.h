@@ -3,5 +3,5 @@
 
 
 
-void VulkanBackendInitialize();
+void VulkanBackendInitialize(EngineContext* engine);
 void VulkanBackendTeardown();

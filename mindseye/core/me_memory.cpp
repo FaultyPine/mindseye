@@ -10,42 +10,35 @@ EXT_IMPORT C_LINKAGE void*  realloc(void *_Block, size_t newSize);
 #define SYSTEM_FREE(ptr) free(ptr)
 #define SYSTEM_REALLOC(ptr, newSize) realloc(ptr, newSize)
 
-Allocation SystemAlloc(
-    u64 size)
+Allocation meSystemAllocator::meAlloc(u64 size)
 {
     return Allocation((u8*)SYSTEM_MALLOC(size), size);
 }
 
-Allocation SystemReserve(
-    u64 size)
+Allocation meSystemAllocator::meReserve(u64 size)
 {
     return Allocation(meOSReserveVirtualMemory(size), size);
 }
 
-void SystemFree(
-    void* mem)
+void meSystemAllocator::meFree(void* allocation)
 {
-    SYSTEM_FREE(mem);
+    SYSTEM_FREE(allocation);
 }
 
-Allocation SystemRealloc(
-    const Allocation& mem, 
-    u64 newSize)
+Allocation meSystemAllocator::meRealloc(const Allocation& allocation, u64 newSize)
 {
-    return Allocation((u8*)SYSTEM_REALLOC(mem.data, newSize), newSize);
+    return Allocation((u8*)SYSTEM_REALLOC(allocation.data, newSize), newSize);
+}
+
+void meSystemAllocator::meClear()
+{
+    // noop, can't really "clear" the system allocations
+    UNIMPLEMENTED();
 }
 
 meAllocator* GetSystemAllocator()
 {
-    static meAllocator system;
-    if (system.alloc == nullptr)
-    {
-        system.alloc = SystemAlloc;
-        system.realloc = SystemRealloc;
-        system.reserve = SystemReserve;
-        system.free = SystemFree;
-        system.currentSize = 0;
-    }
+    static meSystemAllocator system = meSystemAllocator();
     return &system;
 }
 
@@ -54,11 +47,11 @@ meAllocator* GetSystemAllocator()
 void InitializeAllocatorSystem(EngineContext* engine)
 {
     meAllocator* systemAllocator = GetSystemAllocator();
-    engine->engineArena = ArenaInit(ENGINE_INITIAL_RESERVED_MEMSIZE, "Engine", systemAllocator->reserve(ENGINE_INITIAL_RESERVED_MEMSIZE));
-    engine->engineFrameAllocator = ArenaInit(ENGINE_INITIAL_RESERVED_MEMSIZE, "Engine Frame", systemAllocator->reserve(ENGINE_INITIAL_RESERVED_MEMSIZE));
-    engine->engineSceneAllocator = ArenaInit(ENGINE_INITIAL_RESERVED_MEMSIZE, "Engine Scene", systemAllocator->reserve(ENGINE_INITIAL_RESERVED_MEMSIZE));
-    engine->gameArena = ArenaInit(ENGINE_INITIAL_RESERVED_MEMSIZE, "Game", systemAllocator->reserve(ENGINE_INITIAL_RESERVED_MEMSIZE));
-    engine->scratchWork = ArenaInit(ENGINE_INITIAL_RESERVED_MEMSIZE, "Scratch", systemAllocator->reserve(ENGINE_INITIAL_RESERVED_MEMSIZE));
+    engine->engineArena = ArenaInit(ENGINE_INITIAL_RESERVED_MEMSIZE, "Engine", systemAllocator->meReserve(ENGINE_INITIAL_RESERVED_MEMSIZE));
+    engine->engineFrameAllocator = ArenaInit(ENGINE_INITIAL_RESERVED_MEMSIZE, "Engine Frame", systemAllocator->meReserve(ENGINE_INITIAL_RESERVED_MEMSIZE));
+    engine->engineSceneAllocator = ArenaInit(ENGINE_INITIAL_RESERVED_MEMSIZE, "Engine Scene", systemAllocator->meReserve(ENGINE_INITIAL_RESERVED_MEMSIZE));
+    engine->gameArena = ArenaInit(ENGINE_INITIAL_RESERVED_MEMSIZE, "Game", systemAllocator->meReserve(ENGINE_INITIAL_RESERVED_MEMSIZE));
+    engine->scratchWork = ArenaInit(ENGINE_INITIAL_RESERVED_MEMSIZE, "Scratch", systemAllocator->meReserve(ENGINE_INITIAL_RESERVED_MEMSIZE));
 }
 
 

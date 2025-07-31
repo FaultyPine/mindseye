@@ -6,6 +6,7 @@
 #ifdef OS_WINDOWS
 
 #include "mindseye/platform/windows/me_os_win.cpp"
+#include <stdlib.h> // for the argc and argv macros... would rather not have to pull this whole thing in
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR lpCmdLine, _In_ int nCmdShow)
 {
@@ -18,4 +19,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
     meOSWinMain(__argc, __argv);
 }
 
+#else
+#error unsupported os driver entrypoint
 #endif

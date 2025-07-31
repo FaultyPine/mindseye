@@ -21,11 +21,11 @@ static bool CheckArrayResize(HybridArray<T, fixedSize>& array)
         // moving old buffer (could be our fixed mem or a dyn alloc) to a new allocation
         //T* prevAlloc = array.elements == &array.fixedMem[0] ? nullptr : array.elements;
         T* prevElements = array.elements;
-        array.elements = (T*)allocator->alloc(sizeof(T) * array.capacity);
+        array.elements = (T*)allocator->meAlloc(sizeof(T) * array.capacity);
         ME_MEMMOVE(array.elements, prevElements, sizeof(T) * array.size);
         if (prevElements != &array.fixedMem[0])
         {
-            allocator->free(prevElements);
+            allocator->meFree(prevElements);
         }
         // move elements from prev buffer to new one
         // notably... this will invalidate pointers to these elements. use indices or blocklist if that matters
@@ -47,7 +47,7 @@ HybridArray<T, fixedSize>::~HybridArray()
 {
     if (elements != &fixedMem[0])
     {
-        allocator->free(elements);
+        allocator->meFree(elements);
     }
 }
 

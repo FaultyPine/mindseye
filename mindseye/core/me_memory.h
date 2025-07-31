@@ -19,26 +19,30 @@ C_LINKAGE int   memcmp(const void *_Buf1, const void *_Buf2, size_t _Size);
 
 typedef meSpan Allocation;
 
-typedef Allocation(*AllocateFn)(u64 size);
-typedef void(*FreeFn)(void* allocation);
-typedef Allocation(*ReallocFn)(const Allocation& allocation, u64 newSize);
-typedef void(*ClearFn)();
-
 struct meAllocator
 {
-    AllocateFn alloc;
-    AllocateFn reserve;
-    FreeFn free;
-    ReallocFn realloc;
-    ClearFn clear;
+    Allocation meAlloc(u64 size) { UNIMPLEMENTED(); }
+    Allocation meReserve(u64 size) { UNIMPLEMENTED(); }
+    void meFree(void* allocation) { UNIMPLEMENTED(); }
+    Allocation meRealloc(const Allocation& allocation, u64 newSize) { UNIMPLEMENTED(); }
+    void meClear() { UNIMPLEMENTED(); }
 
-    u64 currentSize;
+    u64 currentSize = 0;
+};
+
+struct meSystemAllocator : public meAllocator
+{
+    Allocation meAlloc(u64 size);
+    Allocation meReserve(u64 size);
+    void meFree(void* allocation);
+    Allocation meRealloc(const Allocation& allocation, u64 newSize);
+    void meClear();
 };
 
 meAllocator* GetSystemAllocator();
 
-#define ME_MALLOC(size) GetSystemAllocator()->alloc(size)
-#define ME_FREE(ptr) GetSystemAllocator()->free(ptr)
+#define ME_MALLOC(size) GetSystemAllocator()->meAlloc(size)
+#define ME_FREE(ptr) GetSystemAllocator()->meFree(ptr)
 
 
 void InitializeAllocatorSystem(EngineContext* engine);

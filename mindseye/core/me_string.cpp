@@ -1,7 +1,8 @@
 
 #include "core/me_defines.h"
-#include "me_string.h"
-#include <string>
+#include "core/me_string.h"
+#include "core/me_memory.h"
+#include "core/me_log.h"
 
 bool StringView::operator == (const StringView& sv) const 
 {
@@ -39,34 +40,35 @@ String FromCString(const char* str, s32 strLen)
     return result;
 }
 
-Result<void, ErrMsg> StringCopy(String dst, String src)
+bool StringCopy(String dst, String src)
 {
     if (src.len > dst.len)
     {
-        return Err("Source string smaller than dst string!");
+        LOG_ERROR("Source string smaller than dst string!");
+        return false;
     } 
     // source length will always be less than or equal to dst len
     size_t amountToCopy = src.len;
     ME_MEMCPY(dst.data, src.data, amountToCopy);
-    return Ok();
+    return true;
 }
 
-Result<StringView, ErrMsg> FindInString(StringView haystack, StringView needle)
+StringView FindInString(StringView haystack, StringView needle)
 {
     if (!needle.data || !needle.len || *needle.data == '\0') 
     {
-        return Ok(haystack);
+        return haystack;
     }
 
     while (haystack.len && *haystack.data != '\0') 
     {
         if (needle == haystack) 
         {
-            return Ok(haystack);
+            return haystack;
         }
         haystack = haystack.CreateView(1);
     }
-    return Err("needle not in haystack!");
+    return {};
 }
 
 size_t wcharToNarrow(const wchar_t * src, char * dest, size_t dest_len)

@@ -92,9 +92,11 @@ void meOSWinCreateWindow(WindowCreationParams creationParams, EngineContext* eng
     {
         return;
     }
-    //STARTUPINFO startupInfo;
-    //GetStartupInfo(&startupInfo);
-    //ShowWindow(hwnd, startupInfo.wShowWindow);
+    
+    OSCookbook* cachedOSData = ArenaAllocType(&engine->engineArena, OSCookbook, 1);
+    cachedOSData->hinstance = hInstance;
+    cachedOSData->hwnd = hwnd;
+    engine->osData = cachedOSData;
 }
 
 void meOSWinTick(EngineContext* engine)

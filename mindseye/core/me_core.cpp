@@ -116,10 +116,14 @@ u32 HashBytes(u8* data, u32 size)
     return hash;
 }
 
-void InitializeEngine(EngineContext* engine)
+void InitializeEngine(EngineContext* engine, WindowCreationParams windowCreationParams)
 {
     engine->isRunning = true;
+    engine->appName = windowCreationParams.name;
+    engine->windowWidth = windowCreationParams.width;
+    engine->windowHeight = windowCreationParams.height;
     InitializeLogger(engine);
     InitializeAllocatorSystem(engine);
+    meOSCreateWindow(windowCreationParams, engine);
     RendererInitialize(engine);
 }

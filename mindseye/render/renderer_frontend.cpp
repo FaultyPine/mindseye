@@ -6,10 +6,10 @@
 
 void RendererInitialize(EngineContext* engine)
 {
-    VulkanBackendInitialize();
+    VulkanBackendInitialize(engine);
 }
 
 void RendererTeardown()
 {
-
+    VulkanBackendTeardown();
 }

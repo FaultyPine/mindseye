@@ -3,6 +3,7 @@
 #include "core/me_defines.h"
 #include "core/me_arena.h"
 #include "core/me_string.h"
+struct EngineContext;
 
 struct WindowCreationParams
 {
@@ -10,7 +11,16 @@ struct WindowCreationParams
     u32 width = 800;
     u32 height = 600;
 };
-struct EngineContext;
+
+struct OSCookbook
+{
+#ifdef OS_WINDOWS
+    void* hwnd;
+    void* hinstance;
+#else
+
+#endif
+};
 
 void ConsolePrint(const char* text);
 void* LoadDynamicLibrary(const char* name);

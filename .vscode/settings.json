@@ -86,6 +86,7 @@
         "xlocnum": "cpp",
         "xloctime": "cpp",
         "span": "cpp",
-        "*.def": "cpp"
+        "*.def": "cpp",
+        "typeindex": "cpp"
     }
 }

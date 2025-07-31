@@ -42,10 +42,6 @@ if "%~1"=="" echo [full build] && set "mindseye=1" && set "testbed=1" && set "dr
 
 @REM currently assuming we do compile+link all in one step, this may change.
 
-@REM lib flags
-set link_libs= 
-set include_libs= 
-
 @REM common compile flags
 set compile_flags_common= -I%root% -I%root%\mindseye -I%root%/mindseye/external %include_libs% -DNOMINMAX -DUNICODE -Wno-deprecated-declarations -g -gcodeview -gno-column-info -std=c++20 -Wall -Wextra -Wno-unused-parameter -ferror-limit=10000
 for /f %%i in ('call git describe --always --dirty')   do set compile_flags_common=%compile_flags_common% -DBUILD_GIT_HASH=\"%%i\"

@@ -9,6 +9,18 @@
 // stores capacity/size in a header section stored *before* the actual array pointer
 
 typedef void* DynArray;
+#define DynArray(type) DynArray
+
+struct DynArrayHeader
+{
+    // number of elements currently in the array
+    u32 size;
+    // number of *elements* we can hold in our backing memory
+    u32 capacity;
+    // size in bytes of each element
+    u32 stride;
+    meAllocator* allocator;
+};
 
 // Create an array with an optional initial capacity (number of elements)
 DynArray __DynArrayCreate(u32 stride, u32 initialCapacity, meAllocator* allocator);
@@ -17,6 +29,16 @@ T* DynArrayCreate(meAllocator* allocator, u32 initialCapacity = 5)
 {
     return (T*)__DynArrayCreate(sizeof(T), initialCapacity, allocator);
 }
+template<typename T>
+T* DynArrayCreate(meAllocator* allocator, u32 initialSize, T* initialData)
+{
+    T* result = (T*)__DynArrayCreate(sizeof(T), initialSize, allocator);
+    ME_MEMCPY(result, initialData, sizeof(T)*initialSize);
+    GetHeaderPointer()->size = initialSize;
+    return result;
+}
+
+DynArrayHeader* GetHeaderPointer(DynArray array);
 
 // Frees backing memory
 void DynArrayDestroy(DynArray& array);
