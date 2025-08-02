@@ -71,7 +71,9 @@ Engine design to support above:
 - meshlet compression (research said up to 60% savings from normal mesh storage holy crap)
 
 
-### Game
-A short&sweet experience centered around the concepts in Courage To Create by Rollo May
+### Game ideas
+- A short&sweet experience centered around the concepts in Courage To Create by Rollo May
 walking simulator-esc. No combat/levels/objectives/etc. Just telling a story & discussing creativity
 throw in some non euclidean portal nonsense
+- coop warioware
+

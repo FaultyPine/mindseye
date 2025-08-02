@@ -1,15 +1,19 @@
 #include "renderer_frontend.h"
 
+#include "core/me_core.h"
 
-#include "vulkan_backend/vulkan_backend.h"
-
+#include "bgfx_backend/bgfx_backend.h"
 
 void RendererInitialize(EngineContext* engine)
 {
-    VulkanBackendInitialize(engine);
+    if constexpr (RENDERER_BACKEND == BGFX)
+    {
+        engine->renderer = MENEW(&engine->engineArena, BgfxRendererBackend);
+    }
+    engine->renderer->Initialize();
 }
 
 void RendererTeardown()
 {
-    VulkanBackendTeardown();
+
 }

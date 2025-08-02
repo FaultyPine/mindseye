@@ -21,28 +21,42 @@ typedef meSpan Allocation;
 
 struct meAllocator
 {
-    Allocation meAlloc(u64 size) { UNIMPLEMENTED(); }
-    Allocation meReserve(u64 size) { UNIMPLEMENTED(); }
-    void meFree(void* allocation) { UNIMPLEMENTED(); }
-    Allocation meRealloc(const Allocation& allocation, u64 newSize) { UNIMPLEMENTED(); }
-    void meClear() { UNIMPLEMENTED(); }
+    virtual Allocation meAlloc(u64 size) { UNIMPLEMENTED(); }
+    virtual Allocation meReserve(u64 size) { UNIMPLEMENTED(); }
+    virtual void meFree(void* allocation) { UNIMPLEMENTED(); }
+    virtual Allocation meRealloc(const Allocation& allocation, u64 newSize) { UNIMPLEMENTED(); }
+    virtual void meClear() { UNIMPLEMENTED(); }
 
     u64 currentSize = 0;
 };
 
 struct meSystemAllocator : public meAllocator
 {
-    Allocation meAlloc(u64 size);
-    Allocation meReserve(u64 size);
-    void meFree(void* allocation);
-    Allocation meRealloc(const Allocation& allocation, u64 newSize);
-    void meClear();
+    MEAPI Allocation meAlloc(u64 size) override;
+    MEAPI Allocation meReserve(u64 size) override;
+    MEAPI void meFree(void* allocation) override;
+    MEAPI Allocation meRealloc(const Allocation& allocation, u64 newSize) override;
+    MEAPI void meClear() override;
 };
+
 
 meAllocator* GetSystemAllocator();
 
-#define ME_MALLOC(size) GetSystemAllocator()->meAlloc(size)
-#define ME_FREE(ptr) GetSystemAllocator()->meFree(ptr)
+#define MESYSMALLOC(size) GetSystemAllocator()->meAlloc(size)
+#define MESYSFREE(ptr) GetSystemAllocator()->meFree(ptr)
 
+#define MEALLOC(allocator, size) ((allocator)->meAlloc(size))
+#define MEFREE(allocator, data) ((allocator)->meFree(data))
+
+#define MENEW(allocator, Type, ...) \
+    new (MEALLOC((allocator), sizeof(Type)).data) Type(__VA_ARGS__)
+
+#define MEDELETE(allocator, data) \
+do { \
+    if (data) { \
+        data->~Type(); \
+        MEFREE(allocator, data); \
+    } \
+} while(0)
 
 void InitializeAllocatorSystem(EngineContext* engine);

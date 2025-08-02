@@ -47,11 +47,11 @@ meAllocator* GetSystemAllocator()
 void InitializeAllocatorSystem(EngineContext* engine)
 {
     meAllocator* systemAllocator = GetSystemAllocator();
-    engine->engineArena = ArenaInit(ENGINE_INITIAL_RESERVED_MEMSIZE, "Engine", systemAllocator->meReserve(ENGINE_INITIAL_RESERVED_MEMSIZE));
-    engine->engineFrameAllocator = ArenaInit(ENGINE_INITIAL_RESERVED_MEMSIZE, "Engine Frame", systemAllocator->meReserve(ENGINE_INITIAL_RESERVED_MEMSIZE));
-    engine->engineSceneAllocator = ArenaInit(ENGINE_INITIAL_RESERVED_MEMSIZE, "Engine Scene", systemAllocator->meReserve(ENGINE_INITIAL_RESERVED_MEMSIZE));
-    engine->gameArena = ArenaInit(ENGINE_INITIAL_RESERVED_MEMSIZE, "Game", systemAllocator->meReserve(ENGINE_INITIAL_RESERVED_MEMSIZE));
-    engine->scratchWork = ArenaInit(ENGINE_INITIAL_RESERVED_MEMSIZE, "Scratch", systemAllocator->meReserve(ENGINE_INITIAL_RESERVED_MEMSIZE));
+    engine->engineArena = ArenaInit(ENGINE_INITIAL_RESERVED_MEMSIZE, "Engine", systemAllocator);
+    engine->engineFrameAllocator = ArenaInit(ENGINE_INITIAL_RESERVED_MEMSIZE, "Engine Frame", systemAllocator);
+    engine->engineSceneAllocator = ArenaInit(ENGINE_INITIAL_RESERVED_MEMSIZE, "Engine Scene", systemAllocator);
+    engine->gameArena = ArenaInit(ENGINE_INITIAL_RESERVED_MEMSIZE, "Game", systemAllocator);
+    engine->scratchWork = ArenaInit(ENGINE_INITIAL_RESERVED_MEMSIZE, "Scratch", systemAllocator);
 }
 
 

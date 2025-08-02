@@ -4,7 +4,7 @@
 #include "core/me_arena.h"
 #include "platform/me_os.h" 
 
-struct Renderer;
+struct RendererFrontend;
 struct EngineContext
 {
     // allocators
@@ -15,7 +15,7 @@ struct EngineContext
     Arena scratchWork = {}; // individual systems are in charge of handling their own allocations here.
     
     // systems
-    Renderer* renderer = nullptr;
+    RendererFrontend* renderer = nullptr;
 
     // engine state
     f32 deltaTime = 0.0f;

@@ -10,10 +10,12 @@ void Arena::meFree(void* allocation) { ME_ASSERT(backing_mem <= allocation && al
 Allocation Arena::meRealloc(const Allocation& allocation, u64 newSize) { UNIMPLEMENTED(); }
 void Arena::meClear() { ArenaClear(this); }
 
-Arena ArenaInit(size_t arena_size, const char* name, void* backing_buffer) 
+Arena ArenaInit(size_t arena_size, const char* name, meAllocator* backingAllocator) 
 {
     Arena a;
-    a.backing_mem = (unsigned char*) (backing_buffer != nullptr ? backing_buffer : ME_MALLOC(arena_size).data);
+    meAllocator* allocator = backingAllocator != nullptr ? backingAllocator : GetSystemAllocator();
+    a.backingAllocator = allocator;
+    a.backing_mem = (unsigned char*)MEALLOC(allocator, arena_size).data;
     a.backing_mem_size = arena_size;
     a.offset = 0;
     a.prev_offset = 0;
@@ -102,7 +104,7 @@ void ArenaFreeAll(Arena* arena)
 {
     ArenaClear(arena);
     arena->backing_mem_size = 0;
-    ME_FREE(arena->backing_mem);
+    MEFREE(arena->backingAllocator, arena->backing_mem);
 }
 
 ArenaTemp ArenaTempInit(Arena* arena) 

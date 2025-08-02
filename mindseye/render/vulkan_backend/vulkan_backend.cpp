@@ -39,7 +39,7 @@ void VulkanBackendInitialize(EngineContext* engine)
     Renderer*& renderer = engine->renderer;
     renderer = ArenaAllocType(&engine->engineArena, Renderer, 1);
     constexpr u64 RENDERER_ARENA_SIZE = MEGABYTES_BYTES(200);
-    renderer->rendererArena = ArenaInit(RENDERER_ARENA_SIZE, "Renderer", ArenaAlloc(&engine->engineArena, RENDERER_ARENA_SIZE));
+    renderer->rendererArena = ArenaInit(RENDERER_ARENA_SIZE, "Renderer", *engine->engineArena);
     Arena* arena = &renderer->rendererArena;
     vkb::InstanceBuilder builder;
     auto inst_ret = builder.set_app_name (engine->appName)

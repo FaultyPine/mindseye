@@ -13,15 +13,16 @@ struct Arena : public meAllocator
     size_t backing_mem_size = 0;
     size_t offset = 0;
     size_t prev_offset = 0;
+    meAllocator* backingAllocator = nullptr;
 
-    Allocation meAlloc(u64 size);
-    Allocation meReserve(u64 size);
-    void meFree(void* allocation);
-    Allocation meRealloc(const Allocation& allocation, u64 newSize);
-    void meClear();
+    MEAPI Allocation meAlloc(u64 size) override;
+    MEAPI Allocation meReserve(u64 size) override;
+    MEAPI void meFree(void* allocation) override;
+    MEAPI Allocation meRealloc(const Allocation& allocation, u64 newSize) override;
+    MEAPI void meClear() override;
 };
 
-MEAPI Arena ArenaInit(size_t arenaSize, const char* name = nullptr, void* backingBuffer = nullptr);
+MEAPI Arena ArenaInit(size_t arenaSize, const char* name = nullptr, meAllocator* backingAllocator = nullptr);
 MEAPI void* ArenaAlloc(Arena* arena, size_t allocSize);
 MEAPI void* ArenaResize(Arena* arena, void* oldMem, size_t oldSize, size_t newSize);
 MEAPI void ArenaClear(Arena* arena);

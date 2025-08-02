@@ -2,15 +2,21 @@
 
 struct EngineContext;
 
+
 enum RendererBackendType
 {
+    NONE,
     VULKAN,
+    BGFX,
 };
+#define RENDERER_BACKEND (RendererBackendType::BGFX)
 
-struct Renderer
+struct RendererFrontend
 {
-    RendererBackendType backendType = VULKAN;
+    RendererBackendType backendType = NONE;
     Arena rendererArena = {};
+
+    virtual void Initialize() {}
 };
 
 void RendererInitialize(EngineContext* engine);
