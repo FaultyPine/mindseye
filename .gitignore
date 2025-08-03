@@ -7,6 +7,6 @@ Makefile
 tools/clang
 .vscode
 .vs
-
+*.tmp
 
 mindseye/external/vulkan_lib/Lib

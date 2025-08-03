@@ -127,3 +127,13 @@ void InitializeEngine(EngineContext* engine, WindowCreationParams windowCreation
     meOSCreateWindow(windowCreationParams, engine);
     RendererInitialize(engine);
 }
+
+void RunEngine(EngineContext* engine)
+{
+    while (engine->isRunning)
+    {
+        meOSTick(engine);
+        void* renderedSceneHandle = engine->renderer->RenderScene(nullptr);
+        UNUSED(renderedSceneHandle);
+    }
+}

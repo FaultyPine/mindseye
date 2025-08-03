@@ -36,6 +36,7 @@ struct EngineContext
 
 // Call this before any other mindseye functions
 MEAPI void InitializeEngine(EngineContext* engine, WindowCreationParams windowCreationParams);
+MEAPI void RunEngine(EngineContext* engine);
 
 // returns the current time since app launch
 MEAPI f64 GetTime();

@@ -10,7 +10,7 @@ void RendererInitialize(EngineContext* engine)
     {
         engine->renderer = MENEW(&engine->engineArena, BgfxRendererBackend);
     }
-    engine->renderer->Initialize();
+    engine->renderer->Initialize(engine);
 }
 
 void RendererTeardown()

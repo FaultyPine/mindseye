@@ -4,5 +4,7 @@
 
 struct BgfxRendererBackend : public RendererFrontend
 {
-    void Initialize() override;
+    void Initialize(EngineContext* engine) override;
+    void Teardown(EngineContext* engine) override;
+    void* RenderScene(meScene* scene) override;
 };

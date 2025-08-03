@@ -19,7 +19,7 @@ typedef wchar_t wchar;
 #define ME_ASSERTIONS_ENABLED
 #endif
 
-#define REF(x) (void)(x)
+#define UNUSED(x) (void)(x)
 
 #if defined(__clang__)
 #define COMPILER_CLANG

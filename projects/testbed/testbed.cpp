@@ -18,9 +18,9 @@ int testbed_main(int argc, char** argv)
     DynArrayTests();
     HybridArrayTests();
     int something = sizeof(Result<void, int>);
-    REF(something);
+    UNUSED(something);
     int x = 1;
-    REF(x);
+    UNUSED(x);
     LOG_TRACE("Hello world");
     while (engine.isRunning)
     {

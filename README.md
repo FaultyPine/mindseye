@@ -7,7 +7,6 @@ Must be on windows.
 then `build.bat`
 
 
-
 ## Details
 
 - sound: [soloud](https://solhsa.com/soloud/)
@@ -21,7 +20,7 @@ then `build.bat`
 - bring over good bits of tiny engine
     - ~~math~~, ~~mem~~, ~~containers~~, ~~logging~~, ~~defines~~
 - ~~refactor containers to use a general allocator scheme.~~
-- open an os window
+- ~~open an os window~~
 - begin vulkan renderer
     - honestly..... should i just use bgfx or something? As fun as graphics prog is, The point of this engine isn't to do a whole bunch of graphics programming
     and if im gonna do vulkan most of my time with this engine will be spent there inevitably....

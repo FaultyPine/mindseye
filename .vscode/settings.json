@@ -87,6 +87,8 @@
         "xloctime": "cpp",
         "span": "cpp",
         "*.def": "cpp",
-        "typeindex": "cpp"
-    }
+        "typeindex": "cpp",
+        "filesystem": "cpp"
+    },
+    "cmake.ignoreCMakeListsMissing": true
 }
