@@ -12,7 +12,6 @@
 #include <windows.h>
 #undef WIN32_LEAN_AND_MEAN
 
-C_LINKAGE MEAPI EntryPointFunc globalEntryPointFunc;
 
 void OnResize(HWND hwnd, UINT flag, int width, int height)
 {
@@ -120,7 +119,8 @@ void* meOSWinReserveVirtualMemory(u64 size)
 
 int meOSWinMain(int argc, char** argv)
 {
-    return globalEntryPointFunc ? globalEntryPointFunc(argc, argv) : 1;
+    InitializeEngine();
+    return 0;
 }
 
 

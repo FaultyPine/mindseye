@@ -90,10 +90,8 @@ if "%mindseye%"=="1" echo [mindseye compile] && %compile_mindseye% %root%\mindse
 IF %ERRORLEVEL% NEQ 0 (echo [mindseye compile] Error:%ERRORLEVEL% && exit /b)
 if "%testbed%"=="1" echo [testbed compile] && %compile_testbed% %root%\projects\testbed\testbed.cpp -o testbed.dll
 IF %ERRORLEVEL% NEQ 0 (echo [testbed compile] Error:%ERRORLEVEL% && exit /b)
-if not exist "%root%\build\driver.exe" (
-    if "%driver%"=="1" echo [driver compile] && %compile_driver% %root%\mindseye\platform\driver.cpp -o driver.exe
-    IF %ERRORLEVEL% NEQ 0 (echo [driver compile] Error:%ERRORLEVEL% && exit /b)
-)
+if "%driver%"=="1" echo [driver compile] && %compile_driver% %root%\mindseye\platform\driver.cpp -o driver.exe
+IF %ERRORLEVEL% NEQ 0 (echo [driver compile] Error:%ERRORLEVEL% && exit /b)
 echo Successfully built
 
 if "%run%"=="1" echo Running... && call testbed.exe

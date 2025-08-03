@@ -30,13 +30,3 @@ MEAPI void meOSCreateWindow(WindowCreationParams creationParams, EngineContext* 
 MEAPI void meOSTick(EngineContext* engine);
 MEAPI void* meOSReserveVirtualMemory(u64 size);
 
-typedef int(*EntryPointFunc)(int argc, char** argv);
-MEAPI void __InternalRegisterOSEntryPoint(EntryPointFunc entryPoint);
-
-// register the *one* entry point of a program
-// entry point function must follow EntryPointFunc signature
-#define REGISTER_OS_ENTRY_POINT(entryPointFunction) \
-    struct ENTRY_POINT_STRUCT { \
-        ENTRY_POINT_STRUCT() { __InternalRegisterOSEntryPoint(entryPointFunction); } \
-    }; \
-    static ENTRY_POINT_STRUCT globalEntryPointHolder = {};

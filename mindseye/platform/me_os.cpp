@@ -7,8 +7,6 @@
 #include "windows/me_os_win.cpp"
 #endif
 
-static EntryPointFunc globalEntryPointFunc = nullptr;
-
 
 void meOSCreateWindow(WindowCreationParams creationParams, EngineContext* engine)
 {
@@ -44,15 +42,6 @@ int meOSPlatformMain(int argc, char** argv)
 #else
 #error "Unimplemented OS entrypoint"
 #endif
-}
-
-void __InternalRegisterOSEntryPoint(EntryPointFunc entryPoint)
-{
-    if (globalEntryPointFunc)
-    {
-        LOG_ERROR("Cannot register OS entry point more than once!");
-    }
-    globalEntryPointFunc = entryPoint;
 }
 
 void ConsolePrint(const char* text) 

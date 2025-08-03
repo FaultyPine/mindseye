@@ -11,10 +11,9 @@
 #include "mindseye/core/containers/me_hybrid_array.h"
 
 
-int testbed_main(int argc, char** argv)
+void testbed_init(EngineContext* engine, WindowCreationParams& windowCreationParams)
 {
-    EngineContext engine = {};
-    InitializeEngine(&engine, {.name = STRING_LIT("Mindseye")});
+    windowCreationParams = {.name = STRING_LIT("Mindseye")};
     DynArrayTests();
     HybridArrayTests();
     int something = sizeof(Result<void, int>);
@@ -22,11 +21,15 @@ int testbed_main(int argc, char** argv)
     int x = 1;
     UNUSED(x);
     LOG_TRACE("Hello world");
-    while (engine.isRunning)
-    {
-        meOSTick(&engine);
-    }
-    return 0;
 }
 
-REGISTER_OS_ENTRY_POINT(testbed_main);
+void testbed_update(EngineContext* engine)
+{
+    
+}
+void testbed_shutdown(EngineContext* engine)
+{
+
+}
+
+REGISTER_ME_CALLBACKS(AppCallbacks(testbed_init, testbed_update, testbed_shutdown));

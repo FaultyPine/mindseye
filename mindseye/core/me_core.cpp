@@ -19,6 +19,12 @@ STATIC_ASSERT(sizeof(f32) == 4);
 STATIC_ASSERT(sizeof(f64) == 8);
 STATIC_ASSERT(sizeof(void*) == 8);
 
+EngineContext* GetEngineCtx()
+{
+    static EngineContext eng;
+    return &eng;
+}
+
 void OverwriteRandomSeed(u64 seed) 
 {
     UNIMPLEMENTED();
@@ -116,16 +122,10 @@ u32 HashBytes(u8* data, u32 size)
     return hash;
 }
 
-void InitializeEngine(EngineContext* engine, WindowCreationParams windowCreationParams)
+void InternalRegisterAppCallbacks(AppCallbacks callbacks)
 {
-    engine->isRunning = true;
-    engine->appName = windowCreationParams.name;
-    engine->windowWidth = windowCreationParams.width;
-    engine->windowHeight = windowCreationParams.height;
-    InitializeLogger(engine);
-    InitializeAllocatorSystem(engine);
-    meOSCreateWindow(windowCreationParams, engine);
-    RendererInitialize(engine);
+    EngineContext* engine = GetEngineCtx();
+    engine->callbacks = callbacks;
 }
 
 void RunEngine(EngineContext* engine)
@@ -136,4 +136,22 @@ void RunEngine(EngineContext* engine)
         void* renderedSceneHandle = engine->renderer->RenderScene(nullptr);
         UNUSED(renderedSceneHandle);
     }
+    engine->renderer->Teardown(engine);
+}
+
+void InitializeEngine()
+{
+    EngineContext* engine = GetEngineCtx();
+    engine->isRunning = true;
+    InitializeLogger(engine);
+    InitializeAllocatorSystem(engine);
+    WindowCreationParams windowCreationParams = {};
+    engine->callbacks.initFn(engine, windowCreationParams);
+    engine->appName = windowCreationParams.name;
+    engine->windowWidth = windowCreationParams.width;
+    engine->windowHeight = windowCreationParams.height;
+    meOSCreateWindow(windowCreationParams, engine);
+    RendererInitialize(engine);
+
+    RunEngine(engine);
 }

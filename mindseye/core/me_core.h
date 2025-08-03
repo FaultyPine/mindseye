@@ -5,8 +5,20 @@
 #include "platform/me_os.h" 
 
 struct RendererFrontend;
+
+struct EngineContext;
+typedef void(*InitFn)(EngineContext* engine, WindowCreationParams& windowCreationParams);
+typedef void(*UpdateFn)(EngineContext* engine);
+typedef void(*ShutdownFn)(EngineContext* engine);
+struct AppCallbacks
+{
+    InitFn initFn = nullptr;
+    UpdateFn updateFn = nullptr;
+    ShutdownFn shutdownFn = nullptr;
+};
 struct EngineContext
 {
+    AppCallbacks callbacks = {};
     // allocators
     Arena gameArena = {};
     Arena engineArena = {}; // persistent, never cleared
@@ -33,10 +45,16 @@ struct EngineContext
     bool isRunning = false;
     bool isIdle = false;
 };
+MEAPI EngineContext* GetEngineCtx();
 
-// Call this before any other mindseye functions
-MEAPI void InitializeEngine(EngineContext* engine, WindowCreationParams windowCreationParams);
-MEAPI void RunEngine(EngineContext* engine);
+// register a program
+MEAPI void InternalRegisterAppCallbacks(AppCallbacks callbacks);
+#define REGISTER_ME_CALLBACKS(appCallbacks) \
+    struct ME_CALLBACKS_STRUCT { \
+        ME_CALLBACKS_STRUCT() { InternalRegisterAppCallbacks(appCallbacks); } \
+    }; \
+    static ME_CALLBACKS_STRUCT globalCallbacksHolder = {};
+
 
 // returns the current time since app launch
 MEAPI f64 GetTime();
@@ -50,3 +68,6 @@ MEAPI f32 GetRandomf(f32 start, f32 end);
 
 MEAPI u32 HashBytes(u8* data, u32 size);
 MEAPI u64 HashBytesL(u8* data, u32 size);
+
+
+MEAPI void InitializeEngine();
