@@ -13,18 +13,17 @@ then `build.bat`
 - physics: [jolt](https://github.com/jrouwe/JoltPhysics)
 - using blender as the editor - exporting to custom format
 
+- a bunch of this engine is yoinked from my previous engine project, tiny engine. Despite a lot of it being the same, i want to keep tiny engine as it is right now. It's a great snapshot in time of my first game programming efforts, and starting fresh feels right, even if a lot of it is similar.
 
-## TODO/goals
+## TODO
 
-
-- bring over good bits of tiny engine
-    - ~~math~~, ~~mem~~, ~~containers~~, ~~logging~~, ~~defines~~
-- ~~refactor containers to use a general allocator scheme.~~
-- ~~open an os window~~
-- begin vulkan renderer
-    - honestly..... should i just use bgfx or something? As fun as graphics prog is, The point of this engine isn't to do a whole bunch of graphics programming
-    and if im gonna do vulkan most of my time with this engine will be spent there inevitably....
-    - maybe design a "frontend" and have bgfx as my backend which i could swap out for a custom thing if i feel like diving into that
+- map container
+    - to back that, we could use a dynarray. Would be nice to have stable ptrs tho. 
+    - implement blocklist
+- make my containers and maybe some of the core stuff "header only" & standalone with IMPL macros
+- load basic example scene
+- render basic example scene
+- 
 
 ## R&R
 

@@ -5,8 +5,9 @@
 #include "platform/me_os.h" 
 
 struct RendererFrontend;
-
 struct EngineContext;
+struct EntityRegistry;
+
 typedef void(*InitFn)(EngineContext* engine, WindowCreationParams& windowCreationParams);
 typedef void(*UpdateFn)(EngineContext* engine);
 typedef void(*ShutdownFn)(EngineContext* engine);
@@ -28,6 +29,7 @@ struct EngineContext
     
     // systems
     RendererFrontend* renderer = nullptr;
+    EntityRegistry* entityRegistry = nullptr;
 
     // engine state
     f32 deltaTime = 0.0f;

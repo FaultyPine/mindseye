@@ -16,7 +16,6 @@ struct Arena : public meAllocator
     meAllocator* backingAllocator = nullptr;
 
     MEAPI Allocation meAlloc(u64 size) override;
-    MEAPI Allocation meReserve(u64 size) override;
     MEAPI void meFree(void* allocation) override;
     MEAPI Allocation meRealloc(const Allocation& allocation, u64 newSize) override;
     MEAPI void meClear() override;

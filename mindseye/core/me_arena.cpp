@@ -5,7 +5,6 @@
 #include "core/me_memory.h"
 
 Allocation Arena::meAlloc(u64 size) { return {ArenaAlloc(this, size), size}; }
-Allocation Arena::meReserve(u64 size) { return {ArenaAlloc(this, size), size}; }
 void Arena::meFree(void* allocation) { ME_ASSERT(backing_mem <= allocation && allocation <= (backing_mem + backing_mem_size)); }
 Allocation Arena::meRealloc(const Allocation& allocation, u64 newSize) { UNIMPLEMENTED(); }
 void Arena::meClear() { ArenaClear(this); }

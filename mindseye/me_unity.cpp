@@ -6,7 +6,6 @@
 #define STB_SPRINTF_IMPLEMENTATION
 #include "external/stb_sprintf.h"
 #undef STB_SPRINTF_IMPLEMENTATION
-#include "external/result.h"
 
 // HEADER
 #include "platform/me_os.h"
@@ -19,6 +18,7 @@
 
 #include "core/containers/dynarray.h"
 #include "core/containers/me_hybrid_array.h"
+#include "core/containers/me_blocklist.h"
 
 
 // SOURCE
@@ -32,8 +32,8 @@
 
 #include "core/containers/dynarray.cpp"
 #include "core/containers/me_hybrid_array.cpp"
-
+#include "core/containers/me_blocklist.cpp"
 
 // SUBMODULES
 #include "render/renderer_unity.cpp"
-
+#include "scene/scene_unity.cpp"

@@ -1,5 +1,4 @@
-#ifndef TINY_MATH_H
-#define TINY_MATH_H
+#pragma once
 
 #include "core/me_defines.h"
 
@@ -87,5 +86,3 @@ T PercentOf(T x, u32 percentOutOf100)
 }
 
 
-
-#endif

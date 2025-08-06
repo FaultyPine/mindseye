@@ -22,7 +22,6 @@ struct StringView // non-owning
     StringView(const String s) { data = (char*)s.data; len = s.len; }
     StringView() = default;
     StringView(char* data, size_t len) { this->data = data; this->len = len; };
-    operator String() const { return {data, len}; }
     bool operator == (const StringView& sv) const;
 
     StringView CreateView(size_t offset = 0) 

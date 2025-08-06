@@ -88,7 +88,10 @@
         "span": "cpp",
         "*.def": "cpp",
         "typeindex": "cpp",
-        "filesystem": "cpp"
+        "filesystem": "cpp",
+        "cassert": "cpp",
+        "fstream": "cpp",
+        "regex": "cpp"
     },
     "cmake.ignoreCMakeListsMissing": true
 }
