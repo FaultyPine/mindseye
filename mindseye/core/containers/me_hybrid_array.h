@@ -1,7 +1,6 @@
 #pragma once
 
 #include "core/me_defines.h"
-#include "dynarray.h"
 
 // array that stores a fixed-size number of elements in place
 // if we go over the fixed size of this array, we dynamically allocate
