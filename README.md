@@ -65,6 +65,7 @@ Engine design to support above:
 ### Extra stuff i want to look into
 - procedural animation combined with flocking
     - imagining a swarm of small "feather" meshes all combining like a pointcloud to create a procedurally animated huge hawk boss
+    - https://youtu.be/hCQCP-5g5bo?si=Eufg0dVjp3XeLQaw&t=716
 - https://gpuopen.com/learn/mesh_shaders/mesh_shaders-procedural_grass_rendering/
 - meshlet compression (research said up to 60% savings from normal mesh storage holy crap)
 

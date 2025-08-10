@@ -1,7 +1,7 @@
 
 #include "me_log.h"
 
-#include "external/stb_sprintf.h"
+#include "external/stb/stb_sprintf.h"
 #include "core/me_memory.h"
 #include "platform/me_os.h"
 
@@ -32,7 +32,7 @@ void ShutdownLogger()
 
 void SetLogLevel(LogLevel level, bool toggle)
 {
-    SET_NTH_BIT(LOG_LEVELS_ENABLED, level, toggle);
+    SET_BIT(LOG_LEVELS_ENABLED, level, toggle);
 }
 
 #define TERMINAL_COLORED_OUTPUT_ENABLED 1

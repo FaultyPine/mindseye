@@ -6,6 +6,7 @@
 #include "render/renderer_frontend.h"
 #include "platform/me_os.h"
 
+
 // sanity
 STATIC_ASSERT(sizeof(s8) == 1);
 STATIC_ASSERT(sizeof(u8) == 1);
@@ -133,7 +134,9 @@ void RunEngine(EngineContext* engine)
     while (engine->isRunning)
     {
         meOSTick(engine);
-        void* renderedSceneHandle = engine->renderer->RenderScene(nullptr);
+        RenderInput renderInput = {};
+        renderInput.osData = *engine->osData;
+        void* renderedSceneHandle = engine->renderer->RenderScene(&renderInput);
         UNUSED(renderedSceneHandle);
     }
     engine->renderer->Teardown(engine);
@@ -147,9 +150,6 @@ void InitializeEngine()
     InitializeAllocatorSystem(engine);
     WindowCreationParams windowCreationParams = {};
     engine->callbacks.initFn(engine, windowCreationParams);
-    engine->appName = windowCreationParams.name;
-    engine->windowWidth = windowCreationParams.width;
-    engine->windowHeight = windowCreationParams.height;
     meOSCreateWindow(windowCreationParams, engine);
     RendererInitialize(engine);
 

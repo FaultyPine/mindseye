@@ -1,11 +1,10 @@
 
 #define UNITY_BUILD
 
-// third party
-// TODO: pch
-#define STB_SPRINTF_IMPLEMENTATION
-#include "external/stb_sprintf.h"
-#undef STB_SPRINTF_IMPLEMENTATION
+#include "core/me_defines.h"
+
+#define STBSP__PUBLICDEC extern "C" MEAPI
+#include "external/stb/stb_sprintf.h"
 
 // HEADER
 #include "platform/me_os.h"

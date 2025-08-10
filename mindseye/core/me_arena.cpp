@@ -31,9 +31,12 @@ Arena ArenaInit(size_t arena_size, const char* name, meAllocator* backingAllocat
 const char* ArenaGetName(Arena* arena) 
 {
     const char* possible_string = (const char*)arena->backing_mem;
-    for (int i = 0; i < ARENA_MAX_NAME_LEN; i++) {
-        if (possible_string[i] == '\0') {
-            return possible_string;
+    if (possible_string)
+    {
+        for (int i = 0; i < ARENA_MAX_NAME_LEN; i++) {
+            if (possible_string[i] == '\0') {
+                return possible_string;
+            }
         }
     }
     return "UNNAMED_ARENA";

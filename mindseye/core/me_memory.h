@@ -3,6 +3,7 @@
 
 #include "me_defines.h"
 #include "containers/me_span.h"
+#include <new> // for placement new
 struct EngineContext;
 
 C_LINKAGE void* memcpy(void *_Dst, const void *_Src, size_t _Size);

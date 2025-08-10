@@ -36,13 +36,9 @@ struct EngineContext
     f32 lastFrameTime = 0.0f;
     u32 frameCount = 0;
     u64 randomSeed = 0;
-
-    u32 windowWidth = 0;
-    u32 windowHeight = 0; 
-    // u32 aspectRatioW = 0; 
-    // u32 aspectRatioH = 0;
+    
     String appName = {};
-    OSCookbook* osData = {};
+    OSStateView* osData = nullptr;
 
     bool isRunning = false;
     bool isIdle = false;

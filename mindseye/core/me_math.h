@@ -51,7 +51,7 @@ MEAPI glm::vec3 RandomPointInSphere(f32 radius);
 
 template<typename T> inline T Max(T x, T y) { return x > y ? x : y; }
 template<typename T> inline T Min(T x, T y) { return x < y ? x : y; }
-template <typename T> inline T Clamp(T& value, const T& low, const T& high) {
+template <typename T> inline T Clamp(const T& value, const T& low, const T& high) {
     return value < low ? low : (value > high ? high : value); 
 }
 

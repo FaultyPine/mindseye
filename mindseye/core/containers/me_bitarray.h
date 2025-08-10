@@ -20,7 +20,7 @@ struct meBitArray
     {
         u8 nthBit = idx % BITS_PER_WORD;
         const Word& w = data[idx / BITS_PER_WORD];
-        return CHECK_NTH_BIT(w, nthBit);
+        return TEST_BIT(w, nthBit);
     }
 
     void set(u32 idx, bool value)
@@ -28,7 +28,7 @@ struct meBitArray
         ME_ASSERT(idx < N);
         u8 nthBit = idx % BITS_PER_WORD;
         Word& w = data[idx / BITS_PER_WORD];
-        w = SET_NTH_BIT(w, nthBit, value);
+        w = SET_BIT(w, nthBit, value);
     }
 
     void clear()

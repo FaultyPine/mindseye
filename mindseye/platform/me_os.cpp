@@ -20,7 +20,7 @@ struct EngineContext;
 void meOSTick(EngineContext* engine)
 {
 #ifdef OS_WINDOWS
-    return meOSWinTick(engine);
+    meOSWinTick(engine);
 #else
 #error "Unimplemented OS entrypoint"
 #endif

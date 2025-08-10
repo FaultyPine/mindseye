@@ -68,13 +68,13 @@ typedef wchar_t wchar;
 
 #define CLAMP(x, min, max) (x < min ? min : (x > max ? max : x))
 
-#define SET_NTH_BIT(bitfield, n_bit, onoff) \
-    (bitfield = (bitfield & ~((u32)1 << n_bit)) | ((u32)onoff << n_bit) )
+#define SET_BIT(bitfield, n_bit, onoff) \
+    (bitfield = ((bitfield) & ~((u32)1 << (n_bit))) | ((u32)(onoff) << (n_bit)) )
 
 #define TOGGLE_NTH_BIT(bitfield, n_bit) \
     ( (bitfield) ^ (1 << (n_bit)) )
 
-#define CHECK_NTH_BIT(bitfield, n_bit) ((( bitfield >> n_bit ) & 1U) == 1)
+#define TEST_BIT(bitfield, n_bit) ((( bitfield >> n_bit ) & 1U) == 1)
 
 // concat tokens without expanding macro definitions
 #define ME_MACRO_CONCAT(a,b) a##b

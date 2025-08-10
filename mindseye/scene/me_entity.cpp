@@ -39,7 +39,7 @@ void InitializeEntitySystem(Arena* arena)
 void SetFlag(EntityData& ent, EntityFlags flag, bool enabled)
 {
     u32& bitfield = ent.flags;
-    SET_NTH_BIT(bitfield, flag, enabled);
+    SET_BIT(bitfield, flag, enabled);
 }
 
 void SetFlag(EntityRef ent, EntityFlags flag, bool enabled)
@@ -51,7 +51,7 @@ void SetFlag(EntityRef ent, EntityFlags flag, bool enabled)
 bool IsFlag(const EntityData& data, EntityFlags flag)
 {
     const u32& bitfield = data.flags;
-    bool result = CHECK_NTH_BIT(bitfield, flag);
+    bool result = TEST_BIT(bitfield, flag);
     return result;
 }
 

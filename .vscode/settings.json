@@ -91,7 +91,13 @@
         "filesystem": "cpp",
         "cassert": "cpp",
         "fstream": "cpp",
-        "regex": "cpp"
+        "regex": "cpp",
+        "any": "cpp",
+        "cfenv": "cpp",
+        "expected": "cpp",
+        "coroutine": "cpp",
+        "resumable": "cpp",
+        "*.rh": "cpp"
     },
     "cmake.ignoreCMakeListsMissing": true
 }

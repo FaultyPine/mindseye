@@ -208,7 +208,7 @@ static void me_treemap_squarify(
     void** userData,
     meTreemapRect bounds,
     meTreemapItem* outItems,
-    bool pad = false)
+    bool pad = true)
 {
     me_treemap_squarify_impl(sizes, count, userData,
         bounds.x, bounds.y, bounds.w, bounds.h,

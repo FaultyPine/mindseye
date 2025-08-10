@@ -39,8 +39,8 @@ void VulkanBackendInitialize(EngineContext* engine)
     Renderer*& renderer = engine->renderer;
     renderer = ArenaAllocType(&engine->engineArena, Renderer, 1);
     constexpr u64 RENDERER_ARENA_SIZE = MEGABYTES_BYTES(200);
-    renderer->rendererArena = ArenaInit(RENDERER_ARENA_SIZE, "Renderer", *engine->engineArena);
-    Arena* arena = &renderer->rendererArena;
+    renderer->rendererPersistentArena = ArenaInit(RENDERER_ARENA_SIZE, "Renderer", *engine->engineArena);
+    Arena* arena = &renderer->rendererPersistentArena;
     vkb::InstanceBuilder builder;
     auto inst_ret = builder.set_app_name (engine->appName)
                         .request_validation_layers ()
@@ -49,7 +49,7 @@ void VulkanBackendInitialize(EngineContext* engine)
     if (!inst_ret) { /* report */ }
     vkb::Instance vkb_inst = inst_ret.value ();
 
-    OSCookbook* osData = engine->osData;
+    OSStateView* osData = engine->osData;
     VkSurfaceKHR surface = {};
 #ifdef OS_WINDOWS
     VkWin32SurfaceCreateInfoKHR surfCreateInfo = {};

@@ -169,7 +169,9 @@ PERFORMANCE vs MSVC 2008 32-/64-bit (GCC is even slower than MSVC):
 #define STBSP__PUBLICDEF static STBSP__ASAN
 #else
 #ifdef __cplusplus
+#ifndef STBSP__PUBLICDEC
 #define STBSP__PUBLICDEC extern "C"
+#endif
 #define STBSP__PUBLICDEF extern "C" STBSP__ASAN
 #else
 #define STBSP__PUBLICDEC extern
