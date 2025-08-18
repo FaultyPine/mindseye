@@ -3,9 +3,11 @@
 #include "me_core.h"
 #include "core/me_log.h"
 #include "core/me_memory.h"
-#include "render/renderer_frontend.h"
-#include "platform/me_os.h"
+#include "core/me_cmdline.h"
 
+#include "platform/me_os.h"
+#include "render/renderer_frontend.h"
+#include "asset/me_asset.h"
 
 // sanity
 STATIC_ASSERT(sizeof(s8) == 1);
@@ -142,12 +144,14 @@ void RunEngine(EngineContext* engine)
     engine->renderer->Teardown(engine);
 }
 
-void InitializeEngine()
+void InitializeEngine(s32 argc, char** argv)
 {
     EngineContext* engine = GetEngineCtx();
     engine->isRunning = true;
     InitializeLogger(engine);
     InitializeAllocatorSystem(engine);
+    InitializeCmdLine(argc, argv);
+    meAssetInitialize(engine);
     WindowCreationParams windowCreationParams = {};
     engine->callbacks.initFn(engine, windowCreationParams);
     meOSCreateWindow(windowCreationParams, engine);

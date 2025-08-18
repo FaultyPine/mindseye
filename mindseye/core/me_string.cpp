@@ -71,6 +71,37 @@ StringView FindInString(StringView haystack, StringView needle)
     return {};
 }
 
+bool StringCompare(StringView str1, StringView str2, StringCompareFlags flags)
+{
+    if (str1.len != str2.len) return false;
+    for (u64 i = 0; i < str1.len; i++)
+    {
+        char s1 = str1.data[i];
+        char s2 = str2.data[i];
+        if (flags & StringCompareFlags::CaseInsensitive)
+        {
+            s1 = ToLower(s1);
+            s2 = ToLower(s2);
+        }
+        if (s1 != s2)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+char ToLower(char c)
+{
+    if (c >= 'A' && c <= 'Z') 
+    {
+        return c + 32;
+    } else 
+    {
+        return c;
+    }
+}
+
 size_t wcharToNarrow(const wchar_t * src, char * dest, size_t dest_len)
 {
     size_t i;

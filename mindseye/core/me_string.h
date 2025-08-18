@@ -19,7 +19,6 @@ struct StringView // non-owning
     size_t len = 0;
     StringView(const String&& s) { data = (char*)s.data; len = s.len; }
     StringView(const String& s) { data = (char*)s.data; len = s.len; }
-    StringView(const String s) { data = (char*)s.data; len = s.len; }
     StringView() = default;
     StringView(char* data, size_t len) { this->data = data; this->len = len; };
     bool operator == (const StringView& sv) const;
@@ -35,15 +34,25 @@ struct StringView // non-owning
     }
 };
 
-
+enum StringCompareFlags
+{
+    CaseInsensitive = NTH_BIT(0)
+};
 
 #define STRING_LIT(strlit) (String{(char*)(strlit), sizeof(strlit)-1})
 
 
 bool StringCopy(String dst, String src);
-StringView FindInString(StringView haystack, StringView needle);
-size_t wcharToNarrow(const wchar_t* src, char * dest, size_t destLen);
 
+StringView FindInString(StringView haystack, StringView needle);
+
+// flags = bitfield of StringCompareFlags
+bool StringCompare(StringView str1, StringView str2, StringCompareFlags flags = StringCompareFlags(0));
 
 size_t CStringLength(const char* str);
+
 String FromCString(const char* str, s32 strLen = -1);
+
+size_t wcharToNarrow(const wchar_t* src, char * dest, size_t destLen);
+
+char ToLower(char c);

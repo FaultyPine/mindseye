@@ -33,12 +33,17 @@ if not exist "mindseye\external\bgfx\bin" (
 )
 IF %ERRORLEVEL% NEQ 0 (echo Error:%ERRORLEVEL% && exit /b)
 
+set "driver=0" 
+if not exist "build\driver.exe" (
+    set "driver=1" 
+)
+
 :: unpack cmd line args
 for %%a in (%*) do set "%%a=1"
 if not "%release%"=="1" set debug=1
 if "%debug%"=="1"   set release=0 && echo [debug mode]
 if "%release%"=="1" set debug=0 && echo [release mode]
-if "%~1"=="" echo [full build] && set "mindseye=1" && set "testbed=1" && set "driver=1"
+if "%~1"=="" echo [full build] && set "mindseye=1" && set "testbed=1"
 if not exist "build\mindseye_ext.lib" (
     set "libs=1"
 )
@@ -54,7 +59,7 @@ if not exist "build\mindseye_ext.lib" (
 set include_libs=-I%root%\mindseye\external\imgui -I%root%\mindseye\external\bgfx\bgfx\include -I%root%\mindseye\external\bgfx\bgfx\3rdparty -I%root%\mindseye\external\bgfx\bx\include -I%root%\mindseye\external\bgfx\bimg\include
 
 @REM common compile flags
-set app_flags=-DSHIPPING_BUILD=0
+set app_flags=-DSHIPPING_BUILD=0 -ftime-trace
 set compile_flags_common=%app_flags% -I%root% -I%root%\mindseye -I%root%\mindseye\external %include_libs% -std=c++20 -DNOMINMAX -DUNICODE -Wno-deprecated-declarations -g -gcodeview -gno-column-info -Wall -Wextra -Wno-unused-parameter -ferror-limit=500
 for /f %%i in ('call git describe --always --dirty')   do set compile_flags_common=%compile_flags_common% -DBUILD_GIT_HASH=\"%%i\"
 set linker_flags_common=-luser32 -lgdi32 -fuse-ld=lld-link

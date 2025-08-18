@@ -14,6 +14,9 @@
 #include "core/me_math.h"
 #include "core/me_core.h"
 #include "core/me_memory.h"
+#include "core/me_cmdline.h"
+
+#include "asset/me_asset.h"
 
 #include "core/containers/dynarray.h"
 #include "core/containers/me_hybrid_array.h"
@@ -28,6 +31,9 @@
 #include "core/me_math.cpp"
 #include "core/me_core.cpp"
 #include "core/me_memory.cpp"
+#include "core/me_cmdline.cpp"
+
+#include "asset/me_asset.cpp"
 
 #include "core/containers/dynarray.cpp"
 #include "core/containers/me_hybrid_array.cpp"

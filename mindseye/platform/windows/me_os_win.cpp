@@ -144,7 +144,9 @@ void meOSWinCreateWindow(WindowCreationParams creationParams, EngineContext* eng
     {
         return;
     }
-    
+    HCURSOR hArrowCursor = LoadCursor(NULL, IDC_ARROW);
+    SetCursor(hArrowCursor);
+
     OSStateView* cachedOSData = MENEW(&engine->engineArena, OSStateView);
     cachedOSData->hinstance = hInstance;
     cachedOSData->hwnd = hwnd;
@@ -183,9 +185,9 @@ void* meOSWinReserveVirtualMemory(u64 size)
     return VirtualAlloc(nullptr, size, MEM_RESERVE, 0);
 }
 
-int meOSWinMain(int argc, char** argv)
+s32 meOSWinMain(s32 argc, char** argv)
 {
-    InitializeEngine();
+    InitializeEngine(argc, argv);
     return 0;
 }
 

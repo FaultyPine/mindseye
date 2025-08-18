@@ -1,15 +1,13 @@
 #pragma once
 
 #include "core/me_defines.h"
-
-struct MapEntry
+#include <unordered_map>
+// TODO: custom
+template <typename Key, typename Value>
+struct meMap : std::unordered_map<Key, Value>
 {
-    u64 key;
-    void* data;
-};
-
-
-struct meMap
-{
-    
+    bool contains(const Key& key)
+    {
+        return count(key) != 0;
+    }
 };

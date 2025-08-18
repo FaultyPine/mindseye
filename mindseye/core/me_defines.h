@@ -76,6 +76,11 @@ typedef wchar_t wchar;
 
 #define TEST_BIT(bitfield, n_bit) ((( bitfield >> n_bit ) & 1U) == 1)
 
+#define NTH_BIT(index) (1 << index)
+
+#define MEMIN(a, b) (a > b ? b : a)
+#define MEMAX(a, b) (a > b ? a : b)
+
 // concat tokens without expanding macro definitions
 #define ME_MACRO_CONCAT(a,b) a##b
 // concat tokens after macro expanding them

@@ -2,6 +2,7 @@
 
 #include "core/me_defines.h"
 #include "scene/me_transform.h"
+#include "core/containers/me_map.h"
 struct Arena;
 struct Model;
 
@@ -28,9 +29,8 @@ struct EntityData
     EntityData() = default;
     inline bool isValid() { return id != U32_INVALID_ID; }
 };
-#include <unordered_map>
-// BOOKMARK: Use custom map here
-typedef std::unordered_map<u32, EntityData> EntityMap;
+
+typedef meMap<u32, EntityData> EntityMap;
 
 struct EntityRegistry
 {

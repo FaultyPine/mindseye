@@ -17,13 +17,29 @@ then `build.bat`
 
 ## TODO
 
-- map container
-    - to back that, we could use a dynarray. Would be nice to have stable ptrs tho. 
-    - implement blocklist
+- going to sprint towards MVP of having a USD scene render. Then will do (possibly many) cleanup/hardening passes after
+
+### Core/backend stuff
 - make my containers and maybe some of the core stuff "header only" & standalone with IMPL macros
-- load basic example scene
+    - not high prio
+- game/engine hot reloading
+- REFLECTION (C lexer? Metadesk? Clang plugin?)
+- RWlock
+
+### Real stuff
+- asset system
+    - hot reloading
+- load basic example scene (USD?)
+    - load direct from USD? Will I need a "compiled" asset?
+    - great stress test would be to load all of these https://github.com/ft-lab/sample_usd
+- job system
 - render basic example scene
-- 
+    - Dead simple blinnphong. Not trying to flesh anything out yet. Future - lightmapping, GDR, meshlets & mesh shaders
+- shader hot reloading
+- input (gamepad & kbm)
+- UI (Clay?)
+- physics
+- audio
 
 ## R&R
 

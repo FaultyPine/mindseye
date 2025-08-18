@@ -7,6 +7,8 @@
 struct RendererFrontend;
 struct EngineContext;
 struct EntityRegistry;
+struct meAssetSystem;
+struct CommandLineArgs;
 
 typedef void(*InitFn)(EngineContext* engine, WindowCreationParams& windowCreationParams);
 typedef void(*UpdateFn)(EngineContext* engine);
@@ -30,6 +32,8 @@ struct EngineContext
     // systems
     RendererFrontend* renderer = nullptr;
     EntityRegistry* entityRegistry = nullptr;
+    meAssetSystem* assetSystem = nullptr;
+    CommandLineArgs* cmdLine = nullptr;
 
     // engine state
     f32 deltaTime = 0.0f;
@@ -68,4 +72,4 @@ MEAPI u32 HashBytes(u8* data, u32 size);
 MEAPI u64 HashBytesL(u8* data, u32 size);
 
 
-MEAPI void InitializeEngine();
+MEAPI void InitializeEngine(s32 argc, char** argv);
