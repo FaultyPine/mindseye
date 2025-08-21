@@ -2,6 +2,8 @@
 
 #include "core/me_core.h"
 #include "core/containers/me_map.h"
+#include "core/thread/me_rw_lock.h"
+#include "core/me_job_system.h"
 
 #define ME_DECLARE_ASSET_TYPES \
 X(BadData)\
@@ -92,7 +94,7 @@ MEMAP_BEGIN_CUSTOM_HASHER(meAssetIdent, ident)
 
 struct meAssetLoader
 {
-    virtual meAssetLoadStage meAssetLoadDispatch(meAssetIdent) = 0;
+    virtual meRTAsset meAssetLoad(meAssetIdent) = 0;
 	virtual meAssetLoadStage meAssetWaitForLoad(meAssetIdent);
 };
 
@@ -100,9 +102,11 @@ struct meAssetSystem
 {
     // relative to working dir
     const char* resourceDir = nullptr;
+	RWLock assetRegistryLock = {};
     meMap<meAssetIdent, meRTAsset> assetRegistry = {};
     // meAssetType -> loader
-    meAssetLoader* assetLoaders[NUM_ASSET_TYPES] = {}; 
+    meAssetLoader* assetLoaders[NUM_ASSET_TYPES] = {};
+	meJobSystem assetCompilerJobs = {};
 };
 
 void meAssetInitialize(EngineContext* engine);

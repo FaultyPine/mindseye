@@ -8,6 +8,7 @@
 #include "platform/me_os.h"
 #include "render/renderer_frontend.h"
 #include "asset/me_asset.h"
+#include "core/thread/me_thread.h"
 
 // sanity
 STATIC_ASSERT(sizeof(s8) == 1);
@@ -146,6 +147,7 @@ void RunEngine(EngineContext* engine)
 
 void InitializeEngine(s32 argc, char** argv)
 {
+	meThreadSetName("Engine Main Thread");
     EngineContext* engine = GetEngineCtx();
     engine->isRunning = true;
     engine->engineInitialize();

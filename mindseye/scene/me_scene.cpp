@@ -8,9 +8,9 @@
 
 struct meSceneAssetLoader : public meAssetLoader
 {
-	virtual meAssetLoadStage meAssetLoadDispatch(meAssetIdent ident)
+	virtual meRTAsset meAssetLoad(meAssetIdent ident)
 	{
-		return Unloaded;
+		return {};
 	}
 
 	static void RegisterAssetLoader(meEventPayload payload)

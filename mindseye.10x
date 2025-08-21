@@ -28,7 +28,9 @@
 			<AdditionalIncludePath>C:\Program Files (x86)\Windows Kits\10\\include\10.0.26100.0\\cppwinrt</AdditionalIncludePath>
 			<AdditionalIncludePath>C:\Program Files (x86)\Windows Kits\NETFXSDK\4.8\include\um</AdditionalIncludePath>
 		</AdditionalIncludePaths>
-		<Defines></Defines>
+		<Defines>
+			<Define>_WIN32</Define>
+		</Defines>
 		<ConfigProperties>
 			<ConfigAndPlatform>
 				<Name>Debug:x64</Name>
