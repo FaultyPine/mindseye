@@ -4,23 +4,23 @@
 struct StringView;
 struct String
 {
-    char* data = nullptr;
+    const char* data = nullptr;
     size_t len = 0;
     StringView CreateView(size_t offset = 0);
     StringView CreateView(size_t offset, size_t len);
-    String(char* data, size_t len) : data(data), len(len) {};
+    String(const char* data, size_t len) : data(data), len(len) {};
     String() = default;
-    operator char*() { return data; }
+    operator const char*() { return data; }
 };
 
 struct StringView // non-owning
 {
-    char* data = nullptr;
+    const char* data = nullptr;
     size_t len = 0;
     StringView(const String&& s) { data = (char*)s.data; len = s.len; }
     StringView(const String& s) { data = (char*)s.data; len = s.len; }
     StringView() = default;
-    StringView(char* data, size_t len) { this->data = data; this->len = len; };
+    StringView(const char* data, size_t len) { this->data = data; this->len = len; };
     bool operator == (const StringView& sv) const;
 
     StringView CreateView(size_t offset = 0) 
@@ -42,17 +42,19 @@ enum StringCompareFlags
 #define STRING_LIT(strlit) (String{(char*)(strlit), sizeof(strlit)-1})
 
 
-bool StringCopy(String dst, String src);
+MEAPI bool StringCopy(String dst, String src);
 
-StringView FindInString(StringView haystack, StringView needle);
+MEAPI StringView FindInString(StringView haystack, StringView needle);
 
 // flags = bitfield of StringCompareFlags
-bool StringCompare(StringView str1, StringView str2, StringCompareFlags flags = StringCompareFlags(0));
+MEAPI bool StringCompare(StringView str1, StringView str2, StringCompareFlags flags = StringCompareFlags(0));
 
-size_t CStringLength(const char* str);
+MEAPI size_t CStringLength(const char* str);
 
-String FromCString(const char* str, s32 strLen = -1);
+MEAPI String StringFromCString(const char* str, s32 strLen = -1);
 
-size_t wcharToNarrow(const wchar_t* src, char * dest, size_t destLen);
+MEAPI size_t wcharToNarrow(const wchar_t* src, char * dest, size_t destLen);
 
-char ToLower(char c);
+MEAPI char ToLower(char c);
+
+MEAPI const char* TextFormat(const char *text, ...);

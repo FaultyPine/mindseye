@@ -45,6 +45,31 @@ struct OSStateView
 #endif
 };
 
+#ifdef OS_WINDOWS
+#ifndef PATH_MAX
+#define PATH_MAX 260
+#endif
+#else
+#error undefined max path for unk os
+#endif
+
+enum OSFileFlags
+{
+    ScopedFile = NTH_BIT(0)
+};
+
+struct OSFileReference
+{
+    ~OSFileReference();
+    OSFileFlags flags = OSFileFlags(0);
+    #ifdef OS_WINDOWS
+    void* fileHandle = 0;
+    char path[PATH_MAX] = {};
+    #else
+    #error unsupported filereference platform
+    #endif
+};
+
 void ConsolePrint(const char* text);
 void* LoadDynamicLibrary(const char* name);
 void* GetFunctionPtr(void* module, String functionName);
@@ -52,4 +77,8 @@ void* GetFunctionPtr(void* module, String functionName);
 MEAPI void meOSCreateWindow(WindowCreationParams creationParams, EngineContext* engine);
 MEAPI void meOSTick(EngineContext* engine);
 MEAPI void* meOSReserveVirtualMemory(u64 size);
-
+MEAPI const char* meOSFsDirectorySeperator();
+MEAPI bool meOSOpenFile(OSFileReference& file, const char* path, OSFileFlags flags = OSFileFlags(0));
+MEAPI bool meOSCloseFile(OSFileReference& file);
+MEAPI bool meOSReadFileContents(const OSFileReference& file, void* backingBuffer, size_t backingBufferSize);
+MEAPI size_t meOSGetFileSize(const OSFileReference& file);

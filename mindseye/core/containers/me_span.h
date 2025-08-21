@@ -6,7 +6,8 @@ struct meSpan
 {
     void* data;
     u64 size;
-
+    
+    meSpan() : data(0), size(0) {}
     template<typename T>
     meSpan(T* data, u64 size) : data((void*)data), size(size) {}
     meSpan Subspan(u64 offset)
@@ -19,6 +20,8 @@ struct meSpan
     {
         return (T*)data; 
     }
+
+	bool isValid() const { return data != nullptr && size > 0; }
 };
 
 // for extra markup

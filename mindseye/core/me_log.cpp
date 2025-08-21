@@ -1,9 +1,10 @@
 
 #include "me_log.h"
 
-#include "external/stb/stb_sprintf.h"
 #include "core/me_memory.h"
+#include "core/me_string.h"
 #include "platform/me_os.h"
+#include "external/stb/stb_sprintf.h"
 
 static u32 LOG_LEVELS_ENABLED = 0;
 
@@ -115,33 +116,4 @@ void LogMessage(LogLevel level, const char* message, ...)
 #else
     ConsolePrint(processedMsg);
 #endif
-}
-
-
-// yoinked from raylib
-const char *TextFormat(const char *text, ...)
-{
-#ifndef MAX_TEXTFORMAT_BUFFERS
-    #define MAX_TEXTFORMAT_BUFFERS      12        // Maximum number of static buffers for text formatting
-#endif
-#ifndef MAX_TEXT_BUFFER_LENGTH
-    #define MAX_TEXT_BUFFER_LENGTH   16000        // Maximum size of static text buffer
-#endif
-
-    // We create an array of buffers so strings don't expire until MAX_TEXTFORMAT_BUFFERS invocations
-    static char buffers[MAX_TEXTFORMAT_BUFFERS][MAX_TEXT_BUFFER_LENGTH] = { {0} };
-    static int index = 0;
-
-    char *currentBuffer = buffers[index];
-    ME_MEMCLEAR(currentBuffer, MAX_TEXT_BUFFER_LENGTH);   // Clear buffer before using
-
-    va_list args;
-    va_start(args, text);
-    stbsp_vsnprintf(currentBuffer, MAX_TEXT_BUFFER_LENGTH, text, args);
-    va_end(args);
-
-    index += 1;     // Move to next buffer for next function call
-    if (index >= MAX_TEXTFORMAT_BUFFERS) index = 0;
-
-    return currentBuffer;
 }

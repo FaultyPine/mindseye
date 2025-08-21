@@ -3,6 +3,7 @@
 #include "core/me_string.h"
 #include "core/me_memory.h"
 #include "core/me_log.h"
+#include "external/stb/stb_sprintf.h"
 
 bool StringView::operator == (const StringView& sv) const 
 {
@@ -30,7 +31,7 @@ size_t CStringLength(const char* str)
     return len;
 }
 
-String FromCString(const char* str, s32 strLen)
+String StringFromCString(const char* str, s32 strLen)
 {
     if (strLen == -1)
     {
@@ -49,7 +50,7 @@ bool StringCopy(String dst, String src)
     } 
     // source length will always be less than or equal to dst len
     size_t amountToCopy = src.len;
-    ME_MEMCPY(dst.data, src.data, amountToCopy);
+    ME_MEMCPY((void*)dst.data, src.data, amountToCopy);
     return true;
 }
 
@@ -126,3 +127,35 @@ size_t wcharToNarrow(const wchar_t * src, char * dest, size_t dest_len)
     dest[i] = '\0';
     return i - 1;
 }
+
+
+
+
+// yoinked from raylib
+const char *TextFormat(const char *text, ...)
+{
+#ifndef MAX_TEXTFORMAT_BUFFERS
+    #define MAX_TEXTFORMAT_BUFFERS      12        // Maximum number of static buffers for text formatting
+#endif
+#ifndef MAX_TEXT_BUFFER_LENGTH
+    #define MAX_TEXT_BUFFER_LENGTH   16000        // Maximum size of static text buffer
+#endif
+
+    // We create an array of buffers so strings don't expire until MAX_TEXTFORMAT_BUFFERS invocations
+    static char buffers[MAX_TEXTFORMAT_BUFFERS][MAX_TEXT_BUFFER_LENGTH] = { {0} };
+    static int index = 0;
+
+    char *currentBuffer = buffers[index];
+    ME_MEMCLEAR(currentBuffer, MAX_TEXT_BUFFER_LENGTH);   // Clear buffer before using
+
+    va_list args;
+    va_start(args, text);
+    stbsp_vsnprintf(currentBuffer, MAX_TEXT_BUFFER_LENGTH, text, args);
+    va_end(args);
+
+    index += 1;     // Move to next buffer for next function call
+    if (index >= MAX_TEXTFORMAT_BUFFERS) index = 0;
+
+    return currentBuffer;
+}
+

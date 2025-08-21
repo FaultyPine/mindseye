@@ -23,7 +23,7 @@ Arena ArenaInit(size_t arena_size, const char* name, meAllocator* backingAllocat
     {
         char* name_mem = (char*)ArenaAlloc(&a, ARENA_MAX_NAME_LEN); 
         ME_MEMCLEAR(name_mem, ARENA_MAX_NAME_LEN);
-        StringCopy(FromCString(name_mem, ARENA_MAX_NAME_LEN), FromCString(name, ARENA_MAX_NAME_LEN));
+        StringCopy(StringFromCString(name_mem, ARENA_MAX_NAME_LEN), StringFromCString(name, ARENA_MAX_NAME_LEN));
     }
     return a;
 }

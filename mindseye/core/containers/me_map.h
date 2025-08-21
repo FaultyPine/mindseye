@@ -11,3 +11,8 @@ struct meMap : std::unordered_map<Key, Value>
         return count(key) != 0;
     }
 };
+
+#define MEMAP_BEGIN_CUSTOM_HASHER(type, varname) \
+namespace std { template <> struct hash<type> { size_t operator()(const type& varname) const
+
+#define MEMAP_END_CUSTOM_HASHER };}

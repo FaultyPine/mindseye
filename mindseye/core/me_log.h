@@ -18,7 +18,6 @@ enum LogLevel
 MEAPI bool InitializeLogger(EngineContext* engine);
 MEAPI void ShutdownLogger();
 MEAPI void SetLogLevel(LogLevel level, bool toggle);
-MEAPI const char* TextFormat(const char *text, ...);
 MEAPI void LogMessage(LogLevel level, const char* message, ...);
 
 #define LOG_FATAL(message, ...) LogMessage(LOG_LEVEL_FATAL, message, __VA_ARGS__)

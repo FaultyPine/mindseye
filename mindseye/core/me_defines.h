@@ -20,6 +20,7 @@ typedef wchar_t wchar;
 #endif
 
 #define UNUSED(x) (void)(x)
+#define UNUSED_DECL [[maybe_unused]]
 
 #if defined(__clang__)
 #define COMPILER_CLANG
@@ -91,7 +92,8 @@ typedef wchar_t wchar;
 // stringize token after macro expanding A
 #define ME_MACRO_STRINGIZE_EX(A) TMACRO_STRINGIZE(A)
 
-#define U32_INVALID_ID 999999999U
+#define U32_INVALID_ID 0xFFFFFFFF
+#define U64_INVALID_ID 0xFFFFFFFFFFFFFFFF
 
 #ifdef COMPILER_MSVC
 #define EXT_IMPORT __declspec(dllimport)

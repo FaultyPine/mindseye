@@ -12,22 +12,32 @@ struct HybridArray
     MEAPI HybridArray(meAllocator* allocator = nullptr);
     MEAPI HybridArray(const HybridArray&& arr)
     {
-        size = arr.size;
+        internalSize = arr.internalSize;
         capacity = arr.capacity;
         elements = arr.elements;
         if (arr.elements == &arr.fixedMem[0])
         { // don't need to copy fixedmem over if we've switched to dynamic mem
-            ME_MEMCPY(fixedMem, arr.fixedMem, sizeof(T) * size);
+            ME_MEMCPY(fixedMem, arr.fixedMem, sizeof(T) * internalSize);
+        }
+    }
+	MEAPI HybridArray(const HybridArray& arr)
+    {
+        internalSize = arr.internalSize;
+        capacity = arr.capacity;
+        elements = arr.elements;
+        if (arr.elements == &arr.fixedMem[0])
+        { // don't need to copy fixedmem over if we've switched to dynamic mem
+            ME_MEMCPY(fixedMem, arr.fixedMem, sizeof(T) * internalSize);
         }
     }
     MEAPI HybridArray& operator=(const HybridArray& arr)
     {
-        size = arr.size;
+        internalSize = arr.internalSize;
         capacity = arr.capacity;
         elements = arr.elements;
         if (arr.elements == &arr.fixedMem[0])
         { // don't need to copy fixedmem over if we've switched to dynamic mem
-            ME_MEMCPY(fixedMem, arr.fixedMem, sizeof(T) * size);
+            ME_MEMCPY(fixedMem, arr.fixedMem, sizeof(T) * internalSize);
         }
         return *this;
     }
@@ -46,6 +56,7 @@ struct HybridArray
     // returns element at index
     MEAPI T& at(u32 index);
     MEAPI const T& at(u32 index) const;
+    MEAPI u32 size() const;
     // sets size to 0 - does not zero out internal memory or do any deallocation
     MEAPI void clear();
  
@@ -57,7 +68,7 @@ struct HybridArray
     T* elements = nullptr;
     T fixedMem[fixedSize] = {};
     // both in terms of number of elements
-    u32 size = 0;
+    u32 internalSize = 0;
     u32 capacity = 0;
     meAllocator* allocator = nullptr;
 };

@@ -4,6 +4,7 @@
 #include "platform/me_os.h"
 #include "core/me_core.h"
 #include "core/me_memory.h"
+#include "core/me_log.h"
 
 #ifndef OS_WINDOWS
 #error "Including windows header in non windows build!
@@ -203,3 +204,44 @@ void* GetFunctionPtr(void* module, String functionName)
     return (void*)GetProcAddress((HMODULE)module, functionName.data);
 }
 
+
+bool meOSWinReadFileContents(const OSFileReference& file, void* backingBuffer, size_t backingBufferSize)
+{
+    ME_ASSERT(file.fileHandle != nullptr && file.fileHandle != INVALID_HANDLE_VALUE);
+    DWORD numBytesRead = 0;
+    if (!ReadFile(file.fileHandle, backingBuffer, backingBufferSize, &numBytesRead, nullptr))
+    {
+        DWORD result = GetLastError();
+        LOG_ERROR("[meOS] failed to read file contents %s err code = %u", file.path, result);
+    }
+    return numBytesRead == backingBufferSize;
+}
+
+u64 meOSWinGetFileSize(const OSFileReference& file)
+{
+    ME_ASSERT(file.fileHandle != nullptr && file.fileHandle != INVALID_HANDLE_VALUE);
+    DWORD fileSizeHi = 0;
+    DWORD fileSizeLo = GetFileSize(file.fileHandle, &fileSizeHi);
+    return (u64)fileSizeLo | ((u64)fileSizeHi << 32);
+}
+
+bool meOSWinOpenFile(OSFileReference& file, const char* path, OSFileFlags flags)
+{
+    ME_MEMCLEAR((void*)file.path, PATH_MAX);
+    StringCopy({file.path, PATH_MAX}, StringFromCString(path));
+    file.flags = (OSFileFlags)((u32)file.flags | (u32)flags);
+    file.fileHandle = CreateFileA(path, GENERIC_READ | GENERIC_WRITE, 0 /*exclusive access*/, 0, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
+    if (file.fileHandle == INVALID_HANDLE_VALUE)
+    {
+        DWORD result = GetLastError();
+        LOG_INFO("[meOS] failed to open file %s err code = %u", path, result);
+    }
+    return true;
+}
+
+bool meOSWinCloseFile(OSFileReference& file)
+{
+    ME_ASSERT(file.fileHandle != nullptr && file.fileHandle != INVALID_HANDLE_VALUE);
+    bool result = CloseHandle(file.fileHandle);
+    return result;
+}

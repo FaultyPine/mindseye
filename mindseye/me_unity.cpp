@@ -15,6 +15,8 @@
 #include "core/me_core.h"
 #include "core/me_memory.h"
 #include "core/me_cmdline.h"
+#include "core/me_event.h"
+#include "core/me_filesystem.h"
 
 #include "asset/me_asset.h"
 
@@ -32,6 +34,8 @@
 #include "core/me_core.cpp"
 #include "core/me_memory.cpp"
 #include "core/me_cmdline.cpp"
+#include "core/me_event.cpp"
+#include "core/me_filesystem.cpp"
 
 #include "asset/me_asset.cpp"
 

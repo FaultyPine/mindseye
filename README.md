@@ -24,6 +24,7 @@ then `build.bat`
     - not high prio
 - game/engine hot reloading
 - REFLECTION (C lexer? Metadesk? Clang plugin?)
+    - have engine systems register themselves through a static event the engine core dispatches. each engine system needs to define the other engine systems it will touch (rw/ro), and has a bitset for those. Then, all systems aren't allowed to use GetEngineCtx, they can only access the systems they explicitly define in their initialization. Reflection not required for this, but it would make it way cleaner
 - RWlock
 
 ### Real stuff
