@@ -15,7 +15,7 @@ enum LogLevel
     LOG_NUM_LEVELS,
 };
 
-MEAPI bool InitializeLogger(EngineContext* engine);
+MEAPI bool InitializeLogger();
 MEAPI void ShutdownLogger();
 MEAPI void SetLogLevel(LogLevel level, bool toggle);
 MEAPI void LogMessage(LogLevel level, const char* message, ...);

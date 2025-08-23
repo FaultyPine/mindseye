@@ -16,7 +16,7 @@ static u32 LOG_LEVELS_ENABLED = 0;
 #define LOG_LEVEL_DEBUG_ENABLED 1
 #define LOG_LEVEL_TRACE_ENABLED 1
 
-bool InitializeLogger(EngineContext* engine)
+bool InitializeLogger()
 {
     SetLogLevel(LOG_LEVEL_FATAL, LOG_LEVEL_FATAL_ENABLED);
     SetLogLevel(LOG_LEVEL_ERROR, LOG_LEVEL_ERROR_ENABLED);
@@ -24,6 +24,7 @@ bool InitializeLogger(EngineContext* engine)
     SetLogLevel(LOG_LEVEL_INFO, LOG_LEVEL_INFO_ENABLED);
     SetLogLevel(LOG_LEVEL_DEBUG, LOG_LEVEL_DEBUG_ENABLED);
     SetLogLevel(LOG_LEVEL_TRACE, LOG_LEVEL_TRACE_ENABLED);
+	meOSInitializeLogging();
     return true;
 }
 void ShutdownLogger()
@@ -55,7 +56,6 @@ EXT_IMPORT void*
 GetStdHandle(
     unsigned long nStdHandle);
 static int terminal_colors[6] = {4, 4, 6, 2, 1, 1};
-
 #else
 static const char* terminal_colors[6] = {"\033[0;31m", "\033[0;31m", "\033[0;33m", "\033[0;32m", "\033[0;34m", "\033[0;34m"};
 #endif
@@ -98,22 +98,23 @@ void LogMessage(LogLevel level, const char* message, ...)
         return;
     }
 
-    constexpr s32 log_message_limit = 16000;
-    char out_msg[log_message_limit]; // hardcoded log limit...
+    constexpr s32 LOG_MSG_LIMIT = 16000;
+    char msgBuffer[LOG_MSG_LIMIT]; // hardcoded log limit...
 
     va_list args;
     va_start(args, message);
-    s32 bytesWritten = stbsp_vsnprintf(out_msg, log_message_limit, message, args);
+    s32 bytesWritten = stbsp_vsnprintf(msgBuffer, LOG_MSG_LIMIT, message, args);
     va_end(args);
-    ME_ASSERT(bytesWritten < log_message_limit);
-    const char* processedMsg = TextFormat("%s\n", out_msg);
+    ME_ASSERT(bytesWritten < LOG_MSG_LIMIT);
+    const char* processedMsg = TextFormat("%s\n", msgBuffer);
+	String outMsg = String(processedMsg, bytesWritten+1);
 
     // append (optional)color and log level to message
 #if TERMINAL_COLORED_OUTPUT_ENABLED
     SetTerminalColor(level);
-    ConsolePrint(processedMsg);
+    ConsolePrint(outMsg);
     SetTerminalColor((LogLevel)-1);
 #else
-    ConsolePrint(processedMsg);
+    ConsolePrint(outMsg);
 #endif
 }

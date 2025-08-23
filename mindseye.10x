@@ -2,7 +2,7 @@
 <N10X>
 	<Workspace>
 		<IncludeFilter>*.*,</IncludeFilter>
-		<ExcludeFilter>*.obj,*.lib,*.pch,*.dll,*.pdb,.vs,Debug,Release,x64,obj,*.user,Intermediate,.git,</ExcludeFilter>
+		<ExcludeFilter>*.obj,*.pch,.vs,Debug,Release,x64,obj,*.user,Intermediate,.git,</ExcludeFilter>
 		<SyncFiles>true</SyncFiles>
 		<Recursive>true</Recursive>
 		<ShowEmptyFolders>true</ShowEmptyFolders>

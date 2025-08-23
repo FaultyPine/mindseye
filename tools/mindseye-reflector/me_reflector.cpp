@@ -44,6 +44,7 @@ DynArray(String) CompileDatabaseToHeaderList(String compileDatabasePath)
 
 int main(int argc, char* argv[])
 {
+	InitializeLogger();
 	if (argc < 2)
 	{
 		LOG_ERROR("Invalid args, need to pass path to compile_commands.json\n");

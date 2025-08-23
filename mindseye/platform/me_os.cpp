@@ -41,6 +41,14 @@ int meOSPlatformMain(int argc, char** argv)
 
 #endif
 
+void meOSInitializeLogging()
+{
+	#ifdef OS_WINDOWS
+	
+	#else
+	#error "unimplemented os meOSInitializeLogging"
+	#endif
+}
 
 void* meOSReserveVirtualMemory(u64 size)
 {
@@ -106,8 +114,16 @@ u64 meOSGetFileSize(const OSFileReference& file)
 
 void ConsolePrint(const char* text) 
 {
-#ifdef OS_WINDOWS
-    OutputDebugStringA(text);
-#endif
+	ConsolePrint(StringFromCString(text));
 }
 
+void ConsolePrint(String text) 
+{
+	#ifdef OS_WINDOWS
+	void* hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+	WriteFile(hConsole, text.data, text.len, nullptr, nullptr);
+	#if BUILD_DEBUG
+	OutputDebugStringA(text.data);
+	#endif
+	#endif
+}

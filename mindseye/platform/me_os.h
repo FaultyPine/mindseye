@@ -73,9 +73,11 @@ struct OSFileReference
 };
 
 void ConsolePrint(const char* text);
+void ConsolePrint(String text);
 void* LoadDynamicLibrary(const char* name);
 void* GetFunctionPtr(void* module, String functionName);
 
+MEAPI void meOSInitializeLogging();
 MEAPI void meOSCreateWindow(WindowCreationParams creationParams, EngineContext* engine);
 MEAPI void meOSTick(EngineContext* engine);
 MEAPI void* meOSReserveVirtualMemory(u64 size);

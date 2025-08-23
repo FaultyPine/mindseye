@@ -114,7 +114,7 @@ if "%release%"=="1" (
 )
 set external_lib_postprocess=call "%root%\tools\dll2lib.bat" 64 %root%\build\mindseye_ext.dll
 
-if "%reflector%"=="1" echo [Reflector compile] && call "tools/mindseye-reflector/build.bat" %mindseye_compile_database%
+if "%reflector%"=="1" echo [Reflector compile] && call "tools/mindseye-reflector/build.bat" %mindseye_compile_database% %*
 if %ERRORLEVEL% NEQ 0 (echo [Reflector compile] Error:%ERRORLEVEL% && exit /b)
 
 if not exist build mkdir build

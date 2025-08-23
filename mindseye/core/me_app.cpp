@@ -41,7 +41,7 @@ void InitializeEngine(s32 argc, char** argv)
     EngineContext* engine = GetEngineCtx();
     engine->isRunning = true;
     engine->engineInitialize();
-    InitializeLogger(engine);
+    InitializeLogger();
     InitializeAllocatorSystem(engine);
     InitializeCmdLine(argc, argv);
     meAssetInitialize(engine);

@@ -1,0 +1,28 @@
+// raddbg 0.9.21 project file
+
+recent_file: path: "tools/mindseye-reflector/me_reflector.cpp"
+recent_file: path: "mindseye/platform/me_os.cpp"
+recent_file: path: "mindseye/core/me_log.cpp"
+target:
+{
+  executable: "build/driver.exe"
+  working_directory: "build/"
+  label: "Mindseye testbed driver"
+}
+target:
+{
+  executable: "tools/mindseye-reflector/me_reflector.exe"
+  working_directory: "tools/mindseye-reflector/"
+  enabled: 1
+  label: "Mindseye Reflector"
+}
+breakpoint:
+{
+  source_location: "tools/mindseye-reflector/me_reflector.cpp:55:1"
+  hit_count: 0
+}
+breakpoint:
+{
+  source_location: "tools/mindseye-reflector/me_reflector.cpp:51:1"
+  hit_count: 1
+}
