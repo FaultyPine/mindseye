@@ -21,7 +21,7 @@ void meJobSystem::Initialize(meAllocator* allocator, u32 numThreads)
 			{ 
                 if (jobPool.try_dequeue(job)) 
 				{
-                    job.func(job.payload);
+                    job.func();
                 }
 				// put thread to sleep here
             }
@@ -31,9 +31,9 @@ void meJobSystem::Initialize(meAllocator* allocator, u32 numThreads)
     }
 }
 
-meJobId meJobSystem::Execute(meJobCb jobCb, void* payload)
+meJobId meJobSystem::Execute(std::function<void()> jobCb)
 {
-	meJob job = { .func = jobCb, .id = currentJobID++, .payload = payload };
+	meJob job = { .func = jobCb, .id = currentJobID++ };
 	jobPool.enqueue(job);
 	return job.id;
 }

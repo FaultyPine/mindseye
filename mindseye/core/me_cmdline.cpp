@@ -1,6 +1,6 @@
 #include "me_cmdline.h"
 
-#include "core/me_core.h"
+#include "core/me_app.h"
 #include <stdlib.h>
 
 template <typename T>

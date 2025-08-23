@@ -17,23 +17,23 @@ then `build.bat`
 
 ## TODO
 
-- going to sprint towards MVP of having a USD scene render. Then will do (possibly many) cleanup/hardening passes after
+- going to sprint towards MVP of having a scene (USD? gltf?) render. Then will do (possibly many) cleanup/hardening passes after
 
-### Core/backend stuff
-- RWlock -- CURRENT PRIORITY, FOR ASSET LOADING SYSTEM
-- make my containers and maybe some of the core stuff "header only" & standalone with IMPL macros
-    - not high prio
-- game/engine hot reloading
+### Current focus
+- ~~RWlock~~
 - REFLECTION (C lexer? Metadesk? Clang plugin?)
-    - have engine systems register themselves through a static event the engine core dispatches. each engine system needs to define the other engine systems it will touch (rw/ro), and has a bitset for those. Then, all systems aren't allowed to use GetEngineCtx, they can only access the systems they explicitly define in their initialization. Reflection not required for this, but it would make it way cleaner
+	- Use same technique as Esoterica engine. Clang.
+- Scene loading. 
+	- map a MAID to a filesystem path, or an arbitrary "actual" asset identifier that a loading system can use to actually load the thing fr
+	- Need a scene/asset description file. Going to use ini. To get data in/parse that description file, need reflection
+- game/engine hot reloading
+- have engine systems register themselves through a static event the engine core dispatches. each engine system needs to define the other engine systems it will touch (rw/ro), and has a bitset for those. Then, all systems aren't allowed to use GetEngineCtx, they can only access the systems they explicitly define in their initialization. Reflection not required for this, but it would make it way cleaner
 
-### Real stuff
+### General Roadmap
 - asset system
+	- ~~job system to support above loading~~
     - hot reloading
 - load basic example scene (USD?)
-    - load direct from USD? Will I need a "compiled" asset?
-    - great stress test would be to load all of these https://github.com/ft-lab/sample_usd
-- job system
 - render basic example scene
     - Dead simple blinnphong. Not trying to flesh anything out yet. Future - lightmapping, GDR, meshlets & mesh shaders
 - shader hot reloading

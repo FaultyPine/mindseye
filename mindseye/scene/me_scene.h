@@ -5,6 +5,7 @@
 
 struct meScene
 {
+	u32 numRootNodes;
 };
 typedef u32 meSceneID;
 

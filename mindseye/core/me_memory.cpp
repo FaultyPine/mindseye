@@ -3,9 +3,7 @@
 #include "core/me_core.h"
 #include "platform/me_os.h"
 
-EXT_IMPORT C_LINKAGE void*  malloc (size_t _Size);
-EXT_IMPORT C_LINKAGE void   free   (void *_Block);
-EXT_IMPORT C_LINKAGE void*  realloc(void *_Block, size_t newSize);
+#include <stdlib.h>
 #define SYSTEM_MALLOC(size) malloc(size)
 #define SYSTEM_FREE(ptr) free(ptr)
 #define SYSTEM_REALLOC(ptr, newSize) realloc(ptr, newSize)
@@ -42,6 +40,8 @@ meAllocator* GetSystemAllocator()
     return &system;
 }
 
+#ifndef ME_CORE_ONLY
+
 #define ENGINE_INITIAL_RESERVED_MEMSIZE GIGABYTES_BYTES(1)
 
 void InitializeAllocatorSystem(EngineContext* engine)
@@ -54,5 +54,5 @@ void InitializeAllocatorSystem(EngineContext* engine)
     engine->scratchWork = ArenaInit(ENGINE_INITIAL_RESERVED_MEMSIZE, "Scratch", systemAllocator);
 }
 
-
+#endif
 

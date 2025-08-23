@@ -10,7 +10,13 @@ struct meSceneAssetLoader : public meAssetLoader
 {
 	virtual meRTAsset meAssetLoad(meAssetIdent ident)
 	{
-		return {};
+		meRTAsset result = {};
+		result.id = ident.id;
+		result.type = meAssetType::Scene;
+		result.loadStage = Loaded;
+		// actual loading, need to fill out the loadedData span
+
+		return result;
 	}
 
 	static void RegisterAssetLoader(meEventPayload payload)

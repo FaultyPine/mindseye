@@ -11,6 +11,40 @@
 typedef void* DynArray;
 #define DynArray(type) DynArray
 
+// Frees backing memory
+void DynArrayDestroy(DynArray& array);
+// Retrives the size from the DynArray header
+u32 DynArrayGetSize(DynArray array);
+// Retrives the capacity from the DynArray header
+u32 DynArrayGetCapacity(DynArray array);
+// Retrives the stride from the DynArray header
+u32 DynArrayGetStride(DynArray array);
+meAllocator* DynArrayGetAllocator(DynArray array);
+template <typename T>
+inline T& DynArrayGet(DynArray array, u32 index)
+{
+    return ((T*)array)[index];
+}
+
+// internal
+DynArray __DynArrayCreate(u32 stride, u32 initialCapacity, meAllocator* allocator);
+
+// Create an array with an optional initial capacity (number of elements)
+template<typename T>
+T* DynArrayCreate(meAllocator* allocator, u32 initialCapacity = 5)
+{
+    return (T*)__DynArrayCreate(sizeof(T), initialCapacity, allocator);
+}
+// Create an array with an optional initial capacity (number of elements)
+template<typename T>
+T* DynArrayCreate(meAllocator* allocator, u32 initialSize, T* initialData)
+{
+    T* result = (T*)__DynArrayCreate(sizeof(T), initialSize, allocator);
+    ME_MEMCPY(result, initialData, sizeof(T)*initialSize);
+    GetHeaderPointer()->size = initialSize;
+    return result;
+}
+
 struct DynArrayHeader
 {
     // number of elements currently in the array
@@ -21,41 +55,21 @@ struct DynArrayHeader
     u32 stride;
     meAllocator* allocator;
 };
-
-// Create an array with an optional initial capacity (number of elements)
-DynArray __DynArrayCreate(u32 stride, u32 initialCapacity, meAllocator* allocator);
-template<typename T>
-T* DynArrayCreate(meAllocator* allocator, u32 initialCapacity = 5)
-{
-    return (T*)__DynArrayCreate(sizeof(T), initialCapacity, allocator);
-}
-template<typename T>
-T* DynArrayCreate(meAllocator* allocator, u32 initialSize, T* initialData)
-{
-    T* result = (T*)__DynArrayCreate(sizeof(T), initialSize, allocator);
-    ME_MEMCPY(result, initialData, sizeof(T)*initialSize);
-    GetHeaderPointer()->size = initialSize;
-    return result;
-}
-
 DynArrayHeader* GetHeaderPointer(DynArray array);
 
-// Frees backing memory
-void DynArrayDestroy(DynArray& array);
-
-// Retrives the size from the DynArray header
-u32 DynArrayGetSize(DynArray array);
-// Retrives the capacity from the DynArray header
-u32 DynArrayGetCapacity(DynArray array);
-// Retrives the stride from the DynArray header
-u32 DynArrayGetStride(DynArray array);
-meAllocator* DynArrayGetAllocator(DynArray array);
-
-template <typename T>
-inline T& DynArrayGet(DynArray array, u32 index)
+template<typename T>
+struct DynArrayScoped
 {
-    return ((T*)array)[index];
-}
+	DynArray(T) arr;
+	DynArrayScoped(meAllocator* allocator, u32 initialCapacity = 5)
+	{
+		arr = DynArrayCreate<T>(allocator, initialCapacity);
+	}
+	~DynArrayScoped()
+	{
+		DynArrayDestroy(arr);
+	}
+};
 
 void* __DynArrayPushAt(DynArray array, void* obj, u32 index);
 // Copies an object to a specified index (and moves all other elements over)

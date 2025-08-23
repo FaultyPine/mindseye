@@ -1,5 +1,5 @@
 
-#include "mindseye/core/me_core.h"
+#include "mindseye/core/me_app.h"
 #include "mindseye/core/me_log.h"
 #include "mindseye/platform/me_os.h"
 #include "mindseye/core/me_arena.h"

@@ -8,6 +8,8 @@
 #endif
 #include "core/me_log.h"
 
+#ifndef ME_CORE_ONLY
+
 void meOSCreateWindow(WindowCreationParams creationParams, EngineContext* engine)
 {
 #ifdef OS_WINDOWS
@@ -25,6 +27,20 @@ void meOSTick(EngineContext* engine)
 #error "Unimplemented OS meOSTick"
 #endif
 }
+
+
+
+int meOSPlatformMain(int argc, char** argv)
+{
+	#ifdef OS_WINDOWS
+	return meOSWinMain(argc, argv);
+	#else
+	#error "Unimplemented OS entrypoint"
+	#endif
+}
+
+#endif
+
 
 void* meOSReserveVirtualMemory(u64 size)
 {
@@ -82,18 +98,9 @@ bool meOSReadFileContents(const OSFileReference& file, void* backingBuffer, size
 u64 meOSGetFileSize(const OSFileReference& file)
 {
 #ifdef OS_WINDOWS
-    return meOSWinGetFileSize(file);
+	return meOSWinGetFileSize(file);
 #else
 #error "Unimplemented OS getfilesize"
-#endif
-}
-
-int meOSPlatformMain(int argc, char** argv)
-{
-#ifdef OS_WINDOWS
-    return meOSWinMain(argc, argv);
-#else
-#error "Unimplemented OS entrypoint"
 #endif
 }
 

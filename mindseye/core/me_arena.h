@@ -6,7 +6,7 @@
 #define ArenaAllocType(arena, type, num) ((type*)ArenaAlloc(arena, sizeof(type) * num))
 #define ARENA_MAX_NAME_LEN 30
 
-// BOOKMARK/TODO: make this chained.
+// BOOKMARK/TODO: make this chained & threadsafe.
 struct Arena : public meAllocator 
 {
     unsigned char* backing_mem = 0;

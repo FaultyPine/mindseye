@@ -8,6 +8,7 @@
 
 MEEVENT_DECLARE_STATIC(registerAssetLoader);
 
+static bool MEASSET_DEBUG_SINGLETHREADED_LOAD = 1;
 constexpr u32 NUM_ASSET_COMPILER_THREADS = 1;
 
 static meAssetSystem& GetAssetSystem()
@@ -34,10 +35,7 @@ void meAssetTeardown(EngineContext* engine)
 void meAssetRegisterLoader(meAssetLoader* loader, meAssetType type)
 {
     meAssetSystem& assetSystem = GetAssetSystem();
-	if (assetSystem.assetLoaders[type])
-	{
-		ME_ASSERT(false && "Not allowed to overwrite existing asset loader type");
-	}
+	ME_ASSERT(assetSystem.assetLoaders[type] == nullptr && "Not allowed to overwrite existing asset loader type");
 	assetSystem.assetLoaders[type] = loader;
 }
 
@@ -64,34 +62,55 @@ meAssetLoadStage* meAssetRequestLoad(
 	meAssetLoadStage* results = MEALLOC(allocator, sizeof(meAssetLoadStage) * numAssets);
 	for (u32 i = 0; i < numAssets; i++)
 	{
-		
-		// dispatch to the loader for this asset type
 		const meAssetIdent& assetIdent = assetIdents[i];
 		meAssetType assetType = meAssetType(assetIdent.id);
-		const meAssetSystem& assetSystem = GetAssetSystem();
 		meAssetLoader* loader = assetSystem.assetLoaders[assetType];
 		meAssetLoadStage stage = Unloaded;
 		if (loader)
 		{
-			RWLockRead(assetSystem.assetRegistryLock);
-			if (assetSystem.assetRegistry.contains(assetIdent))
-			{
-				const meRTAsset& loadedAsset = assetSystem.assetRegistry.at(assetIdent);
-				stage = loadedAsset.loadStage;
+			{ // if it's already loaded, noop
+				RWLockRead(assetSystem.assetRegistryLock);
+				if (assetSystem.assetRegistry.contains(assetIdent))
+				{
+					const meRTAsset& loadedAsset = assetSystem.assetRegistry.at(assetIdent);
+					stage = loadedAsset.loadStage;
+				}
 			}
-			else
+			// dispatch a request to load this asset!
+			if (stage == Unloaded)
 			{
+				{ // add the slot in immediately, and mark it as "loading"
+					meRTAsset notYetLoadedData = { .id = assetIdent.id, .type = assetType, .loadStage = Loading };
+					RWLockWrite(assetSystem.assetRegistryLock);
+					assetSystem.assetRegistry[assetIdent] = notYetLoadedData;
+				}
 				struct AssetCompilerJobData
 				{
 					meAssetIdent ident;
 					meAssetSystem* system;
+					meAssetLoader* loader;
 				};
-				// BOOKMARK: how to shape the semantics here..
-				// i want to pass a pointer to some data, and the data should live as long as the job does.
-				// should i pass an allocator to the job? how to do this....
-				assetSystem.assetCompilerJobs.Execute( + [](void* payload) {
-					meRTAsset loadedAsset = loader->meAssetLoad(assetIdent);
-				}, &compilerJobData);
+				AssetCompilerJobData jobData = {};
+				jobData.ident = assetIdent;
+				jobData.system = &assetSystem;
+				jobData.loader = loader;
+				auto loadFunc = [jobData]() 
+				{
+					meRTAsset loadedAsset = jobData.loader->meAssetLoad(jobData.ident);
+					ME_ASSERT(loadedAsset.loadStage == Loaded && loadedAsset.loadedData.isValid());
+					RWLockWrite(jobData.system->assetRegistryLock);
+					jobData.system->assetRegistry[jobData.ident] = loadedAsset;
+				};
+				if (MEASSET_DEBUG_SINGLETHREADED_LOAD)
+				{
+					loadFunc();
+				}
+				else
+				{
+					meJobId compilerJobId = assetSystem.assetCompilerJobs.Execute(loadFunc);
+					UNUSED(compilerJobId);
+				}
+				
 			}
 		}
 		results[i] = stage;

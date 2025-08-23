@@ -40,6 +40,7 @@ if not exist "build\driver.exe" (
 
 :: unpack cmd line args
 for %%a in (%*) do set "%%a=1"
+set reflector=1
 if not "%release%"=="1" set debug=1
 if "%debug%"=="1"   set release=0 && echo [debug mode]
 if "%release%"=="1" set debug=0 && echo [release mode]
@@ -59,8 +60,8 @@ if not exist "build\mindseye_ext.lib" (
 set include_libs=-I%root%\mindseye\external\imgui -I%root%\mindseye\external\bgfx\bgfx\include -I%root%\mindseye\external\bgfx\bgfx\3rdparty -I%root%\mindseye\external\bgfx\bx\include -I%root%\mindseye\external\bgfx\bimg\include
 
 @REM common compile flags
-set app_flags=-DSHIPPING_BUILD=0 -ftime-trace
-set compile_flags_common=%app_flags% -I%root% -I%root%\mindseye -I%root%\mindseye\external %include_libs% -std=c++20 -DNOMINMAX -DUNICODE -Wno-deprecated-declarations -g -gcodeview -gno-column-info -Wall -Wextra -Wno-unused-parameter -ferror-limit=500
+set app_flags=-DSHIPPING_BUILD=0 -I%root%\mindseye -I%root%\mindseye\external
+set compile_flags_common=%app_flags% -I%root% %include_libs% -std=c++20 -Wno-deprecated-declarations -g -gcodeview -gno-column-info -Wall -Wextra -Wno-unused-parameter -ferror-limit=500
 for /f %%i in ('call git describe --always --dirty')   do set compile_flags_common=%compile_flags_common% -DBUILD_GIT_HASH=\"%%i\"
 set linker_flags_common=-luser32 -lgdi32 -fuse-ld=lld-link
 
@@ -76,8 +77,9 @@ set link_ext_libs_rel=%linker_flags_common%
 
 
 :: mindseye engine
-set compile_mindseye_dbg= -O0 -DBUILD_DEBUG=1 -DMEEXPORT -D_USRDLL -D_WINDLL -D_DLL -shared -DBX_CONFIG_DEBUG=1 -D_DEBUG
-set compile_mindseye_rel= -O2 -DBUILD_DEBUG=0 -DMEEXPORT -D_USRDLL -D_WINDLL -D_DLL -shared -DBX_CONFIG_DEBUG=0
+set mindseye_compile_database=compile_commands_mindseye.json
+set compile_mindseye_dbg= -O0 -DBUILD_DEBUG=1 -DMEEXPORT -D_USRDLL -D_WINDLL -D_DLL -shared -MJ %mindseye_compile_database% -DBX_CONFIG_DEBUG=1 -D_DEBUG
+set compile_mindseye_rel= -O2 -DBUILD_DEBUG=0 -DMEEXPORT -D_USRDLL -D_WINDLL -D_DLL -shared -MJ %mindseye_compile_database% -DBX_CONFIG_DEBUG=0
 set link_mindseye_rel= %linker_flags_common% %link_bgfx_libs_rel% -lmindseye_ext
 set link_mindseye_dbg= %linker_flags_common% %link_bgfx_libs_dbg% -lmindseye_ext
 
@@ -111,6 +113,9 @@ if "%release%"=="1" (
     set compile_external_libraries=%compile_exe% %compile_ext_libs_rel% %compile_flags_common% %link_ext_libs_rel%
 )
 set external_lib_postprocess=call "%root%\tools\dll2lib.bat" 64 %root%\build\mindseye_ext.dll
+
+if "%reflector%"=="1" echo [Reflector compile] && call "tools/mindseye-reflector/build.bat" %mindseye_compile_database%
+if %ERRORLEVEL% NEQ 0 (echo [Reflector compile] Error:%ERRORLEVEL% && exit /b)
 
 if not exist build mkdir build
 pushd build

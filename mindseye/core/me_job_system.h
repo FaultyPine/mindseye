@@ -2,15 +2,15 @@
 
 #include "core/me_defines.h"
 #include "external/concurrentqueue/concurrentqueue.h"
+#include <functional> // need lambdas... captures are useful.
 
 typedef u32 meJobId;
 typedef void(*meJobCb)(void* payload);
 
 struct meJob
 {
-	meJobCb func;
+	std::function<void()> func;
 	meJobId id;
-	void* payload;
 };
 
 struct meJobSystem
@@ -19,7 +19,7 @@ struct meJobSystem
 		: numThreads(1), currentJobID(0), allocator(nullptr) {}
 	MEAPI void Initialize(meAllocator* allocator, u32 numThreads);
     MEAPI void Shutdown() { numThreads = 0; }
-    MEAPI meJobId Execute(meJobCb job, void* payload);
+    MEAPI meJobId Execute(std::function<void()> job);
     MEAPI void WaitOnJob(meJobId id);
 
 	#define MAX_JOBS 256

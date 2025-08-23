@@ -2,7 +2,6 @@
 
 #include "core/me_defines.h"
 #include "platform/me_os.h"
-#include "core/me_core.h"
 #include "core/me_memory.h"
 #include "core/me_log.h"
 
@@ -14,6 +13,8 @@
 #include <windows.h>
 #undef WIN32_LEAN_AND_MEAN
 
+#ifndef ME_CORE_ONLY
+#include "core/me_app.h"
 
 void OnResize(HWND hwnd, UINT flag, int width, int height)
 {
@@ -181,15 +182,17 @@ void meOSWinTick(EngineContext* engine)
 #endif
 }
 
-void* meOSWinReserveVirtualMemory(u64 size)
-{
-    return VirtualAlloc(nullptr, size, MEM_RESERVE, 0);
-}
-
 s32 meOSWinMain(s32 argc, char** argv)
 {
     InitializeEngine(argc, argv);
     return 0;
+}
+#endif
+
+
+void* meOSWinReserveVirtualMemory(u64 size)
+{
+    return VirtualAlloc(nullptr, size, MEM_RESERVE, 0);
 }
 
 

@@ -56,8 +56,8 @@ typedef wchar_t wchar;
 
 #define NODISCARD [[nodiscard]]
 
-#define Likely [[likely]]
-#define Unlikely [[unlikely]]
+#define MELIKELY [[likely]]
+#define MEUNLIKELY [[unlikely]]
 
 #define KILOBYTES_BYTES(kb) (kb*1024)
 #define MEGABYTES_BYTES(mb) (mb*KILOBYTES_BYTES(1024))
@@ -146,10 +146,10 @@ C_LINKAGE void __cdecl __debugbreak(void);
 #ifdef ME_ASSERTIONS_ENABLED
     #ifdef LOG_FATAL
         #define ME_ASSERT(x) \
-            if (!(x)) Unlikely { LOG_FATAL("%s | %s:%i", #x, __FILE__, __LINE__); DEBUG_BREAK; }
+            if (!(x)) MEUNLIKELY { LOG_FATAL("%s | %s:%i", #x, __FILE__, __LINE__); DEBUG_BREAK; }
     #else
         #define ME_ASSERT(x) \
-            if (!(x)) Unlikely { DEBUG_BREAK; }
+            if (!(x)) MEUNLIKELY { DEBUG_BREAK; }
     #endif
     #define UNIMPLEMENTED() ME_ASSERT(!"Unimplemented!");
 #else

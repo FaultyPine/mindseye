@@ -4,7 +4,6 @@
 #include "me_defines.h"
 #include "containers/me_span.h"
 #include <new> // for placement new
-struct EngineContext;
 
 C_LINKAGE void* memcpy(void *_Dst, const void *_Src, size_t _Size);
 C_LINKAGE void* memmove(void *_Dst, const void *_Src, size_t _Size);
@@ -23,10 +22,10 @@ typedef meSpan Allocation;
 
 struct meAllocator
 {
-    virtual Allocation meAlloc(u64 size) { UNIMPLEMENTED(); }
+	virtual Allocation meAlloc(u64 size) { UNIMPLEMENTED(); return {}; }
     virtual Allocation meReserve(u64 size) { return meAlloc(size); }
     virtual void meFree(void* allocation) { UNIMPLEMENTED(); }
-    virtual Allocation meRealloc(const Allocation& allocation, u64 newSize) { UNIMPLEMENTED(); }
+	virtual Allocation meRealloc(const Allocation& allocation, u64 newSize) { UNIMPLEMENTED(); return {}; }
     virtual void meClear() { UNIMPLEMENTED(); }
 
     u64 currentSize = 0;
@@ -42,7 +41,7 @@ struct meSystemAllocator : public meAllocator
 };
 
 
-meAllocator* GetSystemAllocator();
+MEAPI meAllocator* GetSystemAllocator();
 
 #define MESYSMALLOC(size) GetSystemAllocator()->meAlloc(size)
 #define MESYSFREE(ptr) GetSystemAllocator()->meFree(ptr)
@@ -68,4 +67,7 @@ do { \
 #error need manual support for MSB on non clang compiler
 #endif
 
+#ifndef ME_CORE_ONLY
+struct EngineContext;
 void InitializeAllocatorSystem(EngineContext* engine);
+#endif

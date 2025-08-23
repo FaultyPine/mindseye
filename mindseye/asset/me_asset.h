@@ -82,8 +82,8 @@ struct meAssetIdent
 	{ 
 		return id == other.id && assetSourceHash == other.assetSourceHash && assetVersion == other.assetVersion; 
 	}
-
 };
+
 MEMAP_BEGIN_CUSTOM_HASHER(meAssetIdent, ident) 
 {
     size_t h1 = std::hash<MAID>{}(ident.id);

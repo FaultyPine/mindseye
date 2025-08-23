@@ -46,11 +46,13 @@ struct OSStateView
 };
 
 #ifdef OS_WINDOWS
+#define NOMINMAX
+#define UNICODE
 #ifndef PATH_MAX
 #define PATH_MAX 260
 #endif
 #else
-#error undefined max path for unk os
+#error unknown os-specific defines
 #endif
 
 enum OSFileFlags
