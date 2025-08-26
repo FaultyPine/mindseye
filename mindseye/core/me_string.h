@@ -4,28 +4,31 @@
 struct StringView;
 struct String
 {
-    const char* data = nullptr;
+    char* data = nullptr;
     size_t len = 0;
     StringView CreateView(size_t offset = 0);
     StringView CreateView(size_t offset, size_t len);
-    String(const char* data, size_t len) : data(data), len(len) {};
-    String(const char* cstr);
+    String(char* data, size_t len) : data(data), len(len) {};
+    String(const char* data, size_t len) : data((char*)data), len(len) {};
+    String(char* cstr);
+	String(const char* cstr);
 	String() = default;
     bool operator == (const String& sv) const;
-    operator const char*() { return data; }
+    operator char*() { return data; }
 	operator bool() const { return data && len; }
 };
 
 struct StringView // non-owning
 {
-    const char* data = nullptr;
+    char* data = nullptr;
     size_t len = 0;
     StringView(const String&& s) { data = (char*)s.data; len = s.len; }
     StringView(const String& s) { data = (char*)s.data; len = s.len; }
     StringView() = default;
-    StringView(const char* data, size_t len) { this->data = data; this->len = len; };
-    bool operator == (const StringView& sv) const;
-    operator const char*() { return data; }
+    StringView(char* data, size_t len) { this->data = data; this->len = len; };
+    StringView(const char* data, size_t len) { this->data = (char*)data; this->len = len; };
+	bool operator == (const StringView& sv) const;
+    operator char*() { return data; }
 	operator bool() const { return data && len; }
 
     StringView CreateView(size_t offset = 0) 
@@ -45,29 +48,24 @@ enum StringCompareFlags
 };
 
 template <u64 N> 
-String STRING_LIT(const char (&strlit)[N]) { return String{strlit, N-1}; }
+String STRING_LIT(const char (&strlit)[N]) { return String{(char*)strlit, N-1}; }
 
 #define STRING_VAARGS(str) str.len, str.data
 
 MEAPI bool StringCopy(StringView dst, StringView src);
-
-enum StringFindFlags
-{
-	
-};
 
 // returns -1 when needle isn't in haystack.
 MEAPI s32 FindInString(
 	StringView haystack,
 	StringView needle,
 	u32 offset = 0,
-	StringFindFlags flags = StringFindFlags(0));
+	StringCompareFlags flags = StringCompareFlags(0));
 
 MEAPI s32 FindInStringRev(
 	StringView haystack,
 	StringView needle,
 	u32 offset = 0,
-	StringFindFlags flags = StringFindFlags(0));
+	StringCompareFlags flags = StringCompareFlags(0));
 
 MEAPI StringView EatChars(StringView str, char c);
 MEAPI u32 EatCharsOffset(StringView str, char c);

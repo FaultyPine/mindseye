@@ -294,3 +294,33 @@ bool meOSDeleteFile(
 	bool result = DeleteFileA(file.path);
 	return result;
 }
+
+char* meOSGetExeFilepath()
+{
+	static char path[PATH_MAX];
+	ME_MEMCLEAR(path, PATH_MAX);
+	GetModuleFileNameA(NULL, path, sizeof(path));
+	return path;
+}
+
+char* meOSGetExeFileFolder()
+{
+	static char path[PATH_MAX];
+	ME_MEMCLEAR(path, PATH_MAX);
+	char* fullPath = meOSGetExeFilepath();
+	s32 lastDirSep = FindInStringRev(StringView(fullPath, PATH_MAX), STRING_LIT("\\"));
+	ME_MEMCPY(path, fullPath, lastDirSep);
+	return path;
+}
+
+
+char* meOSResolveRelativeToAbsPath(
+	meAllocator* allocator,
+	StringView potentiallyRelativePath)
+{
+	char* absolutePath = MEALLOC(allocator, PATH_MAX);
+	ME_MEMCLEAR(absolutePath, PATH_MAX);
+    DWORD result = GetFullPathNameA(potentiallyRelativePath.data, PATH_MAX, absolutePath, NULL);
+	ME_ASSERT(result > 0);
+	return absolutePath;
+}

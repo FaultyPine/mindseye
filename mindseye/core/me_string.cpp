@@ -17,19 +17,25 @@ bool String::operator== (const String& s) const
 
 String::String(const char* cstr)
 {
+	data = (char*)cstr;
+	len = CStringLength(cstr);
+}
+
+String::String(char* cstr)
+{
 	data = cstr;
 	len = CStringLength(cstr);
 }
 
 StringView String::CreateView(size_t offset, size_t len) 
 { 
-    return {data + offset, this->len < len ? this->len : len};
+    return {(char*)data + offset, this->len < len ? this->len : len};
 }
 
 StringView String::CreateView(size_t offset) 
 { 
     offset = offset > len ? len : offset;
-    return {data + offset, len - offset};
+    return {(char*)data + offset, len - offset};
 }
 
 size_t CStringLength(const char* str)
@@ -69,7 +75,7 @@ s32 FindInString(
 	StringView haystack, 
 	StringView needle, 
 	u32 offset,
-	StringFindFlags flags)
+	StringCompareFlags flags)
 {
     if (!needle.data || !needle.len || *needle.data == '\0') 
     {
@@ -77,7 +83,24 @@ s32 FindInString(
     }
 	for (s32 hayStackIdx = (s32)offset; hayStackIdx < (s64)haystack.len - (s64)needle.len - 1; hayStackIdx++)
 	{
-		if (ME_MEMCMP(&haystack.data[hayStackIdx], needle.data, needle.len) == 0)
+		const char* haystackPtr = &haystack.data[hayStackIdx];
+		u32 i = 0;
+		for (; i < needle.len; i++)
+		{
+			char s1 = needle.data[i];
+			char s2 = haystackPtr[i];
+			if (flags & StringCompareFlags::CaseInsensitive)
+			{
+				s1 = ToLower(s1);
+				s2 = ToLower(s2);
+			}
+			if (s1 != s2)
+			{
+				break;
+			}
+		}
+		// all matched
+		if (i == needle.len)
 		{
 			return hayStackIdx;
 		}
@@ -89,7 +112,7 @@ s32 FindInStringRev(
 	StringView haystack,
 	StringView needle,
 	u32 offset,
-	StringFindFlags flags)
+	StringCompareFlags flags)
 {
 	if (!needle.data || !needle.len || *needle.data == '\0') 
     {
@@ -97,7 +120,24 @@ s32 FindInStringRev(
     }
 	for (s32 hayStackIdx = ((s64)haystack.len) - 1 - (s32)offset; hayStackIdx - needle.len >= 0; hayStackIdx--)
 	{
-		if (ME_MEMCMP(&haystack.data[hayStackIdx], needle.data, needle.len) == 0)
+		const char* haystackPtr = &haystack.data[hayStackIdx];
+		u32 i = 0;
+		for (; i < needle.len; i++)
+		{
+			char s1 = needle.data[i];
+			char s2 = haystackPtr[i];
+			if (flags & StringCompareFlags::CaseInsensitive)
+			{
+				s1 = ToLower(s1);
+				s2 = ToLower(s2);
+			}
+			if (s1 != s2)
+			{
+				break;
+			}
+		}
+		// all matched
+		if (i == needle.len)
 		{
 			return hayStackIdx;
 		}

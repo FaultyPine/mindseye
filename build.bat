@@ -114,8 +114,9 @@ set compile_mindseye=%compile_mindseye% %root%\mindseye\me_unity.cpp -o mindseye
 set external_lib_postprocess=call "%root%\tools\dll2lib.bat" 64 %root%\build\mindseye_ext.dll
 
 :: reflector needs to know about our project structure. The command we use to compile mindseye is enough info.
-echo %compile_mindseye% > build\compile_commands_mindseye.txt
-if "%reflector%"=="1" echo [Reflector compile] && call "tools/mindseye-reflector/build.bat" %root%\build\compile_commands_mindseye.txt
+set compile_commands_file=build\compile_commands_mindseye.txt
+echo %compile_mindseye% > %compile_commands_file%
+if "%reflector%"=="1" echo [Reflector compile] && call "tools/mindseye-reflector/build.bat" %root%\%compile_commands_file%
 if %ERRORLEVEL% NEQ 0 (exit /b)
 
 if not exist build mkdir build

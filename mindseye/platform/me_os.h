@@ -122,3 +122,10 @@ MEAPI bool meOSWriteFileContent(
 
 MEAPI size_t meOSGetFileSize(
 	const OSFileReference& file);
+
+MEAPI char* meOSGetExeFilepath();
+MEAPI char* meOSGetExeFileFolder();
+
+MEAPI char* meOSResolveRelativeToAbsPath(
+	meAllocator* allocator,
+	StringView potentiallyRelativePath);

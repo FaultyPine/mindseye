@@ -45,12 +45,22 @@ inline u32 GetLineNumberForCursor(const CXCursor& cr)
 	return line;
 }
 
+void NormalizePathSeperators(StringView str)
+{
+	for (u32 i = 0; i < str.len; i++)
+	{
+		if (str.data[i] == '\\')
+		{
+			str.data[i] = '/';
+		}
+	}
+}
+
 String GetHeaderPathForCursor(CXCursor cr, Arena* allocator)
 {
 	CXFile pFile;
 	CXSourceRange const cursorRange = clang_getCursorExtent( cr );
 	clang_getExpansionLocation( clang_getRangeStart( cursorRange ), &pFile, nullptr, nullptr, nullptr );
-
 	String HeaderFilePath;
 	if ( pFile != nullptr )
 	{
@@ -58,14 +68,24 @@ String GetHeaderPathForCursor(CXCursor cr, Arena* allocator)
 		const char* filePathMem = clang_getCString(clangFilePath);
 		u32 filePathLen = CStringLength(filePathMem);
 		HeaderFilePath = String((const char*)ReallocateBuffer(allocator, (void*)filePathMem, filePathLen).data, filePathLen);
+		NormalizePathSeperators(HeaderFilePath);
 		clang_disposeString(clangFilePath);
 	}
 	return HeaderFilePath;
 }
 
-bool IsHeaderInDir(StringView headerPath, StringView projectRootDir)
+
+// exclude stuff that isn't in our project tree, and 3rd party libs
+bool IsHeaderWeCareAbout(StringView headerPath, StringView projectRootDir)
 {
-	return false;
+	if (!headerPath || !projectRootDir)
+	{
+		return false;
+	}
+	// assumed these are both absolute paths for simplicity
+	bool inProjDir = FindInString(headerPath, projectRootDir, 0, CaseInsensitive) != -1;
+	s32 is3rdPartyLib = FindInString(headerPath, STRING_LIT("/external/")) != -1;
+	return inProjDir && !is3rdPartyLib;
 }
 
 CXChildVisitResult visitTranslationUnit(CXCursor cr, CXCursor parent, CXClientData clientData)
@@ -76,7 +96,7 @@ CXChildVisitResult visitTranslationUnit(CXCursor cr, CXCursor parent, CXClientDa
 	ArenaTemp scratchArena = ArenaTempInit(allocator);
 	String cursorDisplayName = GetCursorDisplayName(cr, scratchArena.arena);
 	String headerPath = GetHeaderPathForCursor(cr, scratchArena.arena);
-	if (!IsHeaderInDir(headerPath, ctx.projectRootDir))
+	if (!IsHeaderWeCareAbout(headerPath, ctx.projectRootDir))
 	{
 		return CXChildVisit_Continue;
 	}
@@ -228,7 +248,13 @@ int main(int argc, char* argv[])
 	// as a list of headers that should be passed through through the reflection system
 	// that way i can manually exclude unnecessary stuff easily.
 	const char* reflectorHeaderFilename = "Reflector.h";
-	
+	char* reflectorFilePath = DynArrayCreate<char>(&reflectorArena, 50);
+	char* exePath = meOSGetExeFileFolder();
+	u32 exePathLen = CStringLength(exePath);
+	DynArrayPush(reflectorFilePath, exePath, exePathLen);
+	if (exePath[exePathLen - 1] != '\\' && exePath[exePathLen - 1] != '/') DynArrayPush(reflectorFilePath, '\\');
+	DynArrayPush(reflectorFilePath, (char*)reflectorHeaderFilename, CStringLength(reflectorHeaderFilename));
+	LOG_INFO("Reflector file: %s", reflectorFilePath);
 	auto idx = clang_createIndex(0, 1);
 	u32 clangOptions = 0
 		| CXTranslationUnit_DetailedPreprocessingRecord
@@ -272,11 +298,13 @@ int main(int argc, char* argv[])
 	CXTranslationUnit tu;
 	CXErrorCode result = CXError_Failure;
 	{
-		result = clang_parseTranslationUnit2( idx, reflectorHeaderFilename, clangArgs, DynArrayGetSize(clangArgs), 0, 0, clangOptions, &tu );
+		result = clang_parseTranslationUnit2( idx, reflectorFilePath, clangArgs, DynArrayGetSize(clangArgs), 0, 0, clangOptions, &tu );
 	}
 	ClangParsingContext parsingContext;
 	parsingContext.allocator = &reflectorArena;
-	parsingContext.projectRootDir = String(projectRootDir, CStringLength(projectRootDir));
+	char* absProjectRootPath = meOSResolveRelativeToAbsPath(&reflectorArena, StringFromCString(projectRootDir));
+	parsingContext.projectRootDir = String(absProjectRootPath, CStringLength(absProjectRootPath));
+	NormalizePathSeperators(parsingContext.projectRootDir);
 	if ( result == CXError_Success )
 	{
 		auto cursor = clang_getTranslationUnitCursor( tu );
