@@ -9,8 +9,11 @@ struct String
     StringView CreateView(size_t offset = 0);
     StringView CreateView(size_t offset, size_t len);
     String(const char* data, size_t len) : data(data), len(len) {};
-    String() = default;
+    String(const char* cstr);
+	String() = default;
+    bool operator == (const String& sv) const;
     operator const char*() { return data; }
+	operator bool() const { return data && len; }
 };
 
 struct StringView // non-owning
@@ -22,6 +25,8 @@ struct StringView // non-owning
     StringView() = default;
     StringView(const char* data, size_t len) { this->data = data; this->len = len; };
     bool operator == (const StringView& sv) const;
+    operator const char*() { return data; }
+	operator bool() const { return data && len; }
 
     StringView CreateView(size_t offset = 0) 
     { 
@@ -39,12 +44,33 @@ enum StringCompareFlags
     CaseInsensitive = NTH_BIT(0)
 };
 
-#define STRING_LIT(strlit) (String{(char*)(strlit), sizeof(strlit)-1})
+template <u64 N> 
+String STRING_LIT(const char (&strlit)[N]) { return String{strlit, N-1}; }
 
+#define STRING_VAARGS(str) str.len, str.data
 
-MEAPI bool StringCopy(String dst, String src);
+MEAPI bool StringCopy(StringView dst, StringView src);
 
-MEAPI StringView FindInString(StringView haystack, StringView needle);
+enum StringFindFlags
+{
+	
+};
+
+// returns -1 when needle isn't in haystack.
+MEAPI s32 FindInString(
+	StringView haystack,
+	StringView needle,
+	u32 offset = 0,
+	StringFindFlags flags = StringFindFlags(0));
+
+MEAPI s32 FindInStringRev(
+	StringView haystack,
+	StringView needle,
+	u32 offset = 0,
+	StringFindFlags flags = StringFindFlags(0));
+
+MEAPI StringView EatChars(StringView str, char c);
+MEAPI u32 EatCharsOffset(StringView str, char c);
 
 // flags = bitfield of StringCompareFlags
 MEAPI bool StringCompare(StringView str1, StringView str2, StringCompareFlags flags = StringCompareFlags(0));

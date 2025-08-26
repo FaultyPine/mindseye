@@ -23,6 +23,11 @@ then `build.bat`
 - ~~RWlock~~
 - REFLECTION (C lexer? Metadesk? Clang plugin?)
 	- Use same technique as Esoterica engine. Clang.
+	- first weird roadblock with clang parsing. The compile commands json is invalid when there's just one file. Made a bug on clang github
+	- second thing I need to solve: I can't use the mindseye compilation database because the reflector needs to run before mindseye is compiled, but if mindseye isn't compiled, i don't have the compilation database. Chicken & egg.
+		- Maybe just use the reflector's compilation database? since im already using mindseye stuff there, the args will work. Mmmm <- that's probably a bad idea.
+		- Esoterica doesnt have this issue because he uses the sln, which is always there.
+	- can't use compilation database, sadly, for above reason. Instead, i'm just having the build system spit out it's mindseye compilation command, and parsing that manually.
 - Scene loading. 
 	- map a MAID to a filesystem path, or an arbitrary "actual" asset identifier that a loading system can use to actually load the thing fr
 	- Need a scene/asset description file. Going to use ini. To get data in/parse that description file, need reflection
@@ -91,5 +96,7 @@ Engine design to support above:
 - A short&sweet experience centered around the concepts in Courage To Create by Rollo May
 walking simulator-esc. No combat/levels/objectives/etc. Just telling a story & discussing creativity
 throw in some non euclidean portal nonsense
+- View planes on all sides of camera slice objects persistently. Imagine a cube on the ground - looking to the side so the cube is half off the screen, then looking back at the full cube, you'd see half of the cube, as if it was squished against your view
+	Could use the view planes to push objects, cut things away.... "heavy" objects might prevent you from looking away from them
 - coop warioware
 

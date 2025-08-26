@@ -1,13 +1,12 @@
 @echo off
 
-
 @REM Invoke this with no arguments for a standard debug build
 @REM Add 'release' at the end, like `build.bat release` for a release build
 @REM External libraries are compiled seperately. They will be compiled if they don't exist in the build folder,
 @REM but if you need to build them manually `build.bat libs` will rebuild them.
 
 
-setlocal ENABLEDELAYEDEXPANSION
+setlocal EnableDelayedExpansion
 
 set root=%~dp0
 :: remove trailing backslash
@@ -62,7 +61,6 @@ set include_libs=-I%root%\mindseye\external\imgui -I%root%\mindseye\external\bgf
 @REM common compile flags
 set app_flags=-DSHIPPING_BUILD=0 -I%root%\mindseye -I%root%\mindseye\external
 set compile_flags_common=%app_flags% -I%root% %include_libs% -std=c++20 -Wno-deprecated-declarations -g -gcodeview -gno-column-info -Wall -Wextra -Wno-unused-parameter -ferror-limit=500
-for /f %%i in ('call git describe --always --dirty')   do set compile_flags_common=%compile_flags_common% -DBUILD_GIT_HASH=\"%%i\"
 set linker_flags_common=-luser32 -lgdi32 -fuse-ld=lld-link
 
 
@@ -77,9 +75,8 @@ set link_ext_libs_rel=%linker_flags_common%
 
 
 :: mindseye engine
-set mindseye_compile_database=compile_commands_mindseye.json
-set compile_mindseye_dbg= -O0 -DBUILD_DEBUG=1 -DMEEXPORT -D_USRDLL -D_WINDLL -D_DLL -shared -MJ %mindseye_compile_database% -DBX_CONFIG_DEBUG=1 -D_DEBUG
-set compile_mindseye_rel= -O2 -DBUILD_DEBUG=0 -DMEEXPORT -D_USRDLL -D_WINDLL -D_DLL -shared -MJ %mindseye_compile_database% -DBX_CONFIG_DEBUG=0
+set compile_mindseye_dbg= -O0 -DBUILD_DEBUG=1 -DMEEXPORT -D_USRDLL -D_WINDLL -D_DLL -shared -DBX_CONFIG_DEBUG=1 -D_DEBUG
+set compile_mindseye_rel= -O2 -DBUILD_DEBUG=0 -DMEEXPORT -D_USRDLL -D_WINDLL -D_DLL -shared -DBX_CONFIG_DEBUG=0
 set link_mindseye_rel= %linker_flags_common% %link_bgfx_libs_rel% -lmindseye_ext
 set link_mindseye_dbg= %linker_flags_common% %link_bgfx_libs_dbg% -lmindseye_ext
 
@@ -107,15 +104,19 @@ if "%debug%"=="1" (
     set compile_external_libraries=%compile_exe% %compile_ext_libs_dbg% %compile_flags_common% %link_ext_libs_dbg%
 )
 if "%release%"=="1" ( 
+	for /f %%i in ('call git describe --always --dirty')   do set compile_flags_common=%compile_flags_common% -DBUILD_GIT_HASH=\"%%i\"
     set compile_mindseye=%compile_exe% %compile_mindseye_rel% %compile_flags_common% %link_mindseye_rel%
     set compile_testbed=%compile_exe% %compile_testbed_rel% %compile_flags_common% %link_testbed%
     set compile_driver=%compile_exe% %compile_driver_rel% %compile_flags_common% %link_driver%
     set compile_external_libraries=%compile_exe% %compile_ext_libs_rel% %compile_flags_common% %link_ext_libs_rel%
 )
+set compile_mindseye=%compile_mindseye% %root%\mindseye\me_unity.cpp -o mindseye.dll
 set external_lib_postprocess=call "%root%\tools\dll2lib.bat" 64 %root%\build\mindseye_ext.dll
 
-if "%reflector%"=="1" echo [Reflector compile] && call "tools/mindseye-reflector/build.bat" %mindseye_compile_database% %*
-if %ERRORLEVEL% NEQ 0 (echo [Reflector compile] Error:%ERRORLEVEL% && exit /b)
+:: reflector needs to know about our project structure. The command we use to compile mindseye is enough info.
+echo %compile_mindseye% > build\compile_commands_mindseye.txt
+if "%reflector%"=="1" echo [Reflector compile] && call "tools/mindseye-reflector/build.bat" %root%\build\compile_commands_mindseye.txt
+if %ERRORLEVEL% NEQ 0 (exit /b)
 
 if not exist build mkdir build
 pushd build
@@ -123,7 +124,7 @@ pushd build
 if "%libs%"=="1" echo [External libraries compile] && %compile_external_libraries% %root%\mindseye\me_external_unity.cpp -o mindseye_ext.dll
 if %ERRORLEVEL% NEQ 0 (echo [External libraries compile] Error:%ERRORLEVEL% && exit /b)
 
-if "%mindseye%"=="1" echo [mindseye compile] && %compile_mindseye_shaders% && %compile_mindseye% %root%\mindseye\me_unity.cpp -o mindseye.dll
+if "%mindseye%"=="1" echo [mindseye compile] && %compile_mindseye_shaders% && %compile_mindseye%
 if %ERRORLEVEL% NEQ 0 (echo [mindseye compile] Error:%ERRORLEVEL% && exit /b)
 
 if "%testbed%"=="1" echo [testbed compile] && %compile_testbed% %root%\projects\testbed\testbed.cpp -o testbed.dll

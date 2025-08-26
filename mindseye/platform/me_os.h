@@ -57,7 +57,9 @@ struct OSStateView
 
 enum OSFileFlags
 {
-    ScopedFile = NTH_BIT(0)
+    ScopedFile = NTH_BIT(0),
+	OnlyIfExists = NTH_BIT(1),
+	DeleteOnFileClose = NTH_BIT(2),
 };
 
 struct OSFileReference
@@ -78,11 +80,45 @@ void* LoadDynamicLibrary(const char* name);
 void* GetFunctionPtr(void* module, String functionName);
 
 MEAPI void meOSInitializeLogging();
-MEAPI void meOSCreateWindow(WindowCreationParams creationParams, EngineContext* engine);
-MEAPI void meOSTick(EngineContext* engine);
-MEAPI void* meOSReserveVirtualMemory(u64 size);
+
+MEAPI void meOSCreateWindow(
+	WindowCreationParams creationParams, 
+	EngineContext* engine);
+
+MEAPI void meOSTick(
+	EngineContext* engine);
+
+MEAPI void* meOSReserveVirtualMemory(
+	u64 size);
+
+MEAPI void* meOSCommitVirtualMemory(
+	u64 size);
+
+MEAPI void meOSFreeVirtualMemory(
+	void* data);
+
 MEAPI const char* meOSFsDirectorySeperator();
-MEAPI bool meOSOpenFile(OSFileReference& file, const char* path, OSFileFlags flags = OSFileFlags(0));
-MEAPI bool meOSCloseFile(OSFileReference& file);
-MEAPI bool meOSReadFileContents(const OSFileReference& file, void* backingBuffer, size_t backingBufferSize);
-MEAPI size_t meOSGetFileSize(const OSFileReference& file);
+
+MEAPI bool meOSOpenFile(
+	OSFileReference& file, 
+	const char* path, 
+	OSFileFlags flags = OSFileFlags(0));
+
+MEAPI bool meOSCloseFile(
+	OSFileReference& file);
+
+MEAPI bool meOSDeleteFile(
+	OSFileReference& file);
+
+MEAPI bool meOSReadFileContents(
+	const OSFileReference& file, 
+	void* backingBuffer, 
+	size_t backingBufferSize);
+
+MEAPI bool meOSWriteFileContent(
+	const OSFileReference& file,
+	void* buffer,
+	size_t amtToWrite);
+
+MEAPI size_t meOSGetFileSize(
+	const OSFileReference& file);

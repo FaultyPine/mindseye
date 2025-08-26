@@ -24,10 +24,12 @@ if "%release%"=="1" (
 )
 
 set mindseye_options=-I%proj_root%\mindseye -DMEEXPORT
-clang me_reflector.cpp -std=c++20 -g %mode_options% %mindseye_options% -o me_reflector.exe -I%proj_root% -I%clang_path%\include -L%clang_path%\lib -DCLANG_BINARIES_DIR_STR="%clang_path%\bin"
+set clang_options=-I%clang_path%\include -L%clang_path%\lib -llibclang -DCLANG_BINARIES_DIR_STR="%clang_path%\bin"
+clang me_reflector.cpp -std=c++20 -g %mode_options% %mindseye_options% -o me_reflector.exe -I%proj_root% %clang_options%
+if %ERRORLEVEL% NEQ 0 (echo [Reflector compile] Error:%ERRORLEVEL% && exit /b)
 
-me_reflector.exe %*
-
+me_reflector.exe %1 %proj_root%\mindseye
+if %ERRORLEVEL% NEQ 0 (echo [Reflector run] Error:%ERRORLEVEL% && exit /b)
 
 
 popd

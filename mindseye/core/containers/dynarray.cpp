@@ -48,22 +48,21 @@ DynArray __DynArrayCreate(u32 stride, u32 initialCapacity, meAllocator* allocato
     return result;
 }
 
-void DynArrayDestroy(DynArray& array)
+void __DynArrayDestroy(void* dynArrayPtr)
 {
+	DynArray& array = *(DynArray*)dynArrayPtr;
     // since header info is stored before the array pointer, move back to the beginning of the allocation to free it
     DynArrayHeader* baseArrayPtr = GetHeaderPointer(array);
     DynArrayInternalFree(baseArrayPtr->allocator, Allocation(baseArrayPtr, baseArrayPtr->size));
-    array = (void*)0;
+	array = (void*)0;
 }
 
-constexpr static u32 DYNARRAY_GROWTH_FACTOR = 2;
-DynArray DynArrayResize(DynArray array)
+DynArray DynArrayResize(DynArray array, u32 newCapacity)
 {
     DynArrayHeader* header = GetHeaderPointer(array);
 #if ARRAY_CHECKS
     ME_ASSERT(header->capacity != 0 && "resize called on array with 0 capacity");
 #endif
-    u32 newCapacity = header->size * DYNARRAY_GROWTH_FACTOR;
     DynArray newArray = __DynArrayCreate(header->stride, newCapacity, header->allocator);
     DynArrayHeader* newArrayBasePtr = GetHeaderPointer(newArray);
     u32 totalOldArraySize = (header->size * header->stride) + sizeof(DynArrayHeader);
@@ -75,7 +74,7 @@ DynArray DynArrayResize(DynArray array)
 
 // ===== Modify array ======
 
-void* __DynArrayPushAt(DynArray array, void* obj, u32 index)
+void* __DynArrayPushAt(DynArray array, void* objs, u32 numObjs, u32 index)
 {
     DynArrayHeader* header = GetHeaderPointer(array);
 #if ARRAY_CHECKS
@@ -85,33 +84,29 @@ void* __DynArrayPushAt(DynArray array, void* obj, u32 index)
         return nullptr;
     }
 #endif
-    if (header->size >= header->capacity)
+    while (header->size + numObjs > header->capacity)
     {
-        array = DynArrayResize(array);
+		constexpr static u32 DYNARRAY_GROWTH_FACTOR = 2;
+		u32 newCapacity = header->capacity * DYNARRAY_GROWTH_FACTOR;
+		newCapacity = MEMAX(newCapacity, header->size + numObjs);
+        array = DynArrayResize(array, newCapacity);
         header = GetHeaderPointer(array);
     }
     u32 arrSize = header->size;
     u32 stride = header->stride;
     u8* arrayMem = (u8*)array;
-    // if not on last element, copy all elements 1 to the right
-    if (index < arrSize-1)
+	u8* destination = arrayMem + (index * stride);
+    // if inserting at a populated index, copy all elements to the right
+    if (index < arrSize)
     {
         u32 moveSize = (arrSize - index) * stride;
-        u8* moveTo   = arrayMem + ((index+1) * stride);
-        u8* moveFrom = arrayMem + ((index+0) * stride);
-        ME_MEMMOVE(moveTo, moveFrom, moveSize);
+        u8* moveTo = arrayMem + ((index + numObjs) * stride);
+        ME_MEMMOVE(moveTo, destination, moveSize);
     }
-    // copy object to the index
-    ME_MEMCPY(arrayMem + (index * stride), obj, stride);
-    header->size++;
+    // copy object(s) to the index
+    ME_MEMCPY(destination, objs, numObjs * stride);
+    header->size += numObjs;
     return array;
-}
-
-
-
-void* __DynArrayPush(DynArray array, void* obj)
-{
-    return __DynArrayPushAt(array, obj, DynArrayGetSize(array));
 }
 
 void __DynArrayPopAt(DynArray array, u32 index, void* out)

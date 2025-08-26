@@ -36,17 +36,23 @@ struct meSystemAllocator : public meAllocator
     MEAPI Allocation meAlloc(u64 size) override;
     MEAPI Allocation meReserve(u64 size) override;
     MEAPI void meFree(void* allocation) override;
-    MEAPI Allocation meRealloc(const Allocation& allocation, u64 newSize) override;
     MEAPI void meClear() override;
 };
 
 
 MEAPI meAllocator* GetSystemAllocator();
 
+// takes an existing buffer and allocates + copies it into a new allocation
+MEAPI meOwningSpan ReallocateBuffer(
+	meAllocator* allocator,
+	void* existingBuffer,
+	u64 existingBufferSize);
+
 #define MESYSMALLOC(size) GetSystemAllocator()->meAlloc(size)
 #define MESYSFREE(ptr) GetSystemAllocator()->meFree(ptr)
 
 #define MEALLOC(allocator, size) ((allocator)->meAlloc(size))
+#define MERESERVE(allocator, size) ((allocator)->meReserve(size))
 #define MEFREE(allocator, data) ((allocator)->meFree(data))
 
 #define MENEW(allocator, Type, ...) \

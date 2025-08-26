@@ -3,14 +3,9 @@
 #include "core/me_core.h"
 #include "platform/me_os.h"
 
-#include <stdlib.h>
-#define SYSTEM_MALLOC(size) malloc(size)
-#define SYSTEM_FREE(ptr) free(ptr)
-#define SYSTEM_REALLOC(ptr, newSize) realloc(ptr, newSize)
-
 Allocation meSystemAllocator::meAlloc(u64 size)
 {
-    return Allocation((u8*)SYSTEM_MALLOC(size), size);
+    return Allocation((u8*)meOSCommitVirtualMemory(size), size);
 }
 
 Allocation meSystemAllocator::meReserve(u64 size)
@@ -20,12 +15,7 @@ Allocation meSystemAllocator::meReserve(u64 size)
 
 void meSystemAllocator::meFree(void* allocation)
 {
-    SYSTEM_FREE(allocation);
-}
-
-Allocation meSystemAllocator::meRealloc(const Allocation& allocation, u64 newSize)
-{
-    return Allocation((u8*)SYSTEM_REALLOC(allocation.data, newSize), newSize);
+    meOSFreeVirtualMemory(allocation);
 }
 
 void meSystemAllocator::meClear()
@@ -38,6 +28,16 @@ meAllocator* GetSystemAllocator()
 {
     static meSystemAllocator system = meSystemAllocator();
     return &system;
+}
+
+meOwningSpan ReallocateBuffer(
+	meAllocator* allocator,
+	void* existingBuffer,
+	u64 existingBufferSize)
+{
+	void* newBuffer = MEALLOC(allocator, existingBufferSize);
+	ME_MEMCPY(newBuffer, existingBuffer, existingBufferSize);
+	return { newBuffer, existingBufferSize };
 }
 
 #ifndef ME_CORE_ONLY

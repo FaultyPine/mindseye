@@ -9,16 +9,32 @@
 // stores capacity/size in a header section stored *before* the actual array pointer
 
 typedef void* DynArray;
-#define DynArray(type) DynArray
+#define DynArray(type) type*
 
 // Frees backing memory
 void DynArrayDestroy(DynArray& array);
+
 // Retrives the size from the DynArray header
 u32 DynArrayGetSize(DynArray array);
+template<typename T>
+u32 DynArrayGetSize(T* array)
+{
+	return DynArrayGetSize((DynArray)array);
+}
 // Retrives the capacity from the DynArray header
 u32 DynArrayGetCapacity(DynArray array);
+template <typename T>
+u32 DynArrayGetCapacity(T* array)
+{
+	return DynArrayGetCapacity((DynArray)array);
+}
 // Retrives the stride from the DynArray header
 u32 DynArrayGetStride(DynArray array);
+template <typename T>
+u32 DynArrayGetStride(T* array)
+{
+	return DynArrayGetStride((DynArray)array);
+}
 meAllocator* DynArrayGetAllocator(DynArray array);
 template <typename T>
 inline T& DynArrayGet(DynArray array, u32 index)
@@ -44,6 +60,9 @@ T* DynArrayCreate(meAllocator* allocator, u32 initialSize, T* initialData)
     GetHeaderPointer()->size = initialSize;
     return result;
 }
+
+void __DynArrayDestroy(DynArray& array);
+#define DynArrayDestroy(dynarray) __DynArrayDestroy((void*)&dynarray)
 
 struct DynArrayHeader
 {
@@ -71,21 +90,26 @@ struct DynArrayScoped
 	}
 };
 
-void* __DynArrayPushAt(DynArray array, void* obj, u32 index);
+void* __DynArrayPushAt(DynArray array, void* obj, u32 numObjs, u32 index);
 // Copies an object to a specified index (and moves all other elements over)
 // passing reference as this could potentially reallocate if backing mem is full
 // pushing to an index outside the range [0,length] returns nullptr, logs an error, and does nothing
 template <typename T>
 void DynArrayPushAt(T*& array, T obj, u32 index)
 {
-    array = (T*)__DynArrayPushAt(array, &obj, index);
+    array = (T*)__DynArrayPushAt(array, &obj, 1, index);
 }
-inline void* __DynArrayPush(DynArray array, void* obj);
 // Copies an object to the end of the array
 template <typename T>
 void DynArrayPush(T*& array, T obj)
 {
-    array = (T*)__DynArrayPush((DynArray*)array, (void*)&obj);
+    array = (T*)__DynArrayPushAt((DynArray)array, (void*)&obj, 1, DynArrayGetSize(array));
+}
+
+template<typename T>
+void DynArrayPush(T*& array, T* objs, u64 numObjs)
+{
+	array = (T*)__DynArrayPushAt((DynArray)array, (void*)objs, numObjs, DynArrayGetSize(array));
 }
 
 void __DynArrayPopAt(DynArray array, u32 index, void* out = 0);

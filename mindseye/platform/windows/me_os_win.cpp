@@ -192,9 +192,30 @@ s32 meOSWinMain(s32 argc, char** argv)
 
 void* meOSWinReserveVirtualMemory(u64 size)
 {
-    return VirtualAlloc(nullptr, size, MEM_RESERVE, 0);
+    void* result = VirtualAlloc(nullptr, size, MEM_RESERVE, PAGE_READWRITE);
+	if (result == nullptr) MEUNLIKELY
+	{
+		DWORD err = GetLastError();
+		LOG_ERROR("meOS ran out of memory! %u", err);
+	}
+	return result;
 }
 
+void* meOSWinCommitVirtualMemory(u64 size)
+{
+    void* result = VirtualAlloc(nullptr, size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+	if (result == nullptr) MEUNLIKELY
+	{
+		DWORD err = GetLastError();
+		LOG_ERROR("meOS ran out of memory! %u", err);
+	}
+	return result;
+}
+
+void meOSWinFreeVirtualMemory(void* data)
+{
+	VirtualFree(data, 0, MEM_RELEASE);
+}
 
 void* LoadDynamicLibrary(const char* name)
 {
@@ -216,8 +237,19 @@ bool meOSWinReadFileContents(const OSFileReference& file, void* backingBuffer, s
     {
         DWORD result = GetLastError();
         LOG_ERROR("[meOS] failed to read file contents %s err code = %u", file.path, result);
+		return false;
     }
     return numBytesRead == backingBufferSize;
+}
+
+bool meOSWriteFileContent(
+	const OSFileReference& file,
+	void* buffer,
+	size_t amtToWrite)
+{
+	DWORD amtActuallyWritten = 0;
+	bool result = WriteFile(file.fileHandle, buffer, amtToWrite, &amtActuallyWritten, nullptr);
+	return result;
 }
 
 u64 meOSWinGetFileSize(const OSFileReference& file)
@@ -233,11 +265,13 @@ bool meOSWinOpenFile(OSFileReference& file, const char* path, OSFileFlags flags)
     ME_MEMCLEAR((void*)file.path, PATH_MAX);
     StringCopy({file.path, PATH_MAX}, StringFromCString(path));
     file.flags = (OSFileFlags)((u32)file.flags | (u32)flags);
-    file.fileHandle = CreateFileA(path, GENERIC_READ | GENERIC_WRITE, 0 /*exclusive access*/, 0, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
+	u32 openMode = (flags & OnlyIfExists) ? OPEN_EXISTING : OPEN_ALWAYS;
+    file.fileHandle = CreateFileA(path, GENERIC_READ | GENERIC_WRITE, 0 /*exclusive access*/, 0, openMode, FILE_ATTRIBUTE_NORMAL, 0);
     if (file.fileHandle == INVALID_HANDLE_VALUE)
     {
         DWORD result = GetLastError();
         LOG_INFO("[meOS] failed to open file %s err code = %u", path, result);
+		return false;
     }
     return true;
 }
@@ -245,6 +279,18 @@ bool meOSWinOpenFile(OSFileReference& file, const char* path, OSFileFlags flags)
 bool meOSWinCloseFile(OSFileReference& file)
 {
     ME_ASSERT(file.fileHandle != nullptr && file.fileHandle != INVALID_HANDLE_VALUE);
-    bool result = CloseHandle(file.fileHandle);
+	bool result = CloseHandle(file.fileHandle);
+	if (file.flags & DeleteOnFileClose)
+	{
+		meOSDeleteFile(file);
+	}
+	file.fileHandle = nullptr;
     return result;
+}
+
+bool meOSDeleteFile(
+	OSFileReference& file)
+{
+	bool result = DeleteFileA(file.path);
+	return result;
 }

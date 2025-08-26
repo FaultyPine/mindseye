@@ -59,6 +59,25 @@ void* meOSReserveVirtualMemory(u64 size)
 #endif
 }
 
+void* meOSCommitVirtualMemory(u64 size)
+{
+	#ifdef OS_WINDOWS
+    return meOSWinCommitVirtualMemory(size);
+	#else
+	#error "Unimplemented OS meOSCommitVirtualMemory"
+	#endif
+}
+
+void meOSFreeVirtualMemory(
+	void* data)
+{
+	#ifdef OS_WINDOWS
+    return meOSWinFreeVirtualMemory(data);
+	#else
+	#error "Unimplemented OS meOSFreeVirtualMemory"
+	#endif
+}
+
 const char* meOSFsDirectorySeperator()
 {
 #ifdef OS_WINDOWS

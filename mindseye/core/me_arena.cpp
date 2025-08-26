@@ -18,7 +18,6 @@ Arena ArenaInit(size_t arena_size, const char* name, meAllocator* backingAllocat
     a.backing_mem_size = arena_size;
     a.offset = 0;
     a.prev_offset = 0;
-    //ME_MEMCLEAR(backing_buffer, arena_size);
     if (name != nullptr)
     {
         char* name_mem = (char*)ArenaAlloc(&a, ARENA_MAX_NAME_LEN); 

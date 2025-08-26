@@ -24,6 +24,7 @@
 #include "core/me_filesystem.h"
 #include "core/thread/me_thread.h"
 #include "core/me_job_system.h"
+#include "core/me_scope_exit.h"
 
 #include "core/containers/dynarray.h"
 #include "core/containers/me_hybrid_array.h"
@@ -36,6 +37,7 @@
 #endif
 
 // SOURCE
+#ifndef ME_UNITY_HEADER_ONLY
 #include "platform/me_os.cpp"
 #include "core/me_log.cpp"
 #include "core/me_string.cpp"
@@ -61,4 +63,5 @@
 #include "render/renderer_unity.cpp"
 #include "scene/scene_unity.cpp"
 
-#endif
+#endif // ME_UNITY_HEADER_ONLY
+#endif // ME_CORE_ONLY

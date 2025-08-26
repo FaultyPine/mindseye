@@ -42,7 +42,7 @@ meSceneID meSceneLoadFromGLTF(meSpan gltfBuffer, const char* resourcePath)
     }
     cgltf_options options = {};
     cgltf_data* data = NULL;
-    ON_SCOPE_EXIT([data]()
+    ME_ON_SCOPE_EXIT([data]()
     {
         cgltf_free(data);
     });
