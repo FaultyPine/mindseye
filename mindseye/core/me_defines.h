@@ -59,6 +59,10 @@ typedef wchar_t wchar;
 #define MELIKELY [[likely]]
 #define MEUNLIKELY [[unlikely]]
 
+#define MEANNOTATE(annotation) __attribute__((annotate(#annotation)))
+#define MEREFLECT MEANNOTATE(reflect)
+#define MEREFLECTEXCL MEANNOTATE(noreflect)
+
 #define KILOBYTES_BYTES(kb) (kb*1024)
 #define MEGABYTES_BYTES(mb) (mb*KILOBYTES_BYTES(1024))
 #define GIGABYTES_BYTES(gb) (gb*MEGABYTES_BYTES(1024))

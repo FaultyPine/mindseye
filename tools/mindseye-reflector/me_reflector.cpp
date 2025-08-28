@@ -101,8 +101,19 @@ CXChildVisitResult visitTranslationUnit(CXCursor cr, CXCursor parent, CXClientDa
 		return CXChildVisit_Continue;
 	}
 	u32 fileLineNum = GetLineNumberForCursor(cr);
+	//CXSourceLocation sourceLoc = clang_getCursorLocation(cr);
+	bool hasAttr = clang_Cursor_hasAttrs(cr);
+	if (!hasAttr) return CXChildVisit_Recurse;
+	bool isAttr = clang_isAttribute(kind) != 0;
+	CXString spelling = clang_getCursorSpelling(cr);
+	
 	switch ( kind )
 	{
+		case CXCursor_UnexposedAttr:
+		{
+			LOG_INFO("%.*s %s\n", STRING_VAARGS(cursorDisplayName), clang_getCString(spelling));
+		}
+		break;
 		// Classes / Structs
 		case CXCursor_ClassTemplate:
 		{
@@ -123,17 +134,17 @@ CXChildVisitResult visitTranslationUnit(CXCursor cr, CXCursor parent, CXClientDa
 		{
 			// Process children before the parent so that we can correctly handle the mapping between macro and types
 			// We dont want an nested registration macro to cause an unwanted type to be registered
-		//	pContext->PushNamespace( cursorName );
-		//	clang_visitChildren( cr, VisitTranslationUnit, pClientData );
-		//	pContext->PopNamespace();
+			//pContext->PushNamespace( cursorName );
+			clang_visitChildren( cr, visitTranslationUnit, clientData );
+			//pContext->PopNamespace();
 
-		//	if ( pContext->HasErrorOccured() )
-		//	{
-		//		return CXChildVisit_Break;
-		//	}
+			//if ( pContext->HasErrorOccured() )
+			//{
+				//return CXChildVisit_Break;
+			//}
 			if (cursorDisplayName == STRING_LIT("meScene"))
 			{
-				LOG_INFO("%.*s %.*s:%u\n", STRING_VAARGS(cursorDisplayName), STRING_VAARGS(headerPath), fileLineNum);
+				LOG_INFO("%.*s %s\n", STRING_VAARGS(cursorDisplayName), clang_getCString(spelling));
 			}
 
 		//	return VisitStructure( pContext, cr, headerFilePath, headerID );
@@ -168,6 +179,8 @@ CXChildVisitResult visitTranslationUnit(CXCursor cr, CXCursor parent, CXClientDa
 		// Macros
 		case CXCursor_MacroExpansion:
 		{
+			LOG_INFO("%.*s %s\n", STRING_VAARGS(cursorDisplayName), clang_getCString(spelling));
+			
 			//return VisitMacro( pContext, pReflectedHeader, cr, cursorName );
 			return CXChildVisit_Recurse;
 
@@ -180,7 +193,7 @@ CXChildVisitResult visitTranslationUnit(CXCursor cr, CXCursor parent, CXClientDa
 			return CXChildVisit_Recurse;
 		}
 	}
-	
+	return CXChildVisit_Recurse;
 }
 
 // each command object has info about it's working dir, 
@@ -261,6 +274,7 @@ int main(int argc, char* argv[])
 		| CXTranslationUnit_SkipFunctionBodies
 		| CXTranslationUnit_IncludeBriefCommentsInCodeCompletion
 		//| CXTranslationUnit_KeepGoing
+		//| CXTranslationUnit_SingleFileParse
 		;
 
 	DynArray(const char*) clangArgs = DynArrayCreate<const char*>(&reflectorArena, 20);

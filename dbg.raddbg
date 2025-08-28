@@ -1,5 +1,7 @@
 // raddbg 0.9.21 project file
 
+recent_file: path: "mindseye/core/me_log.cpp"
+recent_file: path: "mindseye/external/stb/stb_sprintf.h"
 recent_file: path: "tools/mindseye-reflector/me_reflector.cpp"
 recent_file: path: "mindseye/core/me_string.cpp"
 recent_file: path: "mindseye/core/me_memory.cpp"
@@ -15,7 +17,6 @@ recent_file: path: "mindseye/platform/me_os.cpp"
 recent_file: path: "mindseye/platform/windows/me_os_win.cpp"
 recent_file: path: "mindseye/core/me_arena.cpp"
 recent_file: path: "mindseye/core/containers/me_span.h"
-recent_file: path: "mindseye/core/me_log.cpp"
 target:
 {
   executable: "build/driver.exe"
@@ -30,9 +31,4 @@ target:
   label: "Mindseye Reflector"
   arguments: "build/compile_commands_mindseye.txt  ./mindseye"
   working_directory: "../mindseye"
-}
-breakpoint:
-{
-  source_location: "tools/mindseye-reflector/me_reflector.cpp:103:1"
-  hit_count: 1
 }
