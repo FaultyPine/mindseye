@@ -29,6 +29,7 @@
 #include "core/containers/dynarray.h"
 #include "core/containers/me_hybrid_array.h"
 #include "core/containers/me_blocklist.h"
+#include "core/containers/me_map.h"
 
 #ifndef ME_CORE_ONLY
 #include "core/me_cmdline.h"
@@ -53,6 +54,7 @@
 #include "core/containers/dynarray.cpp"
 #include "core/containers/me_hybrid_array.cpp"
 #include "core/containers/me_blocklist.cpp"
+#include "core/containers/me_map.cpp"
 
 #ifndef ME_CORE_ONLY
 #include "core/me_cmdline.cpp"

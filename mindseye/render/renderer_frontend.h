@@ -3,7 +3,6 @@
 #include "scene/me_scene.h"
 struct EngineContext;
 
-
 enum RendererBackendType
 {
     NONE,

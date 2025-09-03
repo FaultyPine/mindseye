@@ -13,7 +13,10 @@ struct String
     String(char* cstr);
 	String(const char* cstr);
 	String() = default;
-    bool operator == (const String& sv) const;
+	void CopyOfCStr(const char* cstr, meAllocator* allocator);
+	void CopyOf(const char* str, size_t len, meAllocator* allocator);
+	void CopyOf(const String& str, meAllocator* allocator);
+	bool operator == (const String& sv) const;
     operator char*() { return data; }
 	operator bool() const { return data && len; }
 };
@@ -50,6 +53,7 @@ enum StringCompareFlags
 template <u64 N> 
 String STRING_LIT(const char (&strlit)[N]) { return String{(char*)strlit, N-1}; }
 
+// %.*s
 #define STRING_VAARGS(str) str.len, str.data
 
 MEAPI bool StringCopy(StringView dst, StringView src);

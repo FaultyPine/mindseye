@@ -11,18 +11,36 @@
 #pragma comment(lib, "kernel32.lib")
 
 /*
-exclude system libs & stl stuff with ClassFinder & MatchFinder - see https://www.youtube.com/watch?v=XoYVeduK4yI&ab_channel=cpponsea
-Should I only reflect reflection annotated types/fields? Or try to do it all?
-
 Generate in-memory representation of the data i care about.
 The pass that to a code generator to write out generated headers for mindseye to use.
+
+just allocate and leak whatever you need... if i end up concerned about memory usage of this metaprogram, there's other problems...
 */
 
+struct meReflectedType
+{
+	String name = {};
+	u32 size = 0;
+	bool isReflected = false;
+};
+
+struct meReflectedFile
+{
+	// qualified name hash -> type
+	meMap<u32, meReflectedType> reflectedTypes = {};
+};
 
 struct ClangParsingContext
 {
 	Arena* allocator = nullptr;
 	String projectRootDir = {};
+	Stack<String> namespaces = {};
+	meMap<u32, meReflectedFile> reflectedFiles = {};
+	bool reflecting = false;
+	bool reflectionExcluding = false;
+	u32 errorCode = 0;
+	CXTranslationUnit* tu = nullptr;
+	bool HasErrorOccurred() const { return errorCode != 0; }
 };
 
 inline String GetCursorDisplayName(const CXCursor& cr, Arena* allocator )
@@ -88,106 +106,136 @@ bool IsHeaderWeCareAbout(StringView headerPath, StringView projectRootDir)
 	return inProjDir && !is3rdPartyLib;
 }
 
+CXVisitorResult VisitStructureFields(CXCursor cr, CXClientData clientData);
+
+void OnFindAnnotated(CXCursor cr, CXCursor parent, CXClientData clientData)
+{
+	#if !defined(ME_REFLECT_ATTR_STR) || !defined(MEREFLECT)
+	#error Undefined MEREFLECT attribute str/macro... include me_defines.h
+	#endif
+	ClangParsingContext& ctx = *(ClangParsingContext*)clientData;
+	String cursorName = GetCursorDisplayName(cr, ctx.allocator);
+	if (cursorName == STRING_LIT(ME_REFLECT_ATTR_STR))
+	{
+		ArenaTemp scratchArena = ArenaTempInit(ctx.allocator);
+		ME_ON_SCOPE_EXIT([&scratchArena]() { ArenaTempEnd(scratchArena); });
+
+		CXTranslationUnit& tu = *ctx.tu;
+		String headerPath = GetHeaderPathForCursor(cr, scratchArena.arena);
+		u32 headerID = HashBytes((u8*)headerPath.data, headerPath.len);
+		CXType type = clang_getCursorType(parent);
+		CXString typeStr = clang_getTypeSpelling(type);
+		u32 nameID = HashBytes((u8*)typeStr.data, CStringLength((const char*)typeStr.data));
+		if (ctx.reflectedFiles[headerID].reflectedTypes[nameID].isReflected)
+		{
+			return;
+		}
+
+		CXSourceRange range = clang_getCursorExtent(parent);
+		CXToken *tokens = nullptr;
+		u32 numTokens = 0;
+		clang_tokenize(tu, range, &tokens, &numTokens);
+		// if needed, this can map tokens to cursors if we need bidirectional translation between source <-> ast
+		//clang_annotateTokens(tu, tokens, numTokens, cursors);
+		DynArray(char) reflectMacroContent = DynArrayCreate<char>(ctx.allocator);
+		bool inReflectionMacroTokens = false;
+		for (u32 i = 0; i < numTokens; i++) 
+		{
+			CXToken token = tokens[i];
+			CXString tokenSpelling = clang_getTokenSpelling(tu, token);
+			const char* tokenCstr = clang_getCString(tokenSpelling);
+			if (!inReflectionMacroTokens &&
+				FindInString(StringFromCString(tokenCstr), STRING_LIT(ME_MACRO_STRINGIZE(MEREFLECT))) >= 0)
+			{
+				inReflectionMacroTokens = true;
+				i++;
+			}
+			else if (inReflectionMacroTokens)
+			{
+				if (FindInString(StringFromCString(tokenCstr), STRING_LIT(")")) >= 0)
+				{
+					break;
+				}
+				else
+				{
+					DynArrayPush(reflectMacroContent, (char*)tokenCstr, CStringLength(tokenCstr));
+				}
+			}
+		}
+		LOG_INFO("reflection macro content: %.*s", STRING_VAARGS(String(reflectMacroContent, DynArrayGetSize(reflectMacroContent))));
+		clang_disposeTokens(tu, tokens, numTokens);
+
+		ctx.reflectedFiles[headerID].reflectedTypes[nameID].isReflected = true;
+		{
+			LOG_INFO("reflected structure %s", clang_getCString(typeStr));
+			CXType type = clang_getCursorType(parent);
+			clang_Type_visitFields(type, VisitStructureFields, clientData);
+		}
+	}
+}
+
+CXVisitorResult VisitStructureFields(CXCursor cr, CXClientData clientData)
+{
+	ClangParsingContext* ctx = (ClangParsingContext*)clientData;
+	Arena* allocator = ctx->allocator;
+	ArenaTemp scratchArena = ArenaTempInit(allocator);
+	ME_ON_SCOPE_EXIT([&scratchArena]() { ArenaTempEnd(scratchArena); });
+	String cursorName = GetCursorDisplayName(cr, ctx->allocator);
+	CXCursorKind kind = clang_getCursorKind(cr);
+	switch (kind)
+	{
+		case CXCursor_AnnotateAttr:
+		{
+			OnFindAnnotated(cr, clang_getCursorLexicalParent(cr), clientData);
+		}
+		break;
+		default: break;
+	}
+
+	// TODO:
+	// process field itself and any extra potential reflection annotation data on the field here
+	LOG_INFO("\t%.*s", STRING_VAARGS(cursorName));
+
+	return CXVisit_Continue;
+}
+
 CXChildVisitResult visitTranslationUnit(CXCursor cr, CXCursor parent, CXClientData clientData)
 {
 	ClangParsingContext& ctx = *(ClangParsingContext*)clientData;
 	Arena* allocator = ctx.allocator;
 	CXCursorKind const kind = clang_getCursorKind(cr);
 	ArenaTemp scratchArena = ArenaTempInit(allocator);
-	String cursorDisplayName = GetCursorDisplayName(cr, scratchArena.arena);
+	ME_ON_SCOPE_EXIT([&scratchArena]() { ArenaTempEnd(scratchArena); });
 	String headerPath = GetHeaderPathForCursor(cr, scratchArena.arena);
 	if (!IsHeaderWeCareAbout(headerPath, ctx.projectRootDir))
 	{
 		return CXChildVisit_Continue;
 	}
-	u32 fileLineNum = GetLineNumberForCursor(cr);
-	//CXSourceLocation sourceLoc = clang_getCursorLocation(cr);
-	bool hasAttr = clang_Cursor_hasAttrs(cr);
-	if (!hasAttr) return CXChildVisit_Recurse;
-	bool isAttr = clang_isAttribute(kind) != 0;
-	CXString spelling = clang_getCursorSpelling(cr);
-	
-	switch ( kind )
+	String cursorName = GetCursorDisplayName(cr, ctx.allocator);
+	if (cursorName.len == 0)
 	{
-		case CXCursor_UnexposedAttr:
-		{
-			LOG_INFO("%.*s %s\n", STRING_VAARGS(cursorDisplayName), clang_getCString(spelling));
-		}
-		break;
-		// Classes / Structs
-		case CXCursor_ClassTemplate:
-		{
-			//ReflectionMacro macro;
-			//if ( pContext->GetReflectionMacroForType( headerID, cr, macro ) )
-			//{
-			//	pContext->LogError( "Cannot register template class (%s)", cursorName.c_str() );
-			//	return CXChildVisit_Break;
-			//}
+		return CXChildVisit_Continue;
+	}
 
-			return CXChildVisit_Recurse;
+	switch (kind)
+	{
+		case CXCursor_AnnotateAttr:
+		{
+			OnFindAnnotated(cr, parent, clientData);
 		}
 		break;
 
-		// Classes / Structs
-		case CXCursor_ClassDecl:
-		case CXCursor_StructDecl:
-		{
-			// Process children before the parent so that we can correctly handle the mapping between macro and types
-			// We dont want an nested registration macro to cause an unwanted type to be registered
-			//pContext->PushNamespace( cursorName );
-			clang_visitChildren( cr, visitTranslationUnit, clientData );
-			//pContext->PopNamespace();
-
-			//if ( pContext->HasErrorOccured() )
-			//{
-				//return CXChildVisit_Break;
-			//}
-			if (cursorDisplayName == STRING_LIT("meScene"))
-			{
-				LOG_INFO("%.*s %s\n", STRING_VAARGS(cursorDisplayName), clang_getCString(spelling));
-			}
-
-		//	return VisitStructure( pContext, cr, headerFilePath, headerID );
-			return CXChildVisit_Recurse;
-
-		}
-		break;
-
-		// Enums
 		case CXCursor_EnumDecl:
 		{
-			//return VisitEnum( pContext, cr, headerID );
-			return CXChildVisit_Recurse;
-
+			//TODO
+			return CXChildVisit_Continue;
 		}
 		break;
 
-		// Non-Type Cursors
-		case CXCursor_Namespace:
-		{
-			//if ( pContext->IsInEngineNamespace() || pContext->IsEngineNamespace( cursorName ) )
-			//{
-			//	pContext->PushNamespace( cursorName );
-			//	clang_visitChildren( cr, VisitTranslationUnit, pClientData );
-			//	pContext->PopNamespace();
-			//}
+		// other potential TODOs to support...
+		// - reflected structs inside namespaces!
+		// - templated reflection???
 
-			return CXChildVisit_Recurse;
-		}
-		break;
-
-		// Macros
-		case CXCursor_MacroExpansion:
-		{
-			LOG_INFO("%.*s %s\n", STRING_VAARGS(cursorDisplayName), clang_getCString(spelling));
-			
-			//return VisitMacro( pContext, pReflectedHeader, cr, cursorName );
-			return CXChildVisit_Recurse;
-
-		}
-		break;
-
-		// Irrelevant Cursors
 		default:
 		{
 			return CXChildVisit_Recurse;
@@ -315,6 +363,7 @@ int main(int argc, char* argv[])
 		result = clang_parseTranslationUnit2( idx, reflectorFilePath, clangArgs, DynArrayGetSize(clangArgs), 0, 0, clangOptions, &tu );
 	}
 	ClangParsingContext parsingContext;
+	parsingContext.tu = &tu;
 	parsingContext.allocator = &reflectorArena;
 	char* absProjectRootPath = meOSResolveRelativeToAbsPath(&reflectorArena, StringFromCString(projectRootDir));
 	parsingContext.projectRootDir = String(absProjectRootPath, CStringLength(absProjectRootPath));

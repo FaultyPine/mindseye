@@ -85,7 +85,7 @@ void SetTerminalColor(LogLevel level)
 #endif
 }
 
-void LogMessage(LogLevel level, const char* message, ...)
+void LogMessage(LogLevel level, const char* lineEnd, const char* message, ...)
 {
     if ((LOG_LEVELS_ENABLED & (1 << level)) == 0)
     {
@@ -106,7 +106,7 @@ void LogMessage(LogLevel level, const char* message, ...)
     s32 bytesWritten = stbsp_vsnprintf(msgBuffer, LOG_MSG_LIMIT, message, args);
     va_end(args);
     ME_ASSERT(bytesWritten < LOG_MSG_LIMIT);
-    const char* processedMsg = TextFormat("%s\n", msgBuffer);
+    const char* processedMsg = TextFormat("%s%s", msgBuffer, lineEnd);
 	String outMsg = String(processedMsg, bytesWritten+1);
 
     // append (optional)color and log level to message

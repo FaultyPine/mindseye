@@ -59,10 +59,6 @@ typedef wchar_t wchar;
 #define MELIKELY [[likely]]
 #define MEUNLIKELY [[unlikely]]
 
-#define MEANNOTATE(annotation) __attribute__((annotate(#annotation)))
-#define MEREFLECT MEANNOTATE(reflect)
-#define MEREFLECTEXCL MEANNOTATE(noreflect)
-
 #define KILOBYTES_BYTES(kb) (kb*1024)
 #define MEGABYTES_BYTES(mb) (mb*KILOBYTES_BYTES(1024))
 #define GIGABYTES_BYTES(gb) (gb*MEGABYTES_BYTES(1024))
@@ -94,7 +90,17 @@ typedef wchar_t wchar;
 // stringize token without macro expanding A
 #define ME_MACRO_STRINGIZE(A) #A
 // stringize token after macro expanding A
-#define ME_MACRO_STRINGIZE_EX(A) TMACRO_STRINGIZE(A)
+#define ME_MACRO_STRINGIZE_EX(A) ME_MACRO_STRINGIZE(A)
+
+// clang annotation
+#define MEANNOTATE(str) __attribute__((annotate(str)))
+
+#define ME_REFLECT_ATTR_STR "mereflect"
+// op is an indicator to the reflection system of what the next stuff in the macro will be
+// like   MEREFLECT(type, someType)
+// or     MEREFLECT(exclude)
+// TODO: document these options once they're properly implemented
+#define MEREFLECT(op, ...) MEANNOTATE(ME_REFLECT_ATTR_STR) 
 
 #define U32_INVALID_ID 0xFFFFFFFF
 #define U64_INVALID_ID 0xFFFFFFFFFFFFFFFF

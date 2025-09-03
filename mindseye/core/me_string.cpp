@@ -27,6 +27,27 @@ String::String(char* cstr)
 	len = CStringLength(cstr);
 }
 
+void String::CopyOfCStr(const char* cstr, meAllocator* allocator)
+{
+	len = CStringLength(cstr);
+	data = (char*)MEALLOC(allocator, len);
+	StringCopy(*this, StringView(cstr, len));
+}
+
+void String::CopyOf(const char* str, size_t len, meAllocator* allocator)
+{
+	this->len = len;
+	data = (char*)MEALLOC(allocator, len);
+	StringCopy(*this, StringView(str, len));
+}
+
+void String::CopyOf(const String& str, meAllocator* allocator)
+{
+	this->len = str.len;
+	data = (char*)MEALLOC(allocator, len);
+	StringCopy(*this, str);
+}
+
 StringView String::CreateView(size_t offset, size_t len) 
 { 
     return {(char*)data + offset, this->len < len ? this->len : len};
@@ -81,7 +102,7 @@ s32 FindInString(
     {
 		return -1;
     }
-	for (s32 hayStackIdx = (s32)offset; hayStackIdx < (s64)haystack.len - (s64)needle.len - 1; hayStackIdx++)
+	for (s32 hayStackIdx = (s32)offset; hayStackIdx <= (s64)haystack.len - (s64)needle.len; hayStackIdx++)
 	{
 		const char* haystackPtr = &haystack.data[hayStackIdx];
 		u32 i = 0;

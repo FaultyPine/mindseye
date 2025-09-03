@@ -18,14 +18,14 @@ enum LogLevel
 MEAPI bool InitializeLogger();
 MEAPI void ShutdownLogger();
 MEAPI void SetLogLevel(LogLevel level, bool toggle);
-MEAPI void LogMessage(LogLevel level, const char* message, ...);
+MEAPI void LogMessage(LogLevel level, const char* lineEnd, const char* message, ...);
 
-#define LOG_FATAL(message, ...) LogMessage(LOG_LEVEL_FATAL, message, __VA_ARGS__)
-#define LOG_ERROR(message, ...) LogMessage(LOG_LEVEL_ERROR, message, __VA_ARGS__)
-#define LOG_WARN(message, ...) LogMessage(LOG_LEVEL_WARN, message, __VA_ARGS__)
-#define LOG_INFO(message, ...) LogMessage(LOG_LEVEL_INFO, message, __VA_ARGS__)
-#define LOG_DEBUG(message, ...) LogMessage(LOG_LEVEL_DEBUG, message, __VA_ARGS__)
-#define LOG_TRACE(message, ...) LogMessage(LOG_LEVEL_TRACE, message, __VA_ARGS__)
+#define LOG_FATAL(message, ...) LogMessage(LOG_LEVEL_FATAL, "\n", message, __VA_ARGS__)
+#define LOG_ERROR(message, ...) LogMessage(LOG_LEVEL_ERROR, "\n", message, __VA_ARGS__)
+#define LOG_WARN(message, ...) LogMessage(LOG_LEVEL_WARN, "\n", message, __VA_ARGS__)
+#define LOG_INFO(message, ...) LogMessage(LOG_LEVEL_INFO, "\n", message, __VA_ARGS__)
+#define LOG_DEBUG(message, ...) LogMessage(LOG_LEVEL_DEBUG, "\n", message, __VA_ARGS__)
+#define LOG_TRACE(message, ...) LogMessage(LOG_LEVEL_TRACE, "\n", message, __VA_ARGS__)
 
 
 

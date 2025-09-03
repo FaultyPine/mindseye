@@ -12,10 +12,10 @@ struct SceneRuntimeData
 	cgltf_data* gltfData = nullptr;
 };
 
-struct MEREFLECT meScene
+struct MEREFLECT(type) meScene
 {
 	u32 numRootNodes = 0;
-	MEREFLECTEXCL SceneRuntimeData runtime = {};
+	MEREFLECT(exclude) SceneRuntimeData runtime = {};
 };
 
 // loads gltf scene from the filesystem into the specified backing buffer

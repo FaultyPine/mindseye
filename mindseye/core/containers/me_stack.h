@@ -2,7 +2,7 @@
 
 #include "me_hybrid_array.h"
 
-template<typename T, int FIXED_SIZE = 100>
+template<typename T, int FIXED_SIZE = 50>
 struct Stack 
 {
     HybridArray<T, FIXED_SIZE> data;
@@ -23,22 +23,22 @@ struct Stack
     T& top() 
     {
         ME_ASSERT(!empty());
-        return data.at(data.size - 1);
+        return data.at(data.size() - 1);
     }
 
     const T& top() const 
     {
         ME_ASSERT(!empty());
-        return data.at(data.size - 1);
+        return data.at(data.size() - 1);
     }
 
     bool empty() const 
     {
-        return data.size == 0;
+        return data.size() == 0;
     }
 
     u32 size() const 
     {
-        return static_cast<u32>(data.size);
+		return static_cast<u32>(data.size());
     }
 };
