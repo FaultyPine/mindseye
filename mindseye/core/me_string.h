@@ -10,8 +10,6 @@ struct String
     StringView CreateView(size_t offset, size_t len);
     String(char* data, size_t len) : data(data), len(len) {};
     String(const char* data, size_t len) : data((char*)data), len(len) {};
-    String(char* cstr);
-	String(const char* cstr);
 	String() = default;
 	void CopyOfCStr(const char* cstr, meAllocator* allocator);
 	void CopyOf(const char* str, size_t len, meAllocator* allocator);
@@ -45,9 +43,10 @@ struct StringView // non-owning
     }
 };
 
-enum StringCompareFlags
+enum StringOpFlags
 {
-    CaseInsensitive = NTH_BIT(0)
+    CaseInsensitive = NTH_BIT(0),
+	IdxAfterNeedle = NTH_BIT(1),
 };
 
 template <u64 N> 
@@ -63,19 +62,19 @@ MEAPI s32 FindInString(
 	StringView haystack,
 	StringView needle,
 	u32 offset = 0,
-	StringCompareFlags flags = StringCompareFlags(0));
+	StringOpFlags flags = StringOpFlags(0));
 
 MEAPI s32 FindInStringRev(
 	StringView haystack,
 	StringView needle,
 	u32 offset = 0,
-	StringCompareFlags flags = StringCompareFlags(0));
+	StringOpFlags flags = StringOpFlags(0));
 
 MEAPI StringView EatChars(StringView str, char c);
 MEAPI u32 EatCharsOffset(StringView str, char c);
 
 // flags = bitfield of StringCompareFlags
-MEAPI bool StringCompare(StringView str1, StringView str2, StringCompareFlags flags = StringCompareFlags(0));
+MEAPI bool StringCompare(StringView str1, StringView str2, StringOpFlags flags = StringOpFlags(0));
 
 MEAPI size_t CStringLength(const char* str);
 

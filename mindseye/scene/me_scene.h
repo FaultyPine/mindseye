@@ -9,10 +9,11 @@ typedef u32 meSceneID;
 struct cgltf_data;
 struct SceneRuntimeData
 {
-	cgltf_data* gltfData = nullptr;
+	cgltf_data* gltfData = nullptr; // todo: don't cache the cgltf, parse it into my own structures
 };
 
-struct MEREFLECT(type) meScene
+struct MEREFLECT(type, Description="Scene Description")
+meScene
 {
 	u32 numRootNodes = 0;
 	MEREFLECT(exclude) SceneRuntimeData runtime = {};

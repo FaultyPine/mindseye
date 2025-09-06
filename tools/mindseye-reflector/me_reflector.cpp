@@ -15,7 +15,12 @@ Generate in-memory representation of the data i care about.
 The pass that to a code generator to write out generated headers for mindseye to use.
 
 just allocate and leak whatever you need... if i end up concerned about memory usage of this metaprogram, there's other problems...
+
+Useful debugging tip when doing stuff with clang ast:
+clang++ -Xclang -ast-dump -std=c++20 -fsyntax-only -IC:\Dev\mindseye -IC:\Dev\mindseye\mindseye scene/me_scene.h > me_scene.h.ast
+can dump the actual clang ast, so you can see what cursor is which and the whole parent/child hierarchy
 */
+
 
 struct meReflectedType
 {
@@ -38,6 +43,7 @@ struct ClangParsingContext
 	meMap<u32, meReflectedFile> reflectedFiles = {};
 	bool reflecting = false;
 	bool reflectionExcluding = false;
+	bool currentReflectionIsField = false; // for fields, the reflection macro contents is in the annotation cursor, whereas it's in the parent cursor for struct reflections
 	u32 errorCode = 0;
 	CXTranslationUnit* tu = nullptr;
 	bool HasErrorOccurred() const { return errorCode != 0; }
@@ -92,6 +98,26 @@ String GetHeaderPathForCursor(CXCursor cr, Arena* allocator)
 	return HeaderFilePath;
 }
 
+void clang_checkDiagnostics(CXTranslationUnit& tu)
+{
+	size_t num_diagnostics = clang_getNumDiagnostics(tu);
+	if (num_diagnostics > 0)
+	{
+		LOG_INFO("Clang diagnostics:");
+	}
+    for (size_t i = 0; i < num_diagnostics; ++i) 
+	{
+        CXFile file;
+        unsigned line;
+        unsigned column;
+        unsigned offset;
+        CXDiagnostic diagnostic = clang_getDiagnostic(tu, i);
+        CXSourceLocation location = clang_getDiagnosticLocation(diagnostic);
+        clang_getExpansionLocation(location, &file, &line, &column, &offset);
+        LOG_WARN("line %u:%u %s",line, column, clang_getCString(clang_getDiagnosticSpelling(diagnostic)));
+        clang_disposeDiagnostic(diagnostic);
+    }
+}
 
 // exclude stuff that isn't in our project tree, and 3rd party libs
 bool IsHeaderWeCareAbout(StringView headerPath, StringView projectRootDir)
@@ -104,6 +130,17 @@ bool IsHeaderWeCareAbout(StringView headerPath, StringView projectRootDir)
 	bool inProjDir = FindInString(headerPath, projectRootDir, 0, CaseInsensitive) != -1;
 	s32 is3rdPartyLib = FindInString(headerPath, STRING_LIT("/external/")) != -1;
 	return inProjDir && !is3rdPartyLib;
+}
+
+// when we encounter a MEREFLECT macro, the entire content inside it is passed in here
+// I.E. MEREFLECT(something, another)     "something, another" would be passed in
+void ProcessReflMacroContent(
+	CXCursor cr, 
+	CXCursor parent, 
+	ClangParsingContext& ctx, 
+	StringView macroContent)
+{
+
 }
 
 CXVisitorResult VisitStructureFields(CXCursor cr, CXClientData clientData);
@@ -120,57 +157,42 @@ void OnFindAnnotated(CXCursor cr, CXCursor parent, CXClientData clientData)
 		ArenaTemp scratchArena = ArenaTempInit(ctx.allocator);
 		ME_ON_SCOPE_EXIT([&scratchArena]() { ArenaTempEnd(scratchArena); });
 
-		CXTranslationUnit& tu = *ctx.tu;
 		String headerPath = GetHeaderPathForCursor(cr, scratchArena.arena);
 		u32 headerID = HashBytes((u8*)headerPath.data, headerPath.len);
-		CXType type = clang_getCursorType(parent);
-		CXString typeStr = clang_getTypeSpelling(type);
-		u32 nameID = HashBytes((u8*)typeStr.data, CStringLength((const char*)typeStr.data));
+		CXType parentType = clang_getCursorType(parent);
+		const char* parentTypeStr = clang_getCString(clang_getTypeSpelling(parentType));
+		u32 nameID = HashBytes((u8*)parentTypeStr, CStringLength(parentTypeStr));
 		if (ctx.reflectedFiles[headerID].reflectedTypes[nameID].isReflected)
 		{
 			return;
 		}
-
-		CXSourceRange range = clang_getCursorExtent(parent);
-		CXToken *tokens = nullptr;
-		u32 numTokens = 0;
-		clang_tokenize(tu, range, &tokens, &numTokens);
-		// if needed, this can map tokens to cursors if we need bidirectional translation between source <-> ast
-		//clang_annotateTokens(tu, tokens, numTokens, cursors);
-		DynArray(char) reflectMacroContent = DynArrayCreate<char>(ctx.allocator);
-		bool inReflectionMacroTokens = false;
-		for (u32 i = 0; i < numTokens; i++) 
-		{
-			CXToken token = tokens[i];
-			CXString tokenSpelling = clang_getTokenSpelling(tu, token);
-			const char* tokenCstr = clang_getCString(tokenSpelling);
-			if (!inReflectionMacroTokens &&
-				FindInString(StringFromCString(tokenCstr), STRING_LIT(ME_MACRO_STRINGIZE(MEREFLECT))) >= 0)
-			{
-				inReflectionMacroTokens = true;
-				i++;
-			}
-			else if (inReflectionMacroTokens)
-			{
-				if (FindInString(StringFromCString(tokenCstr), STRING_LIT(")")) >= 0)
-				{
-					break;
-				}
-				else
-				{
-					DynArrayPush(reflectMacroContent, (char*)tokenCstr, CStringLength(tokenCstr));
-				}
-			}
-		}
-		LOG_INFO("reflection macro content: %.*s", STRING_VAARGS(String(reflectMacroContent, DynArrayGetSize(reflectMacroContent))));
-		clang_disposeTokens(tu, tokens, numTokens);
-
 		ctx.reflectedFiles[headerID].reflectedTypes[nameID].isReflected = true;
-		{
-			LOG_INFO("reflected structure %s", clang_getCString(typeStr));
-			CXType type = clang_getCursorType(parent);
-			clang_Type_visitFields(type, VisitStructureFields, clientData);
-		}
+		
+		CXSourceRange range = clang_getCursorExtent(parent);
+		CXSourceLocation start = clang_getRangeStart(range);
+		
+		CXFile file; unsigned line; unsigned col; unsigned offset;
+		clang_getExpansionLocation(start, &file, &line, &col, &offset);
+
+		u64 filesize = 0;
+		const char* filecontentCStr = clang_getFileContents(*ctx.tu, file, &filesize);
+		StringView filecontent = { filecontentCStr, filesize };
+
+		StringView startContent = filecontent.CreateView(offset);
+
+		s32 macroContentStartIdx = FindInString(startContent, STRING_LIT(ME_MACRO_STRINGIZE(MEREFLECT) "("), 0, IdxAfterNeedle);
+		ME_ASSERT(macroContentStartIdx > -1);
+		StringView macroContentStart = startContent.CreateView(macroContentStartIdx);
+		s32 macroContentEndIdx = FindInString(macroContentStart, STRING_LIT(")"));
+		ME_ASSERT(macroContentEndIdx > -1);
+		StringView macroContents = StringView(macroContentStart.data, macroContentEndIdx);
+		// A reasonable limitation??? If we want this, would be simple to count parenthesis...
+		ME_ASSERT(FindInString(macroContents, STRING_LIT("(")) == -1 && "you cannot use parenthesis inside a reflection macro");
+
+		LOG_INFO("REFLECT MACRO %s : %.*s", parentTypeStr, STRING_VAARGS(macroContents));
+		ProcessReflMacroContent(cr, parent, ctx, macroContents);
+
+		clang_Type_visitFields(parentType, VisitStructureFields, clientData);
 	}
 }
 
@@ -184,17 +206,31 @@ CXVisitorResult VisitStructureFields(CXCursor cr, CXClientData clientData)
 	CXCursorKind kind = clang_getCursorKind(cr);
 	switch (kind)
 	{
-		case CXCursor_AnnotateAttr:
+		case CXCursor_FieldDecl:
 		{
-			OnFindAnnotated(cr, clang_getCursorLexicalParent(cr), clientData);
+			clang_visitChildren(cr, +[](CXCursor cr, CXCursor parent, CXClientData clientData){
+				CXCursorKind kind = clang_getCursorKind(cr);
+				switch (kind)
+				{
+					case CXCursor_AnnotateAttr:
+					{
+						OnFindAnnotated(cr, parent, clientData);
+					}
+					break;
+					default: break;
+				}
+				return CXChildVisit_Continue;
+			}, clientData);
 		}
 		break;
 		default: break;
 	}
 
+	CXCursor parent = clang_getCursorLexicalParent(cr);
+	CXString parentStr = clang_getCursorSpelling(parent);
 	// TODO:
 	// process field itself and any extra potential reflection annotation data on the field here
-	LOG_INFO("\t%.*s", STRING_VAARGS(cursorName));
+	LOG_INFO("\t%s::%.*s", clang_getCString(parentStr), STRING_VAARGS(cursorName));
 
 	return CXVisit_Continue;
 }
@@ -257,7 +293,7 @@ struct CompileCommand
 
 DynArray(CompileCommand) CompileDatabaseToCommandsList(
 	meAllocator* allocator,
-	String compileDatabasePath)
+	StringView compileDatabasePath)
 {
 	CompileCommand* cmds = DynArrayCreate<CompileCommand>(allocator);
 	OSFileReference compileCmdsFile = {};
@@ -292,8 +328,8 @@ int main(int argc, char* argv[])
 		LOG_ERROR("Invalid args, need to pass path to compile_commands.json\n");
 		return 1;
 	}
-	const char* compileCmdsDatabaseFilePath = argv[1];
-	LOG_INFO("[Mindseye Reflector] Reflecting %s\n", compileCmdsDatabaseFilePath);
+	StringView compileCmdsDatabaseFilePath = StringFromCString(argv[1]);
+	LOG_INFO("[Mindseye Reflector] Reflecting %.*s\n", STRING_VAARGS(compileCmdsDatabaseFilePath));
 	const char* projectRootDir = argv[2];
 	meAllocator* systemAllocator = GetSystemAllocator();
 	Arena reflectorArena = ArenaInit(MEGABYTES_BYTES(100ull), "Main reflector arena", systemAllocator);
@@ -368,6 +404,7 @@ int main(int argc, char* argv[])
 	char* absProjectRootPath = meOSResolveRelativeToAbsPath(&reflectorArena, StringFromCString(projectRootDir));
 	parsingContext.projectRootDir = String(absProjectRootPath, CStringLength(absProjectRootPath));
 	NormalizePathSeperators(parsingContext.projectRootDir);
+	clang_checkDiagnostics(tu);
 	if ( result == CXError_Success )
 	{
 		auto cursor = clang_getTranslationUnitCursor( tu );

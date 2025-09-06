@@ -27,7 +27,7 @@ void parseCmdLine(s32 argc, char* argv[], CommandLineArgs& args)
     for (s32 i = 1; i < argc; i++)
     {
         StringView arg = StringView(argv[i], CStringLength(argv[i]));
-        #define X(name, type) if (StringCompare(arg, STRING_LIT("-" #name), StringCompareFlags::CaseInsensitive)) \
+        #define X(name, type) if (StringCompare(arg, STRING_LIT("-" #name), StringOpFlags::CaseInsensitive)) \
         { args.has##name = true; args.ME_MACRO_CONCAT(,name) = parseCmdLineArgFromString<type>(arg); }
 
         COMMAND_LINE_ARGS_DECL

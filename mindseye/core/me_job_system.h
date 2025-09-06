@@ -7,6 +7,10 @@
 typedef u32 meJobId;
 typedef void(*meJobCb)(void* payload);
 
+// FUTURE:
+// replace with lock free work stealing algo
+// or 3rd party lib equivalent (https://gametechdev.github.io/GTS-GamesTaskScheduler/documentation/html/index.html)
+
 struct meJob
 {
 	std::function<void()> func;

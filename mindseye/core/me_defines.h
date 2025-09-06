@@ -163,7 +163,7 @@ C_LINKAGE void __cdecl __debugbreak(void);
     #endif
     #define UNIMPLEMENTED() ME_ASSERT(!"Unimplemented!");
 #else
-    #define ME_ASSERT(x) UNUSED(1)
+    #define ME_ASSERT(x) UNUSED(x)
     #define UNIMPLEMENTED()
 #endif
 

@@ -7,23 +7,15 @@
 #include "external/stb/stb_sprintf.h"
 
 static u32 LOG_LEVELS_ENABLED = 0;
+static u32 LOG_CATEGORIES_ENABLED = 0;
 
-// defaults
-#define LOG_LEVEL_FATAL_ENABLED 1
-#define LOG_LEVEL_ERROR_ENABLED 1
-#define LOG_LEVEL_WARN_ENABLED 1
-#define LOG_LEVEL_INFO_ENABLED 1
-#define LOG_LEVEL_DEBUG_ENABLED 1
-#define LOG_LEVEL_TRACE_ENABLED 1
+DECLARE_LOG_CATEGORY(Default)
 
 bool InitializeLogger()
 {
-    SetLogLevel(LOG_LEVEL_FATAL, LOG_LEVEL_FATAL_ENABLED);
-    SetLogLevel(LOG_LEVEL_ERROR, LOG_LEVEL_ERROR_ENABLED);
-    SetLogLevel(LOG_LEVEL_WARN, LOG_LEVEL_WARN_ENABLED);
-    SetLogLevel(LOG_LEVEL_INFO, LOG_LEVEL_INFO_ENABLED);
-    SetLogLevel(LOG_LEVEL_DEBUG, LOG_LEVEL_DEBUG_ENABLED);
-    SetLogLevel(LOG_LEVEL_TRACE, LOG_LEVEL_TRACE_ENABLED);
+	// default all on, TODO: engine config
+	LOG_LEVELS_ENABLED = ~0;
+	LOG_CATEGORIES_ENABLED = ~0;
 	meOSInitializeLogging();
     return true;
 }
@@ -85,9 +77,10 @@ void SetTerminalColor(LogLevel level)
 #endif
 }
 
-void LogMessage(LogLevel level, const char* lineEnd, const char* message, ...)
+void LogMessage(LogLevel level, u32 logCategory, const char* lineEnd, const char* message, ...)
 {
-    if ((LOG_LEVELS_ENABLED & (1 << level)) == 0)
+    if ((LOG_LEVELS_ENABLED & (1 << level)) == 0 ||
+		(LOG_CATEGORIES_ENABLED & (1 << logCategory)) == 0)
     {
         static bool OneTimeWarning = false;
         if (!OneTimeWarning && LOG_LEVELS_ENABLED == 0)

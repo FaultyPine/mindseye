@@ -15,18 +15,6 @@ bool String::operator== (const String& s) const
     return s.len == this->len && ME_MEMCMP(this->data, s.data, s.len) == 0;
 }
 
-String::String(const char* cstr)
-{
-	data = (char*)cstr;
-	len = CStringLength(cstr);
-}
-
-String::String(char* cstr)
-{
-	data = cstr;
-	len = CStringLength(cstr);
-}
-
 void String::CopyOfCStr(const char* cstr, meAllocator* allocator)
 {
 	len = CStringLength(cstr);
@@ -96,7 +84,7 @@ s32 FindInString(
 	StringView haystack, 
 	StringView needle, 
 	u32 offset,
-	StringCompareFlags flags)
+	StringOpFlags flags)
 {
     if (!needle.data || !needle.len || *needle.data == '\0') 
     {
@@ -110,7 +98,7 @@ s32 FindInString(
 		{
 			char s1 = needle.data[i];
 			char s2 = haystackPtr[i];
-			if (flags & StringCompareFlags::CaseInsensitive)
+			if (flags & StringOpFlags::CaseInsensitive)
 			{
 				s1 = ToLower(s1);
 				s2 = ToLower(s2);
@@ -123,7 +111,7 @@ s32 FindInString(
 		// all matched
 		if (i == needle.len)
 		{
-			return hayStackIdx;
+			return flags & IdxAfterNeedle ? hayStackIdx + needle.len : hayStackIdx;
 		}
 	}
 	return -1;
@@ -133,7 +121,7 @@ s32 FindInStringRev(
 	StringView haystack,
 	StringView needle,
 	u32 offset,
-	StringCompareFlags flags)
+	StringOpFlags flags)
 {
 	if (!needle.data || !needle.len || *needle.data == '\0') 
     {
@@ -147,7 +135,7 @@ s32 FindInStringRev(
 		{
 			char s1 = needle.data[i];
 			char s2 = haystackPtr[i];
-			if (flags & StringCompareFlags::CaseInsensitive)
+			if (flags & StringOpFlags::CaseInsensitive)
 			{
 				s1 = ToLower(s1);
 				s2 = ToLower(s2);
@@ -185,14 +173,14 @@ u32 EatCharsOffset(StringView str, char c)
 	return result;
 }
 
-bool StringCompare(StringView str1, StringView str2, StringCompareFlags flags)
+bool StringCompare(StringView str1, StringView str2, StringOpFlags flags)
 {
     if (str1.len != str2.len) return false;
     for (u64 i = 0; i < str1.len; i++)
     {
         char s1 = str1.data[i];
         char s2 = str2.data[i];
-        if (flags & StringCompareFlags::CaseInsensitive)
+        if (flags & StringOpFlags::CaseInsensitive)
         {
             s1 = ToLower(s1);
             s2 = ToLower(s2);
