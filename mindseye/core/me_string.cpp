@@ -24,6 +24,7 @@ void String::CopyOfCStr(const char* cstr, meAllocator* allocator)
 
 void String::CopyOf(const char* str, size_t len, meAllocator* allocator)
 {
+	if (!str) { *this = {}; return; }
 	this->len = len;
 	data = (char*)MEALLOC(allocator, len);
 	StringCopy(*this, StringView(str, len));
@@ -31,17 +32,26 @@ void String::CopyOf(const char* str, size_t len, meAllocator* allocator)
 
 void String::CopyOf(const String& str, meAllocator* allocator)
 {
+	if (!str) { *this = {}; return; }
 	this->len = str.len;
 	data = (char*)MEALLOC(allocator, len);
 	StringCopy(*this, str);
 }
 
-StringView String::CreateView(size_t offset, size_t len) 
+void String::CopyOf(const StringView& str, meAllocator* allocator)
+{
+	if (!str) { *this = {}; return; }
+	this->len = str.len;
+	data = (char*)MEALLOC(allocator, len);
+	StringCopy(*this, str);
+}
+
+StringView String::OffsetView(size_t offset, size_t len) 
 { 
     return {(char*)data + offset, this->len < len ? this->len : len};
 }
 
-StringView String::CreateView(size_t offset) 
+StringView String::OffsetView(size_t offset) 
 { 
     offset = offset > len ? len : offset;
     return {(char*)data + offset, len - offset};
@@ -65,6 +75,16 @@ String StringFromCString(const char* str, s32 strLen)
     }
     String result = {(char*)str, static_cast<size_t>(strLen)};
     return result;
+}
+
+const char* CStringFromString(
+	StringView str, 
+	meAllocator* allocator)
+{
+	const char* cstr = MEALLOC(allocator, str.len + 1);
+	ME_MEMCLEAR((void*)cstr, str.len + 1);
+	ME_MEMCPY((void*)cstr, str.data, str.len);
+	return cstr;
 }
 
 bool StringCopy(StringView dst, StringView src)
@@ -98,7 +118,7 @@ s32 FindInString(
 		{
 			char s1 = needle.data[i];
 			char s2 = haystackPtr[i];
-			if (flags & StringOpFlags::CaseInsensitive)
+			if (flags & StringOpFlags_CaseInsensitive)
 			{
 				s1 = ToLower(s1);
 				s2 = ToLower(s2);
@@ -111,7 +131,7 @@ s32 FindInString(
 		// all matched
 		if (i == needle.len)
 		{
-			return flags & IdxAfterNeedle ? hayStackIdx + needle.len : hayStackIdx;
+			return flags & StringOpFlags_IdxAfterNeedle ? hayStackIdx + needle.len : hayStackIdx;
 		}
 	}
 	return -1;
@@ -135,7 +155,7 @@ s32 FindInStringRev(
 		{
 			char s1 = needle.data[i];
 			char s2 = haystackPtr[i];
-			if (flags & StringOpFlags::CaseInsensitive)
+			if (flags & StringOpFlags_CaseInsensitive)
 			{
 				s1 = ToLower(s1);
 				s2 = ToLower(s2);
@@ -155,19 +175,19 @@ s32 FindInStringRev(
 }
 
 
-StringView EatChars(StringView str, char c)
+StringView EatChars(StringView str, char c, bool invert)
 {
-	u32 offset = EatCharsOffset(str, c);
-	StringView result = str.CreateView(offset);
+	u32 offset = EatCharsOffset(str, c, invert);
+	StringView result = str.OffsetView(offset);
 	return result;
 }
 
-u32 EatCharsOffset(StringView str, char c)
+u32 EatCharsOffset(StringView str, char c, bool invert)
 {
 	u32 result = 0;
-	while (str.data[0] == c)
+	while (invert ? str.data[0] != c : str.data[0] == c)
 	{
-		str = str.CreateView(1);
+		str = str.OffsetView(1);
 		result++;
 	}
 	return result;
@@ -180,7 +200,7 @@ bool StringCompare(StringView str1, StringView str2, StringOpFlags flags)
     {
         char s1 = str1.data[i];
         char s2 = str2.data[i];
-        if (flags & StringOpFlags::CaseInsensitive)
+        if (flags & StringOpFlags_CaseInsensitive)
         {
             s1 = ToLower(s1);
             s2 = ToLower(s2);
@@ -230,6 +250,32 @@ size_t wcharToNarrow(const wchar_t * src, char * dest, size_t dest_len)
 }
 
 
+StringView ScanForBalancedChar(StringView str, char opening, char closing)
+{
+	// opening= ( closing= )   : (something="another(thing)")andmore -> something="another(thing)"
+	// opening= " closing= "   : "something="another"and" -> something=
+	ME_ASSERT(str[0] == opening);
+	ME_ASSERT(str.len > 1);
+	s32 balance = 1;
+	u64 i = 1;
+	for (;i < str.len; i++)
+	{
+		if (str[i] == closing)
+		{
+			balance--;
+		}
+		else if (str[i] == opening)
+		{
+			balance++;
+		}
+		if (balance == 0)
+		{
+			break;
+		}
+	}
+	StringView result = str.OffsetView(1, i - 1);
+	return result;
+}
 
 
 // yoinked from raylib

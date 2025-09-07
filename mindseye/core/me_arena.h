@@ -34,6 +34,7 @@ struct ArenaTemp
     Arena* arena;
     size_t prev_offset;
     size_t offset;
+	operator Arena*() const { return arena; }
 };
 
 inline void* ArenaAlloc(ArenaTemp* arena, size_t alloc_size) 

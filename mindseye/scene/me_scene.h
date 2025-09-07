@@ -15,8 +15,11 @@ struct SceneRuntimeData
 struct MEREFLECT(type, Description="Scene Description")
 meScene
 {
+	MEREFLECT(tooltip="a tooltip here!") 
 	u32 numRootNodes = 0;
-	MEREFLECT(exclude) SceneRuntimeData runtime = {};
+	
+	MEREFLECT(exclude) 
+	SceneRuntimeData runtime = {};
 };
 
 // loads gltf scene from the filesystem into the specified backing buffer
