@@ -18,6 +18,8 @@ meScene
 	MEREFLECT(tooltip="a tooltip here!") 
 	u32 numRootNodes = 0;
 	
+	float someotherfield = 1.0f;
+
 	MEREFLECT(exclude) 
 	SceneRuntimeData runtime = {};
 };

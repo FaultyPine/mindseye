@@ -38,7 +38,7 @@ consteval u32 HashStringComptime(const char* str, u32 value = FNV_offset_basis_u
 
 template <typename T>
 void HashCombineImpl(u64& seed, const T& val) {
-    seed ^= std::hash<T>()(val) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+    seed ^= HashBytesL((u8*)&val, sizeof(T)) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
 }
 
 template <typename... Types>

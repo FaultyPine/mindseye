@@ -19,28 +19,45 @@ just allocate and leak whatever you need... if i end up concerned about memory u
 Useful debugging tip when doing stuff with clang ast:
 clang++ -Xclang -ast-dump -std=c++20 -fsyntax-only -IC:\Dev\mindseye -IC:\Dev\mindseye\mindseye scene/me_scene.h > me_scene.h.ast
 can dump the actual clang ast, so you can see what cursor is which and the whole parent/child hierarchy
+
+Inspiration for this type of reflection system came from Bobby Anguelov's Esoterica Engine
+https://github.com/BobbyAnguelov/Esoterica/tree/main/Code/Applications/Reflector/TypeReflection
 */
 
+struct ReflectedTypeIdentifier
+{
+	u32 headerID;
+	u32 nameID;
+	bool operator==(const ReflectedTypeIdentifier& other) const
+	{
+		return headerID == other.headerID && nameID == other.nameID;
+	}
+};
 
 struct meReflectedType
 {
+	DynArray(meReflectedType*) children = {};
 	String name = {};
-	DynArray(meReflectedType) children = {};
 	String editorName = {};
 	String tooltip = {};
 	u32 size = 0;
 	s32 offset = 0;
 	u32 align = 0;
 	bool isReflected = false;
-	void Print()
+	bool isExcluded = false;
+	void Print() const;
+	bool operator==(const meReflectedType& other) const
 	{
-		LOG_INFO("%.*s [editorName = %.*s] [tooltip = %.*s] offset = %i size = %u align = %u", STRING_VAARGS(name), STRING_VAARGS(editorName), STRING_VAARGS(tooltip), offset, size, align);
+		return name == other.name &&
+			size == other.size &&
+			offset == other.offset &&
+			align == other.align;
 	}
 };
 
 struct meReflectedFile
 {
-	// qualified name hash -> type
+	// name hash -> type
 	meMap<u32, meReflectedType> reflectedTypes = {};
 };
 
@@ -49,13 +66,36 @@ struct ClangParsingContext
 	Arena* allocator = nullptr;
 	String projectRootDir = {};
 	Stack<String> namespaces = {};
+	// header id -> file reflection info
 	meMap<u32, meReflectedFile> reflectedFiles = {};
 	u32 errorCode = 0;
 	CXTranslationUnit* tu = nullptr;
 	bool HasErrorOccurred() const { return errorCode != 0; }
+
+	static ClangParsingContext& GetSingleInstance()
+	{
+		static ClangParsingContext g_parsingContext = {};
+		return g_parsingContext;
+	}
 };
 
-inline String GetCursorDisplayName(const CXCursor& cr, Arena* allocator )
+void meReflectedType::Print() const
+{
+	LOG_INFO("%.*s\n\t[excluded = %i] [editorName = %.*s] [tooltip = %.*s] offset = %i size = %u align = %u", 
+		STRING_VAARGS(name), isExcluded, STRING_VAARGS(editorName), STRING_VAARGS(tooltip), offset, size, align);
+	if (children)
+	{
+		s32 numChildren = DynArrayGetSize(children);
+		for (s32 i = 0; i < numChildren; i++)
+		{
+			const meReflectedType* typeRefl = children[i];
+			LOG_INFO("Child:");
+			typeRefl->Print();
+		}
+	}
+}
+
+inline String GetCursorDisplayName(const CXCursor& cr, meAllocator* allocator )
 {
 	auto displayName = clang_getCursorDisplayName(cr);
 	const char* strMem = clang_getCString(displayName);
@@ -86,15 +126,15 @@ void NormalizePathSeperators(StringView str)
 	}
 }
 
-String GetHeaderPathForCursor(CXCursor cr, Arena* allocator)
+String GetHeaderPathForCursor(CXCursor cr, meAllocator* allocator)
 {
-	CXFile pFile;
+	CXFile file;
 	CXSourceRange const cursorRange = clang_getCursorExtent( cr );
-	clang_getExpansionLocation( clang_getRangeStart( cursorRange ), &pFile, nullptr, nullptr, nullptr );
-	String HeaderFilePath;
-	if ( pFile != nullptr )
+	clang_getExpansionLocation( clang_getRangeStart( cursorRange ), &file, nullptr, nullptr, nullptr );
+	String HeaderFilePath = {};
+	if (file != nullptr)
 	{
-		CXString clangFilePath = clang_File_tryGetRealPathName( pFile );
+		CXString clangFilePath = clang_File_tryGetRealPathName(file);
 		const char* filePathMem = clang_getCString(clangFilePath);
 		u32 filePathLen = CStringLength(filePathMem);
 		HeaderFilePath = String((const char*)ReallocateBuffer(allocator, (void*)filePathMem, filePathLen).data, filePathLen);
@@ -138,6 +178,34 @@ bool IsHeaderWeCareAbout(StringView headerPath, StringView projectRootDir)
 	return inProjDir && !is3rdPartyLib;
 }
 
+void GetReflectedTypeHashes(
+	CXCursor cr, 
+	meAllocator* allocator, 
+	ClangParsingContext& ctx,
+	u32& headerID,
+	u32& nameID)
+{
+	String headerPath = GetHeaderPathForCursor(cr, allocator);
+	headerID = HashBytes((u8*)headerPath.data, headerPath.len);
+	CXType type = clang_getCursorType(cr);
+	// for struct fields, the cursor will be the attribute, parent will be the fielddecl, and parentparent will be the structdecl
+	const char* typeStr = clang_getCString(clang_getTypeSpelling(type));
+	nameID = HashBytes((u8*)typeStr, CStringLength(typeStr));
+}
+
+meReflectedType& GetReflectedType(CXCursor cr, meAllocator* allocator, ClangParsingContext& ctx)
+{
+	u32 headerID = 0;
+	u32 nameID = 0;
+	GetReflectedTypeHashes(cr, allocator, ctx, headerID, nameID);
+	meReflectedType& reflType = ctx.reflectedFiles[headerID].reflectedTypes[nameID];
+	if (!reflType.children)
+	{
+		reflType.children = DynArrayCreate<meReflectedType*>(allocator);
+	}
+	return reflType;
+}
+
 // when we encounter a MEREFLECT macro, the entire content inside it is passed in here
 // I.E. MEREFLECT(something, another)     "something, another" would be passed in
 void StoreReflectedTypeInfo(
@@ -145,41 +213,35 @@ void StoreReflectedTypeInfo(
 	ClangParsingContext& ctx, 
 	StringView macroContent)
 {
-	if (FindInString(macroContent, STRING_LIT("exclude")) > -1)
-	{
-		return;
-	}
-	ArenaTemp scratchArena = ArenaTempInit(ctx.allocator);
-	ME_ON_SCOPE_EXIT([&scratchArena]() { ArenaTempEnd(scratchArena); });
+	meAllocator* allocator = ctx.allocator;
+	meReflectedType& reflType = GetReflectedType(parent, allocator, ctx);
 
-	String headerPath = GetHeaderPathForCursor(parent, scratchArena.arena);
-	u32 headerID = HashBytes((u8*)headerPath.data, headerPath.len);
-	CXType parentType = clang_getCursorType(parent);
-	String cursorParentName = GetCursorDisplayName(parent, scratchArena);
-	// for struct fields, the cursor will be the attribute, parent will be the fielddecl, and parentparent will be the structdecl
-	CXType parentParentType = clang_getCursorType(clang_getCursorLexicalParent(parent));
-	const char* parentTypeStr = clang_getCString(clang_getTypeSpelling(parentType));
-	u32 nameID = HashBytes((u8*)parentTypeStr, CStringLength(parentTypeStr));
-	meReflectedType& reflType = ctx.reflectedFiles[headerID].reflectedTypes[nameID];
 	if (reflType.isReflected) // already parsed this type
 	{
 		return;
 	}
+	CXType parentType = clang_getCursorType(parent);
+	String cursorParentName = GetCursorDisplayName(parent, allocator);
+	CXType parentParentType = clang_getCursorType(clang_getCursorLexicalParent(parent));
+
 	reflType.isReflected = true;
 	s64 typeSize = clang_Type_getSizeOf(parentType);
 	s64 typeAlign = clang_Type_getAlignOf(parentType);
-	const char* fieldName = CStringFromString(cursorParentName, scratchArena);
+	const char* fieldName = CStringFromString(cursorParentName, allocator);
 	s64 offset = clang_Type_getOffsetOf(parentParentType, fieldName);
 	if (offset < 0)
 	{
 		// invalid offset, happens when reflecting on a struct type, since the struct decl itself has no offset
 		// so, this is only valid when we're reflecting on a *field inside* a struct, which only happens
 		// when we add additional reflection markup on a field, like a tooltip, description, exclusion, etc
+		// not a fatal error, just documenting this quirk
 	}
 	reflType.name = cursorParentName;
 	reflType.size = typeSize;
 	reflType.offset = offset;
 	reflType.align = typeAlign;
+
+	// if there's an annotation, parse the content
 	auto GetStringParam = []
 		(StringView key, StringView macroContent) -> StringView
 	{
@@ -199,13 +261,19 @@ void StoreReflectedTypeInfo(
 		return paramStrContent;
 	};
 
-	StringView descriptionParam = GetStringParam(STRING_LIT("Description"), macroContent);
-	reflType.editorName.CopyOf(descriptionParam, ctx.allocator);
+	if (macroContent)
+	{
+		StringView descriptionParam = GetStringParam(STRING_LIT("Description"), macroContent);
+		reflType.editorName.CopyOf(descriptionParam, ctx.allocator);
 
-	StringView tooltipParam = GetStringParam(STRING_LIT("Tooltip"), macroContent);
-	reflType.tooltip.CopyOf(tooltipParam, ctx.allocator);
+		StringView tooltipParam = GetStringParam(STRING_LIT("Tooltip"), macroContent);
+		reflType.tooltip.CopyOf(tooltipParam, ctx.allocator);
 
-	reflType.Print();
+		if (FindInString(macroContent, STRING_LIT("exclude")) > -1)
+		{
+			reflType.isExcluded = true;
+		}
+	}
 }
 
 StringView ParseReflectionMacroContent(CXCursor cr, CXTranslationUnit& tu)
@@ -223,7 +291,11 @@ StringView ParseReflectionMacroContent(CXCursor cr, CXTranslationUnit& tu)
 	StringView startContent = filecontent.OffsetView(offset);
 
 	s32 macroContentStartIdx = FindInString(startContent, STRING_LIT(ME_MACRO_STRINGIZE(MEREFLECT) "("), 0, StringOpFlags_IdxAfterNeedle);
-	ME_ASSERT(macroContentStartIdx > -1);
+	if (macroContentStartIdx < 0)
+	{
+		// fields with no annotations...
+		return {};
+	}
 	StringView macroContentStart = startContent.OffsetView(macroContentStartIdx);
 	s32 macroContentEndIdx = FindInString(macroContentStart, STRING_LIT(")"));
 	ME_ASSERT(macroContentEndIdx > -1);
@@ -236,64 +308,95 @@ StringView ParseReflectionMacroContent(CXCursor cr, CXTranslationUnit& tu)
 
 CXVisitorResult VisitStructureFields(CXCursor cr, CXClientData clientData);
 
-void OnFindAnnotated(CXCursor cr, CXCursor parent, CXClientData clientData)
+// a decl we care about parsing/storing in the reflection data
+void OnFindInterestingDecl(CXCursor cr, CXCursor parent, CXClientData clientData)
 {
 	#if !defined(ME_REFLECT_ATTR_STR) || !defined(MEREFLECT)
 	#error Undefined MEREFLECT attribute str/macro... include me_defines.h
 	#endif
 	ClangParsingContext& ctx = *(ClangParsingContext*)clientData;
 	String cursorName = GetCursorDisplayName(cr, ctx.allocator);
+	// when the cursor is the reflection attribute, the parent cursor is the one with the actual decl we care about
 	if (cursorName == STRING_LIT(ME_REFLECT_ATTR_STR))
 	{
-		ArenaTemp scratchArena = ArenaTempInit(ctx.allocator);
-		ME_ON_SCOPE_EXIT([&scratchArena]() { ArenaTempEnd(scratchArena); });
-
 		StringView macroContents = ParseReflectionMacroContent(parent, *ctx.tu);
 		StoreReflectedTypeInfo(parent, ctx, macroContents);
 
-		// this is called for a structure decl, OR on a fielddecl.
-		// for the structure, this visits the fields, as one might intuit
-		// for the field decl, this is basically a noop
-		CXType parentType = clang_getCursorType(parent);
-		clang_Type_visitFields(parentType, VisitStructureFields, clientData);
+		// since this is called for a structure decl, OR on a fielddecl...
+		CXCursorKind parentKind = clang_getCursorKind(parent);
+		if (parentKind == CXCursor_StructDecl || parentKind == CXCursor_ClassDecl)
+		{
+			CXType parentType = clang_getCursorType(parent);
+			clang_Type_visitFields(parentType, VisitStructureFields, clientData);
+		}
+	}
+	else
+	{
+		// otherwise, cr is the cursor we care about
+		StoreReflectedTypeInfo(cr, ctx, {});
 	}
 }
 
 CXVisitorResult VisitStructureFields(CXCursor cr, CXClientData clientData)
 {
-	ClangParsingContext* ctx = (ClangParsingContext*)clientData;
-	Arena* allocator = ctx->allocator;
-	ArenaTemp scratchArena = ArenaTempInit(allocator);
-	ME_ON_SCOPE_EXIT([&scratchArena]() { ArenaTempEnd(scratchArena); });
-	String cursorName = GetCursorDisplayName(cr, ctx->allocator);
+	ClangParsingContext& ctx = *(ClangParsingContext*)clientData;
+	Arena* allocator = ctx.allocator;
+	String cursorName = GetCursorDisplayName(cr, ctx.allocator);
 	CXCursorKind kind = clang_getCursorKind(cr);
+	CXCursor parent = clang_getCursorLexicalParent(cr);
+
 	switch (kind)
 	{
 		case CXCursor_FieldDecl:
 		{
-			clang_visitChildren(cr, +[](CXCursor cr, CXCursor parent, CXClientData clientData){
+			u32 result = clang_visitChildren(cr, +[](CXCursor cr, CXCursor parent, CXClientData clientData)
+			{
 				CXCursorKind kind = clang_getCursorKind(cr);
 				switch (kind)
 				{
 					case CXCursor_AnnotateAttr:
 					{
-						OnFindAnnotated(cr, parent, clientData);
+						OnFindInterestingDecl(cr, parent, clientData);
+						return CXChildVisit_Break; // indicates to our code just below that we found an attribute, and already parsed this decl
 					}
 					break;
 					default: break;
 				}
 				return CXChildVisit_Continue;
 			}, clientData);
+			if (result == 0)
+			{
+				// this means we didn't find an annotation on the field, and have yet to parse it
+				OnFindInterestingDecl(cr, parent, clientData);
+			}
 		}
 		break;
 		default: break;
 	}
 
-	CXCursor parent = clang_getCursorLexicalParent(cr);
 	CXString parentStr = clang_getCursorSpelling(parent);
-	// TODO:
-	// add this field to its parent struct's children
-	LOG_INFO("\t%s::%.*s", clang_getCString(parentStr), STRING_VAARGS(cursorName));
+
+	meReflectedType& reflType = GetReflectedType(cr, allocator, ctx);
+	if (reflType.isExcluded)
+	{
+		return CXVisit_Continue;
+	}
+	meReflectedType& parentReflType = GetReflectedType(parent, allocator, ctx);
+
+	// add this field to its parent structs children
+	bool childAlreadyThere = false;
+	for (s32 i = 0; i < DynArrayGetSize(parentReflType.children); i++)
+	{
+		if (*parentReflType.children[i] == reflType)
+		{
+			childAlreadyThere = true;
+			break;
+		}
+	}
+	if (!childAlreadyThere)
+	{
+		DynArrayPush(parentReflType.children, &reflType);
+	}
 
 	return CXVisit_Continue;
 }
@@ -303,9 +406,7 @@ CXChildVisitResult visitTranslationUnit(CXCursor cr, CXCursor parent, CXClientDa
 	ClangParsingContext& ctx = *(ClangParsingContext*)clientData;
 	Arena* allocator = ctx.allocator;
 	CXCursorKind const kind = clang_getCursorKind(cr);
-	ArenaTemp scratchArena = ArenaTempInit(allocator);
-	ME_ON_SCOPE_EXIT([&scratchArena]() { ArenaTempEnd(scratchArena); });
-	String headerPath = GetHeaderPathForCursor(cr, scratchArena.arena);
+	String headerPath = GetHeaderPathForCursor(cr, allocator);
 	if (!IsHeaderWeCareAbout(headerPath, ctx.projectRootDir))
 	{
 		return CXChildVisit_Continue;
@@ -320,7 +421,7 @@ CXChildVisitResult visitTranslationUnit(CXCursor cr, CXCursor parent, CXClientDa
 	{
 		case CXCursor_AnnotateAttr:
 		{
-			OnFindAnnotated(cr, parent, clientData);
+			OnFindInterestingDecl(cr, parent, clientData);
 		}
 		break;
 
@@ -382,6 +483,8 @@ DynArray(CompileCommand) CompileDatabaseToCommandsList(
 	DynArrayPush(cmds, cmd);
 	return cmds;
 }
+
+void ProcessReflectedTypes(ClangParsingContext& ctx);
 
 int main(int argc, char* argv[])
 {
@@ -453,44 +556,46 @@ int main(int argc, char* argv[])
 		}
 	}
 
-	DynArrayPush(clangArgs, ( "-x" ));
-	DynArrayPush(clangArgs, ( "c++" ));
+	DynArrayPush(clangArgs, "-x");
+	DynArrayPush(clangArgs, "c++");
 
 	CXTranslationUnit tu;
 	CXErrorCode result = CXError_Failure;
 	{
-		result = clang_parseTranslationUnit2( idx, reflectorFilePath, clangArgs, DynArrayGetSize(clangArgs), 0, 0, clangOptions, &tu );
+		result = clang_parseTranslationUnit2(idx, reflectorFilePath, clangArgs, DynArrayGetSize(clangArgs), 0, 0, clangOptions, &tu);
 	}
-	ClangParsingContext parsingContext;
-	parsingContext.tu = &tu;
-	parsingContext.allocator = &reflectorArena;
+	ClangParsingContext& ctx = ClangParsingContext::GetSingleInstance();
+	ctx.tu = &tu;
+	ctx.allocator = &reflectorArena;
 	char* absProjectRootPath = meOSResolveRelativeToAbsPath(&reflectorArena, StringFromCString(projectRootDir));
-	parsingContext.projectRootDir = String(absProjectRootPath, CStringLength(absProjectRootPath));
-	NormalizePathSeperators(parsingContext.projectRootDir);
+	ctx.projectRootDir = String(absProjectRootPath, CStringLength(absProjectRootPath));
+	NormalizePathSeperators(ctx.projectRootDir);
 	clang_checkDiagnostics(tu);
-	if ( result == CXError_Success )
+	if (result == CXError_Success)
 	{
-		auto cursor = clang_getTranslationUnitCursor( tu );
-		clang_visitChildren( cursor, visitTranslationUnit, &parsingContext );
+		auto cursor = clang_getTranslationUnitCursor(tu);
+		// populates the parsingcontext with info about all reflected types
+		clang_visitChildren(cursor, visitTranslationUnit, &ctx);
+		ProcessReflectedTypes(ctx);
 	}
 	else
 	{
-		switch ( result )
+		switch (result)
 		{
 			case CXError_Failure:
-                LOG_ERROR( "Clang Unknown failure" );
+                LOG_ERROR("Clang Unknown failure");
                 break;
 
 			case CXError_Crashed:
-                LOG_ERROR( "Clang crashed" );
+                LOG_ERROR("Clang crashed");
                 break;
 
 			case CXError_InvalidArguments:
-                LOG_ERROR( "Clang Invalid arguments" );
+                LOG_ERROR("Clang Invalid arguments");
                 break;
 
 			case CXError_ASTReadError:
-                LOG_ERROR( "Clang AST read error" );
+                LOG_ERROR("Clang AST read error");
                 break;
 			default:
 			{
@@ -499,7 +604,21 @@ int main(int argc, char* argv[])
 			break;
 		}
 	}
-	clang_disposeIndex( idx );
+	clang_disposeIndex(idx);
 
 	return 0;
+}
+
+
+void ProcessReflectedTypes(ClangParsingContext& ctx)
+{
+	// BOOKMARK2: take all types and their children and write em out into headers
+	for (const auto& [headerID, fileReflection] : ctx.reflectedFiles)
+	{
+		for (const auto& [nameID, typeRefl] : fileReflection.reflectedTypes)
+		{
+			if (typeRefl.isExcluded) continue;
+			typeRefl.Print();
+		}
+	}
 }

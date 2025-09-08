@@ -133,10 +133,6 @@ inline void DynArrayPop(DynArray array, T& out)
 void DynArrayClear(DynArray array);
 
 
-#define DynArrayForEach(arr, idx) \
-    int idx = 0; idx < DynArrayGetSize(arr); i++
+MEAPI void DynArrayTests();
 
 #endif
-
-
-MEAPI void DynArrayTests();

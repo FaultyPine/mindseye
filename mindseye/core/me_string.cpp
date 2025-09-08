@@ -5,12 +5,12 @@
 #include "core/me_log.h"
 #include "external/stb/stb_sprintf.h"
 
-bool StringView::operator == (const StringView& sv) const 
+bool StringView::operator==(const StringView& sv) const 
 {
     return sv.len == this->len && ME_MEMCMP(this->data, sv.data, sv.len) == 0;
 }
 
-bool String::operator== (const String& s) const
+bool String::operator==(const String& s) const
 {
     return s.len == this->len && ME_MEMCMP(this->data, s.data, s.len) == 0;
 }

@@ -6,7 +6,10 @@
 #define ArenaAllocType(arena, type, num) ((type*)ArenaAlloc(arena, sizeof(type) * num))
 #define ARENA_MAX_NAME_LEN 30
 
-// BOOKMARK/TODO: make this chained & threadsafe.
+// TODO: make this chained & threadsafe.
+// Actually. Don't make this chained. Just do an OS virtual mem reserve of 1gb.
+// Nearly all systems reserve ~48 bits for pointers
+// which represents 262,144GB. >200k arenas is way way more than enough...
 struct Arena : public meAllocator 
 {
     unsigned char* backing_mem = 0;
@@ -29,6 +32,12 @@ MEAPI void ArenaClearNull(Arena* arena);
 MEAPI void ArenaFreeAll(Arena* arena);
 MEAPI const char* ArenaGetName(Arena* arena);
 
+// TODO: (and note to self)
+// Make these temp arena funcs take in a 
+// list of "persistent" existing arenas
+// so we don't get conflicts.
+// I tried using these without that feature, being very aware of this pitfall,
+// and still fell into it a bunch of times. Use with caution! (until I implement the conflicts thing)
 struct ArenaTemp 
 {
     Arena* arena;
@@ -47,6 +56,20 @@ inline void* ArenaResize(ArenaTemp* arena, void* oldMem, size_t oldSize, size_t 
     return ArenaResize(arena->arena, oldMem, oldSize, newSize);
 }
 
+// NOTE: be extremely careful with these temp arenas
+// Initializing one, then doing an allocation with the
+// backing arena meant to be tied to that original one will
+// cause that allocation to be "wiped out" when the temp arena ends...
+// Rule of thumb: tmp arenas should have tiny scope, and no allocations from other arenas
+// should be used during the lifetime of a tmp arena
 MEAPI ArenaTemp ArenaTempInit(Arena* arena);
 MEAPI void ArenaTempEnd(ArenaTemp tmpArena);
 
+
+struct ArenaTempScoped : public ArenaTemp
+{
+	~ArenaTempScoped()
+	{
+		ArenaTempEnd(*this);
+	}
+};
