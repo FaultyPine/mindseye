@@ -110,7 +110,7 @@ void meOSWinCreateWindow(WindowCreationParams creationParams, EngineContext* eng
     RegisterClass(&wc);
 
     int wide_char_len = MultiByteToWideChar(CP_UTF8, 0, creationParams.name.data, -1, nullptr, 0);
-    String wideString = String((char*)ArenaAlloc(&scratch, wide_char_len), wide_char_len);
+    StringView wideString = StringView((char*)ArenaAlloc(&scratch, wide_char_len), wide_char_len);
     MultiByteToWideChar(CP_UTF8, 0, creationParams.name.data, -1, (wchar_t*)wideString.data, wide_char_len);
 
     // When you create a window, windows immediately fires a WM_SIZE event
@@ -189,7 +189,8 @@ s32 meOSWinMain(s32 argc, char** argv)
 }
 #endif
 
-
+// on windows, reserving memory just means reserving the address space
+// you will crash if you r/w out of an address that has only been reserved
 void* meOSWinReserveVirtualMemory(u64 size)
 {
     void* result = VirtualAlloc(nullptr, size, MEM_RESERVE, PAGE_READWRITE);
@@ -201,9 +202,13 @@ void* meOSWinReserveVirtualMemory(u64 size)
 	return result;
 }
 
-void* meOSWinCommitVirtualMemory(u64 size)
+// on windows, committing a virtual memory range
+// that has been reserved means allocating space for it in the page table
+// notably, this doesn't mean physical memory is allocated for the range
+// that only happens when you actually touch a reserved & "committed" page
+void* meOSWinCommitVirtualMemory(void* ptr, u64 size)
 {
-    void* result = VirtualAlloc(nullptr, size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+    void* result = VirtualAlloc(ptr, size, MEM_COMMIT, PAGE_READWRITE);
 	if (result == nullptr) MEUNLIKELY
 	{
 		DWORD err = GetLastError();
@@ -223,7 +228,7 @@ void* LoadDynamicLibrary(const char* name)
 }
 
 
-void* GetFunctionPtr(void* module, String functionName)
+void* GetFunctionPtr(void* module, StringView functionName)
 {
     return (void*)GetProcAddress((HMODULE)module, functionName.data);
 }
@@ -313,14 +318,76 @@ char* meOSGetExeFileFolder()
 	return path;
 }
 
+BOOL DirectoryExists(const char* dirPath) {
+    DWORD fileAttributes = GetFileAttributesA(dirPath);
+    if (fileAttributes == INVALID_FILE_ATTRIBUTES) {
+        return FALSE;
+    }
+    return (fileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+}
 
-char* meOSResolveRelativeToAbsPath(
+// Function to create a full directory path recursively
+bool CreateRecursiveDirectory(StringView path) {
+    // Make a mutable copy of the path. MAX_PATH is 260.
+    char tempPath[MAX_PATH];
+    if (path.len >= MAX_PATH) 
+	{
+        return false;
+    }
+    StringCopy(StringView(tempPath, MAX_PATH), path);
+
+    char* p = tempPath;
+    
+    // Skip past drive letter (e.g., C:\)
+    if (p[0] && p[1] == ':' && p[2] == '\\') {
+        p += 3;
+    }
+    
+    while (*p) {
+        if (*p == '\\' || *p == '/') {
+            *p = '\0'; // Temporarily terminate the string
+            
+            if (!DirectoryExists(tempPath)) {
+                if (!CreateDirectoryA(tempPath, NULL)) {
+                    DWORD error = GetLastError();
+                    if (error != ERROR_ALREADY_EXISTS) {
+                        // Handle error.
+                        return FALSE;
+                    }
+                }
+            }
+            *p = '\\'; // Restore the separator
+        }
+        p++;
+    }
+
+    // Create the final directory in the path
+    if (!DirectoryExists(tempPath)) {
+        if (!CreateDirectoryA(tempPath, NULL)) {
+            DWORD error = GetLastError();
+            if (error != ERROR_ALREADY_EXISTS) {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+bool meOSEnsureDirectoriesExist(const char* pathCstr)
+{
+	u64 len = CStringLength(pathCstr);
+	return CreateRecursiveDirectory(StringView(pathCstr, len));
+}
+
+String meOSResolveRelativeToAbsPath(
 	meAllocator* allocator,
 	StringView potentiallyRelativePath)
 {
-	char* absolutePath = MEALLOC(allocator, PATH_MAX);
-	ME_MEMCLEAR(absolutePath, PATH_MAX);
-    DWORD result = GetFullPathNameA(potentiallyRelativePath.data, PATH_MAX, absolutePath, NULL);
+	String absolutePath = String(PATH_MAX, allocator);
+	ME_MEMCLEAR((char*)absolutePath, PATH_MAX);
+    DWORD result = GetFullPathNameA(potentiallyRelativePath.data, PATH_MAX, absolutePath.data, NULL);
 	ME_ASSERT(result > 0);
+	absolutePath.len = CStringLength(absolutePath.data);
 	return absolutePath;
 }

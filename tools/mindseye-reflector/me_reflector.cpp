@@ -57,6 +57,7 @@ struct meReflectedType
 
 struct meReflectedFile
 {
+	String fileName;
 	// name hash -> type
 	meMap<u32, meReflectedType> reflectedTypes = {};
 };
@@ -65,12 +66,9 @@ struct ClangParsingContext
 {
 	Arena* allocator = nullptr;
 	String projectRootDir = {};
-	Stack<String> namespaces = {};
 	// header id -> file reflection info
 	meMap<u32, meReflectedFile> reflectedFiles = {};
-	u32 errorCode = 0;
 	CXTranslationUnit* tu = nullptr;
-	bool HasErrorOccurred() const { return errorCode != 0; }
 
 	static ClangParsingContext& GetSingleInstance()
 	{
@@ -99,11 +97,10 @@ inline String GetCursorDisplayName(const CXCursor& cr, meAllocator* allocator )
 {
 	auto displayName = clang_getCursorDisplayName(cr);
 	const char* strMem = clang_getCString(displayName);
-	u64 strLen = CStringLength(strMem);
-	void* ownedMem = MEALLOC(allocator, strLen);
-	ME_MEMCPY(ownedMem, strMem, strLen);
+	String result; 
+	result.CopyOfCStr(strMem, allocator);
 	clang_disposeString(displayName);
-	return String((char*)ownedMem, strLen);
+	return result;
 }
 
 inline u32 GetLineNumberForCursor(const CXCursor& cr)
@@ -113,17 +110,6 @@ inline u32 GetLineNumberForCursor(const CXCursor& cr)
 	CXSourceLocation start = clang_getRangeStart(range);
 	clang_getExpansionLocation( start, nullptr, &line, &column, &offset );
 	return line;
-}
-
-void NormalizePathSeperators(StringView str)
-{
-	for (u32 i = 0; i < str.len; i++)
-	{
-		if (str.data[i] == '\\')
-		{
-			str.data[i] = '/';
-		}
-	}
 }
 
 String GetHeaderPathForCursor(CXCursor cr, meAllocator* allocator)
@@ -136,9 +122,8 @@ String GetHeaderPathForCursor(CXCursor cr, meAllocator* allocator)
 	{
 		CXString clangFilePath = clang_File_tryGetRealPathName(file);
 		const char* filePathMem = clang_getCString(clangFilePath);
-		u32 filePathLen = CStringLength(filePathMem);
-		HeaderFilePath = String((const char*)ReallocateBuffer(allocator, (void*)filePathMem, filePathLen).data, filePathLen);
-		NormalizePathSeperators(HeaderFilePath);
+		HeaderFilePath.CopyOfCStr(filePathMem, allocator);
+		meFsNormalizePathSeperators(HeaderFilePath);
 		clang_disposeString(clangFilePath);
 	}
 	return HeaderFilePath;
@@ -203,6 +188,8 @@ meReflectedType& GetReflectedType(CXCursor cr, meAllocator* allocator, ClangPars
 	{
 		reflType.children = DynArrayCreate<meReflectedType*>(allocator);
 	}
+	String headerPath = GetHeaderPathForCursor(cr, allocator);
+	ctx.reflectedFiles[headerID].fileName = headerPath;
 	return reflType;
 }
 
@@ -341,7 +328,6 @@ CXVisitorResult VisitStructureFields(CXCursor cr, CXClientData clientData)
 {
 	ClangParsingContext& ctx = *(ClangParsingContext*)clientData;
 	Arena* allocator = ctx.allocator;
-	String cursorName = GetCursorDisplayName(cr, ctx.allocator);
 	CXCursorKind kind = clang_getCursorKind(cr);
 	CXCursor parent = clang_getCursorLexicalParent(cr);
 
@@ -373,8 +359,6 @@ CXVisitorResult VisitStructureFields(CXCursor cr, CXClientData clientData)
 		break;
 		default: break;
 	}
-
-	CXString parentStr = clang_getCursorSpelling(parent);
 
 	meReflectedType& reflType = GetReflectedType(cr, allocator, ctx);
 	if (reflType.isExcluded)
@@ -461,7 +445,7 @@ DynArray(CompileCommand) CompileDatabaseToCommandsList(
 {
 	CompileCommand* cmds = DynArrayCreate<CompileCommand>(allocator);
 	OSFileReference compileCmdsFile = {};
-	if (!meOSOpenFile(compileCmdsFile, compileDatabasePath, OnlyIfExists))
+	if (!meOSOpenFile(compileCmdsFile, (char*)compileDatabasePath, OnlyIfExists))
 	{
 		LOG_ERROR("Failed to open compile commands database file %s", compileDatabasePath.data);
 		return cmds;
@@ -484,21 +468,32 @@ DynArray(CompileCommand) CompileDatabaseToCommandsList(
 	return cmds;
 }
 
-void ProcessReflectedTypes(ClangParsingContext& ctx);
+void GeneratedReflectionHeaders(ClangParsingContext& ctx, const char* headerOutputFolder);
+
+// ============================================================================
+// ABOVE: Parsing the clang translation unit for reflection-annotated types & gathering the data
+// ================================================================================
 
 int main(int argc, char* argv[])
 {
 	InitializeLogger();
-	if (argc < 2)
+	if (argc < 4)
 	{
-		LOG_ERROR("Invalid args, need to pass path to compile_commands.json\n");
+		LOG_ERROR(
+		"Not enough args...\n"
+		"Arg1 should be path to compile_command.txt\n"
+		"Arg2 should be the project's root directory\n"
+		"Arg3 should be the output directory for generated header files"
+		);
 		return 1;
 	}
 	StringView compileCmdsDatabaseFilePath = StringFromCString(argv[1]);
 	LOG_INFO("[Mindseye Reflector] Reflecting %.*s\n", STRING_VAARGS(compileCmdsDatabaseFilePath));
 	const char* projectRootDir = argv[2];
+	const char* headerOutputFolder = argv[3];
 	meAllocator* systemAllocator = GetSystemAllocator();
-	Arena reflectorArena = ArenaInit(MEGABYTES_BYTES(100ull), "Main reflector arena", systemAllocator);
+	Arena& reflectorArena = *MENEW(systemAllocator, Arena);
+	reflectorArena = ArenaInit(MEGABYTES_BYTES(100ull), "Main reflector arena", systemAllocator);
 	// create a header file on disk that is a sort of "unity" build single file that includes all the files we want to run our reflection parser on
 	DynArray(CompileCommand) compileCommands = CompileDatabaseToCommandsList(&reflectorArena, compileCmdsDatabaseFilePath);
 	if (DynArrayGetSize(compileCommands) == 0)
@@ -567,16 +562,16 @@ int main(int argc, char* argv[])
 	ClangParsingContext& ctx = ClangParsingContext::GetSingleInstance();
 	ctx.tu = &tu;
 	ctx.allocator = &reflectorArena;
-	char* absProjectRootPath = meOSResolveRelativeToAbsPath(&reflectorArena, StringFromCString(projectRootDir));
-	ctx.projectRootDir = String(absProjectRootPath, CStringLength(absProjectRootPath));
-	NormalizePathSeperators(ctx.projectRootDir);
+	String absProjectRootPath = meOSResolveRelativeToAbsPath(&reflectorArena, StringFromCString(projectRootDir));
+	ctx.projectRootDir = absProjectRootPath;
+	meFsNormalizePathSeperators(ctx.projectRootDir);
 	clang_checkDiagnostics(tu);
 	if (result == CXError_Success)
 	{
 		auto cursor = clang_getTranslationUnitCursor(tu);
 		// populates the parsingcontext with info about all reflected types
 		clang_visitChildren(cursor, visitTranslationUnit, &ctx);
-		ProcessReflectedTypes(ctx);
+		GeneratedReflectionHeaders(ctx, headerOutputFolder);
 	}
 	else
 	{
@@ -609,16 +604,70 @@ int main(int argc, char* argv[])
 	return 0;
 }
 
+// ===================================================================
+// BELOW: Outputting generated headers from the reflection data we captured
+// ====================================================================
 
-void ProcessReflectedTypes(ClangParsingContext& ctx)
+void ProcessReflectedFile(
+	const meReflectedFile& fileRefl, 
+	const char* headerOutputFolder,
+	meAllocator* allocator);
+
+// given the ClangParsingContext that is filled with all the relevant data, generate headers
+void GeneratedReflectionHeaders(
+	ClangParsingContext& ctx, 
+	const char* headerOutputFolder)
 {
-	// BOOKMARK2: take all types and their children and write em out into headers
+	LOG_INFO("Generating reflection headers at %s", headerOutputFolder);
+	u32 numReflectedFiles = ctx.reflectedFiles.size();
 	for (const auto& [headerID, fileReflection] : ctx.reflectedFiles)
 	{
-		for (const auto& [nameID, typeRefl] : fileReflection.reflectedTypes)
-		{
-			if (typeRefl.isExcluded) continue;
-			typeRefl.Print();
-		}
+		// TODO: this is ripe for super easy parallelism here
+		// chunk up allocators for each thread, and have them all generate & write out each header
+		Arena fileArena = ArenaInit(ArenaGetFreeSpace(ctx.allocator) / numReflectedFiles, "File Reflection Arena", ctx.allocator);
+		ProcessReflectedFile(fileReflection, headerOutputFolder, &fileArena);
 	}
 }
+
+
+void ProcessReflectedFile(
+	const meReflectedFile& fileRefl, 
+	const char* headerOutputFolder,
+	meAllocator* allocator)
+{
+	StringBuilder fileContentBuilder = StringBuilder(allocator);
+	for (const auto& [nameID, typeRefl] : fileRefl.reflectedTypes)
+	{
+		if (typeRefl.isExcluded) continue;
+		// BOOKMARK2: take all types and their children and write em out into headers
+		// write type
+		// TODO: this is a very sprintf/variable-sized-string heavy 
+		// sort of problem, which my String is totally not suited for right now
+		// I should either
+		// just meh, and arena push everything i need
+		// OR properly flesh out the String class to be able to be appended to/reallocated/etc
+		typeRefl.Print();
+	}
+
+	StringView fileContent = fileContentBuilder;
+	if (fileContent)
+	{
+		OSFileReference headerFile = {};
+		StringView parsedHeaderExistingPath = fileRefl.fileName;
+		StringView parsedHeaderFilename = meFsGetFilepathFromPath(parsedHeaderExistingPath);
+		s32 extensionIdx = FindInStringRev(parsedHeaderFilename, STRING_LIT("."));
+		StringView parsedHeaderFilenameNoExt = parsedHeaderFilename.OffsetView(0, extensionIdx);
+		StringView parsedHeaderExt = parsedHeaderFilename.OffsetView(extensionIdx);
+		const char* dstFilePath = StringFormat("%s/%.*s.generated%.*s", headerOutputFolder, STRING_VAARGS(parsedHeaderFilenameNoExt), STRING_VAARGS(parsedHeaderExt));
+		meOSEnsureDirectoriesExist(dstFilePath);
+		if (!meOSOpenFile(headerFile, dstFilePath))
+		{
+			LOG_ERROR("Failed to open file %s while trying to generated reflected headers", dstFilePath);
+			return;
+		}
+		// write to the file here
+		meOSWriteFileContent(headerFile, fileContent.data, fileContent.len);
+		meOSCloseFile(headerFile);
+	}
+}
+

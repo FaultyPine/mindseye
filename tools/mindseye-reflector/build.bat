@@ -17,7 +17,7 @@ set clang_options=-I%clang_path%\include -L%clang_path%\lib -llibclang -DCLANG_B
 clang me_reflector.cpp -Wall -std=c++20 -g %mindseye_options% -o me_reflector.exe -I%proj_root% %clang_options%
 if %ERRORLEVEL% NEQ 0 (echo [Reflector compile] Error:%ERRORLEVEL% && exit /b)
 
-me_reflector.exe %1 %proj_root%\mindseye
+me_reflector.exe %1 %proj_root%\mindseye %proj_root%\mindseye\generatedtypes
 if %ERRORLEVEL% NEQ 0 (echo [Reflector run] Error:%ERRORLEVEL% && exit /b)
 
 

@@ -5,7 +5,9 @@
 
 Allocation meSystemAllocator::meAlloc(u64 size)
 {
-    return Allocation((u8*)meOSCommitVirtualMemory(size), size);
+	Allocation reservation = Allocation(meOSReserveVirtualMemory(size), size);
+	meOSCommitVirtualMemory(reservation.data, reservation.size);
+	return reservation;
 }
 
 Allocation meSystemAllocator::meReserve(u64 size)

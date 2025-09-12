@@ -86,7 +86,7 @@ void LogMessage(LogLevel level, u32 logCategory, const char* lineEnd, const char
         if (!OneTimeWarning && LOG_LEVELS_ENABLED == 0)
         {
             OneTimeWarning = true;
-            ConsolePrint("[WARNING] No log levels enabled, logs will not be displayed"); // did you forget InitializeLogger()?
+            ConsolePrint(STRING_LIT("[WARNING] No log levels enabled, logs will not be displayed")); // did you forget InitializeLogger()?
         }
         return;
     }
@@ -99,8 +99,8 @@ void LogMessage(LogLevel level, u32 logCategory, const char* lineEnd, const char
     s32 bytesWritten = stbsp_vsnprintf(msgBuffer, LOG_MSG_LIMIT, message, args);
     va_end(args);
     ME_ASSERT(bytesWritten < LOG_MSG_LIMIT);
-    const char* processedMsg = TextFormat("%s%s", msgBuffer, lineEnd);
-	String outMsg = String(processedMsg, bytesWritten+1);
+    const char* processedMsg = StringFormat("%s%s", msgBuffer, lineEnd);
+	StringView outMsg = StringView(processedMsg, bytesWritten+1);
 
     // append (optional)color and log level to message
 #if TERMINAL_COLORED_OUTPUT_ENABLED

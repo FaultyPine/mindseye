@@ -6,32 +6,59 @@ struct String
 {
     char* data = nullptr;
     size_t len = 0;
-    StringView OffsetView(size_t offset = 0);
-    StringView OffsetView(size_t offset, size_t len);
-    String(char* data, size_t len) : data(data), len(len) {};
-    String(const char* data, size_t len) : data((char*)data), len(len) {};
-	String() = default;
-	void CopyOfCStr(const char* cstr, meAllocator* allocator);
-	void CopyOf(const char* str, size_t len, meAllocator* allocator);
-	void CopyOf(const String& str, meAllocator* allocator);
-	void CopyOf(const StringView& str, meAllocator* allocator);
-	bool operator == (const String& sv) const;
-    operator char*() { return data; }
-	operator bool() const { return data && len; }
+	meAllocator* allocator = nullptr;
+
+    MEAPI StringView OffsetView(size_t offset = 0);
+    MEAPI StringView OffsetView(size_t offset, size_t len);
+    MEAPI String(const char* data, size_t len, meAllocator* allocator);
+    MEAPI String(size_t len, meAllocator* allocator);
+    MEAPI String(const StringView& str, meAllocator* allocator = nullptr);
+	MEAPI String() = default;
+
+	MEAPI ~String();
+	MEAPI String(const String& other);// copy
+	MEAPI String& operator=(const String& other); // copy assignment
+	MEAPI String(String&& other) noexcept; // move
+	MEAPI String& operator=(String&& other); // move assignment
+
+	MEAPI void CopyOfCStr(const char* cstr, meAllocator* allocator);
+	MEAPI void CopyOf(const String& str);
+	MEAPI void CopyOf(const StringView& str, meAllocator* allocator);
+	
+	MEAPI bool operator == (const String& sv) const;
+	MEAPI bool operator == (const StringView& sv) const;
+    MEAPI explicit operator char*() { return data; }
+	MEAPI explicit operator bool() const { return data && len; }
 };
 
-struct StringView // non-owning
+
+struct StringBuilder
+{
+	char* data = nullptr;
+	u64 len = 0;
+	u64 capacity = 0;
+	meAllocator* allocator = nullptr;
+
+	StringBuilder(meAllocator* allocator);
+	~StringBuilder();
+
+	void SetAllocator(meAllocator* allocator) { this->allocator = allocator; }
+	void Append(StringView str);
+	void AppendFormat(const char* fmt, ...);
+};
+
+struct StringView
 {
     char* data = nullptr;
     u64 len = 0;
-    StringView(const String&& s) { data = (char*)s.data; len = s.len; }
-    StringView(const String& s) { data = (char*)s.data; len = s.len; }
-    StringView() = default;
-    StringView(char* data, size_t len) { this->data = data; this->len = len; };
-    StringView(const char* data, size_t len) { this->data = (char*)data; this->len = len; };
-	bool operator == (const StringView& sv) const;
-    operator char*() { return data; }
-	operator bool() const
+    MEAPI StringView() = default;
+    MEAPI StringView(const String&& s) { data = (char*)s.data; len = s.len; }
+    MEAPI StringView(const String& s) { data = (char*)s.data; len = s.len; }
+    MEAPI StringView(const StringBuilder& s) { data = (char*)s.data; len = s.len; }
+	MEAPI StringView(const char* data, size_t len) { this->data = (char*)data; this->len = len; };
+	MEAPI bool operator == (const StringView& sv) const;
+    explicit operator char*() { return data; }
+	explicit operator bool() const
 	{ 
 		return data && len; 
 	}
@@ -61,7 +88,7 @@ enum StringOpFlags_Enum
 };
 
 template <u64 N> 
-String STRING_LIT(const char (&strlit)[N]) { return String{(char*)strlit, N-1}; }
+StringView STRING_LIT(const char (&strlit)[N]) { return StringView{(char*)strlit, N-1}; }
 
 // %.*s
 #define STRING_VAARGS(str) str.len, str.data
@@ -91,7 +118,7 @@ MEAPI bool StringCompare(StringView str1, StringView str2, StringOpFlags flags =
 
 MEAPI size_t CStringLength(const char* str);
 
-MEAPI String StringFromCString(const char* str, s32 strLen = -1);
+MEAPI StringView StringFromCString(const char* str, s32 strLen = -1);
 
 MEAPI const char* CStringFromString(StringView str, meAllocator* allocator);
 
@@ -103,4 +130,9 @@ MEAPI StringView ScanForBalancedChar(StringView str, char opening, char closing)
 
 MEAPI char ToLower(char c);
 
-MEAPI const char* TextFormat(const char *text, ...);
+// formats a string. Returned string buffer is a temporary buffer
+// that will be evicted on the next couple calls to this function
+// note, the returned string will be null-terminated
+MEAPI const char* StringFormat(const char *text, ...);
+// same as above, but allocates memory for the formatted string
+MEAPI const char* StringFormatNew(meAllocator* allocator, const char *text, ...);

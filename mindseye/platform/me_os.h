@@ -72,12 +72,14 @@ struct OSFileReference
     #else
     #error unsupported filereference platform
     #endif
+
+	// TODO: implement copy/assign/move 
+	// and take OSFileFlags::ScopedFile into account
 };
 
-void ConsolePrint(const char* text);
-void ConsolePrint(String text);
+void ConsolePrint(StringView text);
 void* LoadDynamicLibrary(const char* name);
-void* GetFunctionPtr(void* module, String functionName);
+void* GetFunctionPtr(void* module, StringView functionName);
 
 MEAPI void meOSInitializeLogging();
 
@@ -92,12 +94,13 @@ MEAPI void* meOSReserveVirtualMemory(
 	u64 size);
 
 MEAPI void* meOSCommitVirtualMemory(
+	void* ptr,
 	u64 size);
 
 MEAPI void meOSFreeVirtualMemory(
 	void* data);
 
-MEAPI const char* meOSFsDirectorySeperator();
+MEAPI char meOSFsDirectorySeperator();
 
 MEAPI bool meOSOpenFile(
 	OSFileReference& file, 
@@ -126,6 +129,6 @@ MEAPI size_t meOSGetFileSize(
 MEAPI char* meOSGetExeFilepath();
 MEAPI char* meOSGetExeFileFolder();
 
-MEAPI char* meOSResolveRelativeToAbsPath(
+MEAPI String meOSResolveRelativeToAbsPath(
 	meAllocator* allocator,
 	StringView potentiallyRelativePath);

@@ -27,8 +27,6 @@ struct meAllocator
     virtual void meFree(void* allocation) { UNIMPLEMENTED(); }
 	virtual Allocation meRealloc(const Allocation& allocation, u64 newSize) { UNIMPLEMENTED(); return {}; }
     virtual void meClear() { UNIMPLEMENTED(); }
-
-    u64 currentSize = 0;
 };
 
 struct meSystemAllocator : public meAllocator
@@ -38,7 +36,6 @@ struct meSystemAllocator : public meAllocator
     MEAPI void meFree(void* allocation) override;
     MEAPI void meClear() override;
 };
-
 
 MEAPI meAllocator* GetSystemAllocator();
 
@@ -74,6 +71,9 @@ do { \
 #endif
 
 #ifndef ME_CORE_ONLY
+
+// TODO: allocator handles
+
 struct EngineContext;
 void InitializeAllocatorSystem(EngineContext* engine);
 #endif

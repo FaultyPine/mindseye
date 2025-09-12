@@ -19,6 +19,10 @@ then `build.bat`
 
 - going to sprint towards MVP of having a scene (USD? gltf?) render. Then will do (possibly many) cleanup/hardening passes after
 
+- REALLY IMPORTANT TODO:
+    - instead of passing meAllocator* around, I should pass an allocator handle
+	- which is internally u32 and dereferences to the allocator itself.
+
 ### Current focus
 - ~~RWlock~~
 - REFLECTION (C lexer? Metadesk? Clang plugin?)

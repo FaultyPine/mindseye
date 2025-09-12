@@ -177,5 +177,5 @@ const char* meAssetGetResourceDir()
 
 const char* meAssetResource(const char* resourcePath)
 {
-    return TextFormat("%s%s%s", meAssetGetResourceDir(), meFsGetDirectorySeperator(), resourcePath);
+    return StringFormat("%s%c%s", meAssetGetResourceDir(), meFsGetDirectorySeperator(), resourcePath);
 }

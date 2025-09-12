@@ -12,29 +12,100 @@ bool StringView::operator==(const StringView& sv) const
 
 bool String::operator==(const String& s) const
 {
+	return operator==((StringView)s);
+}
+
+bool String::operator==(const StringView& s) const
+{
     return s.len == this->len && ME_MEMCMP(this->data, s.data, s.len) == 0;
+}
+
+String::~String()
+{
+	if (allocator && data)
+	{
+		MEFREE(allocator, data);
+	}
+	data = nullptr;
+	len = 0;
+	allocator = nullptr;
+}
+// BOOKMARK
+String::String(const String& other)
+{
+	if (!allocator)
+	{
+		allocator = other.allocator;
+	}
+	CopyOf(other);
+}
+
+String& String::operator=(const String& other)
+{
+	if (!allocator)
+	{
+		allocator = other.allocator;
+	}
+	CopyOf(other);
+	return *this;
+}
+
+String::String(String&& other) noexcept
+{
+	data = other.data;
+	len = other.len;
+	allocator = other.allocator;
+}
+
+String& String::operator=(String&& other)
+{
+	data = other.data;
+	len = other.len;
+	allocator = other.allocator;
+	return *this;
+}
+
+
+String::String(const char* data, size_t len, meAllocator* allocator)
+{
+	this->data = MEALLOC(allocator, len + 1);
+	ME_MEMCPY(this->data, data, len);
+	this->data[len] = '\0';
+	this->len = len;
+	this->allocator = allocator;
+}
+
+String::String(size_t len, meAllocator* allocator)
+{
+	this->data = MEALLOC(allocator, len + 1);
+	this->len = len;
+	this->allocator = allocator;
+}
+
+
+String::String(const StringView& str, meAllocator* allocator)
+{
+	if (!allocator)
+	{
+		allocator = GetSystemAllocator();
+	}
+	::String(str.data, str.len, allocator);
 }
 
 void String::CopyOfCStr(const char* cstr, meAllocator* allocator)
 {
 	len = CStringLength(cstr);
 	data = (char*)MEALLOC(allocator, len);
+	this->allocator = allocator;
 	StringCopy(*this, StringView(cstr, len));
 }
 
-void String::CopyOf(const char* str, size_t len, meAllocator* allocator)
-{
-	if (!str) { *this = {}; return; }
-	this->len = len;
-	data = (char*)MEALLOC(allocator, len);
-	StringCopy(*this, StringView(str, len));
-}
-
-void String::CopyOf(const String& str, meAllocator* allocator)
+void String::CopyOf(const String& str)
 {
 	if (!str) { *this = {}; return; }
 	this->len = str.len;
-	data = (char*)MEALLOC(allocator, len);
+	data = (char*)MEALLOC(str.allocator, len);
+	allocator = str.allocator;
 	StringCopy(*this, str);
 }
 
@@ -43,6 +114,7 @@ void String::CopyOf(const StringView& str, meAllocator* allocator)
 	if (!str) { *this = {}; return; }
 	this->len = str.len;
 	data = (char*)MEALLOC(allocator, len);
+	this->allocator = allocator;
 	StringCopy(*this, str);
 }
 
@@ -67,13 +139,13 @@ size_t CStringLength(const char* str)
     return len;
 }
 
-String StringFromCString(const char* str, s32 strLen)
+StringView StringFromCString(const char* str, s32 strLen)
 {
     if (strLen == -1)
     {
         strLen = CStringLength(str);
     }
-    String result = {(char*)str, static_cast<size_t>(strLen)};
+    StringView result = {(char*)str, static_cast<size_t>(strLen)};
     return result;
 }
 
@@ -168,7 +240,7 @@ s32 FindInStringRev(
 		// all matched
 		if (i == needle.len)
 		{
-			return hayStackIdx;
+			return flags & StringOpFlags_IdxAfterNeedle ? hayStackIdx + 1 : hayStackIdx;
 		}
 	}
 	return -1;
@@ -249,7 +321,6 @@ size_t wcharToNarrow(const wchar_t * src, char * dest, size_t dest_len)
     return i - 1;
 }
 
-
 StringView ScanForBalancedChar(StringView str, char opening, char closing)
 {
 	// opening= ( closing= )   : (something="another(thing)")andmore -> something="another(thing)"
@@ -277,28 +348,72 @@ StringView ScanForBalancedChar(StringView str, char opening, char closing)
 	return result;
 }
 
-
-// yoinked from raylib
-const char *TextFormat(const char *text, ...)
+StringBuilder::StringBuilder(meAllocator* allocator)
 {
+	this->allocator = allocator;
+	this->data = MEALLOC(allocator, 1024);
+	this->len = 0;
+	this->capacity = 1024;
+}
+
+StringBuilder::~StringBuilder()
+{
+	MEFREE(allocator, data);
+	len = 0;
+	data = 0;
+}
+
+void StringBuilderCheckGrow(StringBuilder& sb, const StringView& sv)
+{
+	if (sb.len + sv.len > sb.capacity)
+	{
+		char* olddata = sb.data;
+		sb.capacity = MEMAX(sb.capacity + sv.len, sb.capacity * 2);
+		sb.data = MEALLOC(sb.allocator, sb.capacity);
+		ME_MEMCPY(sb.data, olddata, sb.len);
+	}
+}
+
+void StringBuilder::Append(StringView str)
+{
+	ME_ASSERT(allocator);
+	StringBuilderCheckGrow(*this, str);
+	ME_MEMCPY(data + len, str.data, str.len);
+	len += str.len;
+}
+
+void StringBuilder::AppendFormat(const char* fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+	s32 numBytesWritten = 0;
+	const char* formattedTmpBuf = StringFormat(fmt, &args, numBytesWritten);
+    va_end(args);
+	StringView stringToAppend = StringView(formattedTmpBuf, numBytesWritten);
+	Append(stringToAppend);
+	ME_ASSERT(capacity > len);
+}
+
+
 #ifndef MAX_TEXTFORMAT_BUFFERS
-    #define MAX_TEXTFORMAT_BUFFERS      12        // Maximum number of static buffers for text formatting
+#define MAX_TEXTFORMAT_BUFFERS      12        // Maximum number of static buffers for text formatting
 #endif
 #ifndef MAX_TEXT_BUFFER_LENGTH
-    #define MAX_TEXT_BUFFER_LENGTH   16000        // Maximum size of static text buffer
+#define MAX_TEXT_BUFFER_LENGTH   16000        // Maximum size of static text buffer
 #endif
 
+// yoinked from raylib
+const char* InternalStringFormat(const char *text, va_list* args, s32& numBytesWritten)
+{
     // We create an array of buffers so strings don't expire until MAX_TEXTFORMAT_BUFFERS invocations
     static char buffers[MAX_TEXTFORMAT_BUFFERS][MAX_TEXT_BUFFER_LENGTH] = { {0} };
     static int index = 0;
 
     char *currentBuffer = buffers[index];
-    ME_MEMCLEAR(currentBuffer, MAX_TEXT_BUFFER_LENGTH);   // Clear buffer before using
 
-    va_list args;
-    va_start(args, text);
-    stbsp_vsnprintf(currentBuffer, MAX_TEXT_BUFFER_LENGTH, text, args);
-    va_end(args);
+    numBytesWritten = stbsp_vsnprintf(currentBuffer, MAX_TEXT_BUFFER_LENGTH, text, *args);
+	ME_ASSERT((numBytesWritten + 1) < MAX_TEXT_BUFFER_LENGTH);
+	currentBuffer[numBytesWritten] = '\0'; // ensure c-string
 
     index += 1;     // Move to next buffer for next function call
     if (index >= MAX_TEXTFORMAT_BUFFERS) index = 0;
@@ -306,3 +421,28 @@ const char *TextFormat(const char *text, ...)
     return currentBuffer;
 }
 
+const char *StringFormat(const char *text, ...)
+{
+    va_list args;
+    va_start(args, text);
+	s32 numBytesWritten = 0;
+	const char* result = InternalStringFormat(text, &args, numBytesWritten);
+    va_end(args);
+	return result;
+}
+
+const char* StringFormatNew(meAllocator* allocator, const char *text, ...)
+{
+	char backing[MAX_TEXT_BUFFER_LENGTH];
+	ME_MEMCLEAR(backing, MAX_TEXT_BUFFER_LENGTH);
+
+    va_list args;
+    va_start(args, text);
+    stbsp_vsnprintf(backing, MAX_TEXT_BUFFER_LENGTH, text, args);
+    va_end(args);
+
+	u64 len = CStringLength(backing);
+	const char* result = MEALLOC(allocator, len + 1);
+	ME_MEMCPY((void*)result, backing, len + 1);
+	return result;
+}

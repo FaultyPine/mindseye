@@ -5,11 +5,15 @@
 #include "core/me_memory.h"
 
 Allocation Arena::meAlloc(u64 size) { return {ArenaAlloc(this, size), size}; }
+// TODO: check the allocation if it's the most recent one, if so, we can pop it
 void Arena::meFree(void* allocation) { ME_ASSERT(backing_mem <= allocation && allocation <= (backing_mem + backing_mem_size)); }
 Allocation Arena::meRealloc(const Allocation& allocation, u64 newSize) { UNIMPLEMENTED(); return {}; }
 void Arena::meClear() { ArenaClear(this); }
 
-Arena ArenaInit(size_t arena_size, const char* name, meAllocator* backingAllocator) 
+Arena ArenaInit(
+	size_t arena_size, 
+	const char* name, 
+	meAllocator* backingAllocator) 
 {
     Arena a;
     meAllocator* allocator = backingAllocator != nullptr ? backingAllocator : GetSystemAllocator();

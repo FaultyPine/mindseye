@@ -59,10 +59,10 @@ void* meOSReserveVirtualMemory(u64 size)
 #endif
 }
 
-void* meOSCommitVirtualMemory(u64 size)
+void* meOSCommitVirtualMemory(void* ptr, u64 size)
 {
 	#ifdef OS_WINDOWS
-    return meOSWinCommitVirtualMemory(size);
+    return meOSWinCommitVirtualMemory(ptr, size);
 	#else
 	#error "Unimplemented OS meOSCommitVirtualMemory"
 	#endif
@@ -78,12 +78,12 @@ void meOSFreeVirtualMemory(
 	#endif
 }
 
-const char* meOSFsDirectorySeperator()
+char meOSFsDirectorySeperator()
 {
 #ifdef OS_WINDOWS
-    return "\\";
+    return '\\';
 #else
-#error "Unimplemented OS meOSFsDirectorySeperator"
+	return '/';
 #endif
 }
 
@@ -94,6 +94,8 @@ OSFileReference::~OSFileReference()
         meOSWinCloseFile(*this);
     }
 }
+
+bool meOSEnsureDirectoriesExist(const char* pathCStr);
 
 bool meOSOpenFile(OSFileReference& file, const char* path, OSFileFlags flags)
 {
@@ -131,12 +133,7 @@ u64 meOSGetFileSize(const OSFileReference& file)
 #endif
 }
 
-void ConsolePrint(const char* text) 
-{
-	ConsolePrint(StringFromCString(text));
-}
-
-void ConsolePrint(String text) 
+void ConsolePrint(StringView text) 
 {
 	#ifdef OS_WINDOWS
 	void* hConsole = GetStdHandle(STD_OUTPUT_HANDLE);

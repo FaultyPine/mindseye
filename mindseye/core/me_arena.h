@@ -24,13 +24,17 @@ struct Arena : public meAllocator
     MEAPI void meClear() override;
 };
 
-MEAPI Arena ArenaInit(size_t arenaSize, const char* name = nullptr, meAllocator* backingAllocator = nullptr);
+MEAPI Arena ArenaInit(
+	size_t arenaSize, 
+	const char* name = nullptr, 
+	meAllocator* backingAllocator = nullptr);
 MEAPI void* ArenaAlloc(Arena* arena, size_t allocSize);
 MEAPI void* ArenaResize(Arena* arena, void* oldMem, size_t oldSize, size_t newSize);
 MEAPI void ArenaClear(Arena* arena);
 MEAPI void ArenaClearNull(Arena* arena);
 MEAPI void ArenaFreeAll(Arena* arena);
 MEAPI const char* ArenaGetName(Arena* arena);
+u64 ArenaGetFreeSpace(Arena* arena) { return arena->backing_mem_size - arena->offset; }
 
 // TODO: (and note to self)
 // Make these temp arena funcs take in a 
