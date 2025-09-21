@@ -8,8 +8,9 @@ set root=%~dp0
 set root=%root:~0,-1%
 pushd %root%
 
-set clang_path=%root%\..\clang
 set proj_root=%root%\..\..
+
+set clang_path=%proj_root%\tools\clang
 
 set mindseye_options=-I%proj_root%\mindseye -DMEEXPORT
 set clang_options=-I%clang_path%\include -L%clang_path%\lib -llibclang -DCLANG_BINARIES_DIR_STR="%clang_path%\bin"

@@ -29,16 +29,6 @@ void meOSTick(EngineContext* engine)
 }
 
 
-
-int meOSPlatformMain(int argc, char** argv)
-{
-	#ifdef OS_WINDOWS
-	return meOSWinMain(argc, argv);
-	#else
-	#error "Unimplemented OS entrypoint"
-	#endif
-}
-
 #endif
 
 void meOSInitializeLogging()

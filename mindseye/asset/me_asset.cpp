@@ -70,7 +70,7 @@ meAssetLoadStage* meAssetRequestLoad(
 		{
 			{ // if it's already loaded, noop
 				RWLockRead(assetSystem.assetRegistryLock);
-				if (assetSystem.assetRegistry.contains(assetIdent))
+				if (assetSystem.assetRegistry.find(assetIdent) != assetSystem.assetRegistry.end())
 				{
 					const meRTAsset& loadedAsset = assetSystem.assetRegistry.at(assetIdent);
 					stage = loadedAsset.loadStage;
@@ -158,7 +158,7 @@ meRTAsset* meAssetTryGetLoaded(meAssetIdent assetID)
 {
 	meAssetSystem& assetSystem = GetAssetSystem();
 	RWLockRead(assetSystem.assetRegistryLock);
-	if (!assetSystem.assetRegistry.contains(assetID))
+	if (assetSystem.assetRegistry.find(assetID) == assetSystem.assetRegistry.end())
 	{
 		return nullptr;
 	}

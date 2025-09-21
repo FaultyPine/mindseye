@@ -7,6 +7,8 @@
 #include "clang/AST/Type.h"
 #include "clang-c/Index.h"
 
+#include "reflection_types.h"
+
 #pragma comment(lib, "user32.lib")
 #pragma comment(lib, "kernel32.lib")
 
@@ -34,24 +36,42 @@ struct ReflectedTypeIdentifier
 	}
 };
 
+// can represent a number of things
+// like structure types, and also field decls
+// TODO: merge this with meTypeDescriptor
 struct meReflectedType
 {
 	DynArray(meReflectedType*) children = {};
-	String name = {};
-	String editorName = {};
-	String tooltip = {};
+	StringView name = {};
+	CXCursorKind kind = CXCursor_NoDeclFound;
+	meReflectedType* innerType = nullptr; // for fields, this is their type
+	StringView editorName = {};
+	StringView tooltip = {};
 	u32 size = 0;
-	s32 offset = 0;
+	s32 offsetBits = 0; // offset of this type from it's parent type, in bits
 	u32 align = 0;
-	bool isReflected = false;
 	bool isExcluded = false;
 	void Print() const;
 	bool operator==(const meReflectedType& other) const
 	{
 		return name == other.name &&
 			size == other.size &&
-			offset == other.offset &&
+			offsetBits == other.offsetBits &&
 			align == other.align;
+	}
+
+	meReflectedType() = default;
+	// TODO: merge this with meTypeDescriptor, this is a temp stopgap
+	meReflectedType(const meTypeDescriptor& other)
+	{
+		name = other.name;
+		//kind = other.
+		//innerType = other.underlyingType
+		editorName = other.editorName;
+		tooltip = other.tooltip;
+		size = other.size;
+		offsetBits = other.offset;
+		align = other.align;
 	}
 };
 
@@ -80,7 +100,7 @@ struct ClangParsingContext
 void meReflectedType::Print() const
 {
 	LOG_INFO("%.*s\n\t[excluded = %i] [editorName = %.*s] [tooltip = %.*s] offset = %i size = %u align = %u", 
-		STRING_VAARGS(name), isExcluded, STRING_VAARGS(editorName), STRING_VAARGS(tooltip), offset, size, align);
+		STRING_VAARGS(name), isExcluded, STRING_VAARGS(editorName), STRING_VAARGS(tooltip), offsetBits, size, align);
 	if (children)
 	{
 		s32 numChildren = DynArrayGetSize(children);
@@ -93,13 +113,13 @@ void meReflectedType::Print() const
 	}
 }
 
-inline String GetCursorDisplayName(const CXCursor& cr, meAllocator* allocator )
+inline StringView GetCursorDisplayName(const CXCursor& cr, meAllocator* allocator )
 {
 	auto displayName = clang_getCursorDisplayName(cr);
 	const char* strMem = clang_getCString(displayName);
-	String result; 
-	result.CopyOfCStr(strMem, allocator);
-	clang_disposeString(displayName);
+	StringView result = StringView(strMem, CStringLength(strMem)); 
+	//result.CopyOfCStr(strMem, allocator);
+	//clang_disposeString(displayName);
 	return result;
 }
 
@@ -158,7 +178,7 @@ bool IsHeaderWeCareAbout(StringView headerPath, StringView projectRootDir)
 		return false;
 	}
 	// assumed these are both absolute paths for simplicity
-	bool inProjDir = FindInString(headerPath, projectRootDir, 0, StringOpFlags_CaseInsensitive) != -1;
+	bool inProjDir = FindInString(headerPath, projectRootDir) != -1;
 	s32 is3rdPartyLib = FindInString(headerPath, STRING_LIT("/external/")) != -1;
 	return inProjDir && !is3rdPartyLib;
 }
@@ -178,6 +198,78 @@ void GetReflectedTypeHashes(
 	nameID = HashBytes((u8*)typeStr, CStringLength(typeStr));
 }
 
+meReflectedType* TryGetReflectedType(CXCursor cr, meAllocator* allocator, ClangParsingContext& ctx)
+{
+	u32 headerID = 0;
+	u32 nameID = 0;
+	GetReflectedTypeHashes(cr, allocator, ctx, headerID, nameID);
+	if (!ctx.reflectedFiles.count(headerID) || !ctx.reflectedFiles[headerID].reflectedTypes.count(nameID))
+	{
+		return nullptr;
+	}
+	meReflectedType& reflType = ctx.reflectedFiles[headerID].reflectedTypes[nameID];
+	if (!reflType.children)
+	{
+		reflType.children = DynArrayCreate<meReflectedType*>(allocator);
+	}
+	String headerPath = GetHeaderPathForCursor(cr, allocator);
+	ctx.reflectedFiles[headerID].fileName = headerPath;
+	return &reflType;
+}
+
+bool IsPrimitiveType(CXTypeKind kind)
+{
+	return kind >= CXType_FirstBuiltin && kind <= CXType_LastBuiltin;
+}
+
+bool IsPrimitiveType(CXCursor cr)
+{
+	CXType type = clang_getCursorType(cr);
+	CXCursor typeDecl = clang_getTypeDeclaration(type);
+	CXType underlyingtype = clang_getCursorType(typeDecl);
+	
+	CXTypeKind kind = underlyingtype.kind;
+
+	if (kind == CXType_Typedef)
+	{
+		kind = clang_getTypedefDeclUnderlyingType(typeDecl).kind;
+	}
+	return IsPrimitiveType(kind) || IsPrimitiveType(type.kind);
+}
+
+meTypeDescriptor* MapClangPrimitiveTypeToTypeDescriptor(CXCursor cr)
+{
+	CXType type = clang_getCursorType(cr);
+	CXTypeKind kind = type.kind;
+	if (kind == CXType_Typedef)
+	{
+		kind = clang_getTypedefDeclUnderlyingType(cr).kind;
+	}
+	static std::unordered_map<CXTypeKind, meTypeDescriptor*> clangToMePrimitiveType =
+	{
+		{ CXType_Bool, &TD_BOOL },
+		{ CXType_Char_U, &TD_UNSIGNED_CHAR},
+		{ CXType_UChar, &TD_UNSIGNED_CHAR},
+		{ CXType_Char16, &TD_SHORT},
+		{ CXType_Char32, &TD_INT},
+		{ CXType_UShort, &TD_UNSIGNED_SHORT},
+		{ CXType_UInt, &TD_UNSIGNED_INT},
+		{ CXType_ULong, &TD_UNSIGNED_LONG},
+		{ CXType_ULongLong, &TD_UNSIGNED_LONGLONG},
+		{ CXType_Char_S, &TD_CHAR},
+		{ CXType_SChar, &TD_CHAR},
+		{ CXType_WChar, &TD_WCHAR},
+		{ CXType_Short, &TD_SHORT},
+		{ CXType_Int, &TD_INT},
+		{ CXType_Long, &TD_LONG},
+		{ CXType_LongLong, &TD_LONGLONG},
+		{ CXType_Float, &TD_FLOAT},
+		{ CXType_Double, &TD_DOUBLE},
+	};
+	meTypeDescriptor* result = clangToMePrimitiveType.at(kind);
+	return result;
+}
+
 meReflectedType& GetReflectedType(CXCursor cr, meAllocator* allocator, ClangParsingContext& ctx)
 {
 	u32 headerID = 0;
@@ -190,32 +282,81 @@ meReflectedType& GetReflectedType(CXCursor cr, meAllocator* allocator, ClangPars
 	}
 	String headerPath = GetHeaderPathForCursor(cr, allocator);
 	ctx.reflectedFiles[headerID].fileName = headerPath;
+	if (IsPrimitiveType(cr)) // if we are registering a primitive type for the first time
+	{
+		// BOOKMARK: this seems to not be working... the name of this typedesc is important to be able to use the underlyingType for primitive fields
+		meTypeDescriptor* typeDesc = MapClangPrimitiveTypeToTypeDescriptor(cr);
+		reflType = *typeDesc;
+	}
 	return reflType;
 }
 
 // when we encounter a MEREFLECT macro, the entire content inside it is passed in here
 // I.E. MEREFLECT(something, another)     "something, another" would be passed in
+// In that case ^ the cursor points to either a fielddecl or structdecl that has been annotated
+// This also processes fielddecls that won't have the macro on them. For those,
+// the macroContent is empty and the cursor points to the fielddecl.
 void StoreReflectedTypeInfo(
-	CXCursor parent, 
+	CXCursor cr, 
 	ClangParsingContext& ctx, 
 	StringView macroContent)
 {
 	meAllocator* allocator = ctx.allocator;
-	meReflectedType& reflType = GetReflectedType(parent, allocator, ctx);
 
-	if (reflType.isReflected) // already parsed this type
+	bool excluded = false;
+	if (macroContent)
+	{
+		if (FindInString(macroContent, STRING_LIT("exclude")) > -1)
+		{
+			excluded = true;
+		}
+	}
+	if (excluded) return;
+
+	CXCursorKind crKind = clang_getCursorKind(cr);
+	CXCursor parentCr = clang_getCursorLexicalParent(cr);
+	StringView cursorName = GetCursorDisplayName(cr, allocator);
+	CXType crType = clang_getCursorType(cr);
+
+	meReflectedType* reflTypePtr = nullptr;
+	// for fields, fill out the inner type, and add this type to the parent struct's children
+	if (crKind == CXCursor_FieldDecl)
+	{
+		CXCursor fieldTypeCr = clang_getTypeDeclaration(crType);
+		// annotated fields have their parentCr as the fielddecl. Unannotated fields have their parentCr as the struct decl
+		if (fieldTypeCr.kind == CXCursor_NoDeclFound && IsPrimitiveType(crType.kind))
+		{
+			fieldTypeCr = cr;
+		}
+		else if (!IsPrimitiveType(fieldTypeCr))
+		{
+			StoreReflectedTypeInfo(fieldTypeCr, ctx, {});
+		}
+		meReflectedType& fieldTypeRefl = GetReflectedType(fieldTypeCr, allocator, ctx);
+		meReflectedType& fieldMemberRefl = *MENEW(ctx.allocator, meReflectedType); // this will contain the field's type info
+		
+		meReflectedType& parentReflType = GetReflectedType(parentCr, allocator, ctx);
+		DynArrayPush(parentReflType.children, &fieldMemberRefl);
+		fieldMemberRefl.innerType = &fieldTypeRefl;
+		reflTypePtr = &fieldMemberRefl;
+	}
+	else
+	{
+		reflTypePtr = &GetReflectedType(cr, allocator, ctx);
+	}
+	ME_ASSERT(reflTypePtr);
+	meReflectedType& reflType = *reflTypePtr;
+
+	if (reflType.kind != CXCursor_NoDeclFound) // already parsed this type
 	{
 		return;
 	}
-	CXType parentType = clang_getCursorType(parent);
-	String cursorParentName = GetCursorDisplayName(parent, allocator);
-	CXType parentParentType = clang_getCursorType(clang_getCursorLexicalParent(parent));
+	CXType parentType = clang_getCursorType(parentCr);
 
-	reflType.isReflected = true;
-	s64 typeSize = clang_Type_getSizeOf(parentType);
-	s64 typeAlign = clang_Type_getAlignOf(parentType);
-	const char* fieldName = CStringFromString(cursorParentName, allocator);
-	s64 offset = clang_Type_getOffsetOf(parentParentType, fieldName);
+	s64 typeSize = clang_Type_getSizeOf(crType);
+	s64 typeAlign = clang_Type_getAlignOf(crType);
+	const char* fieldName = CStringFromString(cursorName, allocator);
+	s64 offset = clang_Type_getOffsetOf(parentType, fieldName);
 	if (offset < 0)
 	{
 		// invalid offset, happens when reflecting on a struct type, since the struct decl itself has no offset
@@ -223,10 +364,11 @@ void StoreReflectedTypeInfo(
 		// when we add additional reflection markup on a field, like a tooltip, description, exclusion, etc
 		// not a fatal error, just documenting this quirk
 	}
-	reflType.name = cursorParentName;
+	reflType.name = cursorName;
 	reflType.size = typeSize;
-	reflType.offset = offset;
+	reflType.offsetBits = offset;
 	reflType.align = typeAlign;
+	reflType.kind = crKind;
 
 	// if there's an annotation, parse the content
 	auto GetStringParam = []
@@ -251,15 +393,12 @@ void StoreReflectedTypeInfo(
 	if (macroContent)
 	{
 		StringView descriptionParam = GetStringParam(STRING_LIT("Description"), macroContent);
-		reflType.editorName.CopyOf(descriptionParam, ctx.allocator);
+		reflType.editorName = descriptionParam;
 
 		StringView tooltipParam = GetStringParam(STRING_LIT("Tooltip"), macroContent);
-		reflType.tooltip.CopyOf(tooltipParam, ctx.allocator);
+		reflType.tooltip = tooltipParam;
 
-		if (FindInString(macroContent, STRING_LIT("exclude")) > -1)
-		{
-			reflType.isExcluded = true;
-		}
+		reflType.isExcluded = excluded;
 	}
 }
 
@@ -302,7 +441,7 @@ void OnFindInterestingDecl(CXCursor cr, CXCursor parent, CXClientData clientData
 	#error Undefined MEREFLECT attribute str/macro... include me_defines.h
 	#endif
 	ClangParsingContext& ctx = *(ClangParsingContext*)clientData;
-	String cursorName = GetCursorDisplayName(cr, ctx.allocator);
+	StringView cursorName = GetCursorDisplayName(cr, ctx.allocator);
 	// when the cursor is the reflection attribute, the parent cursor is the one with the actual decl we care about
 	if (cursorName == STRING_LIT(ME_REFLECT_ATTR_STR))
 	{
@@ -326,8 +465,7 @@ void OnFindInterestingDecl(CXCursor cr, CXCursor parent, CXClientData clientData
 
 CXVisitorResult VisitStructureFields(CXCursor cr, CXClientData clientData)
 {
-	ClangParsingContext& ctx = *(ClangParsingContext*)clientData;
-	Arena* allocator = ctx.allocator;
+	//ClangParsingContext& ctx = *(ClangParsingContext*)clientData;
 	CXCursorKind kind = clang_getCursorKind(cr);
 	CXCursor parent = clang_getCursorLexicalParent(cr);
 
@@ -360,28 +498,6 @@ CXVisitorResult VisitStructureFields(CXCursor cr, CXClientData clientData)
 		default: break;
 	}
 
-	meReflectedType& reflType = GetReflectedType(cr, allocator, ctx);
-	if (reflType.isExcluded)
-	{
-		return CXVisit_Continue;
-	}
-	meReflectedType& parentReflType = GetReflectedType(parent, allocator, ctx);
-
-	// add this field to its parent structs children
-	bool childAlreadyThere = false;
-	for (s32 i = 0; i < DynArrayGetSize(parentReflType.children); i++)
-	{
-		if (*parentReflType.children[i] == reflType)
-		{
-			childAlreadyThere = true;
-			break;
-		}
-	}
-	if (!childAlreadyThere)
-	{
-		DynArrayPush(parentReflType.children, &reflType);
-	}
-
 	return CXVisit_Continue;
 }
 
@@ -395,7 +511,7 @@ CXChildVisitResult visitTranslationUnit(CXCursor cr, CXCursor parent, CXClientDa
 	{
 		return CXChildVisit_Continue;
 	}
-	String cursorName = GetCursorDisplayName(cr, ctx.allocator);
+	StringView cursorName = GetCursorDisplayName(cr, ctx.allocator);
 	if (cursorName.len == 0)
 	{
 		return CXChildVisit_Continue;
@@ -405,7 +521,12 @@ CXChildVisitResult visitTranslationUnit(CXCursor cr, CXCursor parent, CXClientDa
 	{
 		case CXCursor_AnnotateAttr:
 		{
-			OnFindInterestingDecl(cr, parent, clientData);
+			CXCursorKind parentKind = clang_getCursorKind(parent);
+			// finding an annotated struct
+			if (parentKind == CXCursor_StructDecl)
+			{
+				OnFindInterestingDecl(cr, parent, clientData);
+			}
 		}
 		break;
 
@@ -491,6 +612,7 @@ int main(int argc, char* argv[])
 	LOG_INFO("[Mindseye Reflector] Reflecting %.*s\n", STRING_VAARGS(compileCmdsDatabaseFilePath));
 	const char* projectRootDir = argv[2];
 	const char* headerOutputFolder = argv[3];
+
 	meAllocator* systemAllocator = GetSystemAllocator();
 	Arena& reflectorArena = *MENEW(systemAllocator, Arena);
 	reflectorArena = ArenaInit(MEGABYTES_BYTES(100ull), "Main reflector arena", systemAllocator);
@@ -501,14 +623,12 @@ int main(int argc, char* argv[])
 		LOG_WARN("[Reflector] No compile commands found");
 		return 0;
 	}
-	// Previously, I was generating this based on compile commands.
-	// Honestly though, I think it's better if I manually maintain this file
-	// as a list of headers that should be passed through through the reflection system
-	// that way i can manually exclude unnecessary stuff easily.
+
 	const char* reflectorHeaderFilename = "Reflector.h";
 	char* reflectorFilePath = DynArrayCreate<char>(&reflectorArena, 50);
 	char* exePath = meOSGetExeFileFolder();
 	u32 exePathLen = CStringLength(exePath);
+	// we expect Reflector.h to be next to the reflector executable
 	DynArrayPush(reflectorFilePath, exePath, exePathLen);
 	if (exePath[exePathLen - 1] != '\\' && exePath[exePathLen - 1] != '/') DynArrayPush(reflectorFilePath, '\\');
 	DynArrayPush(reflectorFilePath, (char*)reflectorHeaderFilename, CStringLength(reflectorHeaderFilename));
@@ -565,7 +685,7 @@ int main(int argc, char* argv[])
 	String absProjectRootPath = meOSResolveRelativeToAbsPath(&reflectorArena, StringFromCString(projectRootDir));
 	ctx.projectRootDir = absProjectRootPath;
 	meFsNormalizePathSeperators(ctx.projectRootDir);
-	clang_checkDiagnostics(tu);
+	//clang_checkDiagnostics(tu);
 	if (result == CXError_Success)
 	{
 		auto cursor = clang_getTranslationUnitCursor(tu);
@@ -631,43 +751,118 @@ void GeneratedReflectionHeaders(
 
 
 void ProcessReflectedFile(
-	const meReflectedFile& fileRefl, 
+	const meReflectedFile& fileRefl,
 	const char* headerOutputFolder,
 	meAllocator* allocator)
 {
-	StringBuilder fileContentBuilder = StringBuilder(allocator);
+	StringBuilder headerContentBuilder = StringBuilder(allocator, MEGABYTES_BYTES(1));
+
+	StringView parsedHeaderExistingPath = fileRefl.fileName;
+	if (!parsedHeaderExistingPath)
+	{
+		return;
+	}
+	StringView parsedHeaderFilename = meFsGetFilepathFromPath(parsedHeaderExistingPath);
+
+	headerContentBuilder.Append(STRING_LIT("// ====== THIS FILE IS AUTOGENERATED =======\n"));
+	// for simplicity, if anyone wants access to the reflection data for some type, they shouldn't be including
+	// the actual header, not the generated one. The generated one should be included by the file it reflects
+	headerContentBuilder.AppendFormat("// ====== THIS FILE SHOULD ONLY BE INCLUDED BY %.*s =======\n", STRING_VAARGS(parsedHeaderFilename));
+	headerContentBuilder.Append(STRING_LIT("#pragma once\n"));
+	headerContentBuilder.Append(STRING_LIT("#include \"reflector/reflection_types.h\"\n"));
+
 	for (const auto& [nameID, typeRefl] : fileRefl.reflectedTypes)
 	{
 		if (typeRefl.isExcluded) continue;
-		// BOOKMARK2: take all types and their children and write em out into headers
-		// write type
-		// TODO: this is a very sprintf/variable-sized-string heavy 
-		// sort of problem, which my String is totally not suited for right now
-		// I should either
-		// just meh, and arena push everything i need
-		// OR properly flesh out the String class to be able to be appended to/reallocated/etc
-		typeRefl.Print();
+		if (typeRefl.kind == CXCursor_StructDecl)
+		{
+			headerContentBuilder.AppendFormat("struct %.*s;\n", STRING_VAARGS(typeRefl.name));
+			u32 numChildren = DynArrayGetSize(typeRefl.children);
+			if (numChildren > 0)
+			{
+				headerContentBuilder.AppendFormat("extern meTypeDescriptor g_%.*s_fields[%i];\n", STRING_VAARGS(typeRefl.name), numChildren);
+			}
+			headerContentBuilder.AppendFormat("extern meTypeDescriptor g_%.*s_typedescriptor;\n", STRING_VAARGS(typeRefl.name));
+		}
 	}
 
-	StringView fileContent = fileContentBuilder;
+	StringView fileContent = headerContentBuilder;
+	StringView parsedHeaderFilenameNoExt;
 	if (fileContent)
 	{
 		OSFileReference headerFile = {};
-		StringView parsedHeaderExistingPath = fileRefl.fileName;
-		StringView parsedHeaderFilename = meFsGetFilepathFromPath(parsedHeaderExistingPath);
 		s32 extensionIdx = FindInStringRev(parsedHeaderFilename, STRING_LIT("."));
-		StringView parsedHeaderFilenameNoExt = parsedHeaderFilename.OffsetView(0, extensionIdx);
-		StringView parsedHeaderExt = parsedHeaderFilename.OffsetView(extensionIdx);
-		const char* dstFilePath = StringFormat("%s/%.*s.generated%.*s", headerOutputFolder, STRING_VAARGS(parsedHeaderFilenameNoExt), STRING_VAARGS(parsedHeaderExt));
-		meOSEnsureDirectoriesExist(dstFilePath);
-		if (!meOSOpenFile(headerFile, dstFilePath))
+		parsedHeaderFilenameNoExt = parsedHeaderFilename.OffsetView(0, extensionIdx);
+		const char* dstHeaderFilePath = StringFormat("%s/%.*s.generated.h", headerOutputFolder, STRING_VAARGS(parsedHeaderFilenameNoExt));
+		meOSEnsureDirectoriesExist(dstHeaderFilePath);
+		if (!meOSOpenFile(headerFile, dstHeaderFilePath))
 		{
-			LOG_ERROR("Failed to open file %s while trying to generated reflected headers", dstFilePath);
+			LOG_ERROR("Failed to open file %s while trying to generated reflected headers", dstHeaderFilePath);
 			return;
 		}
 		// write to the file here
 		meOSWriteFileContent(headerFile, fileContent.data, fileContent.len);
 		meOSCloseFile(headerFile);
+	}
+
+	StringBuilder sourceContentBuilder = StringBuilder(allocator, MEGABYTES_BYTES(1));
+	sourceContentBuilder.Append(STRING_LIT("// ====== THIS FILE IS AUTOGENERATED =======\n"));
+	sourceContentBuilder.AppendFormat("#include \"%.*s.generated.h\"\n", STRING_VAARGS(parsedHeaderFilenameNoExt));
+
+	for (const auto& [nameID, typeRefl] : fileRefl.reflectedTypes)
+	{
+		if (typeRefl.isExcluded) continue;
+		if (typeRefl.kind == CXCursor_StructDecl)
+		{
+			u32 numChildren = DynArrayGetSize(typeRefl.children);
+			if (numChildren > 0)
+			{
+				StringBuilder fieldsArrayContent = StringBuilder(allocator);
+				for (s32 i = 0; i < numChildren; i++)
+				{
+					meReflectedType& childReflType = *typeRefl.children[i];
+					fieldsArrayContent.Append(STRING_LIT("\t{"));
+					fieldsArrayContent.AppendFormat(".name = STRING_LIT(\"%.*s\"), ", STRING_VAARGS(childReflType.name));
+					if (childReflType.editorName) fieldsArrayContent.AppendFormat(".editorName = STRING_LIT(\"%.*s\"), ", STRING_VAARGS(childReflType.editorName));
+					if (childReflType.tooltip) fieldsArrayContent.AppendFormat(".tooltip = STRING_LIT(\"%.*s\"), ", STRING_VAARGS(childReflType.tooltip));
+					fieldsArrayContent.AppendFormat(".offset = %i, ", childReflType.offsetBits / 8);
+					if (childReflType.innerType && childReflType.innerType->name)
+					{
+						String underlyingTD = String(childReflType.innerType->name, allocator);
+						ToUpper(underlyingTD);
+						StringReplace(underlyingTD, ' ', '_');
+						fieldsArrayContent.AppendFormat(".underlyingType = &TD_%.*s, ", STRING_VAARGS(underlyingTD));
+					}
+					fieldsArrayContent.Append(STRING_LIT("},"));
+					if (i != numChildren-1)
+					{
+						fieldsArrayContent.Append(STRING_LIT("\n"));
+					}
+				}				
+				sourceContentBuilder.AppendFormat("meTypeDescriptor g_%.*s_fields[%i] = {\n%.*s\n};\n", STRING_VAARGS(typeRefl.name), numChildren, STRING_VAARGS(fieldsArrayContent));
+			}
+			// TODO: how do i want to do the type id system...
+			// TODO: output type descriptor initalization
+			// assign name, fields, size, align
+			// generate or assign type id? TODO: how do i want to do this...
+		}
+	}
+
+	fileContent = sourceContentBuilder;
+	if (fileContent)
+	{
+		OSFileReference sourceFile = {};
+		s32 extensionIdx = FindInStringRev(parsedHeaderFilename, STRING_LIT("."));
+		StringView parsedSourceFilenameNoExt = parsedHeaderFilename.OffsetView(0, extensionIdx);
+		const char* dstFilePath = StringFormat("%s/%.*s.generated.cpp", headerOutputFolder, STRING_VAARGS(parsedSourceFilenameNoExt));
+		if (!meOSOpenFile(sourceFile, dstFilePath))
+		{
+			LOG_ERROR("Failed to open file %s while trying to generated reflected headers", dstFilePath);
+			return;
+		}
+		// write to the file here
+		meOSWriteFileContent(sourceFile, fileContent.data, fileContent.len);
+		meOSCloseFile(sourceFile);
 	}
 }
 

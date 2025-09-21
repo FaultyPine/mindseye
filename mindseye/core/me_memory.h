@@ -3,6 +3,7 @@
 
 #include "me_defines.h"
 #include "containers/me_span.h"
+#include "core/me_string.h"
 #include <new> // for placement new
 
 C_LINKAGE void* memcpy(void *_Dst, const void *_Src, size_t _Size);
@@ -27,6 +28,10 @@ struct meAllocator
     virtual void meFree(void* allocation) { UNIMPLEMENTED(); }
 	virtual Allocation meRealloc(const Allocation& allocation, u64 newSize) { UNIMPLEMENTED(); return {}; }
     virtual void meClear() { UNIMPLEMENTED(); }
+
+	meAllocator() : name(STRING_LIT("Unnamed allocator")) {}
+	meAllocator(StringView allocatorName) : name(allocatorName) {}
+	StringView name;
 };
 
 struct meSystemAllocator : public meAllocator
@@ -35,6 +40,8 @@ struct meSystemAllocator : public meAllocator
     MEAPI Allocation meReserve(u64 size) override;
     MEAPI void meFree(void* allocation) override;
     MEAPI void meClear() override;
+
+	meSystemAllocator() : meAllocator(STRING_LIT("System Allocator")) {}
 };
 
 MEAPI meAllocator* GetSystemAllocator();

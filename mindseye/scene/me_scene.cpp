@@ -6,6 +6,8 @@
 #include "core/me_scope_exit.h"
 #include "core/me_log.h"
 
+#include "generatedtypes/me_scene.generated.cpp"
+
 struct meSceneAssetLoader : public meAssetLoader
 {
 	virtual meRTAsset meAssetLoad(meAssetIdent ident)

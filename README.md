@@ -41,11 +41,10 @@ then `build.bat`
 ### General Roadmap
 - asset system
 	- ~~job system to support above loading~~
-    - hot reloading
 - load basic example scene (USD?)
 - render basic example scene
     - Dead simple blinnphong. Not trying to flesh anything out yet. Future - lightmapping, GDR, meshlets & mesh shaders
-- shader hot reloading
+- code, asset, shader hot reloading
 - input (gamepad & kbm)
 - UI (Clay?)
 - physics
@@ -94,11 +93,11 @@ Engine design to support above:
     - https://youtu.be/hCQCP-5g5bo?si=Eufg0dVjp3XeLQaw&t=716
 - https://gpuopen.com/learn/mesh_shaders/mesh_shaders-procedural_grass_rendering/
 - meshlet compression (research said up to 60% savings from normal mesh storage holy crap)
-
+https://github.com/google/draco - mesh compression
+https://github.com/KhronosGroup/KTX-Software - texture compression
 
 ### Game ideas
-- A short&sweet experience centered around the concepts in Courage To Create by Rollo May
-walking simulator-esc. No combat/levels/objectives/etc. Just telling a story & discussing creativity
+walking simulator-esc. No combat/levels/objectives/etc. Just telling a story
 throw in some non euclidean portal nonsense
 - View planes on all sides of camera slice objects persistently. Imagine a cube on the ground - looking to the side so the cube is half off the screen, then looking back at the full cube, you'd see half of the cube, as if it was squished against your view
 	Could use the view planes to push objects, cut things away.... "heavy" objects might prevent you from looking away from them

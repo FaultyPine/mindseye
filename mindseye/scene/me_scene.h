@@ -3,6 +3,7 @@
 #include "core/me_defines.h"
 // this'll need to know about renderables, transform hierarchies, some settings
 #include "core/containers/me_span.h"
+#include "generatedtypes/me_scene.generated.h"
 
 typedef u32 meSceneID;
 

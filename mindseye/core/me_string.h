@@ -1,6 +1,6 @@
 #pragma once
 
-
+struct meAllocator;
 struct StringView;
 struct String
 {
@@ -39,7 +39,7 @@ struct StringBuilder
 	u64 capacity = 0;
 	meAllocator* allocator = nullptr;
 
-	StringBuilder(meAllocator* allocator);
+	StringBuilder(meAllocator* allocator, u32 initialSize = 1024);
 	~StringBuilder();
 
 	void SetAllocator(meAllocator* allocator) { this->allocator = allocator; }
@@ -62,7 +62,7 @@ struct StringView
 	{ 
 		return data && len; 
 	}
-	char operator[](size_t idx) 
+	char& operator[](size_t idx) 
 	{
 		ME_ASSERT(idx < len);
 		return data[idx]; 
@@ -129,6 +129,12 @@ MEAPI size_t wcharToNarrow(const wchar_t* src, char * dest, size_t destLen);
 MEAPI StringView ScanForBalancedChar(StringView str, char opening, char closing);
 
 MEAPI char ToLower(char c);
+MEAPI void ToLower(StringView str);
+
+MEAPI char ToUpper(char c);
+MEAPI void ToUpper(StringView str);
+
+MEAPI void StringReplace(StringView str, char oldC, char newC);
 
 // formats a string. Returned string buffer is a temporary buffer
 // that will be evicted on the next couple calls to this function

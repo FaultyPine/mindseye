@@ -30,7 +30,7 @@ String::~String()
 	len = 0;
 	allocator = nullptr;
 }
-// BOOKMARK
+
 String::String(const String& other)
 {
 	if (!allocator)
@@ -66,13 +66,18 @@ String& String::operator=(String&& other)
 }
 
 
+static void InitFromBuf(String* str, const char* data, size_t len, meAllocator* allocator)
+{
+	str->data = MEALLOC(allocator, len + 1);
+	ME_MEMCPY(str->data, data, len);
+	str->data[len] = '\0';
+	str->len = len;
+	str->allocator = allocator;
+}
+
 String::String(const char* data, size_t len, meAllocator* allocator)
 {
-	this->data = MEALLOC(allocator, len + 1);
-	ME_MEMCPY(this->data, data, len);
-	this->data[len] = '\0';
-	this->len = len;
-	this->allocator = allocator;
+	InitFromBuf(this, data, len, allocator);
 }
 
 String::String(size_t len, meAllocator* allocator)
@@ -89,7 +94,7 @@ String::String(const StringView& str, meAllocator* allocator)
 	{
 		allocator = GetSystemAllocator();
 	}
-	::String(str.data, str.len, allocator);
+	InitFromBuf(this, str.data, str.len, allocator);
 }
 
 void String::CopyOfCStr(const char* cstr, meAllocator* allocator)
@@ -296,6 +301,45 @@ char ToLower(char c)
     }
 }
 
+void ToLower(StringView str)
+{
+	for (u64 i = 0; i < str.len; i++)
+	{
+		str[i] = ToLower(str[i]);
+	}
+}
+
+char ToUpper(char c)
+{
+	if (c >= 'a' && c <= 'z') 
+	{
+        return c - 32;
+    } 
+	else 
+	{
+        return c;
+    }
+}
+
+void ToUpper(StringView str)
+{
+	for (u64 i = 0; i < str.len; i++)
+	{
+		str[i] = ToUpper(str[i]);
+	}
+}
+
+void StringReplace(StringView str, char oldC, char newC)
+{
+	for (u64 i = 0; i < str.len; i++)
+	{
+		if (str[i] == oldC)
+		{
+			str[i] = newC;
+		}
+	}
+}
+
 size_t wcharToNarrow(const wchar_t * src, char * dest, size_t dest_len)
 {
     size_t i;
@@ -348,12 +392,12 @@ StringView ScanForBalancedChar(StringView str, char opening, char closing)
 	return result;
 }
 
-StringBuilder::StringBuilder(meAllocator* allocator)
+StringBuilder::StringBuilder(meAllocator* allocator, u32 initialSize)
 {
 	this->allocator = allocator;
-	this->data = MEALLOC(allocator, 1024);
+	this->data = MEALLOC(allocator, initialSize);
 	this->len = 0;
-	this->capacity = 1024;
+	this->capacity = initialSize;
 }
 
 StringBuilder::~StringBuilder()
@@ -382,18 +426,6 @@ void StringBuilder::Append(StringView str)
 	len += str.len;
 }
 
-void StringBuilder::AppendFormat(const char* fmt, ...)
-{
-    va_list args;
-    va_start(args, fmt);
-	s32 numBytesWritten = 0;
-	const char* formattedTmpBuf = StringFormat(fmt, &args, numBytesWritten);
-    va_end(args);
-	StringView stringToAppend = StringView(formattedTmpBuf, numBytesWritten);
-	Append(stringToAppend);
-	ME_ASSERT(capacity > len);
-}
-
 
 #ifndef MAX_TEXTFORMAT_BUFFERS
 #define MAX_TEXTFORMAT_BUFFERS      12        // Maximum number of static buffers for text formatting
@@ -419,6 +451,18 @@ const char* InternalStringFormat(const char *text, va_list* args, s32& numBytesW
     if (index >= MAX_TEXTFORMAT_BUFFERS) index = 0;
 
     return currentBuffer;
+}
+
+void StringBuilder::AppendFormat(const char* fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+	s32 numBytesWritten = 0;
+	const char* formattedTmpBuf = InternalStringFormat(fmt, &args, numBytesWritten);
+    va_end(args);
+	StringView stringToAppend = StringView(formattedTmpBuf, numBytesWritten);
+	Append(stringToAppend);
+	ME_ASSERT(capacity > len);
 }
 
 const char *StringFormat(const char *text, ...)

@@ -182,7 +182,7 @@ void meOSWinTick(EngineContext* engine)
 #endif
 }
 
-s32 meOSWinMain(s32 argc, char** argv)
+s32 meOSMain(s32 argc, char** argv)
 {
     InitializeEngine(argc, argv);
     return 0;
@@ -270,7 +270,7 @@ bool meOSWinOpenFile(OSFileReference& file, const char* path, OSFileFlags flags)
     ME_MEMCLEAR((void*)file.path, PATH_MAX);
     StringCopy({file.path, PATH_MAX}, StringFromCString(path));
     file.flags = (OSFileFlags)((u32)file.flags | (u32)flags);
-	u32 openMode = (flags & OnlyIfExists) ? OPEN_EXISTING : OPEN_ALWAYS;
+	u32 openMode = (flags & OnlyIfExists) ? OPEN_EXISTING : CREATE_ALWAYS;
     file.fileHandle = CreateFileA(path, GENERIC_READ | GENERIC_WRITE, 0 /*exclusive access*/, 0, openMode, FILE_ATTRIBUTE_NORMAL, 0);
     if (file.fileHandle == INVALID_HANDLE_VALUE)
     {

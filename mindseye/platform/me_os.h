@@ -77,11 +77,12 @@ struct OSFileReference
 	// and take OSFileFlags::ScopedFile into account
 };
 
-void ConsolePrint(StringView text);
-void* LoadDynamicLibrary(const char* name);
-void* GetFunctionPtr(void* module, StringView functionName);
+MEAPI void ConsolePrint(StringView text);
+MEAPI void* LoadDynamicLibrary(const char* name);
+MEAPI void* GetFunctionPtr(void* module, StringView functionName);
 
 MEAPI void meOSInitializeLogging();
+MEAPI s32 meOSMain(s32 argc, char** argv);
 
 MEAPI void meOSCreateWindow(
 	WindowCreationParams creationParams, 

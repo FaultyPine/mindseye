@@ -8,5 +8,6 @@ tools/clang
 .vscode
 .vs
 *.tmp
+*.raddbg
 
 mindseye/external/vulkan_lib/Lib

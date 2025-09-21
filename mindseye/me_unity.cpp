@@ -57,6 +57,8 @@
 #include "core/containers/me_blocklist.cpp"
 #include "core/containers/me_map.cpp"
 
+#include "reflector/reflection_types.cpp"
+
 #ifndef ME_CORE_ONLY
 #include "core/me_cmdline.cpp"
 #include "core/me_app.cpp"
@@ -66,5 +68,5 @@
 #include "render/renderer_unity.cpp"
 #include "scene/scene_unity.cpp"
 
-#endif // ME_UNITY_HEADER_ONLY
 #endif // ME_CORE_ONLY
+#endif // ME_UNITY_HEADER_ONLY

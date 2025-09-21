@@ -60,7 +60,7 @@ set include_libs=-I%root%\mindseye\external\imgui -I%root%\mindseye\external\bgf
 
 @REM common compile flags
 set app_flags=-DSHIPPING_BUILD=0 -I%root%\mindseye -I%root%\mindseye\external
-set compile_flags_common=%app_flags% -I%root% %include_libs% -std=c++20 -Wno-deprecated-declarations -g -gcodeview -gno-column-info -Wall -Wextra -Wno-unused-parameter -ferror-limit=500
+set compile_flags_common=%app_flags% -I%root% %include_libs% -std=c++20 -Wno-deprecated-declarations -g -gcodeview -gno-column-info -Wall -Wextra -Wno-unused-parameter -Wno-microsoft-include -ferror-limit=500
 set linker_flags_common=-luser32 -lgdi32 -fuse-ld=lld-link
 
 
@@ -116,7 +116,7 @@ set external_lib_postprocess=call "%root%\tools\dll2lib.bat" 64 %root%\build\min
 :: reflector needs to know about our project structure. The command we use to compile mindseye is enough info.
 set compile_commands_file=build\compile_commands_mindseye.txt
 echo %compile_mindseye% > %compile_commands_file%
-if "%reflector%"=="1" echo [Reflector compile] && call "tools/mindseye-reflector/build.bat" %root%\%compile_commands_file%
+if "%reflector%"=="1" echo [Reflector compile] && call "mindseye/reflector/build.bat" %root%\%compile_commands_file%
 if %ERRORLEVEL% NEQ 0 (exit /b)
 
 if not exist build mkdir build
