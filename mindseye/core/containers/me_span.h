@@ -10,6 +10,8 @@ struct meSpan
     meSpan() : data(0), size(0) {}
     template<typename T>
     meSpan(T* data, u64 size) : data((void*)data), size(size) {}
+	template<typename T, unsigned int N>
+	meSpan(T (&arr)[N]) : data((void*)arr), size(N) {}
     meSpan Subspan(u64 offset)
     {
         ME_ASSERT(size >= offset);
@@ -23,6 +25,8 @@ struct meSpan
 
 	bool isValid() const { return data != nullptr && size > 0; }
 };
+
+#define meSpan(Type) meSpan
 
 // for extra markup
 typedef meSpan meOwningSpan;

@@ -10,7 +10,7 @@ struct meTypeDescriptor
 	String name = {};
 	String editorName = {};
 	String tooltip = {};
-	DynArray(meTypeDescriptor) fields = nullptr;
+	meSpan(meTypeDescriptor) fields = {};
 	s32 value = 0;
 	s32 flags = 0;
 	

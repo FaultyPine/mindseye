@@ -284,7 +284,6 @@ meReflectedType& GetReflectedType(CXCursor cr, meAllocator* allocator, ClangPars
 	ctx.reflectedFiles[headerID].fileName = headerPath;
 	if (IsPrimitiveType(cr)) // if we are registering a primitive type for the first time
 	{
-		// BOOKMARK: this seems to not be working... the name of this typedesc is important to be able to use the underlyingType for primitive fields
 		meTypeDescriptor* typeDesc = MapClangPrimitiveTypeToTypeDescriptor(cr);
 		reflType = *typeDesc;
 	}
@@ -794,7 +793,7 @@ void ProcessReflectedFile(
 		s32 extensionIdx = FindInStringRev(parsedHeaderFilename, STRING_LIT("."));
 		parsedHeaderFilenameNoExt = parsedHeaderFilename.OffsetView(0, extensionIdx);
 		const char* dstHeaderFilePath = StringFormat("%s/%.*s.generated.h", headerOutputFolder, STRING_VAARGS(parsedHeaderFilenameNoExt));
-		meOSEnsureDirectoriesExist(dstHeaderFilePath);
+		meOSEnsureDirectoriesExist(headerOutputFolder);
 		if (!meOSOpenFile(headerFile, dstHeaderFilePath))
 		{
 			LOG_ERROR("Failed to open file %s while trying to generated reflected headers", dstHeaderFilePath);
@@ -841,10 +840,16 @@ void ProcessReflectedFile(
 				}				
 				sourceContentBuilder.AppendFormat("meTypeDescriptor g_%.*s_fields[%i] = {\n%.*s\n};\n", STRING_VAARGS(typeRefl.name), numChildren, STRING_VAARGS(fieldsArrayContent));
 			}
-			// TODO: how do i want to do the type id system...
-			// TODO: output type descriptor initalization
-			// assign name, fields, size, align
-			// generate or assign type id? TODO: how do i want to do this...
+			StringBuilder mainTypeDescriptorContent = StringBuilder(allocator);
+			mainTypeDescriptorContent.AppendFormat("\t.name = STRING_LIT(\"%.*s\"),\n", STRING_VAARGS(typeRefl.name));
+			if (typeRefl.editorName) mainTypeDescriptorContent.AppendFormat("\t.editorName = STRING_LIT(\"%.*s\"),\n", STRING_VAARGS(typeRefl.editorName));
+			if (typeRefl.tooltip) mainTypeDescriptorContent.AppendFormat("\t.tooltip = STRING_LIT(\"%.*s\"),\n", STRING_VAARGS(typeRefl.tooltip));
+			
+			mainTypeDescriptorContent.AppendFormat("\t.fields = g_%.*s_fields,\n", STRING_VAARGS(typeRefl.name));
+			mainTypeDescriptorContent.AppendFormat("\t.size = %i,\n", typeRefl.size);
+			mainTypeDescriptorContent.AppendFormat("\t.align = %i,", typeRefl.align);
+
+			sourceContentBuilder.AppendFormat("meTypeDescriptor g_%.*s_typedescriptor = {\n%.*s\n};\n", STRING_VAARGS(typeRefl.name), STRING_VAARGS(mainTypeDescriptorContent));
 		}
 	}
 
