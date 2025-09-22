@@ -3,6 +3,25 @@
 #include "mindseye/core/me_defines.h"
 #include "mindseye/core/containers/dynarray.h"
 
+#include <string_view> // C++17 for std::string_view
+
+constexpr std::string_view::size_type constexpr_strstr(
+	std::string_view haystack, 
+	std::string_view needle) noexcept 
+{
+	if (needle.empty()) 
+	{
+		return 0; 
+	}
+	for (std::string_view::size_type i = 0; i + needle.length() <= haystack.length(); ++i) 
+	{
+		if (haystack.substr(i, needle.length()) == needle) {
+			return i;
+		}
+	}
+	return std::string_view::npos;
+}
+
 typedef s32 meTypeID;
 
 struct meTypeDescriptor
@@ -10,13 +29,14 @@ struct meTypeDescriptor
 	String name = {};
 	String editorName = {};
 	String tooltip = {};
-	meSpan(meTypeDescriptor) fields = {};
+	meArray<meTypeDescriptor> fields = {};
 	s32 value = 0;
 	s32 flags = 0;
+	s32 version = 0;
 	
 	u32 size = 0;
 	u32 align = 0;
-	s32 offset = 0;
+	s32 offsetBits = 0;
 
 	meTypeDescriptor* underlyingType = nullptr;
 
@@ -24,7 +44,7 @@ struct meTypeDescriptor
 	{
 		return name == other.name &&
 			size == other.size &&
-			offset == other.offset &&
+			offsetBits == other.offsetBits &&
 			align == other.align && 
 			flags == other.flags && 
 			underlyingType == other.underlyingType;

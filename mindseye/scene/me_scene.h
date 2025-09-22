@@ -13,7 +13,7 @@ struct SceneRuntimeData
 	cgltf_data* gltfData = nullptr; // todo: don't cache the cgltf, parse it into my own structures
 };
 
-struct MEREFLECT(type, Description="Scene Description")
+struct MEREFLECT(type, Description="Scene Description", Version=0)
 meScene
 {
 	MEREFLECT(tooltip="a tooltip here!") 
@@ -25,6 +25,14 @@ meScene
 	SceneRuntimeData runtime = {};
 };
 
+struct meSceneManager
+{
+	meSceneManager(EngineContext* ctx);
+	void Tick(EngineContext* ctx);
+	void LoadSceneFromFileBlocking(StringView filename, meAllocator* allocator, meScene* outScene);
+	void WriteSceneToFileBlocking(meScene* scene, StringView filename);
+};
+
 // loads gltf scene from the filesystem into the specified backing buffer
-meSceneID meSceneLoadFromGLTF(meSpan backingBuffer, const char* resourcePath);
+meSceneID meSceneLoadFromGLTF(meSpan backingBuffer, StringView resourcePath);
 

@@ -31,3 +31,18 @@ struct meSpan
 // for extra markup
 typedef meSpan meOwningSpan;
 typedef meSpan meNoOwnSpan;
+
+template <typename T>
+struct meArray : public meSpan
+{
+    T& operator[](size_t idx) 
+	{
+		ME_ASSERT(idx < size);
+		return ((T*)data)[idx]; 
+	}
+	const T& operator[](size_t idx) const
+	{
+		ME_ASSERT(idx < size);
+		return ((T*)data)[idx]; 
+	}
+};

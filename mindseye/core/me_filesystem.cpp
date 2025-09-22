@@ -3,12 +3,12 @@
 #include "platform/me_os.h"
 #include "core/me_log.h"
 
-bool meReadFileContents(const char* filepath, meSpan backingBuffer)
+bool meReadFileContents(StringView filepath, meSpan backingBuffer)
 {
     OSFileReference file = OSFileReference{.flags = ScopedFile};
     if (!meOSOpenFile(file, filepath))
     {
-        LOG_ERROR("[meFS] failed to open file %s", filepath);
+        LOG_ERROR("[meFS] failed to open file %.*s", STRING_VAARGS(filepath));
         return false;
     }
     bool result = meOSReadFileContents(file, backingBuffer.data, backingBuffer.size);

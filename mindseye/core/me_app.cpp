@@ -27,6 +27,7 @@ void RunEngine(EngineContext* engine)
     while (engine->isRunning)
     {
         meOSTick(engine);
+		engine->sceneSystem->Tick(engine);
         RenderInput renderInput = {};
         renderInput.osData = *engine->osData;
         void* renderedSceneHandle = engine->renderer->RenderScene(&renderInput);
@@ -49,6 +50,7 @@ void InitializeEngine(s32 argc, char** argv)
     engine->callbacks.initFn(engine, windowCreationParams);
     meOSCreateWindow(windowCreationParams, engine);
     RendererInitialize(engine);
+	engine->sceneSystem = MENEW(&engine->engineArena, meSceneManager, engine);
 
     RunEngine(engine);
 }

@@ -38,7 +38,6 @@ struct ReflectedTypeIdentifier
 
 // can represent a number of things
 // like structure types, and also field decls
-// TODO: merge this with meTypeDescriptor
 struct meReflectedType
 {
 	DynArray(meReflectedType*) children = {};
@@ -50,6 +49,7 @@ struct meReflectedType
 	u32 size = 0;
 	s32 offsetBits = 0; // offset of this type from it's parent type, in bits
 	u32 align = 0;
+	u32 version = 0;
 	bool isExcluded = false;
 	void Print() const;
 	bool operator==(const meReflectedType& other) const
@@ -60,19 +60,7 @@ struct meReflectedType
 			align == other.align;
 	}
 
-	meReflectedType() = default;
-	// TODO: merge this with meTypeDescriptor, this is a temp stopgap
-	meReflectedType(const meTypeDescriptor& other)
-	{
-		name = other.name;
-		//kind = other.
-		//innerType = other.underlyingType
-		editorName = other.editorName;
-		tooltip = other.tooltip;
-		size = other.size;
-		offsetBits = other.offset;
-		align = other.align;
-	}
+	meReflectedType() = default;	
 };
 
 struct meReflectedFile
@@ -270,6 +258,23 @@ meTypeDescriptor* MapClangPrimitiveTypeToTypeDescriptor(CXCursor cr)
 	return result;
 }
 
+// TODO: remove meReflectedType and use meTypeDescriptor instead.
+meReflectedType MeTypeDescriptorToReflectedTypeStopgapPleaseFix(meTypeDescriptor* typeDesc)
+{
+	const meTypeDescriptor& other = *typeDesc;
+	meReflectedType result;
+	result.name = other.name;
+	//kind = other.
+	//innerType = other.underlyingType
+	result.editorName = other.editorName;
+	result.tooltip = other.tooltip;
+	result.version = other.version;
+	result.size = other.size;
+	result.offsetBits = other.offsetBits;
+	result.align = other.align;
+	return result;
+}
+
 meReflectedType& GetReflectedType(CXCursor cr, meAllocator* allocator, ClangParsingContext& ctx)
 {
 	u32 headerID = 0;
@@ -285,7 +290,7 @@ meReflectedType& GetReflectedType(CXCursor cr, meAllocator* allocator, ClangPars
 	if (IsPrimitiveType(cr)) // if we are registering a primitive type for the first time
 	{
 		meTypeDescriptor* typeDesc = MapClangPrimitiveTypeToTypeDescriptor(cr);
-		reflType = *typeDesc;
+		reflType = MeTypeDescriptorToReflectedTypeStopgapPleaseFix(typeDesc);
 	}
 	return reflType;
 }
@@ -331,6 +336,7 @@ void StoreReflectedTypeInfo(
 		{
 			StoreReflectedTypeInfo(fieldTypeCr, ctx, {});
 		}
+		// TODO: does the above logic properly handle primitives VS external types? I.E. glm::vec3?
 		meReflectedType& fieldTypeRefl = GetReflectedType(fieldTypeCr, allocator, ctx);
 		meReflectedType& fieldMemberRefl = *MENEW(ctx.allocator, meReflectedType); // this will contain the field's type info
 		
@@ -382,9 +388,18 @@ void StoreReflectedTypeInfo(
 		param = EatChars(param, ' ');
 		param = EatChars(param, '=');
 		param = EatChars(param, ' ');
-		ME_ASSERT(param[0] == '"');
-		param = EatChars(param, '"');
-		s32 endParamStrContent = EatCharsOffset(param, '"', true);
+		s32 endParamStrContent = 0;
+		// string params like Description="something"
+		if (param[0] == '"')
+		{
+			param = EatChars(param, '"');
+			endParamStrContent = EatCharsOffset(param, '"', true);
+		}
+		// non-string params like Version=1
+		else
+		{
+			endParamStrContent = MEMIN(EatCharsOffset(param, ',', true), EatCharsOffset(param, ')', true));
+		}
 		StringView paramStrContent = param.OffsetView(0, endParamStrContent);
 		return paramStrContent;
 	};
@@ -396,6 +411,9 @@ void StoreReflectedTypeInfo(
 
 		StringView tooltipParam = GetStringParam(STRING_LIT("Tooltip"), macroContent);
 		reflType.tooltip = tooltipParam;
+
+		StringView versionParam = GetStringParam(STRING_LIT("Version"), macroContent);
+		if (versionParam) reflType.version = StringToUint(versionParam);
 
 		reflType.isExcluded = excluded;
 	}
@@ -565,7 +583,7 @@ DynArray(CompileCommand) CompileDatabaseToCommandsList(
 {
 	CompileCommand* cmds = DynArrayCreate<CompileCommand>(allocator);
 	OSFileReference compileCmdsFile = {};
-	if (!meOSOpenFile(compileCmdsFile, (char*)compileDatabasePath, OnlyIfExists))
+	if (!meOSOpenFile(compileCmdsFile, compileDatabasePath, OnlyIfExists))
 	{
 		LOG_ERROR("Failed to open compile commands database file %s", compileDatabasePath.data);
 		return cmds;
@@ -608,7 +626,7 @@ int main(int argc, char* argv[])
 		return 1;
 	}
 	StringView compileCmdsDatabaseFilePath = StringFromCString(argv[1]);
-	LOG_INFO("[Mindseye Reflector] Reflecting %.*s\n", STRING_VAARGS(compileCmdsDatabaseFilePath));
+	LOG_INFO("[Mindseye Reflector] Reflecting %.*s", STRING_VAARGS(compileCmdsDatabaseFilePath));
 	const char* projectRootDir = argv[2];
 	const char* headerOutputFolder = argv[3];
 
@@ -631,7 +649,6 @@ int main(int argc, char* argv[])
 	DynArrayPush(reflectorFilePath, exePath, exePathLen);
 	if (exePath[exePathLen - 1] != '\\' && exePath[exePathLen - 1] != '/') DynArrayPush(reflectorFilePath, '\\');
 	DynArrayPush(reflectorFilePath, (char*)reflectorHeaderFilename, CStringLength(reflectorHeaderFilename));
-	LOG_INFO("Reflector file: %s", reflectorFilePath);
 	auto idx = clang_createIndex(0, 1);
 	u32 clangOptions = 0
 		| CXTranslationUnit_DetailedPreprocessingRecord
@@ -691,6 +708,7 @@ int main(int argc, char* argv[])
 		// populates the parsingcontext with info about all reflected types
 		clang_visitChildren(cursor, visitTranslationUnit, &ctx);
 		GeneratedReflectionHeaders(ctx, headerOutputFolder);
+		LOG_INFO("[Mindseye Reflector] generated headers (see %s)", headerOutputFolder);
 	}
 	else
 	{
@@ -737,7 +755,8 @@ void GeneratedReflectionHeaders(
 	ClangParsingContext& ctx, 
 	const char* headerOutputFolder)
 {
-	LOG_INFO("Generating reflection headers at %s", headerOutputFolder);
+	meOSEnsureDirectoriesExist(headerOutputFolder);
+
 	u32 numReflectedFiles = ctx.reflectedFiles.size();
 	for (const auto& [headerID, fileReflection] : ctx.reflectedFiles)
 	{
@@ -762,13 +781,16 @@ void ProcessReflectedFile(
 		return;
 	}
 	StringView parsedHeaderFilename = meFsGetFilepathFromPath(parsedHeaderExistingPath);
+	s32 extensionIdx = FindInStringRev(parsedHeaderFilename, STRING_LIT("."));
+	StringView parsedHeaderFilenameNoExt = parsedHeaderFilename.OffsetView(0, extensionIdx);
 
-	headerContentBuilder.Append(STRING_LIT("// ====== THIS FILE IS AUTOGENERATED =======\n"));
 	// for simplicity, if anyone wants access to the reflection data for some type, they shouldn't be including
 	// the actual header, not the generated one. The generated one should be included by the file it reflects
-	headerContentBuilder.AppendFormat("// ====== THIS FILE SHOULD ONLY BE INCLUDED BY %.*s =======\n", STRING_VAARGS(parsedHeaderFilename));
 	headerContentBuilder.Append(STRING_LIT("#pragma once\n"));
+	headerContentBuilder.Append(STRING_LIT("// ====== THIS FILE IS AUTOGENERATED =======\n"));
+	headerContentBuilder.AppendFormat("// ====== THIS FILE SHOULD ONLY BE INCLUDED BY %.*s =======\n", STRING_VAARGS(parsedHeaderFilename));
 	headerContentBuilder.Append(STRING_LIT("#include \"reflector/reflection_types.h\"\n"));
+	headerContentBuilder.AppendFormat("STATIC_ASSERT(constexpr_strstr(std::string_view(__FILE__), \"%.*s\") != std::string_view::npos);\n", STRING_VAARGS(parsedHeaderFilenameNoExt));
 
 	for (const auto& [nameID, typeRefl] : fileRefl.reflectedTypes)
 	{
@@ -776,25 +798,17 @@ void ProcessReflectedFile(
 		if (typeRefl.kind == CXCursor_StructDecl)
 		{
 			headerContentBuilder.AppendFormat("struct %.*s;\n", STRING_VAARGS(typeRefl.name));
-			u32 numChildren = DynArrayGetSize(typeRefl.children);
-			if (numChildren > 0)
-			{
-				headerContentBuilder.AppendFormat("extern meTypeDescriptor g_%.*s_fields[%i];\n", STRING_VAARGS(typeRefl.name), numChildren);
-			}
 			headerContentBuilder.AppendFormat("extern meTypeDescriptor g_%.*s_typedescriptor;\n", STRING_VAARGS(typeRefl.name));
 		}
 	}
 
 	StringView fileContent = headerContentBuilder;
-	StringView parsedHeaderFilenameNoExt;
 	if (fileContent)
 	{
 		OSFileReference headerFile = {};
-		s32 extensionIdx = FindInStringRev(parsedHeaderFilename, STRING_LIT("."));
-		parsedHeaderFilenameNoExt = parsedHeaderFilename.OffsetView(0, extensionIdx);
+
 		const char* dstHeaderFilePath = StringFormat("%s/%.*s.generated.h", headerOutputFolder, STRING_VAARGS(parsedHeaderFilenameNoExt));
-		meOSEnsureDirectoriesExist(headerOutputFolder);
-		if (!meOSOpenFile(headerFile, dstHeaderFilePath))
+		if (!meOSOpenFile(headerFile, StringView(dstHeaderFilePath, CStringLength(dstHeaderFilePath))))
 		{
 			LOG_ERROR("Failed to open file %s while trying to generated reflected headers", dstHeaderFilePath);
 			return;
@@ -824,7 +838,7 @@ void ProcessReflectedFile(
 					fieldsArrayContent.AppendFormat(".name = STRING_LIT(\"%.*s\"), ", STRING_VAARGS(childReflType.name));
 					if (childReflType.editorName) fieldsArrayContent.AppendFormat(".editorName = STRING_LIT(\"%.*s\"), ", STRING_VAARGS(childReflType.editorName));
 					if (childReflType.tooltip) fieldsArrayContent.AppendFormat(".tooltip = STRING_LIT(\"%.*s\"), ", STRING_VAARGS(childReflType.tooltip));
-					fieldsArrayContent.AppendFormat(".offset = %i, ", childReflType.offsetBits / 8);
+					fieldsArrayContent.AppendFormat(".offsetBits = %i, ", childReflType.offsetBits);
 					if (childReflType.innerType && childReflType.innerType->name)
 					{
 						String underlyingTD = String(childReflType.innerType->name, allocator);
@@ -845,7 +859,8 @@ void ProcessReflectedFile(
 			if (typeRefl.editorName) mainTypeDescriptorContent.AppendFormat("\t.editorName = STRING_LIT(\"%.*s\"),\n", STRING_VAARGS(typeRefl.editorName));
 			if (typeRefl.tooltip) mainTypeDescriptorContent.AppendFormat("\t.tooltip = STRING_LIT(\"%.*s\"),\n", STRING_VAARGS(typeRefl.tooltip));
 			
-			mainTypeDescriptorContent.AppendFormat("\t.fields = g_%.*s_fields,\n", STRING_VAARGS(typeRefl.name));
+			mainTypeDescriptorContent.AppendFormat("\t.fields = {g_%.*s_fields},\n", STRING_VAARGS(typeRefl.name));
+			mainTypeDescriptorContent.AppendFormat("\t.version = %i,\n", typeRefl.version);
 			mainTypeDescriptorContent.AppendFormat("\t.size = %i,\n", typeRefl.size);
 			mainTypeDescriptorContent.AppendFormat("\t.align = %i,", typeRefl.align);
 
@@ -860,7 +875,7 @@ void ProcessReflectedFile(
 		s32 extensionIdx = FindInStringRev(parsedHeaderFilename, STRING_LIT("."));
 		StringView parsedSourceFilenameNoExt = parsedHeaderFilename.OffsetView(0, extensionIdx);
 		const char* dstFilePath = StringFormat("%s/%.*s.generated.cpp", headerOutputFolder, STRING_VAARGS(parsedSourceFilenameNoExt));
-		if (!meOSOpenFile(sourceFile, dstFilePath))
+		if (!meOSOpenFile(sourceFile, StringView(dstFilePath, CStringLength(dstFilePath))))
 		{
 			LOG_ERROR("Failed to open file %s while trying to generated reflected headers", dstFilePath);
 			return;

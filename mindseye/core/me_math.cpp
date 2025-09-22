@@ -2,6 +2,7 @@
 #include "me_math.h"
 #include "core/me_core.h"
 
+meTypeDescriptor TD_VEC3 = { .name = STRING_LIT("vec3"), .size = sizeof(glm::vec3), .align = alignof(glm::vec3) };
 
 namespace Math {
 

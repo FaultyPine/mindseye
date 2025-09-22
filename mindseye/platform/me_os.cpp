@@ -87,7 +87,7 @@ OSFileReference::~OSFileReference()
 
 bool meOSEnsureDirectoriesExist(const char* pathCStr);
 
-bool meOSOpenFile(OSFileReference& file, const char* path, OSFileFlags flags)
+bool meOSOpenFile(OSFileReference& file, StringView path, OSFileFlags flags)
 {
 #ifdef OS_WINDOWS
     return meOSWinOpenFile(file, path, flags);

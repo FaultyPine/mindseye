@@ -265,17 +265,17 @@ u64 meOSWinGetFileSize(const OSFileReference& file)
     return (u64)fileSizeLo | ((u64)fileSizeHi << 32);
 }
 
-bool meOSWinOpenFile(OSFileReference& file, const char* path, OSFileFlags flags)
+bool meOSWinOpenFile(OSFileReference& file, StringView path, OSFileFlags flags)
 {
     ME_MEMCLEAR((void*)file.path, PATH_MAX);
-    StringCopy({file.path, PATH_MAX}, StringFromCString(path));
+    StringCopy({file.path, PATH_MAX}, path);
     file.flags = (OSFileFlags)((u32)file.flags | (u32)flags);
 	u32 openMode = (flags & OnlyIfExists) ? OPEN_EXISTING : CREATE_ALWAYS;
-    file.fileHandle = CreateFileA(path, GENERIC_READ | GENERIC_WRITE, 0 /*exclusive access*/, 0, openMode, FILE_ATTRIBUTE_NORMAL, 0);
+    file.fileHandle = CreateFileA(file.path, GENERIC_READ | GENERIC_WRITE, 0 /*exclusive access*/, 0, openMode, FILE_ATTRIBUTE_NORMAL, 0);
     if (file.fileHandle == INVALID_HANDLE_VALUE)
     {
         DWORD result = GetLastError();
-        LOG_INFO("[meOS] failed to open file %s err code = %u", path, result);
+        LOG_INFO("[meOS] failed to open file %s err code = %u", file.path, result);
 		return false;
     }
     return true;

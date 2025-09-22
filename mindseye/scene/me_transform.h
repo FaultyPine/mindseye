@@ -1,8 +1,11 @@
 #pragma once
 
+#include "core/me_defines.h"
 #include "core/me_math.h"
 
-struct Transform 
+#include "generatedtypes/me_transform.generated.h"
+
+struct MEREFLECT(type) Transform 
 {
     glm::vec3 position = glm::vec3(0);
     glm::vec3 scale = glm::vec3(1);

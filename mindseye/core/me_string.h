@@ -136,6 +136,8 @@ MEAPI void ToUpper(StringView str);
 
 MEAPI void StringReplace(StringView str, char oldC, char newC);
 
+MEAPI u32 StringToUint(StringView str);
+
 // formats a string. Returned string buffer is a temporary buffer
 // that will be evicted on the next couple calls to this function
 // note, the returned string will be null-terminated

@@ -262,7 +262,7 @@ StringView EatChars(StringView str, char c, bool invert)
 u32 EatCharsOffset(StringView str, char c, bool invert)
 {
 	u32 result = 0;
-	while (invert ? str.data[0] != c : str.data[0] == c)
+	while (str && (invert ? str.data[0] != c : str.data[0] == c))
 	{
 		str = str.OffsetView(1);
 		result++;
@@ -363,6 +363,38 @@ size_t wcharToNarrow(const wchar_t * src, char * dest, size_t dest_len)
     }
     dest[i] = '\0';
     return i - 1;
+}
+
+static unsigned int stringToUint(const char *str, u32 len) {
+    unsigned int result = 0;
+    u32 i = 0;
+
+    // Handle leading whitespace (optional, but good practice)
+    while (isspace((unsigned char)str[i]) && i < len) {
+        i++;
+    }
+
+    // Iterate through the string until a non-digit character or null terminator is found
+    while (str[i] != '\0' && i < len && isdigit((unsigned char)str[i])) {
+        unsigned int digit = str[i] - '0';
+
+        // Check for potential overflow before multiplication
+        if (result > UINT_MAX / 10 || (result == UINT_MAX / 10 && digit > UINT_MAX % 10)) {
+            fprintf(stderr, "Warning: Integer overflow during conversion.\n");
+            return UINT_MAX; // Return max value on overflow, or handle error as appropriate
+        }
+
+        result = result * 10 + digit;
+        i++;
+    }
+
+    return result;
+}
+
+MEAPI u32 StringToUint(StringView str)
+{
+	// TOD:O
+	return stringToUint(str.data, str.len);
 }
 
 StringView ScanForBalancedChar(StringView str, char opening, char closing)

@@ -5,8 +5,35 @@
 #include "asset/me_asset.h"
 #include "core/me_scope_exit.h"
 #include "core/me_log.h"
+#include "core/me_serialize.h"
 
 #include "generatedtypes/me_scene.generated.cpp"
+
+void meSceneManager::Tick(EngineContext* ctx)
+{
+	LOG_INFO("scenemanagertick");
+}
+
+meSceneManager::meSceneManager(EngineContext* ctx)
+{
+	meScene testScene = { .numRootNodes = 2, .someotherfield = 5, .runtime = {} };
+	WriteSceneToFileBlocking(&testScene, STRING_LIT("TestSceneSerialized.scn"));
+}
+
+void meSceneManager::LoadSceneFromFileBlocking(StringView filename, meAllocator* allocator, meScene* outScene)
+{
+	// take file contents (ini), load them into a meScene
+	auto filesize = meGetFileSize(filename.data);
+	meSpan backingBuffer = MEALLOC(allocator, filesize);
+	ME_RTASSERT(meReadFileContents(filename, backingBuffer));
+	// TODO: DeserializeFromIniBlocking
+	UNIMPLEMENTED();
+}
+
+void meSceneManager::WriteSceneToFileBlocking(meScene* scene, StringView filename)
+{
+	SerializeToIniBlocking(g_meScene_typedescriptor, scene, filename);
+}
 
 struct meSceneAssetLoader : public meAssetLoader
 {
@@ -30,12 +57,12 @@ struct meSceneAssetLoader : public meAssetLoader
 
 MEEVENT_REGISTER_STATIC(registerAssetLoader, meSceneAssetLoader::RegisterAssetLoader);
 
-meSceneID meSceneLoadFromGLTF(meSpan gltfBuffer, const char* resourcePath)
+meSceneID meSceneLoadFromGLTF(meSpan gltfBuffer, StringView resourcePathSv)
 {
     meSceneID scene = U32_INVALID_ID;
-    resourcePath = meAssetResource(resourcePath);
+    const char* resourcePath = meAssetResource(resourcePathSv);
     OSFileReference file = {.flags = ScopedFile};
-    meOSOpenFile(file, resourcePath);
+    meOSOpenFile(file, StringView(resourcePath, CStringLength(resourcePath)));
     ME_ASSERT(meOSGetFileSize(file) <= gltfBuffer.size);
     if (!meOSReadFileContents(file, gltfBuffer.data, gltfBuffer.size))
     {

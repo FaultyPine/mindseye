@@ -1,11 +1,14 @@
 #pragma once
 
 #include "core/me_defines.h"
+#include "reflector/reflection_types.h"
 
 #include <external/glm/glm.hpp>
 #include <external/glm/gtx/string_cast.hpp>
 #include <external/glm/gtc/matrix_transform.hpp>
 #include <external/glm/gtc/type_ptr.hpp>
+
+extern meTypeDescriptor TD_VEC3;
 
 constexpr double PI   = 3.141592653589793238463;
 constexpr float  PI_F = 3.14159265358979f;

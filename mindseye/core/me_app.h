@@ -11,6 +11,7 @@ struct EngineContext;
 struct EntityRegistry;
 struct meAssetSystem;
 struct CommandLineArgs;
+struct meSceneManager;
 
 typedef void(*InitFn)(EngineContext* engine, WindowCreationParams& windowCreationParams);
 typedef void(*UpdateFn)(EngineContext* engine);
@@ -37,6 +38,7 @@ struct EngineContext
     EntityRegistry* entityRegistry = nullptr;
     meAssetSystem* assetSystem = nullptr;
     CommandLineArgs* cmdLine = nullptr;
+	meSceneManager* sceneSystem = nullptr;
 
     // engine state
     f32 deltaTime = 0.0f;

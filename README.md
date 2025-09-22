@@ -7,13 +7,7 @@ Must be on windows.
 then `build.bat`
 
 
-## Details
 
-- sound: [soloud](https://solhsa.com/soloud/)
-- physics: [jolt](https://github.com/jrouwe/JoltPhysics)
-- using blender as the editor - exporting to custom format
-
-- a bunch of this engine is yoinked from my previous engine project, tiny engine. Despite a lot of it being the same, i want to keep tiny engine as it is right now. It's a great snapshot in time of my first game programming efforts, and starting fresh feels right, even if a lot of it is similar.
 
 ## TODO
 
@@ -22,16 +16,22 @@ then `build.bat`
 - REALLY IMPORTANT TODO:
     - instead of passing meAllocator* around, I should pass an allocator handle
 	- which is internally u32 and dereferences to the allocator itself.
+	- should create a generic generation handle system
 
 ### Current focus
 - ~~RWlock~~
-- REFLECTION (C lexer? Metadesk? Clang plugin?)
-	- Use same technique as Esoterica engine. Clang.
-	- first weird roadblock with clang parsing. The compile commands json is invalid when there's just one file. Made a bug on clang github
-	- second thing I need to solve: I can't use the mindseye compilation database because the reflector needs to run before mindseye is compiled, but if mindseye isn't compiled, i don't have the compilation database. Chicken & egg.
-		- Maybe just use the reflector's compilation database? since im already using mindseye stuff there, the args will work. Mmmm <- that's probably a bad idea.
-		- Esoterica doesnt have this issue because he uses the sln, which is always there.
-	- can't use compilation database, sadly, for above reason. Instead, i'm just having the build system spit out it's mindseye compilation command, and parsing that manually.
+- ~~REFLECTION~~
+	- ended up writing a reflector program using libclang. Most control, simplest to implement/integrate.
+	- still needs hardening, for stuff like external types in structs (EX glm::vec3), and reflecting on enums
+- Serialization
+	- Use reflection system from above
+	- generate functions, or write a serialization function that operates on opaque typedescriptors
+	- Need something to serialize to/from
+		- most engines use stuff like yaml, xaml, json, etc.
+		- Do i want to do that...? Going to go with ini for now.
+	- Take a data block & type descriptor, and write it out to ini. 
+		- and take ini, load it into data block given a type descriptor
+	- Use relative pointers
 - Scene loading. 
 	- map a MAID to a filesystem path, or an arbitrary "actual" asset identifier that a loading system can use to actually load the thing fr
 	- Need a scene/asset description file. Going to use ini. To get data in/parse that description file, need reflection
@@ -46,6 +46,7 @@ then `build.bat`
     - Dead simple blinnphong. Not trying to flesh anything out yet. Future - lightmapping, GDR, meshlets & mesh shaders
 - code, asset, shader hot reloading
 - input (gamepad & kbm)
+- using blender as the editor - exporting to my format
 - UI (Clay?)
 - physics
 - audio
@@ -71,8 +72,6 @@ to support, for instance, rendering frame X, then rendering frame X+20, then fra
 A purposely single-threaded simulation to ensure determinism. 
 Potentially could allow users to do whatever they want with threads, but at their own risk of "moment-to-moment debugging" desyncs in replays from any race conditions. though this might be good, since if multiple runs of the same replay desync we know there's a race condition
 
-*Core Engine*
-
 
 Stretch goal: "reversible" physics/simulation?
 - idea: imagine a simple gear spinning clockwise. This "physics simulation" is very simple, just rotating the object by some amount in a certain direction
@@ -80,10 +79,6 @@ Stretch goal: "reversible" physics/simulation?
     Could this concept be extrapolated to more complex senarios? Large parts of a given game/physics/etc simulation may be deterministic. For those parts,
     making it "reversible" would mean creating equivalent logic to simulate backward. Since many simulations end up inevitably doing "destructive" operations,
     that is an operation that fully overwrites some state that cannot be derived from future states, non-deterministic events would need to be recorded during forward simulation, and used while doing backward simulation. 
-
-
-Engine design to support above:
-
 
 
 

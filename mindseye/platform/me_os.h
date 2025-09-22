@@ -105,7 +105,7 @@ MEAPI char meOSFsDirectorySeperator();
 
 MEAPI bool meOSOpenFile(
 	OSFileReference& file, 
-	const char* path, 
+	StringView path, 
 	OSFileFlags flags = OSFileFlags(0));
 
 MEAPI bool meOSCloseFile(
