@@ -360,6 +360,12 @@ void StoreReflectedTypeInfo(
 	}
 	CXType parentType = clang_getCursorType(parentCr);
 
+	// NOTE: for bitfields like
+	// u64 somebits: 48;
+	// u64 restofbits: 8;
+	// both of those fielddecls register as size 8.
+	// I'm outputting that as-is atm. This might end up becoming a weird
+	// bug since the size of the sum of the fields could be greater than the size of the struct...
 	s64 typeSize = clang_Type_getSizeOf(crType);
 	s64 typeAlign = clang_Type_getAlignOf(crType);
 	const char* fieldName = CStringFromString(cursorName, allocator);
