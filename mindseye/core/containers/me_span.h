@@ -22,18 +22,20 @@ struct meSpan
     {
         return (T*)data; 
     }
+	operator bool() const
+	{
+		return data && size;
+	}
 
 	bool isValid() const { return data != nullptr && size > 0; }
 };
-
-#define meSpan(Type) meSpan
 
 // for extra markup
 typedef meSpan meOwningSpan;
 typedef meSpan meNoOwnSpan;
 
 template <typename T>
-struct meArray : public meSpan
+struct meSpanTyped : public meSpan
 {
     T& operator[](size_t idx) 
 	{

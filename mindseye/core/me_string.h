@@ -142,5 +142,21 @@ MEAPI u32 StringToUint(StringView str);
 // that will be evicted on the next couple calls to this function
 // note, the returned string will be null-terminated
 MEAPI const char* StringFormat(const char *text, ...);
+MEAPI s32 StringFormatIntoBuf(meSpan backingBuffer, const char *text, ...);
 // same as above, but allocates memory for the formatted string
 MEAPI const char* StringFormatNew(meAllocator* allocator, const char *text, ...);
+
+
+
+// (decimal only)
+MEAPI s32 StringParseInt32(StringView str);
+// (decimal only)
+MEAPI u32 StringParseUInt32(StringView str);
+// (decimal only)
+MEAPI s64 StringParseInt64(StringView str);
+// (decimal only)
+MEAPI u64 StringParseUInt64(StringView str);
+// (supports scientific notation)
+MEAPI float StringParseFloat(StringView str);
+// (supports scientific notation)
+MEAPI double StringParseDouble(StringView str);

@@ -11,28 +11,31 @@
 
 void meSceneManager::Tick(EngineContext* ctx)
 {
-	LOG_INFO("scenemanagertick");
+	
 }
 
 meSceneManager::meSceneManager(EngineContext* ctx)
 {
-	meScene testScene = { .numRootNodes = 2, .someotherfield = 5, .runtime = {} };
-	WriteSceneToFileBlocking(&testScene, STRING_LIT("TestSceneSerialized.scn"));
+	StringView filename = STRING_LIT("TestSceneSerialized.scn");
+	meScene scene = { .numRootNodes = 2, .someotherfield = 0.3 };
+	WriteSceneToFileBlocking(&scene, filename);
+	scene = {};
+	LoadSceneFromFileBlocking(filename, &ctx->engineSceneAllocator, &scene);
+	LOG_INFO("deserialized scene %u %f", scene.numRootNodes, scene.someotherfield);
 }
 
 void meSceneManager::LoadSceneFromFileBlocking(StringView filename, meAllocator* allocator, meScene* outScene)
 {
-	// take file contents (ini), load them into a meScene
-	auto filesize = meGetFileSize(filename.data);
-	meSpan backingBuffer = MEALLOC(allocator, filesize);
-	ME_RTASSERT(meReadFileContents(filename, backingBuffer));
-	// TODO: DeserializeFromIniBlocking
-	UNIMPLEMENTED();
+	meSpan deserializedScene = DeserializeFromIniBlocking(g_meScene_typedescriptor, allocator, filename);
+	if (deserializedScene)
+	{
+		*outScene = *(meScene*)deserializedScene.data;
+	}
 }
 
 void meSceneManager::WriteSceneToFileBlocking(meScene* scene, StringView filename)
 {
-	SerializeToIniBlocking(g_meScene_typedescriptor, scene, filename);
+	SerializeToIniBlocking(g_meScene_typedescriptor, scene, &GetEngineCtx()->scratchWork, filename);
 }
 
 struct meSceneAssetLoader : public meAssetLoader

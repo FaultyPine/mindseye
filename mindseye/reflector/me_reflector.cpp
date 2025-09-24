@@ -207,7 +207,7 @@ meReflectedType* TryGetReflectedType(CXCursor cr, meAllocator* allocator, ClangP
 
 bool IsPrimitiveType(CXTypeKind kind)
 {
-	return kind >= CXType_FirstBuiltin && kind <= CXType_LastBuiltin;
+	return (kind >= CXType_FirstBuiltin && kind <= CXType_LastBuiltin) || (kind == CXType_Pointer);
 }
 
 bool IsPrimitiveType(CXCursor cr)
@@ -252,7 +252,8 @@ meTypeDescriptor* MapClangPrimitiveTypeToTypeDescriptor(CXCursor cr)
 		{ CXType_Long, &TD_LONG},
 		{ CXType_LongLong, &TD_LONGLONG},
 		{ CXType_Float, &TD_FLOAT},
-		{ CXType_Double, &TD_DOUBLE},
+		{ CXType_Double, &TD_DOUBLE },
+		{ CXType_Pointer, &TD_POINTER },
 	};
 	meTypeDescriptor* result = clangToMePrimitiveType.at(kind);
 	return result;
@@ -326,9 +327,9 @@ void StoreReflectedTypeInfo(
 	// for fields, fill out the inner type, and add this type to the parent struct's children
 	if (crKind == CXCursor_FieldDecl)
 	{
+		CXTypeKind fieldTypeKind = crType.kind;
 		CXCursor fieldTypeCr = clang_getTypeDeclaration(crType);
-		// annotated fields have their parentCr as the fielddecl. Unannotated fields have their parentCr as the struct decl
-		if (fieldTypeCr.kind == CXCursor_NoDeclFound && IsPrimitiveType(crType.kind))
+		if (IsPrimitiveType(fieldTypeKind) && fieldTypeCr.kind == CXCursor_NoDeclFound)
 		{
 			fieldTypeCr = cr;
 		}
@@ -336,6 +337,7 @@ void StoreReflectedTypeInfo(
 		{
 			StoreReflectedTypeInfo(fieldTypeCr, ctx, {});
 		}
+		// annotated fields have their parentCr as the fielddecl. Unannotated fields have their parentCr as the struct decl
 		// TODO: does the above logic properly handle primitives VS external types? I.E. glm::vec3?
 		meReflectedType& fieldTypeRefl = GetReflectedType(fieldTypeCr, allocator, ctx);
 		meReflectedType& fieldMemberRefl = *MENEW(ctx.allocator, meReflectedType); // this will contain the field's type info
@@ -838,6 +840,8 @@ void ProcessReflectedFile(
 					fieldsArrayContent.AppendFormat(".name = STRING_LIT(\"%.*s\"), ", STRING_VAARGS(childReflType.name));
 					if (childReflType.editorName) fieldsArrayContent.AppendFormat(".editorName = STRING_LIT(\"%.*s\"), ", STRING_VAARGS(childReflType.editorName));
 					if (childReflType.tooltip) fieldsArrayContent.AppendFormat(".tooltip = STRING_LIT(\"%.*s\"), ", STRING_VAARGS(childReflType.tooltip));
+					fieldsArrayContent.AppendFormat(".size = %i, ", childReflType.size != 0 ? childReflType.size : (childReflType.innerType ? childReflType.innerType->size : 0));
+					fieldsArrayContent.AppendFormat(".align = %i, ", childReflType.align != 0 ? childReflType.align : (childReflType.innerType ? childReflType.innerType->align : 0));
 					fieldsArrayContent.AppendFormat(".offsetBits = %i, ", childReflType.offsetBits);
 					if (childReflType.innerType && childReflType.innerType->name)
 					{

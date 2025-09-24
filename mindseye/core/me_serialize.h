@@ -4,6 +4,11 @@
 
 void SerializeToIniBlocking(
 	const meTypeDescriptor& typeDesc, 
-	const void* data,
+	void* data,
+	meAllocator* allocator,
 	StringView outFilename);
 
+meSpan DeserializeFromIniBlocking(
+	const meTypeDescriptor& typeDesc,
+	meAllocator* allocator,
+	StringView inFilename);

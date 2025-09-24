@@ -1,7 +1,8 @@
 #pragma once
 
-#include "mindseye/core/me_defines.h"
-#include "mindseye/core/containers/dynarray.h"
+#include "core/me_defines.h"
+#include "core/containers/dynarray.h"
+#include "core/me_memory.h"
 
 #include <string_view> // C++17 for std::string_view
 
@@ -29,7 +30,7 @@ struct meTypeDescriptor
 	String name = {};
 	String editorName = {};
 	String tooltip = {};
-	meArray<meTypeDescriptor> fields = {};
+	meSpanTyped<meTypeDescriptor> fields = {};
 	s32 value = 0;
 	s32 flags = 0;
 	s32 version = 0;
@@ -39,6 +40,9 @@ struct meTypeDescriptor
 	s32 offsetBits = 0;
 
 	meTypeDescriptor* underlyingType = nullptr;
+
+	StringView ToString(meAllocator* allocator, meSpan data) const;
+	meSpan FromString(meAllocator* allocator, StringView str) const;
 
 	bool operator==(const meTypeDescriptor& other) const
 	{
@@ -51,6 +55,11 @@ struct meTypeDescriptor
 	}
 };
 
+// TODO: relative? fixup?....
+struct meSerializedPtr
+{
+	void* ptr;
+};
 
 extern meTypeDescriptor TD_UNSIGNED_INT;
 extern meTypeDescriptor TD_INT;

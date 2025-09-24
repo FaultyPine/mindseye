@@ -5,8 +5,8 @@
 
 bool meReadFileContents(StringView filepath, meSpan backingBuffer)
 {
-    OSFileReference file = OSFileReference{.flags = ScopedFile};
-    if (!meOSOpenFile(file, filepath))
+    OSFileReference file;
+    if (!meOSOpenFile(file, filepath, (OSFileFlags)(OSFileFlags::ScopedFile | OSFileFlags::OnlyIfExists)))
     {
         LOG_ERROR("[meFS] failed to open file %.*s", STRING_VAARGS(filepath));
         return false;
@@ -14,13 +14,6 @@ bool meReadFileContents(StringView filepath, meSpan backingBuffer)
     bool result = meOSReadFileContents(file, backingBuffer.data, backingBuffer.size);
     return result;
 }
-
-size_t meGetFileSize(const char* filepath)
-{
-    UNIMPLEMENTED();
-    return 0;
-}
-
 
 char meFsGetDirectorySeperator()
 {
