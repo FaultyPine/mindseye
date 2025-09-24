@@ -316,7 +316,7 @@ void StoreReflectedTypeInfo(
 			excluded = true;
 		}
 	}
-	if (excluded) return;
+	//if (excluded) return;
 
 	CXCursorKind crKind = clang_getCursorKind(cr);
 	CXCursor parentCr = clang_getCursorLexicalParent(cr);
@@ -340,6 +340,8 @@ void StoreReflectedTypeInfo(
 		// annotated fields have their parentCr as the fielddecl. Unannotated fields have their parentCr as the struct decl
 		// TODO: does the above logic properly handle primitives VS external types? I.E. glm::vec3?
 		meReflectedType& fieldTypeRefl = GetReflectedType(fieldTypeCr, allocator, ctx);
+		fieldTypeRefl.isExcluded = fieldTypeRefl.isExcluded || excluded;
+
 		meReflectedType& fieldMemberRefl = *MENEW(ctx.allocator, meReflectedType); // this will contain the field's type info
 		
 		meReflectedType& parentReflType = GetReflectedType(parentCr, allocator, ctx);
@@ -423,7 +425,7 @@ void StoreReflectedTypeInfo(
 		StringView versionParam = GetStringParam(STRING_LIT("Version"), macroContent);
 		if (versionParam) reflType.version = StringToUint(versionParam);
 
-		reflType.isExcluded = excluded;
+		reflType.isExcluded = reflType.isExcluded || excluded;
 	}
 }
 
@@ -877,7 +879,14 @@ void ProcessReflectedFile(
 				for (s32 i = 0; i < numChildren; i++)
 				{
 					meReflectedType& childReflType = *typeRefl.children[i];
-					fieldsArrayContent.Append(STRING_LIT("\t{"));
+
+					if (childReflType.isExcluded)
+					{
+						fieldsArrayContent.AppendFormat("\t{ .name = STRING_LIT(\"%.*s\"), .size = %i, .align = %i, .offsetBits = %i },", STRING_VAARGS(childReflType.name), childReflType.size, childReflType.align, childReflType.offsetBits);
+						continue;
+					}
+					
+					fieldsArrayContent.Append(STRING_LIT("\t{ "));
 					fieldsArrayContent.AppendFormat(".name = STRING_LIT(\"%.*s\"), ", STRING_VAARGS(childReflType.name));
 					if (childReflType.editorName) fieldsArrayContent.AppendFormat(".editorName = STRING_LIT(\"%.*s\"), ", STRING_VAARGS(childReflType.editorName));
 					if (childReflType.tooltip) fieldsArrayContent.AppendFormat(".tooltip = STRING_LIT(\"%.*s\"), ", STRING_VAARGS(childReflType.tooltip));
