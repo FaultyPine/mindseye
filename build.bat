@@ -18,17 +18,20 @@ if not exist "build" mkdir "build"
 if not exist "tools\clang" (
     echo [First time setup] downloading clang binaries...
     call "tools\download_clang.bat"
+    IF %ERRORLEVEL% NEQ 0 (echo Error:%ERRORLEVEL% && exit /b)
 )
 if not exist "build\vulkan-1.dll" (
     if not exist "mindseye\external\vulkan_lib\Lib" (
         echo [First time setup] downloading vulkan sdk...
         call "tools\download_vulkan.bat"
+        IF %ERRORLEVEL% NEQ 0 (echo Error:%ERRORLEVEL% && exit /b)
     )
     copy "mindseye\external\vulkan_lib\Lib\vulkan-1.dll" "build"
 )
 if not exist "mindseye\external\bgfx\bin" (
     echo [Build setup] Downloading bgfx binaries...
     call "tools\download_bgfx.bat"
+    IF %ERRORLEVEL% NEQ 0 (echo Error:%ERRORLEVEL% && exit /b)
 )
 IF %ERRORLEVEL% NEQ 0 (echo Error:%ERRORLEVEL% && exit /b)
 
