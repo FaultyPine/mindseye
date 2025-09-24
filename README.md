@@ -24,13 +24,10 @@ then `build.bat`
 	- ended up writing a reflector program using libclang. Most control, simplest to implement/integrate.
 	- still needs hardening, for stuff like external types in structs (EX glm::vec3), and reflecting on enums
 - Serialization
-	- Use reflection system from above
-	- generate functions, or write a serialization function that operates on opaque typedescriptors
-	- Need something to serialize to/from
-		- most engines use stuff like yaml, xaml, json, etc.
-		- Do i want to do that...? Going to go with ini for now.
-	- Take a data block & type descriptor, and write it out to ini. 
-		- and take ini, load it into data block given a type descriptor
+	- ~~generate functions, or write a serialization function that operates on opaque typedescriptors~~
+	- ~~Need something to serialize to/from~~
+	- ~~Take a data block & type descriptor, and write it out to ini. ~~
+		- ~~and take ini, load it into data block given a type descriptor~~
 	- Use relative pointers
 - Scene loading. 
 	- map a MAID to a filesystem path, or an arbitrary "actual" asset identifier that a loading system can use to actually load the thing fr

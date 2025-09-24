@@ -95,7 +95,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 void meOSWinCreateWindow(WindowCreationParams creationParams, EngineContext* engine)
 {
     const wchar_t* CLASS_NAME  = L"Mindseye";
-    ArenaTemp scratch = ArenaTempInit(&engine->scratchWork);
     WNDCLASS wc = {};
 
     // "Passing 0 retrieves the handle of the calling process, not the calling module. 
@@ -110,7 +109,7 @@ void meOSWinCreateWindow(WindowCreationParams creationParams, EngineContext* eng
     RegisterClass(&wc);
 
     int wide_char_len = MultiByteToWideChar(CP_UTF8, 0, creationParams.name.data, -1, nullptr, 0);
-    StringView wideString = StringView((char*)ArenaAlloc(&scratch, wide_char_len), wide_char_len);
+    StringView wideString = StringView((char*)MEALLOC(GetTLScratch(), wide_char_len), wide_char_len);
     MultiByteToWideChar(CP_UTF8, 0, creationParams.name.data, -1, (wchar_t*)wideString.data, wide_char_len);
 
     // When you create a window, windows immediately fires a WM_SIZE event

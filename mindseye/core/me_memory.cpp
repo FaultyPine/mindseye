@@ -20,7 +20,7 @@ void meSystemAllocator::meFree(void* allocation)
     meOSFreeVirtualMemory(allocation);
 }
 
-void meSystemAllocator::meClear()
+void meSystemAllocator::meClear(bool deleteMemory)
 {
     // noop, can't really "clear" the system allocations
     UNIMPLEMENTED();
@@ -31,6 +31,19 @@ meAllocator* GetSystemAllocator()
     static meSystemAllocator system = meSystemAllocator();
     return &system;
 }
+
+thread_local ArenaScopedScratch scratchWork; // individual systems are in charge of handling their own allocations here.
+
+// TODO: subscribe to thread creation event to release this
+MEAPI meAllocator* GetTLScratch()
+{
+	if (!scratchWork.backing_mem)
+	{
+		new(&scratchWork)ArenaScopedScratch(ArenaInit(MEGABYTES_BYTES(5), "Threadlocal Scratch", GetSystemAllocator()));
+	}
+	return &scratchWork;
+}
+
 
 meOwningSpan ReallocateBuffer(
 	meAllocator* allocator,
@@ -53,7 +66,6 @@ void InitializeAllocatorSystem(EngineContext* engine)
     engine->engineFrameAllocator = ArenaInit(ENGINE_INITIAL_RESERVED_MEMSIZE, "Engine Frame", systemAllocator);
     engine->engineSceneAllocator = ArenaInit(ENGINE_INITIAL_RESERVED_MEMSIZE, "Engine Scene", systemAllocator);
     engine->gameArena = ArenaInit(ENGINE_INITIAL_RESERVED_MEMSIZE, "Game", systemAllocator);
-    engine->scratchWork = ArenaInit(ENGINE_INITIAL_RESERVED_MEMSIZE, "Scratch", systemAllocator);
 }
 
 #endif

@@ -6,6 +6,8 @@
 #include "core/me_filesystem.h"
 #include "core/me_event.h"
 
+#include "generatedtypes/me_asset.generated.cpp"
+
 MEEVENT_DECLARE_STATIC(registerAssetLoader);
 
 static bool MEASSET_DEBUG_SINGLETHREADED_LOAD = 1;

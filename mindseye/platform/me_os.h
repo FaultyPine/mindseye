@@ -7,7 +7,7 @@ struct EngineContext;
 
 struct WindowCreationParams
 {
-    String name = STRING_LIT("Unknown Window");
+    String name = STRING_LIT("Mindseye");
     u32 width = 1280;
     u32 height = 720;
 };

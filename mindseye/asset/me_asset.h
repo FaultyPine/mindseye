@@ -5,6 +5,8 @@
 #include "core/thread/me_rw_lock.h"
 #include "core/me_job_system.h"
 
+#include "generatedtypes/me_asset.generated.h"
+
 #define ME_DECLARE_ASSET_TYPES \
 X(BadData)\
 X(Scene)\
@@ -23,7 +25,7 @@ STATIC_ASSERT(NUM_ASSET_TYPES < 128);
 
 
 // mindseye asset id
-struct MAID
+struct MEREFLECT(type) MAID
 {
     u64 id: 48;
     u64 type: 8;

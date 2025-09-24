@@ -32,6 +32,7 @@ void RunEngine(EngineContext* engine)
         renderInput.osData = *engine->osData;
         void* renderedSceneHandle = engine->renderer->RenderScene(&renderInput);
         UNUSED(renderedSceneHandle);
+		GetTLScratch()->meClear(); // clear the main engine thread's scratch buffer every frame
     }
     engine->renderer->Teardown(engine);
 }
@@ -41,16 +42,17 @@ void InitializeEngine(s32 argc, char** argv)
 	meThreadSetName("Engine Main Thread");
     EngineContext* engine = GetEngineCtx();
     engine->isRunning = true;
-    engine->engineInitialize();
+
     InitializeLogger();
     InitializeAllocatorSystem(engine);
     InitializeCmdLine(argc, argv);
-    meAssetInitialize(engine);
-    WindowCreationParams windowCreationParams = {};
-    engine->callbacks.initFn(engine, windowCreationParams);
+    meAssetInitialize(engine);     
+	meSceneInitialize(engine);
+    
+	WindowCreationParams windowCreationParams = {}; // TODO: from config/cmdline?
     meOSCreateWindow(windowCreationParams, engine);
     RendererInitialize(engine);
-	engine->sceneSystem = MENEW(&engine->engineArena, meSceneManager, engine);
 
+    engine->callbacks.initFn(engine);
     RunEngine(engine);
 }

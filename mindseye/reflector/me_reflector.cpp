@@ -243,7 +243,7 @@ meTypeDescriptor* MapClangPrimitiveTypeToTypeDescriptor(CXCursor cr)
 		{ CXType_UShort, &TD_UNSIGNED_SHORT},
 		{ CXType_UInt, &TD_UNSIGNED_INT},
 		{ CXType_ULong, &TD_UNSIGNED_LONG},
-		{ CXType_ULongLong, &TD_UNSIGNED_LONGLONG},
+		{ CXType_ULongLong, &TD_UNSIGNED_LONG_LONG},
 		{ CXType_Char_S, &TD_CHAR},
 		{ CXType_SChar, &TD_CHAR},
 		{ CXType_WChar, &TD_WCHAR},
@@ -769,6 +769,46 @@ void GeneratedReflectionHeaders(
 	}
 }
 
+void GenerateForwardDecls(
+	StringBuilder& builder, 
+	meMap<u32, meReflectedType> reflectedTypes, 
+	meAllocator* allocator)
+{
+	for (const auto& [nameID, typeRefl] : reflectedTypes)
+	{
+		if (typeRefl.isExcluded) continue;
+		if (typeRefl.kind == CXCursor_StructDecl)
+		{
+			String uppercaseName = String(typeRefl.name, allocator);
+			ToUpper(uppercaseName);
+			StringReplace(uppercaseName, ' ', '_');
+			u32 numChildren = DynArrayGetSize(typeRefl.children);
+			if (numChildren > 0)
+			{
+				for (s32 i = 0; i < numChildren; i++)
+				{
+					meReflectedType& childReflType = *typeRefl.children[i];
+					if (childReflType.innerType && childReflType.innerType->name)
+					{
+						bool isPrimitive = !childReflType.innerType->children || DynArrayGetSize(childReflType.innerType->children) == 0;
+						if (isPrimitive)
+						{
+							continue;
+						}
+						String underlyingTD = String(childReflType.innerType->name, allocator);
+						ToUpper(underlyingTD);
+						StringReplace(underlyingTD, ' ', '_');
+						builder.AppendFormat("extern meTypeDescriptor TD_%.*s;\n", STRING_VAARGS(underlyingTD));
+					}
+				}				
+			}
+			builder.AppendFormat("struct %.*s;\n", STRING_VAARGS(typeRefl.name));
+			builder.AppendFormat("extern meTypeDescriptor TD_%.*s;\n", STRING_VAARGS(uppercaseName));
+		}
+	}
+}
+
+
 
 void ProcessReflectedFile(
 	const meReflectedFile& fileRefl,
@@ -794,15 +834,7 @@ void ProcessReflectedFile(
 	headerContentBuilder.Append(STRING_LIT("#include \"reflector/reflection_types.h\"\n"));
 	headerContentBuilder.AppendFormat("STATIC_ASSERT(constexpr_strstr(std::string_view(__FILE__), \"%.*s\") != std::string_view::npos);\n", STRING_VAARGS(parsedHeaderFilenameNoExt));
 
-	for (const auto& [nameID, typeRefl] : fileRefl.reflectedTypes)
-	{
-		if (typeRefl.isExcluded) continue;
-		if (typeRefl.kind == CXCursor_StructDecl)
-		{
-			headerContentBuilder.AppendFormat("struct %.*s;\n", STRING_VAARGS(typeRefl.name));
-			headerContentBuilder.AppendFormat("extern meTypeDescriptor g_%.*s_typedescriptor;\n", STRING_VAARGS(typeRefl.name));
-		}
-	}
+	GenerateForwardDecls(headerContentBuilder, fileRefl.reflectedTypes, allocator);
 
 	StringView fileContent = headerContentBuilder;
 	if (fileContent)
@@ -829,6 +861,9 @@ void ProcessReflectedFile(
 		if (typeRefl.isExcluded) continue;
 		if (typeRefl.kind == CXCursor_StructDecl)
 		{
+			String uppercaseName = String(typeRefl.name, allocator);
+			ToUpper(uppercaseName);
+			StringReplace(uppercaseName, ' ', '_');
 			u32 numChildren = DynArrayGetSize(typeRefl.children);
 			if (numChildren > 0)
 			{
@@ -868,7 +903,7 @@ void ProcessReflectedFile(
 			mainTypeDescriptorContent.AppendFormat("\t.size = %i,\n", typeRefl.size);
 			mainTypeDescriptorContent.AppendFormat("\t.align = %i,", typeRefl.align);
 
-			sourceContentBuilder.AppendFormat("meTypeDescriptor g_%.*s_typedescriptor = {\n%.*s\n};\n", STRING_VAARGS(typeRefl.name), STRING_VAARGS(mainTypeDescriptorContent));
+			sourceContentBuilder.AppendFormat("meTypeDescriptor TD_%.*s = {\n%.*s\n};\n", STRING_VAARGS(uppercaseName), STRING_VAARGS(mainTypeDescriptorContent));
 		}
 	}
 

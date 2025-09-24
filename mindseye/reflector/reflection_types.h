@@ -68,7 +68,7 @@ extern meTypeDescriptor TD_SHORT;
 extern meTypeDescriptor TD_UNSIGNED_LONG;
 extern meTypeDescriptor TD_LONG;
 extern meTypeDescriptor TD_LONGLONG;
-extern meTypeDescriptor TD_UNSIGNED_LONGLONG;
+extern meTypeDescriptor TD_UNSIGNED_LONG_LONG;
 extern meTypeDescriptor TD_FLOAT;
 extern meTypeDescriptor TD_DOUBLE;
 extern meTypeDescriptor TD_BOOL;

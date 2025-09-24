@@ -13,7 +13,7 @@ struct meAssetSystem;
 struct CommandLineArgs;
 struct meSceneManager;
 
-typedef void(*InitFn)(EngineContext* engine, WindowCreationParams& windowCreationParams);
+typedef void(*InitFn)(EngineContext* engine);
 typedef void(*UpdateFn)(EngineContext* engine);
 typedef void(*ShutdownFn)(EngineContext* engine);
 struct AppCallbacks
@@ -25,13 +25,11 @@ struct AppCallbacks
 struct EngineContext
 {
     AppCallbacks callbacks = {};
-    meEvent engineInitialize = {};
     // allocators
     Arena gameArena = {};
     Arena engineArena = {}; // persistent, never cleared
     Arena engineFrameAllocator = {}; // cleared at the end of each frame
     Arena engineSceneAllocator = {}; // persistent for a scene
-    Arena scratchWork = {}; // individual systems are in charge of handling their own allocations here.
     
     // systems
     RendererFrontend* renderer = nullptr;

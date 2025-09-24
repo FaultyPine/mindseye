@@ -36,7 +36,7 @@ meSpan DeserializeFromIniBlocking(
 	StringView inFilename)
 {
 	inicpp::IniManager iniObj(inFilename.data);
-	Allocation deserializationMemory = MEALLOC(allocator, MEGABYTES_BYTES(5));
+	Allocation deserializationMemory = MEALLOC(GetTLScratch(), MEGABYTES_BYTES(1));
 	Allocation bumper = deserializationMemory;
 	for (u64 i = 0; i < typeDesc.fields.size; i++)
 	{

@@ -4,11 +4,32 @@
 #include "core/me_string.h"
 #include "core/me_memory.h"
 
-Allocation Arena::meAlloc(u64 size) { return {ArenaAlloc(this, size), size}; }
-// TODO: check the allocation if it's the most recent one, if so, we can pop it
-void Arena::meFree(void* allocation) { ME_ASSERT(backing_mem <= allocation && allocation <= (backing_mem + backing_mem_size)); }
-Allocation Arena::meRealloc(const Allocation& allocation, u64 newSize) { UNIMPLEMENTED(); return {}; }
-void Arena::meClear() { ArenaClear(this); }
+Allocation Arena::meAlloc(u64 size) 
+{ 
+	return {ArenaAlloc(this, size), size}; 
+}
+
+void Arena::meFree(void* allocation) 
+{
+	// TODO: check the allocation if it's the most recent one, if so, we can pop it
+	ME_ASSERT(backing_mem <= allocation && allocation <= (backing_mem + backing_mem_size))
+}
+
+Allocation Arena::meRealloc(const Allocation& allocation, u64 newSize) 
+{ 
+	UNIMPLEMENTED(); 
+	return {}; 
+}
+
+void Arena::meClear(bool deleteMemory) 
+{ 
+	if (deleteMemory && backingAllocator && backing_mem)
+	{
+		MEFREE(backingAllocator, backing_mem);
+		backing_mem_size = 0;
+	} 
+	ArenaClear(this);
+}
 
 Arena ArenaInit(
 	size_t arena_size, 
@@ -52,10 +73,10 @@ void* ArenaAlloc(Arena* arena, size_t alloc_size)
     if (is_out_of_mem) 
     {
         LOG_FATAL("Out of memory in arena %s\n", ArenaGetName(arena));
-        // maybe we automatically resize here?
+        // maybe we automatically resize here? Better plan: call an "outofmemoryhandler" on the backingAllocator
         return nullptr;
     }
-    // TODO: enforce alignment    
+    // TODO: enforce alignment
     void* new_alloc = arena->backing_mem + offset;
     arena->prev_offset = offset;
     offset += alloc_size;

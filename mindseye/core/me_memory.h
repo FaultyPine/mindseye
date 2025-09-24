@@ -27,7 +27,7 @@ struct meAllocator
     virtual Allocation meReserve(u64 size) { return meAlloc(size); }
     virtual void meFree(void* allocation) { UNIMPLEMENTED(); }
 	virtual Allocation meRealloc(const Allocation& allocation, u64 newSize) { UNIMPLEMENTED(); return {}; }
-    virtual void meClear() { UNIMPLEMENTED(); }
+    virtual void meClear(bool deleteMemory = false) { UNIMPLEMENTED(); }
 
 	meAllocator() : name(STRING_LIT("Unnamed allocator")) {}
 	meAllocator(StringView allocatorName) : name(allocatorName) {}
@@ -39,12 +39,13 @@ struct meSystemAllocator : public meAllocator
     MEAPI Allocation meAlloc(u64 size) override;
     MEAPI Allocation meReserve(u64 size) override;
     MEAPI void meFree(void* allocation) override;
-    MEAPI void meClear() override;
+    MEAPI void meClear(bool deleteMemory = false) override;
 
 	meSystemAllocator() : meAllocator(STRING_LIT("System Allocator")) {}
 };
 
 MEAPI meAllocator* GetSystemAllocator();
+MEAPI meAllocator* GetTLScratch();
 
 // takes an existing buffer and allocates + copies it into a new allocation
 MEAPI meOwningSpan ReallocateBuffer(
@@ -57,7 +58,13 @@ MEAPI meOwningSpan ReallocateBuffer(
 
 #define MEALLOC(allocator, size) ((allocator)->meAlloc(size))
 #define MERESERVE(allocator, size) ((allocator)->meReserve(size))
-#define MEFREE(allocator, data) ((allocator)->meFree(data))
+#define MEFREE(allocator, ptr) \
+	do { \
+		if (ptr != nullptr) { \
+			(allocator)->meFree(ptr); \
+			ptr = nullptr; \
+		} \
+	} while(0)
 
 #define MENEW(allocator, Type, ...) \
     new (MEALLOC((allocator), sizeof(Type)).data) Type(__VA_ARGS__)

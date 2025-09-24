@@ -12,16 +12,9 @@
 #include "mindseye/core/containers/me_blocklist.h"
 #include "mindseye/core/containers/me_bitarray.h"
 
-void testbed_init(EngineContext* engine, WindowCreationParams& windowCreationParams)
+void testbed_init(EngineContext* engine)
 {
-    windowCreationParams = {.name = STRING_LIT("Mindseye")};
-    DynArrayTests();
-    HybridArrayTests();
-    TestBlocklist();
-    TestmeBitArray();
-    int x = 1;
-    UNUSED(x);
-    LOG_TRACE("Hello world");
+    
 }
 
 void testbed_update(EngineContext* engine)

@@ -21,7 +21,30 @@ struct Arena : public meAllocator
     MEAPI Allocation meAlloc(u64 size) override;
     MEAPI void meFree(void* allocation) override;
     MEAPI Allocation meRealloc(const Allocation& allocation, u64 newSize) override;
-    MEAPI void meClear() override;
+    MEAPI void meClear(bool deleteMemory = false) override;
+};
+
+// Specifically for thread-local scratch memory
+struct ArenaScopedScratch : public Arena
+{
+	~ArenaScopedScratch()
+	{
+		meClear(true);
+		#if BUILD_DEBUG
+		ME_MEMCLEAR(backing_mem, backing_mem_size);
+		#endif
+	}
+	ArenaScopedScratch() = default;
+	ArenaScopedScratch(const Arena&& arena)
+	{
+		backing_mem = arena.backing_mem;
+		backing_mem_size = arena.backing_mem_size;
+		offset = arena.offset;
+		prev_offset = arena.prev_offset;
+		backingAllocator = arena.backingAllocator;
+	}
+	ArenaScopedScratch(const ArenaScopedScratch& other) = delete; // copy
+	ArenaScopedScratch& operator=(const ArenaScopedScratch& other) = delete; // copy assignment
 };
 
 MEAPI Arena ArenaInit(

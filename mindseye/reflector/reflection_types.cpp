@@ -9,7 +9,7 @@ meTypeDescriptor TD_SHORT = { .name = STRING_LIT("short"), .size = 2, .align = 2
 meTypeDescriptor TD_UNSIGNED_LONG = { .name = STRING_LIT("unsigned long"), .size = 8, .align = 8 };
 meTypeDescriptor TD_LONG = { .name = STRING_LIT("long"), .size = 8, .align = 8 };
 meTypeDescriptor TD_LONGLONG = { .name = STRING_LIT("long long"), .size = 8, .align = 8 };
-meTypeDescriptor TD_UNSIGNED_LONGLONG = { .name = STRING_LIT("unsigned long long"), .size = 8, .align = 8 };
+meTypeDescriptor TD_UNSIGNED_LONG_LONG = { .name = STRING_LIT("unsigned long long"), .size = 8, .align = 8 };
 meTypeDescriptor TD_FLOAT = { .name = STRING_LIT("float"), .size = 4, .align = 4 };
 meTypeDescriptor TD_DOUBLE = { .name = STRING_LIT("double"), .size = 8, .align = 8 };
 meTypeDescriptor TD_BOOL = { .name = STRING_LIT("bool"), .size = 1, .align = 1 };
@@ -56,7 +56,7 @@ StringView meTypeDescriptor::ToString(meAllocator* allocator, meSpan data) const
 		{
             StringFormatIntoBuf(buffer, "%lld", *((s64*)data.data));
         }
-        else if (this == &TD_UNSIGNED_LONGLONG) 
+        else if (this == &TD_UNSIGNED_LONG_LONG) 
 		{
             StringFormatIntoBuf(buffer, "%llu", *((u64*)data.data));
         }
@@ -171,7 +171,7 @@ meSpan meTypeDescriptor::FromString(meAllocator* allocator, StringView str) cons
             s64 value = StringParseInt64(str);
             *((s64*)result.data) = value;
         }
-        else if (this == &TD_UNSIGNED_LONGLONG) 
+        else if (this == &TD_UNSIGNED_LONG_LONG) 
         {
             u64 value = StringParseUInt64(str);
             *((u64*)result.data) = value;
