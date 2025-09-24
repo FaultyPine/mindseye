@@ -77,12 +77,9 @@ struct meAssetIdent
     // TODO: will be a hash of the "source" data that the asset is created from.
     // EX: shaders will be a hash of their source file. Images - hash of the .png or whatever
     u32 assetSourceHash = 0;
-    // TODO: version of the type of this asset. 
-    // I.E. "shader version 0" -> "shader version 1" (maybe i switch shader compilers, or change some option in the compiler flags...)
-    u32 assetVersion = 0;
     bool operator==(const meAssetIdent& other) const 
 	{ 
-		return id == other.id && assetSourceHash == other.assetSourceHash && assetVersion == other.assetVersion; 
+		return id == other.id && assetSourceHash == other.assetSourceHash; 
 	}
 };
 
@@ -90,8 +87,7 @@ MEMAP_BEGIN_CUSTOM_HASHER(meAssetIdent, ident)
 {
     size_t h1 = std::hash<MAID>{}(ident.id);
     size_t h2 = std::hash<u32>{}(ident.assetSourceHash);
-    size_t h3 = std::hash<u32>{}(ident.assetVersion);
-	return HashCombine(h1, h2, h3);
+	return HashCombine(h1, h2);
 } MEMAP_END_CUSTOM_HASHER
 
 struct meAssetLoader
