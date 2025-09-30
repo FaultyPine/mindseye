@@ -30,6 +30,7 @@ void RunEngine(EngineContext* engine)
 		engine->sceneSystem->Tick(engine);
         RenderInput renderInput = {};
         renderInput.osData = *engine->osData;
+		engine->sceneSystem->CopyToRenderInput(renderInput.scene);
         void* renderedSceneHandle = engine->renderer->RenderScene(&renderInput);
         UNUSED(renderedSceneHandle);
 		GetTLScratch()->meClear(); // clear the main engine thread's scratch buffer every frame

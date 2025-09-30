@@ -26,18 +26,14 @@ Inspiration for this type of reflection system came from Bobby Anguelov's Esoter
 https://github.com/BobbyAnguelov/Esoterica/tree/main/Code/Applications/Reflector/TypeReflection
 */
 
-struct ReflectedTypeIdentifier
+enum ReflectedTypeFlag
 {
-	u32 headerID;
-	u32 nameID;
-	bool operator==(const ReflectedTypeIdentifier& other) const
-	{
-		return headerID == other.headerID && nameID == other.nameID;
-	}
+	INCLUDE_IN_GENERATED_HEADER,
 };
 
-// can represent a number of things
-// like structure types, and also field decls
+// can represent structure types, field decls, others...
+// Very similar to meTypeDescriptor, but this is used during reflection whereas that's used in the generated headers
+// there is state we want to keep around during reflection we may not want to include in the generated headers, hence having two separate types
 struct meReflectedType
 {
 	DynArray(meReflectedType*) children = {};
@@ -50,6 +46,7 @@ struct meReflectedType
 	s32 offsetBits = 0; // offset of this type from it's parent type, in bits
 	u32 align = 0;
 	u32 version = 0;
+	u32 flags = 0;
 	bool isExcluded = false;
 	void Print() const;
 	bool operator==(const meReflectedType& other) const
@@ -259,8 +256,7 @@ meTypeDescriptor* MapClangPrimitiveTypeToTypeDescriptor(CXCursor cr)
 	return result;
 }
 
-// TODO: remove meReflectedType and use meTypeDescriptor instead.
-meReflectedType MeTypeDescriptorToReflectedTypeStopgapPleaseFix(meTypeDescriptor* typeDesc)
+meReflectedType TransferRelevantReflectedTypeInfoToTypeDescriptor(meTypeDescriptor* typeDesc)
 {
 	const meTypeDescriptor& other = *typeDesc;
 	meReflectedType result;
@@ -291,7 +287,7 @@ meReflectedType& GetReflectedType(CXCursor cr, meAllocator* allocator, ClangPars
 	if (IsPrimitiveType(cr)) // if we are registering a primitive type for the first time
 	{
 		meTypeDescriptor* typeDesc = MapClangPrimitiveTypeToTypeDescriptor(cr);
-		reflType = MeTypeDescriptorToReflectedTypeStopgapPleaseFix(typeDesc);
+		reflType = TransferRelevantReflectedTypeInfoToTypeDescriptor(typeDesc);
 	}
 	return reflType;
 }
@@ -352,6 +348,7 @@ void StoreReflectedTypeInfo(
 	else
 	{
 		reflTypePtr = &GetReflectedType(cr, allocator, ctx);
+		SET_BIT(reflTypePtr->flags, INCLUDE_IN_GENERATED_HEADER, true);
 	}
 	ME_ASSERT(reflTypePtr);
 	meReflectedType& reflType = *reflTypePtr;
@@ -799,7 +796,7 @@ void GenerateForwardDecls(
 					if (childReflType.innerType && childReflType.innerType->name)
 					{
 						bool isPrimitive = !childReflType.innerType->children || DynArrayGetSize(childReflType.innerType->children) == 0;
-						if (isPrimitive)
+						if (isPrimitive || !TEST_BIT(childReflType.flags, INCLUDE_IN_GENERATED_HEADER))
 						{
 							continue;
 						}
@@ -850,7 +847,7 @@ void ProcessReflectedFile(
 		OSFileReference headerFile = {};
 
 		const char* dstHeaderFilePath = StringFormat("%s/%.*s.generated.h", headerOutputFolder, STRING_VAARGS(parsedHeaderFilenameNoExt));
-		if (!meOSOpenFile(headerFile, StringView(dstHeaderFilePath, CStringLength(dstHeaderFilePath))))
+		if (!meOSOpenFile(headerFile, StringView(dstHeaderFilePath, CStringLength(dstHeaderFilePath)), OSFileFlags::StompExisting))
 		{
 			LOG_ERROR("Failed to open file %s while trying to generated reflected headers", dstHeaderFilePath);
 			return;
@@ -882,6 +879,8 @@ void ProcessReflectedFile(
 
 					if (childReflType.isExcluded)
 					{
+						// excluded fields are still "there", but they have no underlying type
+						// think of it like "padding" bytes so the other field's offsets make sense
 						fieldsArrayContent.AppendFormat("\t{ .name = STRING_LIT(\"%.*s\"), .size = %i, .align = %i, .offsetBits = %i },", STRING_VAARGS(childReflType.name), childReflType.size, childReflType.align, childReflType.offsetBits);
 						continue;
 					}
@@ -893,8 +892,10 @@ void ProcessReflectedFile(
 					fieldsArrayContent.AppendFormat(".size = %i, ", childReflType.size != 0 ? childReflType.size : (childReflType.innerType ? childReflType.innerType->size : 0));
 					fieldsArrayContent.AppendFormat(".align = %i, ", childReflType.align != 0 ? childReflType.align : (childReflType.innerType ? childReflType.innerType->align : 0));
 					fieldsArrayContent.AppendFormat(".offsetBits = %i, ", childReflType.offsetBits);
-					if (childReflType.innerType && childReflType.innerType->name)
+					if (childReflType.innerType && childReflType.innerType->name && TEST_BIT(childReflType.flags, INCLUDE_IN_GENERATED_HEADER))
 					{
+						// TODO: Do a map check here if this type is something we "know" about in the generated headers.
+						// if it isn't.... if it's an "external type", maybe generate a stub descriptor for it, or leave the underlying type null
 						String underlyingTD = String(childReflType.innerType->name, allocator);
 						ToUpper(underlyingTD);
 						StringReplace(underlyingTD, ' ', '_');
@@ -929,7 +930,7 @@ void ProcessReflectedFile(
 		s32 extensionIdx = FindInStringRev(parsedHeaderFilename, STRING_LIT("."));
 		StringView parsedSourceFilenameNoExt = parsedHeaderFilename.OffsetView(0, extensionIdx);
 		const char* dstFilePath = StringFormat("%s/%.*s.generated.cpp", headerOutputFolder, STRING_VAARGS(parsedSourceFilenameNoExt));
-		if (!meOSOpenFile(sourceFile, StringView(dstFilePath, CStringLength(dstFilePath))))
+		if (!meOSOpenFile(sourceFile, StringView(dstFilePath, CStringLength(dstFilePath)), OSFileFlags::StompExisting))
 		{
 			LOG_ERROR("Failed to open file %s while trying to generated reflected headers", dstFilePath);
 			return;

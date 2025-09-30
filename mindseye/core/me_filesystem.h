@@ -14,4 +14,3 @@ MEAPI char meFsGetDirectorySeperator();
 MEAPI StringView meFsGetFilepathFromPath(StringView path);
 
 MEAPI void meFsNormalizePathSeperators(StringView str);
-

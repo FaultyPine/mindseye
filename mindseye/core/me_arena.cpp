@@ -31,25 +31,41 @@ void Arena::meClear(bool deleteMemory)
 	ArenaClear(this);
 }
 
+Arena::Arena(u64 size, const char* name, meAllocator* backingAllocator)
+{
+	*this = ArenaInit(size, name, backingAllocator);
+}
+
 Arena ArenaInit(
-	size_t arena_size, 
+	size_t arenaSize, 
 	const char* name, 
 	meAllocator* backingAllocator) 
 {
     Arena a;
-    meAllocator* allocator = backingAllocator != nullptr ? backingAllocator : GetSystemAllocator();
+	ArenaInit(a, arenaSize, name, backingAllocator);
+    return a;
+}
+
+void ArenaInit(
+	Arena& a,
+	size_t arenaSize,
+	const char* name,
+	meAllocator* backingAllocator)
+{
+	meAllocator* allocator = backingAllocator != nullptr ? backingAllocator : GetSystemAllocator();
     a.backingAllocator = allocator;
-    a.backing_mem = (unsigned char*)MEALLOC(allocator, arena_size).data;
-    a.backing_mem_size = arena_size;
+    a.backing_mem = (unsigned char*)MEALLOC(allocator, arenaSize).data;
+    a.backing_mem_size = arenaSize;
     a.offset = 0;
     a.prev_offset = 0;
     if (name != nullptr)
     {
-        char* name_mem = (char*)ArenaAlloc(&a, ARENA_MAX_NAME_LEN); 
-        ME_MEMCLEAR(name_mem, ARENA_MAX_NAME_LEN);
-        StringCopy(StringFromCString(name_mem, ARENA_MAX_NAME_LEN), StringFromCString(name, ARENA_MAX_NAME_LEN));
+		u64 nameLen = MEMIN(CStringLength(name), ARENA_MAX_NAME_LEN);
+        char* name_mem = (char*)ArenaAlloc(&a, nameLen); 
+        ME_MEMCLEAR(name_mem, nameLen);
+        StringCopy(StringView(name_mem, nameLen), StringView(name, nameLen));
+		a.name = StringView(name_mem, nameLen);
     }
-    return a;
 }
 
 const char* ArenaGetName(Arena* arena) 

@@ -12,6 +12,7 @@ MEEVENT_DECLARE_STATIC(registerAssetLoader);
 
 static bool MEASSET_DEBUG_SINGLETHREADED_LOAD = 1;
 constexpr u32 NUM_ASSET_COMPILER_THREADS = 1;
+static const char* DEFAULT_RESOURCE_DIRECTORY_NAME = "data";
 
 static meAssetSystem& GetAssetSystem()
 {
@@ -23,7 +24,7 @@ void meAssetInitialize(EngineContext* engine)
     engine->assetSystem = MENEW(&engine->engineArena, meAssetSystem);
 	engine->assetSystem->assetRegistry.reserve(500);
     const CommandLineArgs& cmdline = GetCommandLineArgs();
-    meAssetSetResourceDir(cmdline.hasResourceDir ? cmdline.ResourceDir : "resource/");
+    meAssetSetResourceDir(cmdline.hasResourceDir ? cmdline.ResourceDir : DEFAULT_RESOURCE_DIRECTORY_NAME);
 	engine->assetSystem->assetCompilerJobs.Initialize(&engine->engineArena, NUM_ASSET_COMPILER_THREADS);
 	registerAssetLoader( meEventPayload{ &engine->engineArena });
 }
@@ -179,5 +180,5 @@ const char* meAssetGetResourceDir()
 
 const char* meAssetResource(StringView resourcePath)
 {
-    return StringFormat("%s%c%.*s", meAssetGetResourceDir(), meFsGetDirectorySeperator(), resourcePath);
+    return StringFormat("%s%c%.*s", meAssetGetResourceDir(), meFsGetDirectorySeperator(), STRING_VAARGS(resourcePath));
 }

@@ -109,8 +109,9 @@ void meOSWinCreateWindow(WindowCreationParams creationParams, EngineContext* eng
     RegisterClass(&wc);
 
     int wide_char_len = MultiByteToWideChar(CP_UTF8, 0, creationParams.name.data, -1, nullptr, 0);
-    StringView wideString = StringView((char*)MEALLOC(GetTLScratch(), wide_char_len), wide_char_len);
-    MultiByteToWideChar(CP_UTF8, 0, creationParams.name.data, -1, (wchar_t*)wideString.data, wide_char_len);
+	// TODO: use TLScratch
+    StringView wideString = StringView((char*)MEALLOC(GetSystemAllocator(), wide_char_len), wide_char_len);
+    MultiByteToWideChar(CP_ACP, 0, creationParams.name.data, -1, (wchar_t*)wideString.data, wide_char_len);
 
     // When you create a window, windows immediately fires a WM_SIZE event
     // this can create a discrepency between some window sizing logic.
@@ -143,16 +144,20 @@ void meOSWinCreateWindow(WindowCreationParams creationParams, EngineContext* eng
 
     if (hwnd == NULL)
     {
+		DWORD result = GetLastError();
+		LOG_ERROR("Failed to open OS window %i", result);
         return;
     }
     HCURSOR hArrowCursor = LoadCursor(NULL, IDC_ARROW);
     SetCursor(hArrowCursor);
 
-    OSStateView* cachedOSData = MENEW(&engine->engineArena, OSStateView);
+    OSStateView* cachedOSData = &g_osData;
     cachedOSData->hinstance = hInstance;
     cachedOSData->hwnd = hwnd;
     cachedOSData->windowWidth = creationParams.width;
     cachedOSData->windowHeight = creationParams.height;
+	QueryPerformanceFrequency((LARGE_INTEGER *)&cachedOSData->ticksPerSecond);
+	QueryPerformanceCounter((LARGE_INTEGER *)&cachedOSData->ticksAtAppStart);
     engine->osData = cachedOSData;
     engine->appName = creationParams.name;
 }
@@ -269,7 +274,15 @@ bool meOSWinOpenFile(OSFileReference& file, StringView path, OSFileFlags flags)
     ME_MEMCLEAR((void*)file.path, PATH_MAX);
     StringCopy({file.path, PATH_MAX}, path);
     file.flags = (OSFileFlags)((u32)file.flags | (u32)flags);
-	u32 openMode = (flags & OnlyIfExists) ? OPEN_EXISTING : CREATE_ALWAYS;
+	u32 openMode = OPEN_ALWAYS;
+	if (flags & OnlyIfExists)
+	{
+		openMode = flags & StompExisting ? TRUNCATE_EXISTING : OPEN_EXISTING;
+	}
+	else if (flags & StompExisting)
+	{
+		openMode = CREATE_ALWAYS;
+	}
     file.fileHandle = CreateFileA(file.path, GENERIC_READ | GENERIC_WRITE, 0 /*exclusive access*/, 0, openMode, FILE_ATTRIBUTE_NORMAL, 0);
     if (file.fileHandle == INVALID_HANDLE_VALUE)
     {
@@ -389,4 +402,21 @@ String meOSResolveRelativeToAbsPath(
 	ME_ASSERT(result > 0);
 	absolutePath.len = CStringLength(absolutePath.data);
 	return absolutePath;
+}
+
+u32 meOSGetThreadID()
+{
+	return GetCurrentThreadId();
+}
+
+u64 OSStateView::GetTicksUsec() const
+{
+	u64 ticks;
+	ME_ASSERT(QueryPerformanceCounter((LARGE_INTEGER*)&ticks));
+	ticks -= ticksAtAppStart;
+	u64 seconds = ticks / ticksPerSecond;
+	u64 leftover = ticks % ticksPerSecond;
+	u64 time = (leftover * 1000000L) / ticksPerSecond;
+	time += seconds * 1000000L;
+	return time;
 }

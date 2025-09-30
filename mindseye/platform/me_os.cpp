@@ -8,6 +8,8 @@
 #endif
 #include "core/me_log.h"
 
+static OSStateView g_osData;
+
 #ifndef ME_CORE_ONLY
 
 void meOSCreateWindow(WindowCreationParams creationParams, EngineContext* engine)

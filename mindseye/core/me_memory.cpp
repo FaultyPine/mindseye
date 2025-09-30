@@ -32,14 +32,18 @@ meAllocator* GetSystemAllocator()
     return &system;
 }
 
-thread_local ArenaScopedScratch scratchWork; // individual systems are in charge of handling their own allocations here.
+// TODO: for some reason this isn't being initialized right
+// i'm passing it by ref into ArenaInit but the actual scratchWork isn't being updated???
+// idk what's going on.
+thread_local ArenaTLScratch scratchWork; // individual systems are in charge of handling their own allocations here.
 
-// TODO: subscribe to thread creation event to release this
+// NOTE: use with caution
 MEAPI meAllocator* GetTLScratch()
 {
 	if (!scratchWork.backing_mem)
 	{
-		new(&scratchWork)ArenaScopedScratch(ArenaInit(MEGABYTES_BYTES(5), "Threadlocal Scratch", GetSystemAllocator()));
+		new(&scratchWork) ArenaTLScratch();
+		ArenaInit(scratchWork, MEGABYTES_BYTES(5), "Threadlocal Scratch", GetSystemAllocator());
 	}
 	return &scratchWork;
 }

@@ -1,20 +1,13 @@
 
 #include "mindseye/core/me_app.h"
 #include "mindseye/core/me_log.h"
-#include "mindseye/platform/me_os.h"
-#include "mindseye/core/me_arena.h"
-#include "mindseye/core/me_memory.h"
-#include "mindseye/core/me_result.h"
-
-// tests
-#include "mindseye/core/containers/dynarray.h"
-#include "mindseye/core/containers/me_hybrid_array.h"
-#include "mindseye/core/containers/me_blocklist.h"
-#include "mindseye/core/containers/me_bitarray.h"
+#include "mindseye/scene/me_scene.h"
 
 void testbed_init(EngineContext* engine)
 {
-    
+	meScene testscene;
+	meSceneLoadFromGLTF(&engine->engineSceneAllocator, STRING_LIT("BarramundiFish/glTF/BarramundiFish.gltf"), testscene);
+	engine->sceneSystem->scene = testscene;
 }
 
 void testbed_update(EngineContext* engine)

@@ -10,7 +10,6 @@
 void SerializeToIniBlocking(
 	const meTypeDescriptor& typeDesc, 
 	void* data,
-	meAllocator* allocator,
 	StringView outFilename)
 {
 	inicpp::IniManager iniObj(outFilename.data);
@@ -25,7 +24,7 @@ void SerializeToIniBlocking(
 		// Doing this kind of textual human-readable serialization
 		// requires a heavy ToString call. Do I want to use human readable
 		// serialization formats???? Not sure what I really want to do here...
-		StringView fieldStr = field.ToString(allocator, fieldData);
+		StringView fieldStr = field.ToString(GetTLScratch(), fieldData);
 		iniObj["members"][(const char*)field.name.data] = (const char*)fieldStr.data;
 	}
 }
@@ -36,8 +35,9 @@ meSpan DeserializeFromIniBlocking(
 	StringView inFilename)
 {
 	inicpp::IniManager iniObj(inFilename.data);
-	Allocation deserializationMemory = MEALLOC(GetTLScratch(), MEGABYTES_BYTES(1));
-	Allocation bumper = deserializationMemory;
+	meAllocator* scratch = GetTLScratch();
+	Allocation scratchWorkMem = MEALLOC(scratch, MEGABYTES_BYTES(1));
+	Allocation bumper = scratchWorkMem;
 	for (u64 i = 0; i < typeDesc.fields.size; i++)
 	{
 		const meTypeDescriptor& field = typeDesc.fields[i];
@@ -45,10 +45,13 @@ meSpan DeserializeFromIniBlocking(
 		// requires a heavy ToString call. Do I want to use human readable
 		// serialization formats???? Not sure what I really want to do here...
 		std::string fieldStr = iniObj["members"].toString(field.name.data);
-		meSpan fieldData = field.FromString(allocator, StringView(fieldStr.c_str(), fieldStr.size())); // TODO
+		meSpan fieldData = field.FromString(scratch, StringView(fieldStr.c_str(), fieldStr.size())); // TODO
 		ME_MEMCPY(bumper.data, fieldData.data, fieldData.size);
 		bumper = bumper.Subspan(fieldData.size);
 	}
-	return deserializationMemory;
+	u64 deserializedSize = scratchWorkMem.size - bumper.size;
+	Allocation resultMemory = MEALLOC(allocator, deserializedSize);
+	ME_MEMCPY(resultMemory, scratchWorkMem, deserializedSize);
+	return resultMemory;
 }
 

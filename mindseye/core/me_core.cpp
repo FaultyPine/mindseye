@@ -1,5 +1,6 @@
 #include "me_core.h"
 
+#include "platform/me_os.h"
 
 // sanity
 STATIC_ASSERT(sizeof(s8) == 1);
@@ -67,17 +68,16 @@ f32 GetRandomf(f32 start, f32 end)
 }
 
 // returns the current time since app launch
-f64 GetTime() 
+f64 GetTimeUsec() 
 {
-    UNIMPLEMENTED();
-    //return glfwGetTime();
-    return 0.0;
+	f64 result = g_osData.GetTicksUsec();
+    return result;
 }
-f32 GetTimef() 
+
+f64 GetTimeSec()
 {
-    UNIMPLEMENTED();
-    //return (f32)GetTime();
-    return 0.0;
+	f64 result = GetTimeUsec() / 1000000.0;
+	return result;
 }
 
 

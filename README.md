@@ -39,6 +39,8 @@ then `build.bat`
 - asset system
 	- ~~job system to support above loading~~
 - load basic example scene (USD?)
+- Implement Relational mappers
+	- OneToMany, OneToOne (normal stdmap), ManyToOne, ManyToMany
 - render basic example scene
     - Dead simple blinnphong. Not trying to flesh anything out yet. Future - lightmapping, GDR, meshlets & mesh shaders
 - code, asset, shader hot reloading

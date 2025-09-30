@@ -81,8 +81,8 @@ set link_mindseye_rel= %linker_flags_common% %link_bgfx_libs_rel% -lmindseye_ext
 set link_mindseye_dbg= %linker_flags_common% %link_bgfx_libs_dbg% -lmindseye_ext
 
 :: mindseye shaders
-set compile_mindseye_shader_fs=%root%\mindseye\external\bgfx\bin\shadercDebug.exe -f %root%\mindseye\shaders\fs_rect.sc -o %root%\mindseye\shaders\fs_rect.h --bin2c --platform windows --type fragment -p 440 --varyingdef %root%\mindseye\shaders\rect.def.sc
-set compile_mindseye_shader_vs=%root%\mindseye\external\bgfx\bin\shadercDebug.exe -f %root%\mindseye\shaders\vs_rect.sc -o %root%\mindseye\shaders\vs_rect.h --bin2c --platform windows --type vertex -p 440 --varyingdef %root%\mindseye\shaders\rect.def.sc
+set compile_mindseye_shader_fs=%root%\mindseye\external\bgfx\bin\shadercDebug.exe -f %root%\mindseye\shaders\fs.sc -o %root%\mindseye\shaders\fs.h --bin2c --platform windows --type fragment -p 440 --varyingdef %root%\mindseye\shaders\varying.def.sc
+set compile_mindseye_shader_vs=%root%\mindseye\external\bgfx\bin\shadercDebug.exe -f %root%\mindseye\shaders\vs.sc -o %root%\mindseye\shaders\vs.h --bin2c --platform windows --type vertex -p 440 --varyingdef %root%\mindseye\shaders\varying.def.sc
 set compile_mindseye_shaders=%compile_mindseye_shader_fs% && %compile_mindseye_shader_vs%
 
 :: testbed

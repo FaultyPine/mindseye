@@ -30,7 +30,13 @@ void meSceneManager::LoadSceneFromFileBlocking(StringView filename, meAllocator*
 
 void meSceneManager::WriteSceneToFileBlocking(meScene* scene, StringView filename)
 {
-	SerializeToIniBlocking(TD_MESCENE, scene, GetTLScratch(), filename);
+	SerializeToIniBlocking(TD_MESCENE, scene, filename);
+}
+
+void meSceneManager::CopyToRenderInput(meScene& outScene)
+{
+	// copy the "current"? scene to the given scene for the renderer to use as its readonly copy. This will become complex later...
+	outScene = scene;
 }
 
 struct meSceneAssetLoader : public meAssetLoader
@@ -55,17 +61,19 @@ struct meSceneAssetLoader : public meAssetLoader
 
 MEEVENT_REGISTER_STATIC(registerAssetLoader, meSceneAssetLoader::RegisterAssetLoader);
 
-meSceneID meSceneLoadFromGLTF(meSpan gltfBuffer, StringView resourcePathSv)
+void meSceneLoadFromGLTF(
+	meAllocator* allocator, 
+	StringView resourcePathSv, 
+	meScene& outScene)
 {
-    meSceneID scene = U32_INVALID_ID;
     const char* resourcePath = meAssetResource(resourcePathSv);
     OSFileReference file = {.flags = ScopedFile};
-    meOSOpenFile(file, StringView(resourcePath, CStringLength(resourcePath)));
-    ME_ASSERT(meOSGetFileSize(file) <= gltfBuffer.size);
+    meOSOpenFile(file, StringView(resourcePath, CStringLength(resourcePath)), OSFileFlags::OnlyIfExists);
+	u64 filesize = meOSGetFileSize(file);
+	Allocation gltfBuffer = MEALLOC(allocator, filesize);
     if (!meOSReadFileContents(file, gltfBuffer.data, gltfBuffer.size))
     {
         LOG_ERROR("[meScene] failed to load gltf scene %s", resourcePath);
-        return scene;
     }
     cgltf_options options = {};
     cgltf_data* data = nullptr;
@@ -73,10 +81,27 @@ meSceneID meSceneLoadFromGLTF(meSpan gltfBuffer, StringView resourcePathSv)
     {
         cgltf_free(data);
     });
+	// parses the gltf json metadata
     cgltf_result parseResult = cgltf_parse(&options, gltfBuffer.data, gltfBuffer.size, &data);
     if (parseResult == cgltf_result_success)
     {
-        cgltf_load_buffers(&options, data, resourcePath);
+		// loads the external buffers (actual geo, textures, etc)
+        parseResult = cgltf_load_buffers(&options, data, resourcePath);
+		if (parseResult != cgltf_result_success)
+		{
+			LOG_WARN("Failed to load gltf buffers from %s", resourcePath);
+		}
     }
-    return scene;
+	else
+	{
+		LOG_WARN("Failed to parse gltf from %s", resourcePath);
+	}
+	// tmp
+	const char* sceneName = data->scene->name;
+	if (!sceneName)
+	{
+		sceneName = data->nodes_count ? data->nodes[0].name : "Unnamed scene";
+	}
+	outScene.sceneName = String(sceneName, CStringLength(sceneName), allocator);
+	outScene.runtime.gltfData = data;
 }

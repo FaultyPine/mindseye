@@ -3,9 +3,8 @@
 #include "core/me_defines.h"
 
 // returns the current time since app launch
-MEAPI f64 GetTime();
-// just casts GetTime to f32
-MEAPI f32 GetTimef();
+MEAPI f64 GetTimeUsec();
+MEAPI f64 GetTimeSec();
 
 MEAPI void OverwriteRandomSeed(u64 seed);
 MEAPI u64 GetRandomSeed();

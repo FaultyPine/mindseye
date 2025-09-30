@@ -1,70 +1,22 @@
 
 #include "bgfx_backend.h"
 
-#include "external/bgfx/bgfx/include/bgfx/bgfx.h"
 
 #include "core/me_core.h"
-
-#define ME_TREEMAP_IMPLEMENTATION
-#include "algo/me_treemap.h"
-#include "shaders/fs_rect.h"
-#include "shaders/vs_rect.h"
-
 #include "core/me_math.h"
+#include "scene/me_scene.h"
+#include "render/me_mesh.h"
+
+#include "external/cgltf.h"
 
 #include "bgfx/bgfx/include/bgfx/bgfx.h"
 #include "bgfx/bx/include/bx/bx.h"
 #include "external/bgfx/bgfx/examples/common/imgui/bgfx_imgui.cpp"
 
-struct PosColorVertex
-{
-    float x, y, z;
-    uint32_t rgba;
-};
-
-
-static PosColorVertex s_rectVertices[] =
-{
-    { -0.5f,  0.5f, 0.0f, 0xff00ff00 }, // Top-left
-    {  0.5f,  0.5f, 0.0f, 0xff00ff00 }, // Top-right
-    { -0.5f, -0.5f, 0.0f, 0xff00ff00 }, // Bottom-left
-    {  0.5f, -0.5f, 0.0f, 0xff00ff00 }, // Bottom-right
-};
-
-void SetRectVerts(glm::vec2 min, glm::vec2 max, u32 color)
-{
-    s_rectVertices[0].x = min.x;
-    s_rectVertices[0].y = max.y;
-    s_rectVertices[0].rgba = color;
-    
-    s_rectVertices[1].x = max.x;
-    s_rectVertices[1].y = max.y;
-    s_rectVertices[1].rgba = color;
-    
-    s_rectVertices[2].x = min.x;
-    s_rectVertices[2].y = min.y;
-    s_rectVertices[2].rgba = color;
-    
-    s_rectVertices[3].x = max.x;
-    s_rectVertices[3].y = min.y;
-    s_rectVertices[3].rgba = color;
-}
-
-static const uint16_t s_rectIndices[] =
-{
-    0, 1, 2,
-    1, 3, 2,
-};
-
-static bgfx::VertexLayout s_layout;
-
-void InitRectLayout()
-{
-    s_layout.begin()
-        .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
-        .add(bgfx::Attrib::Color0,   4, bgfx::AttribType::Uint8, true)
-        .end();
-}
+// ---- shaders
+#include "shaders/fs.h"
+#include "shaders/vs.h"
+// -------------
 
 void OnWindowResize(int width, int height)
 {
@@ -145,8 +97,9 @@ struct BgfxCallback : public bgfx::CallbackI
 
 void BgfxRendererBackend::Initialize(EngineContext* engine)
 {
-    rendererPersistentArena = ArenaInit(MEGABYTES_BYTES(50), "Renderer Persistent", &engine->engineArena);
-    rendererFrameArena = ArenaInit(MEGABYTES_BYTES(10), "Renderer Frame", &rendererPersistentArena);
+	// TODO: swap out the rendererPersistentAllocator for a tcmalloc esc heap.
+    rendererPersistentAllocator = MENEW(&engine->engineArena, Arena, MEGABYTES_BYTES(50), "Renderer Persistent", &engine->engineArena);
+    rendererFrameArena = ArenaInit(MEGABYTES_BYTES(10), "Renderer Frame", rendererPersistentAllocator);
     // If multiple systems are trying to subscribe here, it's time to make this an actual event, rather than one fn ptr
     ME_ASSERT(!engine->osData->onResizeCB);
     engine->osData->onResizeCB = OnWindowResize;
@@ -158,7 +111,7 @@ void BgfxRendererBackend::Initialize(EngineContext* engine)
     init.resolution.width = engine->osData->windowWidth;
     init.resolution.height = engine->osData->windowHeight;
     init.resolution.reset = BGFX_RESET_VSYNC;
-    init.callback = MENEW(&rendererPersistentArena, BgfxCallback);
+    init.callback = MENEW(rendererPersistentAllocator, BgfxCallback);
     bgfx::init(init);
     bgfx::setDebug(BGFX_DEBUG_TEXT);
     bgfx::setViewClear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x443355FF, 1.0f, 0);
@@ -174,120 +127,282 @@ void BgfxRendererBackend::Teardown(EngineContext* engine)
     bgfx::shutdown();
 }
 
-uint32_t float4_to_u32_argb(const glm::vec4& float_color) {
-    uint8_t a = static_cast<uint8_t>(std::floor(Math::Clamp(float_color.a * 255.0f, 0.0f, 255.0f)));
-    uint8_t r = static_cast<uint8_t>(std::floor(Math::Clamp(float_color.r * 255.0f, 0.0f, 255.0f)));
-    uint8_t g = static_cast<uint8_t>(std::floor(Math::Clamp(float_color.g * 255.0f, 0.0f, 255.0f)));
-    uint8_t b = static_cast<uint8_t>(std::floor(Math::Clamp(float_color.b * 255.0f, 0.0f, 255.0f)));
 
-    uint32_t res =  (static_cast<uint32_t>(a) << 24) |
-           (static_cast<uint32_t>(r)) |
-           (static_cast<uint32_t>(g) << 8) |
-           (static_cast<uint32_t>(b) << 16);
-    return res;
-}
+void LoadMeshFromGLTF(
+	meAllocator* meshPayloadAllocator,
+	const cgltf_mesh& inMesh, 
+	meMesh& outMesh)
+{
+	bgfx::VertexLayout v_layout; 
+	v_layout.begin()
+	.add(bgfx::Attrib::Position,  3, bgfx::AttribType::Float)
+	.add(bgfx::Attrib::Color0,    4, bgfx::AttribType::Uint8, true)
+	.add(bgfx::Attrib::TexCoord0, 2, bgfx::AttribType::Float)
+	.add(bgfx::Attrib::Normal,    3, bgfx::AttribType::Float)
+	.end();
+	for (u64 meshPrimIdx = 0; meshPrimIdx < inMesh.primitives_count; meshPrimIdx++)
+	{
+		const cgltf_primitive& prim = inMesh.primitives[meshPrimIdx];
 
-int compare_fn(const void *a, const void *b) {
-    return (int)(*(float*)b - *(float*)a);
-}
+		// attribs like position, texcoords, normals
+		for (u64 attributeIdx = 0; attributeIdx < prim.attributes_count; attributeIdx++)
+		{
+			const cgltf_attribute& attrib = prim.attributes[attributeIdx];
+			StringView attribName = StringView(attrib.name, CStringLength(attrib.name));
+			if (attrib.type == cgltf_attribute_type_position)
+			{
+				const cgltf_accessor* accessor = attrib.data;
+				u64 stride = sizeof(f32) * 3;
+				u64 dataSize = stride * accessor->count;
+				Allocation allocation = MEALLOC(meshPayloadAllocator, dataSize);
+				Allocation bumper = allocation;
+				f32 dataUnit[3];
+				for (u64 posIdx = 0; posIdx < accessor->count; posIdx++)
+				{
+					cgltf_accessor_read_float(accessor, posIdx, dataUnit, 3);
+					ME_MEMCPY(bumper, dataUnit, stride);
+					bumper = bumper.Subspan(stride);
+				}
+				outMesh.vertBuffer.cpuData = allocation;
+				outMesh.vertBuffer.bufferHandle = bgfx::createVertexBuffer(bgfx::makeRef(outMesh.vertBuffer.cpuData, dataSize), v_layout).idx;
+			}
+			else if (attrib.type == cgltf_attribute_type_normal)
+			{
+				const cgltf_accessor* accessor = attrib.data;
+				u64 stride = sizeof(f32) * 3;
+				u64 dataSize = stride * accessor->count;
+				Allocation allocation = MEALLOC(meshPayloadAllocator, dataSize);
+				Allocation bumper = allocation;
+				f32 dataUnit[3];
+				for (u64 posIdx = 0; posIdx < accessor->count; posIdx++)
+				{
+					cgltf_accessor_read_float(accessor, posIdx, dataUnit, 3);
+					ME_MEMCPY(bumper, dataUnit, stride);
+					bumper = bumper.Subspan(stride);
+				}
+				outMesh.normBuffer.cpuData = allocation;
+			}
+			else if (attrib.type == cgltf_attribute_type_tangent)
+			{
 
-double snap_to_increment(double value, double increment) {
-    if (increment == 0.0) {
-        return value; // Avoid division by zero
-    }
-    return std::round(value / increment) * increment;
+			}
+			else if (attrib.type == cgltf_attribute_type_texcoord)
+			{
+				const cgltf_accessor* accessor = attrib.data;
+				u64 stride = sizeof(f32) * 2;
+				u64 dataSize = stride * accessor->count;
+				Allocation allocation = MEALLOC(meshPayloadAllocator, dataSize);
+				Allocation bumper = allocation;
+				f32 dataUnit[2];
+				for (u64 posIdx = 0; posIdx < accessor->count; posIdx++)
+				{
+					cgltf_accessor_read_float(accessor, posIdx, dataUnit, 2);
+					ME_MEMCPY(bumper, dataUnit, stride);
+					bumper = bumper.Subspan(stride);
+				}
+				outMesh.texcoordBuffer.cpuData = allocation;
+			}
+		}
+
+		// indices
+		if (prim.indices)
+		{
+			u64 stride = prim.indices->stride;
+			u64 indicesMemSize = prim.indices->count * stride;
+			Allocation indicesMemory = MEALLOC(meshPayloadAllocator, indicesMemSize);
+			meSpan indicesBumper = indicesMemory;
+			for (u64 idx = 0; idx < prim.indices->count; idx++)
+			{
+				u64 readIdx = cgltf_accessor_read_index(prim.indices, idx);
+				ME_MEMCPY(indicesBumper.data, &readIdx, stride);
+				indicesBumper = indicesBumper.Subspan(stride);
+			}
+			outMesh.idxBuffer.cpuData = indicesMemory;
+			outMesh.idxBuffer.bufferHandle = bgfx::createIndexBuffer(bgfx::makeRef(outMesh.idxBuffer.cpuData, indicesMemSize)).idx;
+		}
+	}
 }
 
 void* BgfxRendererBackend::RenderScene(RenderInput* input)
 {
-    static bool initialized = false;
-    if (!initialized)
-    {
-        InitRectLayout();
-        initialized = true;
-    }
+	static bgfx::ProgramHandle program;
+	meAllocator* meshPayloadAllocator = this->rendererPersistentAllocator;
+	const cgltf_scene& scene = *input->scene.runtime.gltfData->scene;
+	static meMesh mesh = {};
+	for (u64 nodeIdx = 0; nodeIdx < scene.nodes_count; nodeIdx++)
+	{
+		const cgltf_node& node = *scene.nodes[nodeIdx];
+
+		const cgltf_mesh& gltfmesh = *node.mesh;
+		if (!mesh.IsLoaded())
+		{
+			LoadMeshFromGLTF(meshPayloadAllocator, gltfmesh, mesh);
+			const bgfx::Memory* fsmem = bgfx::alloc(sizeof(fs)+1);
+			ME_MEMCPY(fsmem->data, fs, sizeof(fs));
+			fsmem->data[fsmem->size-1] = '\0';
+
+			const bgfx::Memory* vsmem = bgfx::alloc(sizeof(vs)+1);
+			ME_MEMCPY(vsmem->data, vs, sizeof(vs));
+			vsmem->data[vsmem->size-1] = '\0';
+
+			bgfx::ShaderHandle fsHandle = bgfx::createShader(fsmem);
+			bgfx::ShaderHandle vsHandle = bgfx::createShader(vsmem);
+			program = bgfx::createProgram(vsHandle, fsHandle);
+			bgfx::setState(BGFX_STATE_WRITE_RGB
+						   | BGFX_STATE_WRITE_A
+						   | BGFX_STATE_WRITE_Z
+						   | BGFX_STATE_DEPTH_TEST_LESS
+						   | BGFX_STATE_CULL_CCW
+						   | BGFX_STATE_MSAA);
+		}
+	}
+
+	
+
+	u32 windowWidth = input->osData.windowWidth;
+	u32 windowHeight = input->osData.windowHeight;
     const MouseState& mouseState = input->osData.mouseState;
-    const bgfx::Stats* stats = bgfx::getStats();
+    //const bgfx::Stats* stats = bgfx::getStats();
     // Set view and clear
     bgfx::setViewClear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x443355FF, 1.0f, 0);
  
-    // Use a simple shader (replace with your own shader handles)
-    const bgfx::Memory* fsmem = bgfx::alloc(sizeof(fs_rect)+1);
-    ME_MEMCPY(fsmem->data, fs_rect, sizeof(fs_rect));
-    fsmem->data[fsmem->size-1] = '\0';
-
-    const bgfx::Memory* vsmem = bgfx::alloc(sizeof(vs_rect)+1);
-    ME_MEMCPY(vsmem->data, vs_rect, sizeof(vs_rect));
-    vsmem->data[vsmem->size-1] = '\0';
-
-    bgfx::ShaderHandle fsHandle = bgfx::createShader(fsmem);
-    bgfx::ShaderHandle vsHandle = bgfx::createShader(vsmem);
-    bgfx::ProgramHandle program = bgfx::createProgram(vsHandle, fsHandle); // Load or reference a valid bgfx shader program
-
-    float data[] = {5,546,346,354,6634,763,457,357,4536,7456,7,4567,435,2345,234,52,3452,4,523};
-    const char* data_names[] = {"hi","hi","hi","hi","hi","hi","hi","hi","hi","hi","hi","hi","hi","hi","hi","hi","hi","hi","hi"};
-    STATIC_ASSERT(ARRAY_SIZE(data) == ARRAY_SIZE(data_names));
-    auto bounds = meTreemapRect{0,0,(float)stats->width, (float)stats->height};
-    u32 numItems = ARRAY_SIZE(data);
-    meTreemapItem* items = ArenaAllocType(&rendererFrameArena, meTreemapItem, numItems);
-    qsort(data, numItems, sizeof(float), compare_fn);
-    me_treemap_normalize_sizes(data, numItems, bounds.w, bounds.h);
-    me_treemap_squarify(data, numItems, (void**)data_names, bounds, items, true);
-
-    float biggest = 0.0f;
-    for (u32 i = 0; i < numItems; i++) biggest = data[i] > biggest ? data[i] : biggest;
-
-    for (u32 i = 0; i < numItems; i++)
-    {
-        const meTreemapItem& item = items[i];
-        // glm::vec4 color = glm::vec4(item.value, 0, 0, 1);
-        float colMag = (float)(snap_to_increment(item.value, 2)) / (float)biggest;
-        glm::vec4 color = glm::vec4(colMag, 0, 0, 1);
-        glm::vec2 min = glm::vec2(item.rect.x, item.rect.y);
-        glm::vec2 max = min + glm::vec2(item.rect.w, item.rect.h);
-        bgfx::dbgTextPrintf((u16)min.x, (u16)min.y, 0x0f, (char*)item.userData);
-
-        // glm::vec2 min = glm::vec2(i * 50, i * 50);
-        // glm::vec2 max = min + 50.0f;
-        min /= glm::vec2(bounds.w, bounds.h); // make it 0-1
-        min -= 0.5f; // make it [-0.5, 0.5]
-        max /= glm::vec2(bounds.w, bounds.h);
-        max -= 0.5f; // make it [-0.5, 0.5]
-        SetRectVerts(min, max, float4_to_u32_argb(color));
-
-        auto mem = bgfx::copy(s_rectVertices, sizeof(s_rectVertices));
-        bgfx::VertexBufferHandle vbh = bgfx::createVertexBuffer(
-            mem,
-            s_layout
-        );
-        auto imem = bgfx::copy(s_rectIndices, sizeof(s_rectIndices));
-        bgfx::IndexBufferHandle ibh = bgfx::createIndexBuffer(imem);
-        bgfx::setVertexBuffer(0, vbh);
-        bgfx::setIndexBuffer(ibh);
-        bgfx::setState(BGFX_STATE_WRITE_RGB
-            | BGFX_STATE_WRITE_A
-            | BGFX_STATE_WRITE_Z
-            | BGFX_STATE_DEPTH_TEST_LESS
-            | BGFX_STATE_CULL_CCW
-            | BGFX_STATE_MSAA);
-        bgfx::submit(0, program);
-        bgfx::destroy(vbh);
-        bgfx::destroy(ibh);
-    }
     imguiBeginFrame(mouseState.mouseX
         ,  mouseState.mouseY
         ,  (TEST_BIT(mouseState.buttons, MouseState::LBUTTON) ? IMGUI_MBUT_LEFT   : 0)
 			| (TEST_BIT(mouseState.buttons, MouseState::RBUTTON) ? IMGUI_MBUT_RIGHT  : 0)
 			| (TEST_BIT(mouseState.buttons, MouseState::MBUTTON) ? IMGUI_MBUT_MIDDLE : 0)
         , mouseState.scroll
-        , u16(input->osData.windowWidth)
-        , u16(input->osData.windowHeight)
+		, u16(windowWidth)
+		, u16(windowHeight)
         );
 
     imguiEndFrame();
+	bgfx::touch(0);
+	//bgfx::setDebug(BGFX_DEBUG_PROFILER | BGFX_DEBUG_STATS | BGFX_DEBUG_TEXT);
+
+	const bx::Vec3 at  = { 0.0f, 1.0f,  0.0f };
+	const bx::Vec3 eye = { 0.0f, 1.0f, -2.5f };
+
+	// Set view and projection matrix for view 0.
+	{
+		float view[16];
+		bx::mtxLookAt(view, eye, at);
+
+		float proj[16];
+		bx::mtxProj(proj, 60.0f, float(windowWidth)/float(windowHeight), 0.1f, 100.0f, bgfx::getCaps()->homogeneousDepth);
+		bgfx::setViewTransform(0, view, proj);
+
+		// Set view 0 default viewport.
+		//bgfx::setViewRect(0, 0, 0, uint16_t(m_width), uint16_t(m_height) );
+	}
+
+	float mtx[16];
+	bx::mtxRotateXY(mtx
+					, 0.0f
+					, GetTimeSec()*0.8f
+					);
+	bgfx::setTransform(mtx);
+
+	bgfx::setVertexBuffer(0, bgfx::VertexBufferHandle { static_cast<u16>(mesh.vertBuffer.bufferHandle) });
+	bgfx::setIndexBuffer(bgfx::IndexBufferHandle { static_cast<u16>(mesh.idxBuffer.bufferHandle) });
+	bgfx::submit(0, program);
 
 
     ArenaClear(&rendererFrameArena);
     bgfx::frame();
     return nullptr;
+}
+
+
+
+
+
+struct PosColorTexCoord0Vertex
+{
+	float m_x;
+	float m_y;
+	float m_z;
+	uint32_t m_abgr;
+	float m_u;
+	float m_v;
+	float m_blend;
+	float m_angle;
+
+	static void init()
+	{
+		ms_layout
+		.begin()
+		.add(bgfx::Attrib::Position,  3, bgfx::AttribType::Float)
+		.add(bgfx::Attrib::Color0,    4, bgfx::AttribType::Uint8, true)
+		.add(bgfx::Attrib::TexCoord0, 4, bgfx::AttribType::Float)
+		.end();
+	}
+
+	static bgfx::VertexLayout ms_layout;
+};
+bgfx::VertexLayout PosColorTexCoord0Vertex::ms_layout;
+
+void renderScreenSpaceQuad(uint8_t _view, bgfx::ProgramHandle _program, float _x, float _y, float _width, float _height)
+{
+	bgfx::TransientVertexBuffer tvb;
+	bgfx::TransientIndexBuffer tib;
+
+	if (bgfx::allocTransientBuffers(&tvb, PosColorTexCoord0Vertex::ms_layout, 4, &tib, 6) )
+	{
+		PosColorTexCoord0Vertex* vertex = (PosColorTexCoord0Vertex*)tvb.data;
+
+		float zz = 0.0f;
+
+		const float minx = _x;
+		const float maxx = _x + _width;
+		const float miny = _y;
+		const float maxy = _y + _height;
+
+		float minu = -1.0f;
+		float minv = -1.0f;
+		float maxu =  1.0f;
+		float maxv =  1.0f;
+
+		vertex[0].m_x = minx;
+		vertex[0].m_y = miny;
+		vertex[0].m_z = zz;
+		vertex[0].m_abgr = 0xff0000ff;
+		vertex[0].m_u = minu;
+		vertex[0].m_v = minv;
+
+		vertex[1].m_x = maxx;
+		vertex[1].m_y = miny;
+		vertex[1].m_z = zz;
+		vertex[1].m_abgr = 0xff00ff00;
+		vertex[1].m_u = maxu;
+		vertex[1].m_v = minv;
+
+		vertex[2].m_x = maxx;
+		vertex[2].m_y = maxy;
+		vertex[2].m_z = zz;
+		vertex[2].m_abgr = 0xffff0000;
+		vertex[2].m_u = maxu;
+		vertex[2].m_v = maxv;
+
+		vertex[3].m_x = minx;
+		vertex[3].m_y = maxy;
+		vertex[3].m_z = zz;
+		vertex[3].m_abgr = 0xffffffff;
+		vertex[3].m_u = minu;
+		vertex[3].m_v = maxv;
+
+		uint16_t* indices = (uint16_t*)tib.data;
+
+		indices[0] = 0;
+		indices[1] = 2;
+		indices[2] = 1;
+		indices[3] = 0;
+		indices[4] = 3;
+		indices[5] = 2;
+
+		bgfx::setState(BGFX_STATE_DEFAULT);
+		bgfx::setIndexBuffer(&tib);
+		bgfx::setVertexBuffer(0, &tvb);
+		bgfx::submit(_view, _program);
+	}
 }

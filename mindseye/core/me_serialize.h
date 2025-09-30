@@ -5,7 +5,6 @@
 void SerializeToIniBlocking(
 	const meTypeDescriptor& typeDesc, 
 	void* data,
-	meAllocator* allocator,
 	StringView outFilename);
 
 meSpan DeserializeFromIniBlocking(

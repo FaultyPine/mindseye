@@ -16,7 +16,7 @@ struct SceneRuntimeData
 struct MEREFLECT(type, Description="Scene Description", Version=0)
 meScene
 {
-	MAID sceneAssetID;
+	String sceneName;
 
 	MEREFLECT(exclude) 
 	SceneRuntimeData runtime = {};
@@ -27,10 +27,13 @@ struct meSceneManager
 	void Tick(EngineContext* ctx);
 	void LoadSceneFromFileBlocking(StringView filename, meAllocator* allocator, meScene* outScene);
 	void WriteSceneToFileBlocking(meScene* scene, StringView filename);
+	void CopyToRenderInput(meScene& outScene);
+
+	meScene scene;
 };
 
 void meSceneInitialize(EngineContext* ctx);
 
-// loads gltf scene from the filesystem into the specified backing buffer
-meSceneID meSceneLoadFromGLTF(meSpan backingBuffer, StringView resourcePath);
+// loads gltf scene from the filesystem
+MEAPI void meSceneLoadFromGLTF(meAllocator* allocator, StringView resourcePath, meScene& outScene);
 

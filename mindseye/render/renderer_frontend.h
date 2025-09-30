@@ -16,13 +16,13 @@ enum RendererBackendType
 struct RenderInput
 {
     OSStateView osData; // window width/height, mouse state, etc
-    meScene* scene;
+    meScene scene;
 };
 
 struct RendererFrontend
 {
     RendererBackendType backendType = NONE;
-    Arena rendererPersistentArena = {};
+    meAllocator* rendererPersistentAllocator = nullptr;
     Arena rendererFrameArena = {};
     bool rendererLoggingEnabled = true;
 

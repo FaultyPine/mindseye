@@ -37,13 +37,16 @@ struct OSStateView
     MouseState mouseState = {};
     u32 windowWidth = 0;
     u32 windowHeight = 0; 
+	u64 ticksPerSecond = 0;
+	u64 ticksAtAppStart = 0;
+	u64 GetTicksUsec() const;
 #ifdef OS_WINDOWS
     void* hwnd = nullptr;
     void* hinstance = nullptr;
 #else
-
 #endif
 };
+extern OSStateView g_osData;
 
 #ifdef OS_WINDOWS
 #define NOMINMAX
@@ -57,9 +60,10 @@ struct OSStateView
 
 enum OSFileFlags
 {
-    ScopedFile = NTH_BIT(0),
-	OnlyIfExists = NTH_BIT(1),
-	DeleteOnFileClose = NTH_BIT(2),
+	OnlyIfExists = NTH_BIT(0),
+	StompExisting = NTH_BIT(1),
+    ScopedFile = NTH_BIT(2),
+	DeleteOnFileClose = NTH_BIT(3),
 };
 
 struct OSFileReference
@@ -133,3 +137,5 @@ MEAPI char* meOSGetExeFileFolder();
 MEAPI String meOSResolveRelativeToAbsPath(
 	meAllocator* allocator,
 	StringView potentiallyRelativePath);
+
+MEAPI u32 meOSGetThreadID();

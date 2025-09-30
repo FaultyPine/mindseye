@@ -18,6 +18,9 @@ struct Arena : public meAllocator
     size_t prev_offset = 0;
     meAllocator* backingAllocator = nullptr;
 
+	Arena() = default;
+	Arena(u64 size, const char* name, meAllocator* backingAllocator = nullptr);
+
     MEAPI Allocation meAlloc(u64 size) override;
     MEAPI void meFree(void* allocation) override;
     MEAPI Allocation meRealloc(const Allocation& allocation, u64 newSize) override;
@@ -25,17 +28,10 @@ struct Arena : public meAllocator
 };
 
 // Specifically for thread-local scratch memory
-struct ArenaScopedScratch : public Arena
+struct ArenaTLScratch : public Arena
 {
-	~ArenaScopedScratch()
-	{
-		meClear(true);
-		#if BUILD_DEBUG
-		ME_MEMCLEAR(backing_mem, backing_mem_size);
-		#endif
-	}
-	ArenaScopedScratch() = default;
-	ArenaScopedScratch(const Arena&& arena)
+	ArenaTLScratch() = default;
+	ArenaTLScratch(const Arena&& arena)
 	{
 		backing_mem = arena.backing_mem;
 		backing_mem_size = arena.backing_mem_size;
@@ -43,11 +39,22 @@ struct ArenaScopedScratch : public Arena
 		prev_offset = arena.prev_offset;
 		backingAllocator = arena.backingAllocator;
 	}
-	ArenaScopedScratch(const ArenaScopedScratch& other) = delete; // copy
-	ArenaScopedScratch& operator=(const ArenaScopedScratch& other) = delete; // copy assignment
+	ArenaTLScratch(const ArenaTLScratch& other) = delete; // copy
+	ArenaTLScratch& operator=(const ArenaTLScratch& other) = delete; // copy assignment
+
+	MEAPI void meClear(bool deleteMemory = false) override
+	{
+		ME_MEMCLEAR(backing_mem, backing_mem_size);
+		Arena::meClear(deleteMemory);
+	}
 };
 
 MEAPI Arena ArenaInit(
+	size_t arenaSize, 
+	const char* name = nullptr, 
+	meAllocator* backingAllocator = nullptr);
+MEAPI void ArenaInit(
+	Arena& a,
 	size_t arenaSize, 
 	const char* name = nullptr, 
 	meAllocator* backingAllocator = nullptr);
