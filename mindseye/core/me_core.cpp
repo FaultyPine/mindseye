@@ -15,7 +15,9 @@ STATIC_ASSERT(sizeof(f32) == 4);
 STATIC_ASSERT(sizeof(f64) == 8);
 STATIC_ASSERT(sizeof(void*) == 8);
 
-
+// nvidia/amd force use dedicated gpu if it exists, prevent integrated gpu from being used unless it's the only one
+extern "C" __declspec(dllexport) DWORD NvOptimusEnablement = 0x00000001;
+extern "C" __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
 
 void OverwriteRandomSeed(u64 seed) 
 {
