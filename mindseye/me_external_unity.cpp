@@ -11,6 +11,13 @@
 #undef STBSP__PUBLICDEC
 #undef STB_SPRINTF_IMPLEMENTATION
 
+#define STB_IMAGE_IMPLEMENTATION
+#define STBIDEF extern "C" MEAPI
+#define STBI_ONLY_PNG
+#include "external/stb/stb_image.h"
+#undef STB_IMAGE_IMPLEMENTATION
+#undef STBIDEF
+
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-copy-with-user-provided-copy"
 #pragma clang diagnostic ignored "-Wcomment"

@@ -21,16 +21,15 @@ struct EntityData
     Transform transform = {};
     //Model model = {};
     BoundingBox bounds = {};
-    EntityRef id = U32_INVALID_ID;
     u32 flags = 0;
     s8 name[ENTITY_NAME_MAX_LENGTH];
     
-    operator bool() { return isValid(); }
+    //operator bool() { return isValid(); }
     EntityData() = default;
-    inline bool isValid() { return id != U32_INVALID_ID; }
+    //inline bool isValid() { return id != U32_INVALID_ID; }
 };
 
-typedef meMap<u32, EntityData> EntityMap;
+typedef meMap<EntityRef, EntityData> EntityMap;
 
 struct EntityRegistry
 {

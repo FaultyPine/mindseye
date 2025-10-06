@@ -10,6 +10,7 @@ typedef u32 meSceneID;
 struct cgltf_data;
 struct SceneRuntimeData
 {
+	String gltfResourcePath = {};
 	cgltf_data* gltfData = nullptr; // todo: don't cache the cgltf, parse it into my own structures
 };
 

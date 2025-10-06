@@ -5,7 +5,7 @@
 struct meGPUBuffer
 {
 	u32 bufferHandle = U32_INVALID_ID;
-	void* cpuData = nullptr;
+	meSpan cpuData = {};
 
 	bool IsValid() const { return bufferHandle != U32_INVALID_ID && cpuData; }
 };

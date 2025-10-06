@@ -42,11 +42,7 @@ struct ArenaTLScratch : public Arena
 	ArenaTLScratch(const ArenaTLScratch& other) = delete; // copy
 	ArenaTLScratch& operator=(const ArenaTLScratch& other) = delete; // copy assignment
 
-	MEAPI void meClear(bool deleteMemory = false) override
-	{
-		ME_MEMCLEAR(backing_mem, backing_mem_size);
-		Arena::meClear(deleteMemory);
-	}
+	MEAPI void meClear(bool deleteMemory = false) override;
 };
 
 MEAPI Arena ArenaInit(

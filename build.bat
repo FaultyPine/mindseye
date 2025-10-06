@@ -59,7 +59,7 @@ if not exist "build\mindseye_ext.lib" (
 ::echo SOURCES: %sources%
 
 @REM currently assuming we do compile+link all in one step, this may change.
-set include_libs=-I%root%\mindseye\external\imgui -I%root%\mindseye\external\bgfx\bgfx\include -I%root%\mindseye\external\bgfx\bgfx\3rdparty -I%root%\mindseye\external\bgfx\bx\include -I%root%\mindseye\external\bgfx\bimg\include
+set include_libs=-I%root%\mindseye\external\imgui -I%root%\mindseye\external\bgfx\bgfx\include -I%root%\mindseye\external\bgfx\bgfx\3rdparty -I%root%\mindseye\external\bgfx\bx\include -I%root%\mindseye\external\bgfx\bimg\include -I%root%\mindseye\external\ktx
 
 @REM common compile flags
 set app_flags=-DSHIPPING_BUILD=0 -I%root%\mindseye -I%root%\mindseye\external
@@ -71,17 +71,19 @@ set linker_flags_common=-luser32 -lgdi32 -fuse-ld=lld-link
 set link_bgfx_libs_rel= -L%root%\mindseye\external\bgfx\bin -lbgfxRelease -lbimgRelease -lbxRelease
 set link_bgfx_libs_dbg= -L%root%\mindseye\external\bgfx\bin -lbgfxDebug -lbimgDebug -lbxDebug
 
+set link_ext_libs_common=%linker_flags_common%
 set compile_ext_libs_dbg=-O0 -DBUILD_DEBUG=1 -DMEEXPORT -DBX_CONFIG_DEBUG=1 -shared -D_DEBUG 
 set compile_ext_libs_rel=-O2 -DBUILD_DEBUG=0 -DMEEXPORT -DBX_CONFIG_DEBUG=0 -shared
-set link_ext_libs_dbg=%linker_flags_common% 
-set link_ext_libs_rel=%linker_flags_common%
+set link_ext_libs_dbg=%link_ext_libs_common%
+set link_ext_libs_rel=%link_ext_libs_common%
 
 
 :: mindseye engine
+set common_mindseye_linker=%linker_flags_common% -L%root%\mindseye\external\ktx\lib -lktx
 set compile_mindseye_dbg= -O0 -DBUILD_DEBUG=1 -DMEEXPORT -D_USRDLL -D_WINDLL -D_DLL -shared -DBX_CONFIG_DEBUG=1 -D_DEBUG
 set compile_mindseye_rel= -O2 -DBUILD_DEBUG=0 -DMEEXPORT -D_USRDLL -D_WINDLL -D_DLL -shared -DBX_CONFIG_DEBUG=0
-set link_mindseye_rel= %linker_flags_common% %link_bgfx_libs_rel% -lmindseye_ext
-set link_mindseye_dbg= %linker_flags_common% %link_bgfx_libs_dbg% -lmindseye_ext
+set link_mindseye_rel= %common_mindseye_linker% %link_bgfx_libs_rel% -lmindseye_ext
+set link_mindseye_dbg= %common_mindseye_linker% %link_bgfx_libs_dbg% -lmindseye_ext
 
 :: mindseye shaders
 set compile_mindseye_shader_fs=%root%\mindseye\external\bgfx\bin\shadercDebug.exe -f %root%\mindseye\shaders\fs.sc -o %root%\mindseye\shaders\fs.h --bin2c --platform windows --type fragment -p 440 --varyingdef %root%\mindseye\shaders\varying.def.sc

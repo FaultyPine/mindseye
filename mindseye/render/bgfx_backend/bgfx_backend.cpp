@@ -6,10 +6,18 @@
 #include "core/me_math.h"
 #include "scene/me_scene.h"
 #include "render/me_mesh.h"
+#include "render/me_material.h"
+#include "render/me_texture.h"
+#include "core/me_string.h"
 
 #include "external/cgltf.h"
 
+#include "external/ktx/ktx.h"
+#define STBI_ONLY_PNG
+#include "external/stb/stb_image.h"
+
 #include "bgfx/bgfx/include/bgfx/bgfx.h"
+#include "bgfx/bgfx/src/config.h"
 #include "bgfx/bx/include/bx/bx.h"
 #include "external/bgfx/bgfx/examples/common/imgui/bgfx_imgui.cpp"
 
@@ -127,23 +135,183 @@ void BgfxRendererBackend::Teardown(EngineContext* engine)
     bgfx::shutdown();
 }
 
+meGPUBuffer LoadTextureFromGLTF(
+	StringView gltfResPath,
+	const cgltf_image& gltfImage)
+{
+	meTexturePool& texturePool = meTextureGetPool();
+	meAllocator* texturePayloadAllocator = texturePool.GetPayloadAllocator();
+
+	meSpan imageData = {};
+	meGPUBuffer resultGPUBuff = {};
+	BREAKABLE_SCOPE
+	u64 offset = 0;
+	u64 size = 0;
+	if (gltfImage.buffer_view)
+	{
+		cgltf_buffer_view* gltfImgBufferView = gltfImage.buffer_view;
+		cgltf_buffer* buffer = gltfImgBufferView->buffer;
+		ME_ASSERT(!buffer->data && "Embedded gltf data not supported. Needs to be in external file");
+		offset = gltfImgBufferView->offset;
+		size = gltfImgBufferView->size;
+	}
+	if (gltfImage.uri)
+	{
+		StringView textureUri = StringView(gltfImage.uri, CStringLength(gltfImage.uri));
+		ME_ASSERT(FindInString(textureUri, STRING_LIT("data:")) == -1); // not supporting embedded texture data rn
+		StringView gltfResDir = msFsGetDirFromPath(gltfResPath);
+		StringView textureResourcePath = StringFormat("%.*s/%.*s", STRING_VAARGS(gltfResDir), STRING_VAARGS(textureUri));
+		// load compressed image data into mem
+		OSFileReference file;
+		if (!meOSOpenFile(file, textureResourcePath, OSFileFlags::OnlyIfExists))
+		{
+			LOG_ERROR("Failed to open texture file %.*s", STRING_VAARGS(textureResourcePath));
+			break;
+		}
+		if (size == 0)
+		{
+			size = meOSGetFileSize(file);
+		}
+		if (offset != 0)
+		{
+			meOSSetFileCursor(file, offset, OSFileCursorMode::BEGIN);
+		}
+		Allocation filebuf = MEALLOC(GetTLScratch(), size);
+		if (!meOSReadFileContents(file, filebuf, size))
+		{
+			LOG_ERROR("Failed to read texture file %.*s", STRING_VAARGS(textureResourcePath));
+			break;
+		}
+		meOSCloseFile(file);
+
+		// take loaded image -> decompress
+		s32 w,h,channels;
+		u8* pngDecompressed = stbi_load_from_memory((u8*)filebuf.data, filebuf.size, &w, &h, &channels, STBI_rgb_alpha);
+		u64 pngDecompressedSize = w * h * channels;
+		if (pngDecompressed == nullptr)
+		{
+			const char* loadFailure = stbi_failure_reason();
+			LOG_ERROR("Failed to load img %s", loadFailure);
+			break;
+		}
+
+		const bgfx::Memory* imgMem = bgfx::makeRef(pngDecompressed, pngDecompressedSize);
+		bgfx::TextureHandle tex = bgfx::createTexture2D(
+			w, h, false, 1, bgfx::TextureFormat::Enum::RGBA8, BGFX_TEXTURE_NONE|BGFX_SAMPLER_NONE, imgMem);
+		resultGPUBuff.bufferHandle = tex.idx;
+
+		// decompressed image data -> ktx
+		ktxTexture2* texture;
+		ktxTextureCreateInfo createInfo;
+		KTX_error_code result; UNUSED(result);
+		ktx_uint32_t level, layer, faceSlice;
+		ktx_size_t srcSize;
+ 
+		//createInfo.glInternalformat = GL_RGB8;   // Ignored if creating a ktxTexture2.
+		createInfo.vkFormat = 43; //VK_FORMAT_R8G8B8A8_SRGB;   // Ignored if creating a ktxTexture1.
+		createInfo.baseWidth = w;
+		createInfo.baseHeight = h;
+		createInfo.baseDepth = 1;
+		createInfo.numDimensions = 2;
+		// Note: it is not necessary to provide a full mipmap pyramid.
+		createInfo.numLevels = 1;//log2(createInfo.baseWidth) + 1;
+		createInfo.numLayers = 1;
+		createInfo.numFaces = 1;
+		createInfo.isArray = KTX_FALSE;
+		createInfo.generateMipmaps = KTX_FALSE; // generate later if needed
+ 
+		// Call ktxTexture1_Create to create a KTX texture.
+		result = ktxTexture2_Create(&createInfo,
+									KTX_TEXTURE_CREATE_ALLOC_STORAGE,
+									&texture);
+		ME_ASSERT(result == KTX_SUCCESS);
+		u8* src = pngDecompressed;
+		srcSize = pngDecompressedSize;
+		level = 0;
+		layer = 0;
+		faceSlice = 0;                           
+		result = ktxTexture_SetImageFromMemory(ktxTexture(texture),
+											   level, layer, faceSlice,
+											   src, srcSize);
+		ME_ASSERT(result == KTX_SUCCESS);
+		// Repeat for the other 15 slices of the base level and all other levels
+		// up to createInfo.numLevels.
+
+		u8* ktxApiMem = nullptr;
+		u64 ktxMemSize = 0;
+		// :/ can we reduce the number of redundant copies happening here?
+		result = ktxTexture_WriteToMemory(ktxTexture(texture), &ktxApiMem, &ktxMemSize);
+		ME_ASSERT(result == KTX_SUCCESS);
+		Allocation ktxMem = MEALLOC(texturePayloadAllocator, ktxMemSize);
+		ME_MEMCPY(ktxMem, ktxApiMem, ktxMemSize);
+
+		// write to file
+		StringView texUriWithoutExt = textureResourcePath;
+		s32 texUriExtOffset = FindInString(textureResourcePath, STRING_LIT("."));
+		if (texUriExtOffset != -1)
+		{
+			texUriWithoutExt = textureResourcePath.OffsetView(texUriExtOffset);
+		}
+		StringBuilder outTexName = StringBuilder(GetTLScratch());
+		outTexName.Append(texUriWithoutExt);
+		outTexName.Append(STRING_LIT(".ktx"));
+
+		ktxTexture_WriteToNamedFile(ktxTexture(texture), outTexName.data);
+		ktxTexture_Destroy(ktxTexture(texture));
+
+		//imageData = { ktxMem.data, ktxMemSize };
+		imageData = { pngDecompressed, pngDecompressedSize };
+	}
+	else
+	{
+		LOG_ERROR("Tried to load a texture without a file payload... so there's nothing to load?");
+	}
+	resultGPUBuff.cpuData = imageData;
+	BREAKABLE_SCOPE_END
+
+	return resultGPUBuff;
+}
+
+Eye LoadMaterialFromGLTF(
+	StringView gltfResPath,
+	const cgltf_material& gltfMaterial)
+{
+	meMaterialPool& materialPool = meMaterialGetPool();
+	Eye materialHdl = materialPool.Create();
+	meMaterial& material = materialPool.Get(materialHdl);
+
+	if (gltfMaterial.has_pbr_metallic_roughness)
+	{
+		const cgltf_texture& gltftex = *gltfMaterial.pbr_metallic_roughness.base_color_texture.texture;
+		meTexturePool& texturePool = meTextureGetPool();
+		meGPUBuffer diffuseTextureMem = LoadTextureFromGLTF(gltfResPath, *gltftex.image);
+		
+		if (diffuseTextureMem.IsValid())
+		{
+			Eye textureHdl = texturePool.Create();
+			meTexture& texture = texturePool.Get(textureHdl);
+
+			String diffuseTexUniformName = STRING_LIT("texDiffuse");
+
+			texture.buffer = diffuseTextureMem;
+			texture.sampler = bgfx::createUniform(diffuseTexUniformName.cstr(), bgfx::UniformType::Sampler).idx;
+			material.textureHandles[meMaterialTextureType::DIFFUSE] = textureHdl;
+		}
+	}
+
+	return materialHdl;
+}
 
 void LoadMeshFromGLTF(
+	StringView gltfResPath,
 	meAllocator* meshPayloadAllocator,
 	const cgltf_mesh& inMesh, 
 	meMesh& outMesh)
 {
-	bgfx::VertexLayout v_layout; 
-	v_layout.begin()
-	.add(bgfx::Attrib::Position,  3, bgfx::AttribType::Float)
-	.add(bgfx::Attrib::Color0,    4, bgfx::AttribType::Uint8, true)
-	.add(bgfx::Attrib::TexCoord0, 2, bgfx::AttribType::Float)
-	.add(bgfx::Attrib::Normal,    3, bgfx::AttribType::Float)
-	.end();
 	for (u64 meshPrimIdx = 0; meshPrimIdx < inMesh.primitives_count; meshPrimIdx++)
 	{
 		const cgltf_primitive& prim = inMesh.primitives[meshPrimIdx];
-
+		outMesh.materialHandle = LoadMaterialFromGLTF(gltfResPath, *prim.material);
 		// attribs like position, texcoords, normals
 		for (u64 attributeIdx = 0; attributeIdx < prim.attributes_count; attributeIdx++)
 		{
@@ -164,7 +332,11 @@ void LoadMeshFromGLTF(
 					bumper = bumper.Subspan(stride);
 				}
 				outMesh.vertBuffer.cpuData = allocation;
-				outMesh.vertBuffer.bufferHandle = bgfx::createVertexBuffer(bgfx::makeRef(outMesh.vertBuffer.cpuData, dataSize), v_layout).idx;
+				bgfx::VertexLayout v_layout; 
+				v_layout.begin()
+				.add(bgfx::Attrib::Position,  3, bgfx::AttribType::Float)
+				.end();
+				outMesh.vertBuffer.bufferHandle = bgfx::createVertexBuffer(bgfx::makeRef(outMesh.vertBuffer.cpuData, outMesh.vertBuffer.cpuData.size), v_layout).idx;
 			}
 			else if (attrib.type == cgltf_attribute_type_normal)
 			{
@@ -181,6 +353,11 @@ void LoadMeshFromGLTF(
 					bumper = bumper.Subspan(stride);
 				}
 				outMesh.normBuffer.cpuData = allocation;
+				bgfx::VertexLayout v_layout; 
+				v_layout.begin()
+				.add(bgfx::Attrib::Normal,  3, bgfx::AttribType::Float)
+				.end();
+				outMesh.normBuffer.bufferHandle = bgfx::createVertexBuffer(bgfx::makeRef(outMesh.normBuffer.cpuData, outMesh.normBuffer.cpuData.size), v_layout).idx;
 			}
 			else if (attrib.type == cgltf_attribute_type_tangent)
 			{
@@ -201,6 +378,11 @@ void LoadMeshFromGLTF(
 					bumper = bumper.Subspan(stride);
 				}
 				outMesh.texcoordBuffer.cpuData = allocation;
+				bgfx::VertexLayout v_layout; 
+				v_layout.begin()
+				.add(bgfx::Attrib::TexCoord0,  2, bgfx::AttribType::Float)
+				.end();
+				outMesh.texcoordBuffer.bufferHandle = bgfx::createVertexBuffer(bgfx::makeRef(outMesh.texcoordBuffer.cpuData, outMesh.texcoordBuffer.cpuData.size), v_layout).idx;
 			}
 		}
 
@@ -228,6 +410,7 @@ void* BgfxRendererBackend::RenderScene(RenderInput* input)
 	static bgfx::ProgramHandle program;
 	meAllocator* meshPayloadAllocator = this->rendererPersistentAllocator;
 	const cgltf_scene& scene = *input->scene.runtime.gltfData->scene;
+	StringView gltfResPath = input->scene.runtime.gltfResourcePath;
 	static meMesh mesh = {};
 	for (u64 nodeIdx = 0; nodeIdx < scene.nodes_count; nodeIdx++)
 	{
@@ -236,7 +419,7 @@ void* BgfxRendererBackend::RenderScene(RenderInput* input)
 		const cgltf_mesh& gltfmesh = *node.mesh;
 		if (!mesh.IsLoaded())
 		{
-			LoadMeshFromGLTF(meshPayloadAllocator, gltfmesh, mesh);
+			LoadMeshFromGLTF(gltfResPath, meshPayloadAllocator, gltfmesh, mesh);
 			const bgfx::Memory* fsmem = bgfx::alloc(sizeof(fs)+1);
 			ME_MEMCPY(fsmem->data, fs, sizeof(fs));
 			fsmem->data[fsmem->size-1] = '\0';
@@ -248,12 +431,6 @@ void* BgfxRendererBackend::RenderScene(RenderInput* input)
 			bgfx::ShaderHandle fsHandle = bgfx::createShader(fsmem);
 			bgfx::ShaderHandle vsHandle = bgfx::createShader(vsmem);
 			program = bgfx::createProgram(vsHandle, fsHandle);
-			bgfx::setState(BGFX_STATE_WRITE_RGB
-						   | BGFX_STATE_WRITE_A
-						   | BGFX_STATE_WRITE_Z
-						   | BGFX_STATE_DEPTH_TEST_LESS
-						   | BGFX_STATE_CULL_CCW
-						   | BGFX_STATE_MSAA);
 		}
 	}
 
@@ -304,7 +481,23 @@ void* BgfxRendererBackend::RenderScene(RenderInput* input)
 	bgfx::setTransform(mtx);
 
 	bgfx::setVertexBuffer(0, bgfx::VertexBufferHandle { static_cast<u16>(mesh.vertBuffer.bufferHandle) });
+	bgfx::setVertexBuffer(1, bgfx::VertexBufferHandle { static_cast<u16>(mesh.normBuffer.bufferHandle) });
+	bgfx::setVertexBuffer(2, bgfx::VertexBufferHandle { static_cast<u16>(mesh.texcoordBuffer.bufferHandle) });
+
 	bgfx::setIndexBuffer(bgfx::IndexBufferHandle { static_cast<u16>(mesh.idxBuffer.bufferHandle) });
+
+	const meTexturePool& texturePool = meTextureGetPool();
+	const meMaterialPool& materialPool = meMaterialGetPool();
+	const meMaterial& material = materialPool.Get(mesh.materialHandle);
+	Eye diffuseTextureHdl = material.textureHandles[meMaterialTextureType::DIFFUSE];
+	const meTexture& diffuseTex = texturePool.Get(diffuseTextureHdl);
+	bgfx::setTexture(0, bgfx::UniformHandle { static_cast<u16>(diffuseTex.sampler) }, bgfx::TextureHandle { static_cast<u16>(diffuseTex.buffer.bufferHandle) });
+	bgfx::setState(BGFX_STATE_WRITE_RGB
+				   | BGFX_STATE_WRITE_A
+				   | BGFX_STATE_WRITE_Z
+				   | BGFX_STATE_DEPTH_TEST_LESS
+				   | BGFX_STATE_CULL_CCW
+				   | BGFX_STATE_MSAA);
 	bgfx::submit(0, program);
 
 

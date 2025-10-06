@@ -43,7 +43,7 @@ MEAPI meAllocator* GetTLScratch()
 	if (!scratchWork.backing_mem)
 	{
 		new(&scratchWork) ArenaTLScratch();
-		ArenaInit(scratchWork, MEGABYTES_BYTES(5), "Threadlocal Scratch", GetSystemAllocator());
+		ArenaInit(scratchWork, GIGABYTES_BYTES(1), "Threadlocal Scratch", GetSystemAllocator());
 	}
 	return &scratchWork;
 }

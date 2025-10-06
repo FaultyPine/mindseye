@@ -133,5 +133,4 @@ const char* meAssetGetResourceDir();
 // I.E. "models/obj.gltf" -> "C:/workingdir/mindseye/bin/resource/models/obj.gltf" or something similar
 // returns a short-lived string. This should only be used for "scratch" operations. If you need to store this string long-term,
 // copy it, or use something else
-const char* meAssetResource(StringView resourcePath);
-
+StringView meAssetResource(StringView resourcePath);

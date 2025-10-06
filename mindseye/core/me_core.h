@@ -2,17 +2,39 @@
 
 #include "core/me_defines.h"
 
+
+
+// The mindseye "handle" type
+struct Eye
+{
+	// currently 24 bits for index, 8 bits for generation
+	u32 eye = U32_INVALID_ID;
+
+	static constexpr u32 IndexNumBits = 24;
+	static constexpr u32 IndexBitsMask = (1 << IndexNumBits) - 1;
+	static constexpr u32 GenerationBitsMask = ((~0U) << (IndexNumBits));
+
+	Eye() = default;
+	Eye(u32 idx, u8 generation) 
+	{
+		eye = 0;
+		eye |= (idx & IndexBitsMask);
+		eye |= (static_cast<u32>(generation) << IndexNumBits);
+	}
+	u32 GetIndex() const { return eye & IndexBitsMask; }
+	u8 GetGeneration() const { return (eye & GenerationBitsMask) >> IndexNumBits; }
+	operator u32() { return eye; }
+};
+
+
 // returns the current time since app launch
 MEAPI f64 GetTimeUsec();
 MEAPI f64 GetTimeSec();
 
-MEAPI void OverwriteRandomSeed(u64 seed);
-MEAPI u64 GetRandomSeed();
-MEAPI s32 GetRandom(s32 start, s32 end);
-MEAPI f32 GetRandomf(f32 start, f32 end);
-
-
-
+void OverwriteRandomSeed(u64 seed);
+u64 GetRandomSeed();
+s32 GetRandom(s32 start, s32 end);
+f32 GetRandomf(f32 start, f32 end);
 
 // Hashing
 

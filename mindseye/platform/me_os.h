@@ -66,6 +66,11 @@ enum OSFileFlags
 	DeleteOnFileClose = NTH_BIT(3),
 };
 
+enum OSFileCursorMode
+{
+	BEGIN, CURRENT, END
+};
+
 struct OSFileReference
 {
     ~OSFileReference();
@@ -127,6 +132,11 @@ MEAPI bool meOSWriteFileContent(
 	const OSFileReference& file,
 	void* buffer,
 	size_t amtToWrite);
+
+MEAPI bool meOSSetFileCursor(
+	const OSFileReference& file,
+	u64 offset,
+	OSFileCursorMode mode);
 
 MEAPI size_t meOSGetFileSize(
 	const OSFileReference& file);

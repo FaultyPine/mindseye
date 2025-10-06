@@ -14,7 +14,8 @@ void meJobSystem::Initialize(meAllocator* allocator, u32 numThreads)
 	{
         std::thread worker([this, threadID, &numThreads]
 		{
-			meThreadSetName(StringFormat("Job Thread %i", threadID));
+			StringView threadName = StringFormat("Job Thread %i", threadID);
+			meThreadSetName(threadName.cstr());
             meJob job;
 			// allows us to shut down all threads when program exits by just setting numthreads to 0
             while (numThreads > 0) 

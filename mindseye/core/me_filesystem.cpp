@@ -44,3 +44,17 @@ StringView meFsGetFilepathFromPath(StringView path)
 	StringView result = path.OffsetView(lastDirSep);
 	return result;
 }
+
+StringView msFsGetDirFromPath(StringView path)
+{
+	char dirSepC = meFsGetDirectorySeperator();
+	StringView dirSep = StringView(&dirSepC, 1);
+	meFsNormalizePathSeperators(dirSep);
+	s32 lastDirSep = FindInStringRev(path, dirSep, 0, StringOpFlags_IdxAfterNeedle);
+	if (lastDirSep == -1)
+	{
+		return path;
+	}
+	StringView result = StringView(path.data, MEMAX(0, lastDirSep-1));
+	return result;
+}

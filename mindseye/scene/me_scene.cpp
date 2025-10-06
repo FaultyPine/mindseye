@@ -66,14 +66,14 @@ void meSceneLoadFromGLTF(
 	StringView resourcePathSv, 
 	meScene& outScene)
 {
-    const char* resourcePath = meAssetResource(resourcePathSv);
+    StringView resourcePath = meAssetResource(resourcePathSv);
     OSFileReference file = {.flags = ScopedFile};
-    meOSOpenFile(file, StringView(resourcePath, CStringLength(resourcePath)), OSFileFlags::OnlyIfExists);
+    meOSOpenFile(file, resourcePath, OSFileFlags::OnlyIfExists);
 	u64 filesize = meOSGetFileSize(file);
 	Allocation gltfBuffer = MEALLOC(allocator, filesize);
     if (!meOSReadFileContents(file, gltfBuffer.data, gltfBuffer.size))
     {
-        LOG_ERROR("[meScene] failed to load gltf scene %s", resourcePath);
+        LOG_ERROR("[meScene] failed to load gltf scene %.*s", STRING_VAARGS(resourcePath));
     }
     cgltf_options options = {};
     cgltf_data* data = nullptr;
@@ -86,15 +86,15 @@ void meSceneLoadFromGLTF(
     if (parseResult == cgltf_result_success)
     {
 		// loads the external buffers (actual geo, textures, etc)
-        parseResult = cgltf_load_buffers(&options, data, resourcePath);
+        parseResult = cgltf_load_buffers(&options, data, resourcePath.cstr());
 		if (parseResult != cgltf_result_success)
 		{
-			LOG_WARN("Failed to load gltf buffers from %s", resourcePath);
+			LOG_WARN("Failed to load gltf buffers from %.*s", STRING_VAARGS(resourcePath));
 		}
     }
 	else
 	{
-		LOG_WARN("Failed to parse gltf from %s", resourcePath);
+		LOG_WARN("Failed to parse gltf from %.*s", STRING_VAARGS(resourcePath));
 	}
 	// tmp
 	const char* sceneName = data->scene->name;
@@ -104,4 +104,5 @@ void meSceneLoadFromGLTF(
 	}
 	outScene.sceneName = String(sceneName, CStringLength(sceneName), allocator);
 	outScene.runtime.gltfData = data;
+	outScene.runtime.gltfResourcePath = String(resourcePath, allocator);
 }

@@ -12,6 +12,8 @@ struct EntityRegistry;
 struct meAssetSystem;
 struct CommandLineArgs;
 struct meSceneManager;
+struct meMaterialPool;
+struct meTexturePool;
 
 typedef void(*InitFn)(EngineContext* engine);
 typedef void(*UpdateFn)(EngineContext* engine);
@@ -37,6 +39,8 @@ struct EngineContext
     meAssetSystem* assetSystem = nullptr;
     CommandLineArgs* cmdLine = nullptr;
 	meSceneManager* sceneSystem = nullptr;
+	meMaterialPool* materialSystem = nullptr;
+	meTexturePool* textureSystem = nullptr;
 
     // engine state
     f32 deltaTime = 0.0f;
@@ -45,7 +49,7 @@ struct EngineContext
     u64 randomSeed = 0;
     
     String appName = {};
-    OSStateView* osData = nullptr;
+    OSStateView* osData = nullptr; // static, persistent throughout app
 
     bool isRunning = false;
     bool isIdle = false;

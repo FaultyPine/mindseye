@@ -178,7 +178,8 @@ const char* meAssetGetResourceDir()
     return GetEngineCtx()->assetSystem->resourceDir;
 }
 
-const char* meAssetResource(StringView resourcePath)
+StringView meAssetResource(StringView resourcePath)
 {
-    return StringFormat("%s%c%.*s", meAssetGetResourceDir(), meFsGetDirectorySeperator(), STRING_VAARGS(resourcePath));
+	StringView result = StringFormat("%s%c%.*s", meAssetGetResourceDir(), meFsGetDirectorySeperator(), STRING_VAARGS(resourcePath));
+	return result;
 }

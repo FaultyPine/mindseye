@@ -13,7 +13,7 @@ meBlockList<T, BLOCK_SIZE>::~meBlockList()
 }
 
 template <typename T, u32 BLOCK_SIZE>
-void meBlockList<T, BLOCK_SIZE>::push(const T& value)
+u32 meBlockList<T, BLOCK_SIZE>::push(const T& value)
 {
     if (!tail || tail->count == BLOCK_SIZE) 
     {
@@ -41,8 +41,12 @@ void meBlockList<T, BLOCK_SIZE>::push(const T& value)
         tail->freeBits.set(idx, false);
         ++tail->count;
         ++size;
+		return idx;
     }
-    else { ME_ASSERT(false && "something has gone terribly wrong"); }
+    else 
+	{ 
+		ME_ASSERT(false && "something has gone terribly wrong"); 
+	}
 }
 
 template <typename T, u32 BLOCK_SIZE>
@@ -107,7 +111,7 @@ void meBlockList<T, BLOCK_SIZE>::clear()
 }
 
 template <typename T, u32 BLOCK_SIZE>
-T& meBlockList<T, BLOCK_SIZE>::get(u32 index)
+const T& meBlockList<T, BLOCK_SIZE>::get(u32 index) const
 {
     ME_ASSERT(index < size);
 

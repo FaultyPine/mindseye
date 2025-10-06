@@ -13,4 +13,6 @@ MEAPI char meFsGetDirectorySeperator();
 // NOTE: will NormalizePathSeperators on the passed in path
 MEAPI StringView meFsGetFilepathFromPath(StringView path);
 
+MEAPI StringView msFsGetDirFromPath(StringView path);
+
 MEAPI void meFsNormalizePathSeperators(StringView str);

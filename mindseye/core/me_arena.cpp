@@ -4,6 +4,11 @@
 #include "core/me_string.h"
 #include "core/me_memory.h"
 
+void ArenaTLScratch::meClear(bool deleteMemory)
+{
+	Arena::meClear(true);
+}
+
 Allocation Arena::meAlloc(u64 size) 
 { 
 	return {ArenaAlloc(this, size), size}; 

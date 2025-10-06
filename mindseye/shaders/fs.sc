@@ -1,8 +1,9 @@
-$input v_pos, v_view, v_normal, v_color0
+$input v_pos, v_view, v_normal, v_color0, v_texcoord0
 
 #include "common.sh"
 
 uniform vec4 u_time;
+SAMPLER2D(texDiffuse, 0);
 
 vec2 blinn(vec3 _lightDir, vec3 _normal, vec3 _viewDir)
 {
@@ -27,7 +28,7 @@ vec4 lit(float _ndotl, float _rdotv, float _m)
 
 void main()
 {
-/*
+
 	vec3 lightDir = vec3(0.0, 0.0, -1.0);
 	vec3 normal = normalize(v_normal);
 	vec3 view = normalize(v_view);
@@ -46,7 +47,8 @@ void main()
 					) * v_color0.xyz;
 
 	gl_FragColor.xyz = pow(vec3(0.07, 0.06, 0.08) + color*lc.y + fres*pow(lc.z, 128.0), vec3_splat(1.0/2.2) );
-*/
-	gl_FragColor.xyz = vec3(1.0, 0.0, 0.0);
+
+	vec4 diffuseSample = texture2D(texDiffuse, v_texcoord0);
+	gl_FragColor.xyz *= diffuseSample.rgb;
 	gl_FragColor.w = 1.0;
 }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/me_core.h"
 #include "me_gpu.h"
 
 struct meMesh
@@ -9,6 +10,8 @@ struct meMesh
 	meGPUBuffer normBuffer;
 	meGPUBuffer texcoordBuffer;
 	void* vertexLayout;
+
+	Eye materialHandle;
 
 	bool IsLoaded() const { return vertBuffer.IsValid() && idxBuffer.IsValid(); }
 };

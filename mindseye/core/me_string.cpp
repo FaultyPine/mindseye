@@ -109,8 +109,8 @@ void String::CopyOf(const String& str)
 {
 	if (!str) { *this = {}; return; }
 	this->len = str.len;
-	data = (char*)MEALLOC(str.allocator, len);
-	allocator = str.allocator;
+	this->allocator = str.allocator;
+	this->data = (char*)MEALLOC(str.allocator, len);
 	StringCopy(*this, str);
 }
 
@@ -118,8 +118,8 @@ void String::CopyOf(const StringView& str, meAllocator* allocator)
 {
 	if (!str) { *this = {}; return; }
 	this->len = str.len;
-	data = (char*)MEALLOC(allocator, len);
 	this->allocator = allocator;
+	this->data = (char*)MEALLOC(allocator, this->len);
 	StringCopy(*this, str);
 }
 
@@ -441,12 +441,13 @@ StringBuilder::~StringBuilder()
 
 void StringBuilderCheckGrow(StringBuilder& sb, const StringView& sv)
 {
-	if (sb.len + sv.len > sb.capacity)
+	if (sb.len + sv.len + 1 > sb.capacity)
 	{
 		char* olddata = sb.data;
 		sb.capacity = MEMAX(sb.capacity + sv.len, sb.capacity * 2);
 		sb.data = MEALLOC(sb.allocator, sb.capacity);
 		ME_MEMCPY(sb.data, olddata, sb.len);
+		sb.allocator->meFree(olddata);
 	}
 }
 
@@ -455,6 +456,7 @@ void StringBuilder::Append(StringView str)
 	ME_ASSERT(allocator);
 	StringBuilderCheckGrow(*this, str);
 	ME_MEMCPY(data + len, str.data, str.len);
+	data[len + str.len] = '\0';
 	len += str.len;
 }
 
@@ -497,14 +499,14 @@ void StringBuilder::AppendFormat(const char* fmt, ...)
 	ME_ASSERT(capacity > len);
 }
 
-const char* StringFormat(const char *text, ...)
+StringView StringFormat(const char *text, ...)
 {
     va_list args;
     va_start(args, text);
 	s32 numBytesWritten = 0;
 	const char* result = InternalStringFormat(text, &args, numBytesWritten);
     va_end(args);
-	return result;
+	return { result, static_cast<u64>(numBytesWritten)};
 }
 
 s32 StringFormatIntoBuf(meSpan backingBuffer, const char *text, ...)
@@ -518,7 +520,7 @@ s32 StringFormatIntoBuf(meSpan backingBuffer, const char *text, ...)
 	return bytes;
 }
 
-const char* StringFormatNew(meAllocator* allocator, const char *text, ...)
+StringView StringFormatNew(meAllocator* allocator, const char *text, ...)
 {
 	char backing[MAX_TEXT_BUFFER_LENGTH];
 	ME_MEMCLEAR(backing, MAX_TEXT_BUFFER_LENGTH);
@@ -531,7 +533,7 @@ const char* StringFormatNew(meAllocator* allocator, const char *text, ...)
 	u64 len = CStringLength(backing);
 	const char* result = MEALLOC(allocator, len + 1);
 	ME_MEMCPY((void*)result, backing, len + 1);
-	return result;
+	return {result, len};
 }
 
 

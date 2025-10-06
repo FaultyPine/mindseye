@@ -27,6 +27,7 @@
 #include "core/me_scope_exit.h"
 #include "core/me_typetraits.h"
 #include "core/me_serialize.h"
+#include "core/me_handle.h"
 
 #include "core/containers/dynarray.h"
 #include "core/containers/me_hybrid_array.h"

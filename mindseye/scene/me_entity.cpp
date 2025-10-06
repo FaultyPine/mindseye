@@ -91,7 +91,6 @@ EntityRef CreateEntity(
         entityID = HashBytes((u8*)&entityID, sizeof(entityID));
     }
     ME_ASSERT(entityID != U32_INVALID_ID); // make absolutely sure
-    ent.id = entityID;
     // we increment this every time, even if it's not what we use for the id.
     registry.entityCreationIndex++;
     registry.entMap[ent.id] = ent;

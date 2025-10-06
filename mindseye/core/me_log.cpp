@@ -99,8 +99,8 @@ void LogMessage(LogLevel level, u32 logCategory, const char* lineEnd, const char
     s32 bytesWritten = stbsp_vsnprintf(msgBuffer, LOG_MSG_LIMIT, message, args);
     va_end(args);
     ME_ASSERT(bytesWritten < LOG_MSG_LIMIT);
-    const char* processedMsg = StringFormat("%s%s", msgBuffer, lineEnd);
-	StringView outMsg = StringView(processedMsg, bytesWritten+1);
+    StringView outMsg = StringFormat("%s%s", msgBuffer, lineEnd);
+	ME_ASSERT(outMsg.cstr());
 
     // append (optional)color and log level to message
 #if TERMINAL_COLORED_OUTPUT_ENABLED

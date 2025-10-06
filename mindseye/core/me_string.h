@@ -29,6 +29,12 @@ struct String
 	MEAPI bool operator == (const StringView& sv) const;
     MEAPI explicit operator char*() { return data; }
 	MEAPI explicit operator bool() const { return data && len; }
+
+	const char* cstr() const 
+	{
+		ME_ASSERT(data[len] == '\0');
+		return data;
+	}
 };
 
 
@@ -77,6 +83,12 @@ struct StringView
     { 
         return {data + offset, this->len < len ? this->len : len};
     }
+
+	const char* cstr() const 
+	{
+		ME_ASSERT(data[len] == '\0');
+		return data;
+	}
 };
 
 using StringOpFlags = u32;
@@ -141,10 +153,11 @@ MEAPI u32 StringToUint(StringView str);
 // formats a string. Returned string buffer is a temporary buffer
 // that will be evicted on the next couple calls to this function
 // note, the returned string will be null-terminated
-MEAPI const char* StringFormat(const char *text, ...);
+MEAPI StringView StringFormat(const char *text, ...);
+// formats a string into an existing buffer, returns size of the string written to the buffer
 MEAPI s32 StringFormatIntoBuf(meSpan backingBuffer, const char *text, ...);
 // same as above, but allocates memory for the formatted string
-MEAPI const char* StringFormatNew(meAllocator* allocator, const char *text, ...);
+MEAPI StringView StringFormatNew(meAllocator* allocator, const char *text, ...);
 
 
 

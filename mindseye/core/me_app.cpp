@@ -10,6 +10,9 @@
 #include "asset/me_asset.h"
 #include "core/thread/me_thread.h"
 
+#include "render/me_material.h"
+#include "render/me_texture.h"
+
 EngineContext* GetEngineCtx()
 {
     static EngineContext eng;
@@ -49,6 +52,8 @@ void InitializeEngine(s32 argc, char** argv)
     InitializeCmdLine(argc, argv);
     meAssetInitialize(engine);     
 	meSceneInitialize(engine);
+	meMaterialInitialize(engine);
+	meTextureInitialize(engine);
     
 	WindowCreationParams windowCreationParams = {}; // TODO: from config/cmdline?
     meOSCreateWindow(windowCreationParams, engine);

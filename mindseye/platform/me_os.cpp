@@ -116,6 +116,30 @@ bool meOSReadFileContents(const OSFileReference& file, void* backingBuffer, size
 #endif
 }
 
+bool meOSSetFileCursor(
+	const OSFileReference& file,
+	u64 offset,
+	OSFileCursorMode mode)
+{
+	DWORD moveMethod = 0;
+	switch (mode)
+	{
+		case BEGIN: { moveMethod = FILE_BEGIN; break; }
+		case CURRENT: { moveMethod = FILE_CURRENT; break; }
+		case END: { moveMethod = FILE_END; break; }
+		default: break;
+	}
+	LARGE_INTEGER offsetLi;
+	offsetLi.QuadPart = offset;
+	DWORD result = SetFilePointerEx(file.fileHandle, offsetLi, nullptr, moveMethod);
+	bool success = result != INVALID_SET_FILE_POINTER;
+	if (!success)
+	{
+		LOG_WARN("Failed to set file cursor %s", file.path);
+	}
+	return success;
+}
+
 u64 meOSGetFileSize(const OSFileReference& file)
 {
 #ifdef OS_WINDOWS

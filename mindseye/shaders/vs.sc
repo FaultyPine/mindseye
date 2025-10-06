@@ -1,5 +1,5 @@
-$input a_position, a_normal
-$output v_pos, v_view, v_normal, v_color0
+$input a_position, a_normal, a_texcoord0
+$output v_pos, v_view, v_normal, v_color0, v_texcoord0
 
 #include "common.sh"
 
@@ -24,4 +24,6 @@ void main()
 
 	//float len = length(displacement)*0.4+0.6;
 	//v_color0 = vec4(len, len, len, 1.0);
+	v_texcoord0 = a_texcoord0;
+
 }

@@ -67,7 +67,7 @@ MEAPI meOwningSpan ReallocateBuffer(
 	} while(0)
 
 #define MENEW(allocator, Type, ...) \
-    new (MEALLOC((allocator), sizeof(Type)).data) Type(__VA_ARGS__)
+    (new (MEALLOC((allocator), sizeof(Type)).data) Type(__VA_ARGS__))
 
 #define MEDELETE(allocator, Type, data) \
 do { \

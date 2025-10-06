@@ -176,5 +176,8 @@ if (!(x)) MEUNLIKELY { LOG_FATAL("%s | %s:%i", #x, __FILE__, __LINE__); DEBUG_BR
 if (!(x)) MEUNLIKELY { DEBUG_BREAK; }
 #endif
 
+#define BREAKABLE_SCOPE do {
+
+#define BREAKABLE_SCOPE_END } while (false);
 
 #endif
