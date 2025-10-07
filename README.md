@@ -11,12 +11,10 @@ then `build.bat`
 
 ## TODO
 
-- going to sprint towards MVP of having a scene (USD? gltf?) render. Then will do (possibly many) cleanup/hardening passes after
-
 - REALLY IMPORTANT TODO:
     - instead of passing meAllocator* around, I should pass an allocator handle
-	- which is internally u32 and dereferences to the allocator itself.
-	- should create a generic generation handle system
+		- which is internally u32 and dereferences to the allocator itself.
+	- ~~should create a generic generation handle system~~
 
 ### Current focus
 - ~~RWlock~~
@@ -24,11 +22,9 @@ then `build.bat`
 	- ended up writing a reflector program using libclang. Most control, simplest to implement/integrate.
 	- still needs hardening, for stuff like external types in structs (EX glm::vec3), and reflecting on enums
 - Serialization
-	- ~~generate functions, or write a serialization function that operates on opaque typedescriptors~~
-	- ~~Need something to serialize to/from~~
-	- ~~Take a data block & type descriptor, and write it out to ini. ~~
-		- ~~and take ini, load it into data block given a type descriptor~~
-	- Use relative pointers
+	- ~~to/from string serialization~~
+ 		- chose .ini format
+ 	- binary to/from serialization with rel pointers
 - Scene loading. 
 	- map a MAID to a filesystem path, or an arbitrary "actual" asset identifier that a loading system can use to actually load the thing fr
 	- Need a scene/asset description file. Going to use ini. To get data in/parse that description file, need reflection
