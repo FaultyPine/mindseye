@@ -202,25 +202,34 @@ meReflectedType* TryGetReflectedType(CXCursor cr, meAllocator* allocator, ClangP
 	return &reflType;
 }
 
-bool IsPrimitiveType(CXTypeKind kind)
+static std::unordered_map<CXTypeKind, meTypeDescriptor*> clangToMePrimitiveType =
 {
-	return (kind >= CXType_FirstBuiltin && kind <= CXType_LastBuiltin) || (kind == CXType_Pointer);
-}
-
-bool IsPrimitiveType(CXCursor cr)
+	{ CXType_Bool, &TD_BOOL },
+	{ CXType_Char_U, &TD_UNSIGNED_CHAR},
+	{ CXType_UChar, &TD_UNSIGNED_CHAR},
+	{ CXType_Char16, &TD_SHORT},
+	{ CXType_Char32, &TD_INT},
+	{ CXType_UShort, &TD_UNSIGNED_SHORT},
+	{ CXType_UInt, &TD_UNSIGNED_INT},
+	{ CXType_ULong, &TD_UNSIGNED_LONG},
+	{ CXType_ULongLong, &TD_UNSIGNED_LONG_LONG},
+	{ CXType_Char_S, &TD_CHAR},
+	{ CXType_SChar, &TD_CHAR},
+	{ CXType_WChar, &TD_WCHAR},
+	{ CXType_Short, &TD_SHORT},
+	{ CXType_Int, &TD_INT},
+	{ CXType_Long, &TD_LONG},
+	{ CXType_LongLong, &TD_LONGLONG},
+	{ CXType_Float, &TD_FLOAT},
+	{ CXType_Double, &TD_DOUBLE },
+};
+static std::unordered_map<StringView, meTypeDescriptor*> builtinStructs =
 {
-	CXType type = clang_getCursorType(cr);
-	CXCursor typeDecl = clang_getTypeDeclaration(type);
-	CXType underlyingtype = clang_getCursorType(typeDecl);
-	
-	CXTypeKind kind = underlyingtype.kind;
-
-	if (kind == CXType_Typedef)
-	{
-		kind = clang_getTypedefDeclUnderlyingType(typeDecl).kind;
-	}
-	return IsPrimitiveType(kind) || IsPrimitiveType(type.kind);
-}
+	{ STRING_LIT("String"), &TD_STRING },
+	{ STRING_LIT("StringView"), &TD_STRINGVIEW },
+	{ STRING_LIT("meSpan"), &TD_SPAN },
+	{ STRING_LIT("glm::vec<3, float>"), &TD_VEC3 },
+};
 
 meTypeDescriptor* MapClangPrimitiveTypeToTypeDescriptor(CXCursor cr)
 {
@@ -230,29 +239,27 @@ meTypeDescriptor* MapClangPrimitiveTypeToTypeDescriptor(CXCursor cr)
 	{
 		kind = clang_getTypedefDeclUnderlyingType(cr).kind;
 	}
-	static std::unordered_map<CXTypeKind, meTypeDescriptor*> clangToMePrimitiveType =
+	if (kind == CXType_Elaborated)
 	{
-		{ CXType_Bool, &TD_BOOL },
-		{ CXType_Char_U, &TD_UNSIGNED_CHAR},
-		{ CXType_UChar, &TD_UNSIGNED_CHAR},
-		{ CXType_Char16, &TD_SHORT},
-		{ CXType_Char32, &TD_INT},
-		{ CXType_UShort, &TD_UNSIGNED_SHORT},
-		{ CXType_UInt, &TD_UNSIGNED_INT},
-		{ CXType_ULong, &TD_UNSIGNED_LONG},
-		{ CXType_ULongLong, &TD_UNSIGNED_LONG_LONG},
-		{ CXType_Char_S, &TD_CHAR},
-		{ CXType_SChar, &TD_CHAR},
-		{ CXType_WChar, &TD_WCHAR},
-		{ CXType_Short, &TD_SHORT},
-		{ CXType_Int, &TD_INT},
-		{ CXType_Long, &TD_LONG},
-		{ CXType_LongLong, &TD_LONGLONG},
-		{ CXType_Float, &TD_FLOAT},
-		{ CXType_Double, &TD_DOUBLE },
-		{ CXType_Pointer, &TD_POINTER },
-	};
-	meTypeDescriptor* result = clangToMePrimitiveType.at(kind);
+		type = clang_getCanonicalType(type);
+		kind = type.kind;
+	}
+	meTypeDescriptor* result = nullptr;
+	if (kind == CXType_Record)
+	{
+		CXString typeSpelling = clang_getTypeSpelling(type);
+		const char* typeName = clang_getCString(typeSpelling);
+		StringView typeNameStr = StringView(typeName, CStringLength(typeName));
+		if (builtinStructs.count(typeNameStr))
+		{
+			result = builtinStructs.at(typeNameStr);
+		}
+		clang_disposeString(typeSpelling);
+	}
+	else if (clangToMePrimitiveType.count(kind))
+	{
+		result = clangToMePrimitiveType.at(kind);
+	}
 	return result;
 }
 
@@ -272,6 +279,25 @@ meReflectedType TransferRelevantReflectedTypeInfoToTypeDescriptor(meTypeDescript
 	return result;
 }
 
+bool IsPrimitiveType(CXTypeKind kind)
+{
+	return (kind >= CXType_FirstBuiltin && kind <= CXType_LastBuiltin) || (kind == CXType_Pointer);
+}
+
+bool IsBuiltinType(CXCursor cr)
+{
+	CXType type = clang_getCursorType(cr);
+	CXCursor typeDecl = clang_getTypeDeclaration(type);
+	CXType underlyingtype = clang_getCursorType(typeDecl);
+	CXTypeKind kind = underlyingtype.kind;
+	meTypeDescriptor* builtinTypeDesc = MapClangPrimitiveTypeToTypeDescriptor(cr);
+	if (kind == CXType_Typedef)
+	{
+		kind = clang_getTypedefDeclUnderlyingType(typeDecl).kind;
+	}
+	return builtinTypeDesc != nullptr || IsPrimitiveType(kind);
+}
+
 meReflectedType& GetReflectedType(CXCursor cr, meAllocator* allocator, ClangParsingContext& ctx)
 {
 	u32 headerID = 0;
@@ -284,10 +310,10 @@ meReflectedType& GetReflectedType(CXCursor cr, meAllocator* allocator, ClangPars
 	}
 	String headerPath = GetHeaderPathForCursor(cr, allocator);
 	ctx.reflectedFiles[headerID].fileName = headerPath;
-	if (IsPrimitiveType(cr)) // if we are registering a primitive type for the first time
+	meTypeDescriptor* builtinTypeDesc = MapClangPrimitiveTypeToTypeDescriptor(cr);
+	if (builtinTypeDesc)
 	{
-		meTypeDescriptor* typeDesc = MapClangPrimitiveTypeToTypeDescriptor(cr);
-		reflType = TransferRelevantReflectedTypeInfoToTypeDescriptor(typeDesc);
+		reflType = TransferRelevantReflectedTypeInfoToTypeDescriptor(builtinTypeDesc);
 	}
 	return reflType;
 }
@@ -323,14 +349,16 @@ void StoreReflectedTypeInfo(
 	// for fields, fill out the inner type, and add this type to the parent struct's children
 	if (crKind == CXCursor_FieldDecl)
 	{
-		CXTypeKind fieldTypeKind = crType.kind;
 		CXCursor fieldTypeCr = clang_getTypeDeclaration(crType);
-		if (IsPrimitiveType(fieldTypeKind) && fieldTypeCr.kind == CXCursor_NoDeclFound)
+		bool isBuiltin = IsBuiltinType(fieldTypeCr);
+		if (isBuiltin && fieldTypeCr.kind == CXCursor_NoDeclFound)
 		{
+			// primitive type. I.E. u32
 			fieldTypeCr = cr;
 		}
-		else if (!IsPrimitiveType(fieldTypeCr))
+		else if (!isBuiltin)
 		{
+			// non-builtin/primitive and unknown. Likely an external type we won't include in the final generated output
 			StoreReflectedTypeInfo(fieldTypeCr, ctx, {});
 		}
 		// annotated fields have their parentCr as the fielddecl. Unannotated fields have their parentCr as the struct decl
@@ -344,6 +372,11 @@ void StoreReflectedTypeInfo(
 		DynArrayPush(parentReflType.children, &fieldMemberRefl);
 		fieldMemberRefl.innerType = &fieldTypeRefl;
 		reflTypePtr = &fieldMemberRefl;
+		if (isBuiltin)
+		{
+			// for non-primitive builtin types (I.E. String) we should include those
+			SET_BIT(reflTypePtr->flags, INCLUDE_IN_GENERATED_HEADER, true);
+		}
 	}
 	else
 	{

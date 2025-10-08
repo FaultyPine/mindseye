@@ -392,6 +392,28 @@ bool meOSEnsureDirectoriesExist(const char* pathCstr)
 	return CreateRecursiveDirectory(StringView(pathCstr, len));
 }
 
+bool meOSFileExists(
+	const OSFileReference& file)
+{
+	DWORD dwAttrib = GetFileAttributesA(file.path);
+
+	return (dwAttrib != INVALID_FILE_ATTRIBUTES && 
+		!(dwAttrib & FILE_ATTRIBUTE_DIRECTORY));
+}
+
+
+bool meOSFileDelete(
+	const OSFileReference& file)
+{
+	bool result = DeleteFileA(file.path);
+	if (!result)
+	{
+		DWORD error = GetLastError();
+		LOG_ERROR("Failed to delete file %s %i", file.path, error);
+	}
+	return result;
+}
+
 String meOSResolveRelativeToAbsPath(
 	meAllocator* allocator,
 	StringView potentiallyRelativePath)

@@ -9,5 +9,8 @@ tools/clang
 .vs
 *.tmp
 *.raddbg
+*.10x
+*.rdbg
+*.cap
 
 mindseye/external/vulkan_lib/Lib

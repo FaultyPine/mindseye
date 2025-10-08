@@ -5,9 +5,12 @@
 
 void testbed_init(EngineContext* engine)
 {
-	meScene testscene;
-	meSceneLoadFromGLTF(&engine->engineSceneAllocator, STRING_LIT("BarramundiFish/glTF/BarramundiFish.gltf"), testscene);
-	engine->sceneSystem->scene = testscene;
+	StringView sceneFilePath = STRING_LIT("projects/testbed/testscene.scn");
+	meScene& testscene = engine->sceneSystem->scene;
+	testscene.externalScenePath = STRING_LIT("gltf-samples/Models/BarramundiFish/glTF/BarramundiFish.gltf");
+	engine->sceneSystem->WriteSceneToFileBlocking(&testscene, sceneFilePath);
+	testscene = {};
+	engine->sceneSystem->LoadSceneFromFileBlocking(sceneFilePath, &engine->engineSceneAllocator, &testscene);
 }
 
 void testbed_update(EngineContext* engine)

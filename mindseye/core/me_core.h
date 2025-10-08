@@ -23,7 +23,8 @@ struct Eye
 	}
 	u32 GetIndex() const { return eye & IndexBitsMask; }
 	u8 GetGeneration() const { return (eye & GenerationBitsMask) >> IndexNumBits; }
-	operator u32() { return eye; }
+	explicit operator u32() const { return eye; }
+	explicit operator bool() const { return eye != U32_INVALID_ID; }
 };
 
 

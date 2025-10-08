@@ -2,6 +2,7 @@
 
 #include "external/inicpp.hpp"
 #include "reflector/reflection_types.h"
+#include "platform/me_os.h"
 
 // TODO: this inicpp library is not good. 
 // It works, so i'm using it to stand up the rest of the infra here
@@ -12,6 +13,11 @@ void SerializeToIniBlocking(
 	void* data,
 	StringView outFilename)
 {
+	{
+		OSFileReference outExistingFile;
+		outExistingFile.InitWithoutOpening(outFilename);
+		meOSFileDelete(outExistingFile);
+	}
 	inicpp::IniManager iniObj(outFilename.data);
 	iniObj.set("type", (const char*)typeDesc.name.data);
 	iniObj.set("version", typeDesc.version);
@@ -19,13 +25,17 @@ void SerializeToIniBlocking(
 	for (u64 i = 0; i < typeDesc.fields.size; i++)
 	{
 		const meTypeDescriptor& field = typeDesc.fields[i];
+		if (field.underlyingType == nullptr)
+		{
+			continue;
+		}
 		u32 offsetBytes = field.offsetBits / 8;
 		meSpan fieldData = meSpan(typeData + offsetBytes, field.size);
+		StringView fieldStr = field.ToString(GetTLScratch(), fieldData);
 		// Doing this kind of textual human-readable serialization
 		// requires a heavy ToString call. Do I want to use human readable
 		// serialization formats???? Not sure what I really want to do here...
-		StringView fieldStr = field.ToString(GetTLScratch(), fieldData);
-		iniObj["members"][(const char*)field.name.data] = (const char*)fieldStr.data;
+		iniObj[typeDesc.name.cstr()][(const char*)field.name.cstr()] = (const char*)fieldStr.cstr();
 	}
 }
 
@@ -34,6 +44,7 @@ meSpan DeserializeFromIniBlocking(
 	meAllocator* allocator,
 	StringView inFilename)
 {
+	ME_ASSERT(meOSFileExists(inFilename));
 	inicpp::IniManager iniObj(inFilename.data);
 	meAllocator* scratch = GetTLScratch();
 	Allocation scratchWorkMem = MEALLOC(scratch, MEGABYTES_BYTES(1));
@@ -41,11 +52,16 @@ meSpan DeserializeFromIniBlocking(
 	for (u64 i = 0; i < typeDesc.fields.size; i++)
 	{
 		const meTypeDescriptor& field = typeDesc.fields[i];
+		if (field.underlyingType == nullptr)
+		{
+			bumper = bumper.Subspan(field.size);
+			continue;
+		}
+		std::string fieldStr = iniObj[typeDesc.name.cstr()].toString(field.name.data);
+		meSpan fieldData = field.FromString(scratch, StringView(fieldStr.c_str(), fieldStr.size()));
 		// Doing this kind of textual human-readable serialization
 		// requires a heavy ToString call. Do I want to use human readable
 		// serialization formats???? Not sure what I really want to do here...
-		std::string fieldStr = iniObj["members"].toString(field.name.data);
-		meSpan fieldData = field.FromString(scratch, StringView(fieldStr.c_str(), fieldStr.size())); // TODO
 		ME_MEMCPY(bumper.data, fieldData.data, fieldData.size);
 		bumper = bumper.Subspan(fieldData.size);
 	}

@@ -17,7 +17,7 @@ struct SceneRuntimeData
 struct MEREFLECT(type, Description="Scene Description", Version=0)
 meScene
 {
-	String sceneName;
+	String externalScenePath;
 
 	MEREFLECT(exclude) 
 	SceneRuntimeData runtime = {};
@@ -25,9 +25,12 @@ meScene
 
 struct meSceneManager
 {
+	// ------------- externally callable -----------------------------------------
+	MEAPI void LoadSceneFromFileBlocking(StringView filename, meAllocator* allocator, meScene* outScene);
+	MEAPI void WriteSceneToFileBlocking(meScene* scene, StringView filename);
+
+	// -------- engine internal --------------------------
 	void Tick(EngineContext* ctx);
-	void LoadSceneFromFileBlocking(StringView filename, meAllocator* allocator, meScene* outScene);
-	void WriteSceneToFileBlocking(meScene* scene, StringView filename);
 	void CopyToRenderInput(meScene& outScene);
 
 	meScene scene;

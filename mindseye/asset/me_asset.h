@@ -98,8 +98,8 @@ struct meAssetLoader
 
 struct meAssetSystem
 {
-    // relative to working dir
-    const char* resourceDir = nullptr;
+	// relative to working dir
+	String resourceDir = {};
 	RWLock assetRegistryLock = {};
     meMap<meAssetIdent, meRTAsset> assetRegistry = {};
     // meAssetType -> loader
@@ -128,8 +128,8 @@ meAssetLoadStage* meAssetLoadSync(
 	meAssetIdent* idents,
 	u32 numAssets = 1);
 
-void meAssetSetResourceDir(const char* dir);
-const char* meAssetGetResourceDir();
+void meAssetSetResourceDir(StringView dir);
+StringView meAssetGetResourceDir();
 // I.E. "models/obj.gltf" -> "C:/workingdir/mindseye/bin/resource/models/obj.gltf" or something similar
 // returns a short-lived string. This should only be used for "scratch" operations. If you need to store this string long-term,
 // copy it, or use something else

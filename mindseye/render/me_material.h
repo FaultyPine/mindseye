@@ -1,7 +1,7 @@
 #pragma once
 
 
-#include "core/me_handle.h"
+#include "core/me_resourcepool.h"
 
 enum meMaterialTextureType : u32 
 {

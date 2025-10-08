@@ -20,7 +20,7 @@ DynArrayHeader* GetHeaderPointer(DynArray array)
 
 Allocation DynArrayInternalAlloc(meAllocator* allocator, size_t size)
 {
-    return allocator->meAlloc(size);
+    return MEALLOC(allocator, size);
 }
 
 void DynArrayInternalFree(meAllocator* allocator, Allocation data)

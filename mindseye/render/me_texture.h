@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core/me_handle.h"
+#include "core/me_resourcepool.h"
 #include "me_gpu.h"
 
 struct meTexture
@@ -16,9 +16,8 @@ struct meTexturePool : public meResourcePool<meTexture>
 {
 	meTexturePool(
 		meAllocator* resourceAllocator,
-		meAllocator* payloadAllocator) : 
+		meAllocator* payloadAllocator) :
 	meResourcePool<meTexture>(resourceAllocator, payloadAllocator) {}
-
 };
 
 void meTextureInitialize(EngineContext* ctx);

@@ -5,6 +5,22 @@
 #include "core/me_log.h"
 #include "external/stb/stb_sprintf.h"
 
+// some compilers can't do offsetof in static asserts :/
+//#include <cstddef> // For offsetof
+// didn't want to factor these out into a separate struct
+//STATIC_ASSERT(offsetof(String, data) == offsetof(StringView, data));
+//STATIC_ASSERT(sizeof(String::data) == sizeof(StringView::data));
+//STATIC_ASSERT(offsetof(String, len) == offsetof(StringView, len));
+//STATIC_ASSERT(sizeof(String::len) == sizeof(StringView::len));
+
+//STATIC_ASSERT(offsetof(meSpan, data) == offsetof(StringView, data));
+//STATIC_ASSERT(sizeof(meSpan::data) == sizeof(StringView::data));
+//STATIC_ASSERT(offsetof(meSpan, size) == offsetof(StringView, len));
+//STATIC_ASSERT(sizeof(meSpan::size) == sizeof(StringView::len));
+
+//STATIC_ASSERT(offsetof(meSpan, data) == 0);
+//STATIC_ASSERT(offsetof(meSpan, size) == sizeof(meSpan::data));
+
 bool StringView::operator==(const StringView& sv) const 
 {
     return sv.len == this->len && ME_MEMCMP(this->data, sv.data, sv.len) == 0;
@@ -55,6 +71,9 @@ String::String(String&& other) noexcept
 	data = other.data;
 	len = other.len;
 	allocator = other.allocator;
+	other.data = nullptr;
+	other.len = 0;
+	other.allocator = nullptr;
 }
 
 String& String::operator=(String&& other)
@@ -62,6 +81,9 @@ String& String::operator=(String&& other)
 	data = other.data;
 	len = other.len;
 	allocator = other.allocator;
+	other.data = nullptr;
+	other.len = 0;
+	other.allocator = nullptr;
 	return *this;
 }
 
@@ -136,6 +158,7 @@ StringView String::OffsetView(size_t offset)
 
 size_t CStringLength(const char* str)
 {
+	if (!str) return 0;
     size_t len = 0;
     while (str[len] != '\0') 
     {
@@ -170,10 +193,9 @@ bool StringCopy(StringView dst, StringView src)
     {
         LOG_ERROR("Source string smaller than dst string!");
         return false;
-    } 
+    }
     // source length will always be less than or equal to dst len
-    size_t amountToCopy = src.len;
-    ME_MEMCPY((void*)dst.data, src.data, amountToCopy);
+    ME_MEMCPY((void*)dst.data, src.data, src.len);
     return true;
 }
 
@@ -217,14 +239,14 @@ s32 FindInString(
 s32 FindInStringRev(
 	StringView haystack,
 	StringView needle,
-	u32 offset,
+	u32 offsetFromBack,
 	StringOpFlags flags)
 {
 	if (!needle.data || !needle.len || *needle.data == '\0') 
     {
 		return -1;
     }
-	for (s32 hayStackIdx = ((s64)haystack.len) - 1 - (s32)offset; hayStackIdx - needle.len >= 0; hayStackIdx--)
+	for (s32 hayStackIdx = ((s64)haystack.len) - 1 - (s32)offsetFromBack; hayStackIdx - needle.len >= 0; hayStackIdx--)
 	{
 		const char* haystackPtr = &haystack.data[hayStackIdx];
 		u32 i = 0;
@@ -487,7 +509,7 @@ const char* InternalStringFormat(const char *text, va_list* args, s32& numBytesW
     return currentBuffer;
 }
 
-void StringBuilder::AppendFormat(const char* fmt, ...)
+s32 StringBuilder::AppendFormat(const char* fmt, ...)
 {
     va_list args;
     va_start(args, fmt);
@@ -497,6 +519,7 @@ void StringBuilder::AppendFormat(const char* fmt, ...)
 	StringView stringToAppend = StringView(formattedTmpBuf, numBytesWritten);
 	Append(stringToAppend);
 	ME_ASSERT(capacity > len);
+	return numBytesWritten;
 }
 
 StringView StringFormat(const char *text, ...)

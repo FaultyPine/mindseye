@@ -486,6 +486,7 @@ void* BgfxRendererBackend::RenderScene(RenderInput* input)
 
 	bgfx::setIndexBuffer(bgfx::IndexBufferHandle { static_cast<u16>(mesh.idxBuffer.bufferHandle) });
 
+	// TODO: set uniforms
 	const meTexturePool& texturePool = meTextureGetPool();
 	const meMaterialPool& materialPool = meMaterialGetPool();
 	const meMaterial& material = materialPool.Get(mesh.materialHandle);

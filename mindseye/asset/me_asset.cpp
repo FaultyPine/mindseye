@@ -12,7 +12,7 @@ MEEVENT_DECLARE_STATIC(registerAssetLoader);
 
 static bool MEASSET_DEBUG_SINGLETHREADED_LOAD = 1;
 constexpr u32 NUM_ASSET_COMPILER_THREADS = 1;
-static const char* DEFAULT_RESOURCE_DIRECTORY_NAME = "data";
+static StringView DEFAULT_RESOURCE_DIRECTORY_NAME = STRING_LIT("projects/testbed");
 
 static meAssetSystem& GetAssetSystem()
 {
@@ -24,7 +24,8 @@ void meAssetInitialize(EngineContext* engine)
     engine->assetSystem = MENEW(&engine->engineArena, meAssetSystem);
 	engine->assetSystem->assetRegistry.reserve(500);
     const CommandLineArgs& cmdline = GetCommandLineArgs();
-    meAssetSetResourceDir(cmdline.hasResourceDir ? cmdline.ResourceDir : DEFAULT_RESOURCE_DIRECTORY_NAME);
+	StringView cmdlineResDir = StringView(cmdline.ResourceDir, CStringLength(cmdline.ResourceDir));
+    meAssetSetResourceDir(cmdline.hasResourceDir ? cmdlineResDir : DEFAULT_RESOURCE_DIRECTORY_NAME);
 	engine->assetSystem->assetCompilerJobs.Initialize(&engine->engineArena, NUM_ASSET_COMPILER_THREADS);
 	registerAssetLoader( meEventPayload{ &engine->engineArena });
 }
@@ -168,18 +169,23 @@ meRTAsset* meAssetTryGetLoaded(meAssetIdent assetID)
 	return &assetSystem.assetRegistry[assetID];
 }
 
-void meAssetSetResourceDir(const char* dir)
+void meAssetSetResourceDir(StringView dir)
 {
     GetEngineCtx()->assetSystem->resourceDir = dir;
 }
 
-const char* meAssetGetResourceDir()
+StringView meAssetGetResourceDir()
 {
     return GetEngineCtx()->assetSystem->resourceDir;
 }
 
 StringView meAssetResource(StringView resourcePath)
 {
-	StringView result = StringFormat("%s%c%.*s", meAssetGetResourceDir(), meFsGetDirectorySeperator(), STRING_VAARGS(resourcePath));
+	StringView result = resourcePath;
+	if (FindInString(resourcePath, meAssetGetResourceDir()) == -1)
+	{
+		StringView resDir = meAssetGetResourceDir();
+		result = StringFormat("%.*s%c%.*s", STRING_VAARGS(resDir), meFsGetDirectorySeperator(), STRING_VAARGS(resourcePath));
+	}
 	return result;
 }

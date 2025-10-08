@@ -41,6 +41,14 @@ struct meTypeDescriptor
 
 	meTypeDescriptor* underlyingType = nullptr;
 
+	typedef StringView(*serializerToString)(meAllocator* allocator, meSpan data);
+	typedef meSpan(*deserializerFromString)(meAllocator* allocator, StringView str);
+
+	// for non-pod types, these can be assigned and will
+	// be called instead of default primitive serialization funcs
+	serializerToString strSerializer = nullptr;
+	deserializerFromString strDeserializer = nullptr;
+
 	StringView ToString(meAllocator* allocator, meSpan data) const;
 	meSpan FromString(meAllocator* allocator, StringView str) const;
 
@@ -53,12 +61,6 @@ struct meTypeDescriptor
 			flags == other.flags && 
 			underlyingType == other.underlyingType;
 	}
-};
-
-// TODO: relative? fixup?....
-struct meSerializedPtr
-{
-	void* ptr;
 };
 
 extern meTypeDescriptor TD_UNSIGNED_INT;
@@ -75,4 +77,11 @@ extern meTypeDescriptor TD_BOOL;
 extern meTypeDescriptor TD_CHAR;
 extern meTypeDescriptor TD_UNSIGNED_CHAR;
 extern meTypeDescriptor TD_WCHAR;
-extern meTypeDescriptor TD_POINTER;
+extern meTypeDescriptor TD_VEC3;
+extern meTypeDescriptor TD_SPAN;
+extern meTypeDescriptor TD_STRINGVIEW; // basically the same as span
+extern meTypeDescriptor TD_STRING;
+
+// NOTE: there are static maps mapping between reflected types and their type descriptors
+// in me_reflector.cpp
+// I.E. "String" -> TD_STRING or "glm::vec3<3, float>" -> TD_VEC3

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "core/me_core.h"
+
 struct meAllocator;
 struct StringView;
 struct String
@@ -50,7 +52,7 @@ struct StringBuilder
 
 	void SetAllocator(meAllocator* allocator) { this->allocator = allocator; }
 	void Append(StringView str);
-	void AppendFormat(const char* fmt, ...);
+	s32 AppendFormat(const char* fmt, ...);
 };
 
 struct StringView
@@ -62,6 +64,7 @@ struct StringView
     MEAPI StringView(const String& s) { data = (char*)s.data; len = s.len; }
     MEAPI StringView(const StringBuilder& s) { data = (char*)s.data; len = s.len; }
 	MEAPI StringView(const char* data, size_t len) { this->data = (char*)data; this->len = len; };
+	MEAPI explicit StringView(const meSpan& span) { this->data = (char*)span.data; this->len = span.size; }
 	MEAPI bool operator == (const StringView& sv) const;
     explicit operator char*() { return data; }
 	explicit operator bool() const
@@ -117,7 +120,7 @@ MEAPI s32 FindInString(
 MEAPI s32 FindInStringRev(
 	StringView haystack,
 	StringView needle,
-	u32 offset = 0,
+	u32 offsetFromBack = 0,
 	StringOpFlags flags = StringOpFlags(0));
 
 // invert meaning this eats anything except the given char

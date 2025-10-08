@@ -68,6 +68,7 @@ ResourceType& meResourcePool<ResourceType>::Get(Eye eye)
 {
 	auto idx = eye.GetIndex();
 	auto& resource = resourcePool.get(idx);
+	ME_ASSERT(resource.generation == eye.GetGeneration());
 	return resource.obj;
 }
 
@@ -76,5 +77,6 @@ const ResourceType& meResourcePool<ResourceType>::Get(Eye eye) const
 {
 	auto idx = eye.GetIndex();
 	const auto& resource = resourcePool.get(idx);
+	ME_ASSERT(resource.generation == eye.GetGeneration());
 	return resource.obj;
 }

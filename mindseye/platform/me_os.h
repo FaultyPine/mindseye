@@ -70,21 +70,7 @@ enum OSFileCursorMode
 {
 	BEGIN, CURRENT, END
 };
-
-struct OSFileReference
-{
-    ~OSFileReference();
-    OSFileFlags flags = OSFileFlags(0);
-    #ifdef OS_WINDOWS
-    void* fileHandle = 0;
-    char path[PATH_MAX] = {};
-    #else
-    #error unsupported filereference platform
-    #endif
-
-	// TODO: implement copy/assign/move 
-	// and take OSFileFlags::ScopedFile into account
-};
+struct OSFileReference;
 
 MEAPI void ConsolePrint(StringView text);
 MEAPI void* LoadDynamicLibrary(const char* name);
@@ -111,6 +97,8 @@ MEAPI void meOSFreeVirtualMemory(
 	void* data);
 
 MEAPI char meOSFsDirectorySeperator();
+
+#define ME_OS_OPENFILE(varname, path, flags) OSFileReference varname; meOSOpenFile(varname, path, flags);
 
 MEAPI bool meOSOpenFile(
 	OSFileReference& file, 
@@ -141,6 +129,12 @@ MEAPI bool meOSSetFileCursor(
 MEAPI size_t meOSGetFileSize(
 	const OSFileReference& file);
 
+MEAPI bool meOSFileExists(
+	const OSFileReference& file);
+
+MEAPI bool meOSFileDelete(
+	const OSFileReference& file);
+
 MEAPI char* meOSGetExeFilepath();
 MEAPI char* meOSGetExeFileFolder();
 
@@ -149,3 +143,30 @@ MEAPI String meOSResolveRelativeToAbsPath(
 	StringView potentiallyRelativePath);
 
 MEAPI u32 meOSGetThreadID();
+
+struct OSFileReference
+{
+    ~OSFileReference();
+    OSFileFlags flags = OSFileFlags(0);
+    #ifdef OS_WINDOWS
+    void* fileHandle = 0;
+    char path[PATH_MAX] = {};
+    #else
+    #error unsupported filereference platform
+    #endif
+
+	// TODO: implement copy/assign/move 
+	// and take OSFileFlags::ScopedFile into account
+	OSFileReference() = default;
+	OSFileReference(StringView str)
+	{
+		bool result = meOSOpenFile(*this, str, (OSFileFlags)(OSFileFlags::ScopedFile | OSFileFlags::OnlyIfExists));
+		ME_ASSERT(result);
+	}
+	void InitWithoutOpening(StringView str)
+	{
+		ME_MEMCLEAR((void*)path, PATH_MAX);
+		StringCopy({path, PATH_MAX}, str);
+	}
+	bool HasOpenFile() const { return reinterpret_cast<s64>(fileHandle) != -1; }
+};

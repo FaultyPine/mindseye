@@ -21,10 +21,15 @@ void meSceneManager::Tick(EngineContext* ctx)
 
 void meSceneManager::LoadSceneFromFileBlocking(StringView filename, meAllocator* allocator, meScene* outScene)
 {
-	meSpan deserializedScene = DeserializeFromIniBlocking(TD_MESCENE, allocator, filename);
+	meSpan deserializedSceneMem = DeserializeFromIniBlocking(TD_MESCENE, allocator, filename);
+	meScene* deserializedScene = (meScene*)deserializedSceneMem.data;
 	if (deserializedScene)
 	{
-		*outScene = *(meScene*)deserializedScene.data;
+		if (FindInString(deserializedScene->externalScenePath, STRING_LIT(".gltf")) != -1)
+		{
+			meSceneLoadFromGLTF(allocator, deserializedScene->externalScenePath, *deserializedScene);
+		}
+		*outScene = *deserializedScene;
 	}
 }
 
@@ -67,8 +72,8 @@ void meSceneLoadFromGLTF(
 	meScene& outScene)
 {
     StringView resourcePath = meAssetResource(resourcePathSv);
-    OSFileReference file = {.flags = ScopedFile};
-    meOSOpenFile(file, resourcePath, OSFileFlags::OnlyIfExists);
+	OSFileReference file;
+    meOSOpenFile(file, resourcePath, (OSFileFlags)(OSFileFlags::OnlyIfExists | OSFileFlags::ScopedFile));
 	u64 filesize = meOSGetFileSize(file);
 	Allocation gltfBuffer = MEALLOC(allocator, filesize);
     if (!meOSReadFileContents(file, gltfBuffer.data, gltfBuffer.size))
@@ -102,7 +107,8 @@ void meSceneLoadFromGLTF(
 	{
 		sceneName = data->nodes_count ? data->nodes[0].name : "Unnamed scene";
 	}
-	outScene.sceneName = String(sceneName, CStringLength(sceneName), allocator);
+	outScene.externalScenePath = String(sceneName, CStringLength(sceneName), allocator);
 	outScene.runtime.gltfData = data;
-	outScene.runtime.gltfResourcePath = String(resourcePath, allocator);
+	StringView gltfResourcePath = msFsGetDirFromPath(resourcePath);
+	outScene.runtime.gltfResourcePath = String(gltfResourcePath, allocator);
 }

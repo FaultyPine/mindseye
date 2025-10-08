@@ -50,9 +50,16 @@ StringView msFsGetDirFromPath(StringView path)
 	char dirSepC = meFsGetDirectorySeperator();
 	StringView dirSep = StringView(&dirSepC, 1);
 	meFsNormalizePathSeperators(dirSep);
+	meFsNormalizePathSeperators(path);
 	s32 lastDirSep = FindInStringRev(path, dirSep, 0, StringOpFlags_IdxAfterNeedle);
 	if (lastDirSep == -1)
 	{
+		return path;
+	}
+	if (FindInString(path, STRING_LIT("."), lastDirSep) == -1)
+	{
+		// Assumption: files will always have an extension
+		// TODO: in debug mode do an actual OS check here for folder/file
 		return path;
 	}
 	StringView result = StringView(path.data, MEMAX(0, lastDirSep-1));
