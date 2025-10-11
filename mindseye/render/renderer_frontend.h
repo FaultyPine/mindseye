@@ -31,6 +31,10 @@ struct RendererFrontend
 
     // takes in all the input the renderer needs to render a frame. Outputs a framebuffer (handle)
     virtual void* RenderScene(RenderInput* input) { return nullptr; }
+
+	// each renderer backend is responsible for drawing the ImDrawData imgui produces
+	virtual void BeginImguiContext() {}
+	virtual void EndImguiContext() {}
 };
 
 void RendererInitialize(EngineContext* engine);

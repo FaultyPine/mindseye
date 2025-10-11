@@ -70,6 +70,7 @@
 // SUBMODULES
 #include "render/renderer_unity.cpp"
 #include "scene/scene_unity.cpp"
+#include "editor/me_editor_unity.cpp"
 
 #endif // ME_CORE_ONLY
 #endif // ME_UNITY_HEADER_ONLY

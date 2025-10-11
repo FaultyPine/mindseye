@@ -9,6 +9,7 @@
 #include "render/renderer_frontend.h"
 #include "asset/me_asset.h"
 #include "core/thread/me_thread.h"
+#include "editor/me_editor.h"
 
 #include "render/me_material.h"
 #include "render/me_texture.h"
@@ -33,6 +34,7 @@ void RunEngine(EngineContext* engine)
     {
         meOSTick(engine);
 		engine->sceneSystem->Tick(engine);
+		meEditorDisplayGui(engine);
         RenderInput renderInput = {};
         renderInput.osData = *engine->osData;
 		engine->sceneSystem->CopyToRenderInput(renderInput.scene);
@@ -62,6 +64,7 @@ void InitializeEngine(s32 argc, char** argv)
 	WindowCreationParams windowCreationParams = {}; // TODO: from config/cmdline?
     meOSCreateWindow(windowCreationParams, engine);
     RendererInitialize(engine);
+	meEditorInitialize(engine);
 
 	// start doing a scan from cwd
 	StringView mindseyeIniFile = STRING_LIT("mindseye.ini");

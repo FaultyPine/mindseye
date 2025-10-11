@@ -405,6 +405,27 @@ void LoadMeshFromGLTF(
 	}
 }
 
+void BgfxRendererBackend::BeginImguiContext()
+{
+	OSStateView& osData = *GetEngineCtx()->osData;
+	u32 windowWidth = osData.windowWidth;
+	u32 windowHeight = osData.windowHeight;
+    const MouseState& mouseState = osData.mouseState;
+    imguiBeginFrame(mouseState.mouseX
+					,  mouseState.mouseY
+					,  (TEST_BIT(mouseState.buttons, MouseState::LBUTTON) ? IMGUI_MBUT_LEFT   : 0)
+					| (TEST_BIT(mouseState.buttons, MouseState::RBUTTON) ? IMGUI_MBUT_RIGHT  : 0)
+					| (TEST_BIT(mouseState.buttons, MouseState::MBUTTON) ? IMGUI_MBUT_MIDDLE : 0)
+					, mouseState.scroll
+					, u16(windowWidth)
+					, u16(windowHeight)
+					);
+}
+
+void BgfxRendererBackend::EndImguiContext()
+{
+    imguiEndFrame();
+}
 
 void* BgfxRendererBackend::RenderScene(RenderInput* input)
 {
@@ -444,47 +465,7 @@ void* BgfxRendererBackend::RenderScene(RenderInput* input)
     //const bgfx::Stats* stats = bgfx::getStats();
     // Set view and clear
     bgfx::setViewClear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x443355FF, 1.0f, 0);
- 
-    imguiBeginFrame(mouseState.mouseX
-        ,  mouseState.mouseY
-        ,  (TEST_BIT(mouseState.buttons, MouseState::LBUTTON) ? IMGUI_MBUT_LEFT   : 0)
-			| (TEST_BIT(mouseState.buttons, MouseState::RBUTTON) ? IMGUI_MBUT_RIGHT  : 0)
-			| (TEST_BIT(mouseState.buttons, MouseState::MBUTTON) ? IMGUI_MBUT_MIDDLE : 0)
-        , mouseState.scroll
-		, u16(windowWidth)
-		, u16(windowHeight)
-        );
 
-	ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 5.0f);
-	if (ImGui::BeginMainMenuBar())
-	{
-		ImGui::Text("%.*s", STRING_VAARGS(GetEngineCtx()->appConfig->appName));
-		if (ImGui::BeginMenu("File"))
-		{
-			if (ImGui::MenuItem("Button1"))
-			{ 
-				
-			}
-			if (ImGui::MenuItem("Open", "Ctrl+O")) 
-			{
-				
-			}
-			ImGui::EndMenu();
-		}
-		if (ImGui::BeginMenu("AnotherMenu"))
-		{
-
-			ImGui::EndMenu();
-		}
-		StringView fpsText = StringFormat("Avg framerate: %6.2f", ImGui::GetIO().Framerate);
-		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetColumnWidth() - ImGui::CalcTextSize(fpsText.cstr()).x 
-							 - ImGui::GetScrollX() - 2 * ImGui::GetStyle().ItemSpacing.x);
-		ImGui::TextEx(fpsText.cstr());
-		ImGui::EndMainMenuBar();
-	}
-	ImGui::PopStyleVar();
-
-    imguiEndFrame();
 	bgfx::touch(0);
 	//bgfx::setDebug(BGFX_DEBUG_PROFILER | BGFX_DEBUG_STATS | BGFX_DEBUG_TEXT);
 
@@ -537,6 +518,7 @@ void* BgfxRendererBackend::RenderScene(RenderInput* input)
 
     ArenaClear(&rendererFrameArena);
     bgfx::frame();
+
     return nullptr;
 }
 
