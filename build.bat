@@ -96,6 +96,9 @@ set compile_testbed_rel= -O2 -DBUILD_DEBUG=0 -D_USRDLL -D_WINDLL -D_DLL -shared
 set link_testbed=  -L%root%\build -lmindseye %linker_flags_common% %linker_flags_common%
 :: copy project config to engine executable dir
 copy /y "%root%\projects\testbed\mindseye.ini" "%root%\build" >NUL 2>&1
+if not exist "%root%\projects\testbed\gltf-samples" (
+	echo "gltf-samples not found in testbed project. If you want to use the demo scenes, make sure to pull this repo with submodules"
+)
 
 ::driver
 set compile_driver_dbg= -O0 -DBUILD_DEBUG=1

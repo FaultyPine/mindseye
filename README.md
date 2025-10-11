@@ -4,6 +4,7 @@
 ## Building
 
 Must be on windows.
+`git pull --recurse-submodules`
 then `build.bat`
 
 
@@ -18,7 +19,7 @@ then `build.bat`
 	- ~~to/from string serialization~~
  		- chose .ini format
  	- binary to/from serialization with rel pointers
-- allow projects to "load themselves" and specify their own data directory
+- ~~allow projects to "load themselves" and specify their own data directory~~
 	- project should have a root project config file that has res dir and all that
 	- then, engine just needs to be pointed at that root config (could do a scan of current dir and scan out to parent dirs)
 - Scene loading. 
