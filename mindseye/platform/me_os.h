@@ -96,7 +96,7 @@ MEAPI void* meOSCommitVirtualMemory(
 MEAPI void meOSFreeVirtualMemory(
 	void* data);
 
-MEAPI char meOSFsDirectorySeperator();
+MEAPI StringView meOSFsDirectorySeperator();
 
 #define ME_OS_OPENFILE(varname, path, flags) OSFileReference varname; meOSOpenFile(varname, path, flags);
 
@@ -135,8 +135,9 @@ MEAPI bool meOSFileExists(
 MEAPI bool meOSFileDelete(
 	const OSFileReference& file);
 
-MEAPI char* meOSGetExeFilepath();
-MEAPI char* meOSGetExeFileFolder();
+MEAPI StringView meOSGetExeFilepath();
+MEAPI StringView meOSGetExeFileFolder();
+MEAPI StringView meOSGetWorkingDir();
 
 MEAPI String meOSResolveRelativeToAbsPath(
 	meAllocator* allocator,

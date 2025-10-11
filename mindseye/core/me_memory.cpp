@@ -38,12 +38,15 @@ meAllocator* GetSystemAllocator()
 thread_local ArenaTLScratch scratchWork; // individual systems are in charge of handling their own allocations here.
 
 // NOTE: use with caution
+// lifetime of allocations here is high-level concept in that
+// it isn't controlled by allocat-er/allocatee, but by the engine main loop
+// TODO: implement scratch allocator "locking" I.E. someone wants to do some threadlocal scratch work across time, they can hold a lock which prevents that scratch allocator from freeing itself, then maybe have it get freed every X seconds or something
 MEAPI meAllocator* GetTLScratch()
 {
 	if (!scratchWork.backing_mem)
 	{
 		new(&scratchWork) ArenaTLScratch();
-		ArenaInit(scratchWork, GIGABYTES_BYTES(1), "Threadlocal Scratch", GetSystemAllocator());
+		ArenaInit(scratchWork, MEGABYTES_BYTES(50), "Threadlocal Scratch", GetSystemAllocator());
 	}
 	return &scratchWork;
 }
@@ -57,6 +60,18 @@ meOwningSpan ReallocateBuffer(
 	void* newBuffer = MEALLOC(allocator, existingBufferSize);
 	ME_MEMCPY(newBuffer, existingBuffer, existingBufferSize);
 	return { newBuffer, existingBufferSize };
+}
+
+bool BufferCopy(meSpan dst, meSpan src)
+{
+	if (src.size > dst.size)
+    {
+        LOG_ERROR("Source buffer smaller than dst buffer!");
+        return false;
+    }
+    // source length will always be less than or equal to dst len
+    ME_MEMCPY((void*)dst.data, src.data, src.size);
+    return true;
 }
 
 #ifndef ME_CORE_ONLY

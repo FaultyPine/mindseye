@@ -4,14 +4,14 @@
 
 struct meSpan
 {
-    void* data;
+    char* data;
     u64 size;
     
     meSpan() : data(0), size(0) {}
     template<typename T>
-    meSpan(T* data, u64 size) : data((void*)data), size(size) {}
+    meSpan(T* data, u64 size) : data((char*)data), size(size) {}
 	template<typename T, unsigned int N>
-	meSpan(T (&arr)[N]) : data((void*)arr), size(N) {}
+	meSpan(T (&arr)[N]) : data((char*)arr), size(N) {}
     meSpan Subspan(u64 offset)
     {
         ME_ASSERT(size >= offset);

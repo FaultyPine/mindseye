@@ -94,6 +94,8 @@ set compile_mindseye_shaders=%compile_mindseye_shader_fs% && %compile_mindseye_s
 set compile_testbed_dbg= -O0 -DBUILD_DEBUG=1 -D_USRDLL -D_WINDLL -D_DLL -shared
 set compile_testbed_rel= -O2 -DBUILD_DEBUG=0 -D_USRDLL -D_WINDLL -D_DLL -shared
 set link_testbed=  -L%root%\build -lmindseye %linker_flags_common% %linker_flags_common%
+:: copy project config to engine executable dir
+copy /y "%root%\projects\testbed\mindseye.ini" "%root%\build" >NUL 2>&1
 
 ::driver
 set compile_driver_dbg= -O0 -DBUILD_DEBUG=1

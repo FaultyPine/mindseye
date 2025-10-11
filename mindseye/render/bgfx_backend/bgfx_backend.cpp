@@ -405,36 +405,38 @@ void LoadMeshFromGLTF(
 	}
 }
 
+
 void* BgfxRendererBackend::RenderScene(RenderInput* input)
 {
-	static bgfx::ProgramHandle program;
 	meAllocator* meshPayloadAllocator = this->rendererPersistentAllocator;
-	const cgltf_scene& scene = *input->scene.runtime.gltfData->scene;
-	StringView gltfResPath = input->scene.runtime.gltfResourcePath;
 	static meMesh mesh = {};
-	for (u64 nodeIdx = 0; nodeIdx < scene.nodes_count; nodeIdx++)
+	static bgfx::ProgramHandle program;
+	if (input->scene.IsValid())
 	{
-		const cgltf_node& node = *scene.nodes[nodeIdx];
-
-		const cgltf_mesh& gltfmesh = *node.mesh;
-		if (!mesh.IsLoaded())
+		const cgltf_scene& scene = *input->scene.runtime.gltfData->scene;
+		StringView gltfResPath = input->scene.runtime.gltfResourcePath;
+		for (u64 nodeIdx = 0; nodeIdx < scene.nodes_count; nodeIdx++)
 		{
-			LoadMeshFromGLTF(gltfResPath, meshPayloadAllocator, gltfmesh, mesh);
-			const bgfx::Memory* fsmem = bgfx::alloc(sizeof(fs)+1);
-			ME_MEMCPY(fsmem->data, fs, sizeof(fs));
-			fsmem->data[fsmem->size-1] = '\0';
+			const cgltf_node& node = *scene.nodes[nodeIdx];
 
-			const bgfx::Memory* vsmem = bgfx::alloc(sizeof(vs)+1);
-			ME_MEMCPY(vsmem->data, vs, sizeof(vs));
-			vsmem->data[vsmem->size-1] = '\0';
+			const cgltf_mesh& gltfmesh = *node.mesh;
+			if (!mesh.IsLoaded())
+			{
+				LoadMeshFromGLTF(gltfResPath, meshPayloadAllocator, gltfmesh, mesh);
+				const bgfx::Memory* fsmem = bgfx::alloc(sizeof(fs)+1);
+				ME_MEMCPY(fsmem->data, fs, sizeof(fs));
+				fsmem->data[fsmem->size-1] = '\0';
 
-			bgfx::ShaderHandle fsHandle = bgfx::createShader(fsmem);
-			bgfx::ShaderHandle vsHandle = bgfx::createShader(vsmem);
-			program = bgfx::createProgram(vsHandle, fsHandle);
+				const bgfx::Memory* vsmem = bgfx::alloc(sizeof(vs)+1);
+				ME_MEMCPY(vsmem->data, vs, sizeof(vs));
+				vsmem->data[vsmem->size-1] = '\0';
+
+				bgfx::ShaderHandle fsHandle = bgfx::createShader(fsmem);
+				bgfx::ShaderHandle vsHandle = bgfx::createShader(vsmem);
+				program = bgfx::createProgram(vsHandle, fsHandle);
+			}
 		}
 	}
-
-	
 
 	u32 windowWidth = input->osData.windowWidth;
 	u32 windowHeight = input->osData.windowHeight;
@@ -452,6 +454,35 @@ void* BgfxRendererBackend::RenderScene(RenderInput* input)
 		, u16(windowWidth)
 		, u16(windowHeight)
         );
+
+	ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 5.0f);
+	if (ImGui::BeginMainMenuBar())
+	{
+		ImGui::Text("%.*s", STRING_VAARGS(GetEngineCtx()->appConfig->appName));
+		if (ImGui::BeginMenu("File"))
+		{
+			if (ImGui::MenuItem("Button1"))
+			{ 
+				
+			}
+			if (ImGui::MenuItem("Open", "Ctrl+O")) 
+			{
+				
+			}
+			ImGui::EndMenu();
+		}
+		if (ImGui::BeginMenu("AnotherMenu"))
+		{
+
+			ImGui::EndMenu();
+		}
+		StringView fpsText = StringFormat("Avg framerate: %6.2f", ImGui::GetIO().Framerate);
+		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetColumnWidth() - ImGui::CalcTextSize(fpsText.cstr()).x 
+							 - ImGui::GetScrollX() - 2 * ImGui::GetStyle().ItemSpacing.x);
+		ImGui::TextEx(fpsText.cstr());
+		ImGui::EndMainMenuBar();
+	}
+	ImGui::PopStyleVar();
 
     imguiEndFrame();
 	bgfx::touch(0);
@@ -480,27 +511,29 @@ void* BgfxRendererBackend::RenderScene(RenderInput* input)
 					);
 	bgfx::setTransform(mtx);
 
-	bgfx::setVertexBuffer(0, bgfx::VertexBufferHandle { static_cast<u16>(mesh.vertBuffer.bufferHandle) });
-	bgfx::setVertexBuffer(1, bgfx::VertexBufferHandle { static_cast<u16>(mesh.normBuffer.bufferHandle) });
-	bgfx::setVertexBuffer(2, bgfx::VertexBufferHandle { static_cast<u16>(mesh.texcoordBuffer.bufferHandle) });
+	if (mesh.IsLoaded())
+	{
+		bgfx::setVertexBuffer(0, bgfx::VertexBufferHandle { static_cast<u16>(mesh.vertBuffer.bufferHandle) });
+		bgfx::setVertexBuffer(1, bgfx::VertexBufferHandle { static_cast<u16>(mesh.normBuffer.bufferHandle) });
+		bgfx::setVertexBuffer(2, bgfx::VertexBufferHandle { static_cast<u16>(mesh.texcoordBuffer.bufferHandle) });
 
-	bgfx::setIndexBuffer(bgfx::IndexBufferHandle { static_cast<u16>(mesh.idxBuffer.bufferHandle) });
+		bgfx::setIndexBuffer(bgfx::IndexBufferHandle { static_cast<u16>(mesh.idxBuffer.bufferHandle) });
 
-	// TODO: set uniforms
-	const meTexturePool& texturePool = meTextureGetPool();
-	const meMaterialPool& materialPool = meMaterialGetPool();
-	const meMaterial& material = materialPool.Get(mesh.materialHandle);
-	Eye diffuseTextureHdl = material.textureHandles[meMaterialTextureType::DIFFUSE];
-	const meTexture& diffuseTex = texturePool.Get(diffuseTextureHdl);
-	bgfx::setTexture(0, bgfx::UniformHandle { static_cast<u16>(diffuseTex.sampler) }, bgfx::TextureHandle { static_cast<u16>(diffuseTex.buffer.bufferHandle) });
-	bgfx::setState(BGFX_STATE_WRITE_RGB
-				   | BGFX_STATE_WRITE_A
-				   | BGFX_STATE_WRITE_Z
-				   | BGFX_STATE_DEPTH_TEST_LESS
-				   | BGFX_STATE_CULL_CCW
-				   | BGFX_STATE_MSAA);
-	bgfx::submit(0, program);
-
+		// TODO: set uniforms
+		const meTexturePool& texturePool = meTextureGetPool();
+		const meMaterialPool& materialPool = meMaterialGetPool();
+		const meMaterial& material = materialPool.Get(mesh.materialHandle);
+		Eye diffuseTextureHdl = material.textureHandles[meMaterialTextureType::DIFFUSE];
+		const meTexture& diffuseTex = texturePool.Get(diffuseTextureHdl);
+		bgfx::setTexture(0, bgfx::UniformHandle { static_cast<u16>(diffuseTex.sampler) }, bgfx::TextureHandle { static_cast<u16>(diffuseTex.buffer.bufferHandle) });
+		bgfx::setState(BGFX_STATE_WRITE_RGB
+					   | BGFX_STATE_WRITE_A
+					   | BGFX_STATE_WRITE_Z
+					   | BGFX_STATE_DEPTH_TEST_LESS
+					   | BGFX_STATE_CULL_CCW
+					   | BGFX_STATE_MSAA);
+		bgfx::submit(0, program);
+	}
 
     ArenaClear(&rendererFrameArena);
     bgfx::frame();

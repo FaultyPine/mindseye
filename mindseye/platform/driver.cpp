@@ -12,12 +12,6 @@
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR lpCmdLine, _In_ int nCmdShow)
 {
-    void* gameLib = LoadDynamicLibrary("testbed.dll");
-    if (!gameLib)
-    {
-        LOG_ERROR("Failed to load game library!");
-        return 1;
-    }
     return meOSMain(__argc, __argv);
 }
 #endif

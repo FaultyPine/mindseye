@@ -21,7 +21,8 @@ void meSceneManager::Tick(EngineContext* ctx)
 
 void meSceneManager::LoadSceneFromFileBlocking(StringView filename, meAllocator* allocator, meScene* outScene)
 {
-	meSpan deserializedSceneMem = DeserializeFromIniBlocking(TD_MESCENE, allocator, filename);
+	StringView assetPath = meAssetResource(filename);
+	meSpan deserializedSceneMem = DeserializeFromIniBlocking(TD_MESCENE, allocator, assetPath);
 	meScene* deserializedScene = (meScene*)deserializedSceneMem.data;
 	if (deserializedScene)
 	{

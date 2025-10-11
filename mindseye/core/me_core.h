@@ -37,6 +37,14 @@ u64 GetRandomSeed();
 s32 GetRandom(s32 start, s32 end);
 f32 GetRandomf(f32 start, f32 end);
 
+#include <type_traits> // For std::remove_reference
+
+template <typename T>
+typename std::remove_reference<T>::type&& meMove(T&& arg) noexcept 
+{
+    return static_cast<typename std::remove_reference<T>::type&&>(arg);
+}
+
 // Hashing
 
 MEAPI u32 HashBytes(u8* data, u32 size);

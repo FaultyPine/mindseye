@@ -683,11 +683,10 @@ int main(int argc, char* argv[])
 
 	const char* reflectorHeaderFilename = "Reflector.h";
 	char* reflectorFilePath = DynArrayCreate<char>(&reflectorArena, 50);
-	char* exePath = meOSGetExeFileFolder();
-	u32 exePathLen = CStringLength(exePath);
+	StringView exePath = meOSGetExeFileFolder();
 	// we expect Reflector.h to be next to the reflector executable
-	DynArrayPush(reflectorFilePath, exePath, exePathLen);
-	if (exePath[exePathLen - 1] != '\\' && exePath[exePathLen - 1] != '/') DynArrayPush(reflectorFilePath, '\\');
+	DynArrayPush(reflectorFilePath, exePath.data, exePath.len);
+	if (exePath[exePath.len - 1] != '\\' && exePath[exePath.len - 1] != '/') DynArrayPush(reflectorFilePath, '\\');
 	DynArrayPush(reflectorFilePath, (char*)reflectorHeaderFilename, CStringLength(reflectorHeaderFilename));
 	auto idx = clang_createIndex(0, 1);
 	u32 clangOptions = 0
@@ -860,7 +859,7 @@ void ProcessReflectedFile(
 	{
 		return;
 	}
-	StringView parsedHeaderFilename = meFsGetFilepathFromPath(parsedHeaderExistingPath);
+	StringView parsedHeaderFilename = meFsGetFileFromFullPath(parsedHeaderExistingPath);
 	s32 extensionIdx = FindInStringRev(parsedHeaderFilename, STRING_LIT("."));
 	StringView parsedHeaderFilenameNoExt = parsedHeaderFilename.OffsetView(0, extensionIdx);
 

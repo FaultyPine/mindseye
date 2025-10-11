@@ -5,11 +5,8 @@
 
 void testbed_init(EngineContext* engine)
 {
-	StringView sceneFilePath = STRING_LIT("projects/testbed/testscene.scn");
+	StringView sceneFilePath = STRING_LIT("testscene.scn");
 	meScene& testscene = engine->sceneSystem->scene;
-	testscene.externalScenePath = STRING_LIT("gltf-samples/Models/BarramundiFish/glTF/BarramundiFish.gltf");
-	engine->sceneSystem->WriteSceneToFileBlocking(&testscene, sceneFilePath);
-	testscene = {};
 	engine->sceneSystem->LoadSceneFromFileBlocking(sceneFilePath, &engine->engineSceneAllocator, &testscene);
 }
 
@@ -22,4 +19,4 @@ void testbed_shutdown(EngineContext* engine)
 
 }
 
-REGISTER_ME_CALLBACKS(AppCallbacks(testbed_init, testbed_update, testbed_shutdown));
+REGISTER_MINDSEYE_APP(testbed_init, testbed_update, testbed_shutdown);

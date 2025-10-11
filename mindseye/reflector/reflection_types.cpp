@@ -18,15 +18,14 @@ meTypeDescriptor TD_UNSIGNED_CHAR = {.name = STRING_LIT("unsigned char"), .size 
 meTypeDescriptor TD_WCHAR = { .name = STRING_LIT("wchar_t"), .size = 4, .align = 4 };
 
 StringView sizedBufferSerializer(meAllocator*, meSpan);
-meSpan sizedBufferDeserializer(meAllocator*, StringView);
-meSpan stringDeserializer(meAllocator* allocator, StringView str);
+bool sizedBufferDeserializer(DeserializeContext& ctx);
+bool stringDeserializer(DeserializeContext& ctx);
 
-// arbitrary spans, when serialized to string will just have the binary written out as is, which is why the string serializer works for both
-meTypeDescriptor TD_SPAN = { .name = STRING_LIT("span"), .size = sizeof(meSpan), .align = alignof(meSpan), .strSerializer = sizedBufferSerializer, .strDeserializer = sizedBufferDeserializer };
-meTypeDescriptor TD_STRINGVIEW = { .name = STRING_LIT("StringView"), .size = sizeof(StringView), .align = alignof(StringView), .strSerializer = sizedBufferSerializer, .strDeserializer = sizedBufferDeserializer };
-// NOTE: We can reuse the sizedbufferserializer ONLY because String follows the same pattern as StringView and meSpan
+// NOTE: We can reuse the sizedbufferserializer ONLY because meSpan, StringView, and String follow a similar pattern internally
 // where the first param is a data pointer and the second is the 64bit size.
-meTypeDescriptor TD_STRING = { .name = STRING_LIT("String"), .size = sizeof(String), .align = alignof(String), .strSerializer = sizedBufferSerializer, .strDeserializer = stringDeserializer };
+meTypeDescriptor TD_SPAN = { .name = STRING_LIT("span"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(meSpan), .align = alignof(meSpan), .strSerializer = sizedBufferSerializer, .strDeserializer = sizedBufferDeserializer };
+meTypeDescriptor TD_STRINGVIEW = { .name = STRING_LIT("StringView"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(StringView), .align = alignof(StringView), .strSerializer = sizedBufferSerializer, .strDeserializer = sizedBufferDeserializer };
+meTypeDescriptor TD_STRING = { .name = STRING_LIT("String"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(String), .align = alignof(String), .strSerializer = sizedBufferSerializer, .strDeserializer = stringDeserializer };
 
 StringView meTypeDescriptor::ToString(meAllocator* allocator, meSpan data) const
 {
@@ -109,39 +108,42 @@ StringView meTypeDescriptor::ToString(meAllocator* allocator, meSpan data) const
     }
 	else
 	{
-		// composite struct types not supported
+		// TODO: composite struct types not supported
 		UNIMPLEMENTED();
 	}
 	return builder;
 }
 
-meSpan meTypeDescriptor::FromString(meAllocator* allocator, StringView str) const
+bool meTypeDescriptor::FromString(DeserializeContext& ctx) const
 {
+	// what we are deserializing from
+	StringView str = StringView(ctx.inputData.data, ctx.inputData.size);
+
     // Handle null/empty string
     if (!str.data || str.len == 0) 
     {
-        return {};
+        return false;
     }
     
     // If this is a primitive type with an underlying type, delegate to it
     if (underlyingType != nullptr && fields.size == 0) 
     {
-        return underlyingType->FromString(allocator, str);
+        return underlyingType->FromString(ctx);
     }
 
     // custom override
 	if (strDeserializer)
 	{
-		return strDeserializer(allocator, str);
+		return strDeserializer(ctx);
 	}
 
     // Handle primitive types based on name and size
     if (fields.size == 0) 
     {
         // Allocate memory for the primitive value
-        Allocation memory = MEALLOC(allocator, size);
-        ME_MEMCLEAR(memory, size);
-        meSpan result = memory;
+        meSpan result = ctx.outputData;
+		ME_ASSERT(result);
+        ME_MEMCLEAR(result, size);
         
         if (this == &TD_INT) 
         {
@@ -204,23 +206,18 @@ meSpan meTypeDescriptor::FromString(meAllocator* allocator, StringView str) cons
             }
             *((bool*)result.data) = value;
         }
-		else if (this == &TD_STRINGVIEW)
-		{
-			bool success = StringCopy(StringView((const char*)result.data, result.size), str);
-			ME_ASSERT(success);
-		}
         else 
         {
             UNIMPLEMENTED();
         }
-        return result;
+		return true;
     }
     else
 	{
-		// composite struct types not supported
+		// TODO: composite struct types not supported
 		UNIMPLEMENTED();
 	}
-	return {};
+	return false;
 }
 
 
@@ -230,21 +227,26 @@ StringView sizedBufferSerializer(meAllocator* allocator, meSpan fieldData)
 	// the fielddata is just a pointer to a mespan, which ITSELF has the actual data
 	meSpan dereferencedData = *(meSpan*)fieldData.data;
 	Allocation mem = MEALLOC(allocator, dereferencedData.size);
-	StringCopy(StringView(mem), StringView(dereferencedData));
+	BufferCopy(mem, dereferencedData);
 	return StringView(mem);
 }
 
-meSpan sizedBufferDeserializer(meAllocator* allocator, StringView str)
+bool sizedBufferDeserializer(DeserializeContext& ctx)
 {
-	Allocation mem = MEALLOC(allocator, str.len);
-	StringCopy(StringView(mem), StringView(str));
-	return mem;
+	meSpan* outputSpan = (meSpan*)ctx.outputData.data;
+	Allocation mem = MEALLOC(ctx.externalDataAllocator, ctx.inputData.size);
+	BufferCopy(mem, ctx.inputData);
+	ctx.outputDataExternal = mem;
+	*outputSpan = mem;
+	return true;
 }
 
-meSpan stringDeserializer(meAllocator* allocator, StringView str)
+bool stringDeserializer(DeserializeContext& ctx)
 {
-	String* ownedStr = MENEW(allocator, String);
-	ownedStr->CopyOf(str, allocator);
-	return meSpan(ownedStr, sizeof(String));
+	String* ownedStr = (String*)ctx.outputData.data;
+	ownedStr->CopyOf(StringView::FromSpan(ctx.inputData), ctx.externalDataAllocator);
+	ctx.outputDataExternal = meSpan(ownedStr->data, ownedStr->len);
+	ctx.outputData = meSpan(ownedStr, sizeof(String));
+	return true;
 }
 

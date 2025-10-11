@@ -70,13 +70,13 @@ void meOSFreeVirtualMemory(
 	#endif
 }
 
-char meOSFsDirectorySeperator()
+StringView meOSFsDirectorySeperator()
 {
-#ifdef OS_WINDOWS
-    return '\\';
-#else
-	return '/';
-#endif
+//#ifdef OS_WINDOWS
+//    return '\\';
+//#else
+	return STRING_LIT("/");
+//#endif
 }
 
 OSFileReference::~OSFileReference()

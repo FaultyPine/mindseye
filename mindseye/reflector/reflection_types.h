@@ -3,27 +3,28 @@
 #include "core/me_defines.h"
 #include "core/containers/dynarray.h"
 #include "core/me_memory.h"
+#include "core/me_string.h"
 
-#include <string_view> // C++17 for std::string_view
-
-constexpr std::string_view::size_type constexpr_strstr(
-	std::string_view haystack, 
-	std::string_view needle) noexcept 
+struct DeserializeContext
 {
-	if (needle.empty()) 
-	{
-		return 0; 
-	}
-	for (std::string_view::size_type i = 0; i + needle.length() <= haystack.length(); ++i) 
-	{
-		if (haystack.substr(i, needle.length()) == needle) {
-			return i;
-		}
-	}
-	return std::string_view::npos;
-}
+	// data to be deserialized
+	meSpan inputData = {};
+
+	// POD, preallocated before deserialization functions are called
+	meSpan outputData = {}; 
+	// external pointer buffer, allocated inside deserialization funcs with the following allocator
+	meSpan outputDataExternal = {}; 
+	meAllocator* externalDataAllocator = {};
+};
 
 typedef s32 meTypeID;
+
+// type flags bitfield
+typedef s32 meTypeDescriptorFlag;
+enum meTypeDescriptorFlag_
+{
+	meTypeDescriptorFlag_ExternalPtr,
+};
 
 struct meTypeDescriptor
 {
@@ -42,7 +43,7 @@ struct meTypeDescriptor
 	meTypeDescriptor* underlyingType = nullptr;
 
 	typedef StringView(*serializerToString)(meAllocator* allocator, meSpan data);
-	typedef meSpan(*deserializerFromString)(meAllocator* allocator, StringView str);
+	typedef bool(*deserializerFromString)(DeserializeContext& ctx);
 
 	// for non-pod types, these can be assigned and will
 	// be called instead of default primitive serialization funcs
@@ -50,7 +51,7 @@ struct meTypeDescriptor
 	deserializerFromString strDeserializer = nullptr;
 
 	StringView ToString(meAllocator* allocator, meSpan data) const;
-	meSpan FromString(meAllocator* allocator, StringView str) const;
+	bool FromString(DeserializeContext& ctx) const;
 
 	bool operator==(const meTypeDescriptor& other) const
 	{
@@ -85,3 +86,5 @@ extern meTypeDescriptor TD_STRING;
 // NOTE: there are static maps mapping between reflected types and their type descriptors
 // in me_reflector.cpp
 // I.E. "String" -> TD_STRING or "glm::vec3<3, float>" -> TD_VEC3
+
+

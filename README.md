@@ -9,13 +9,6 @@ then `build.bat`
 
 
 
-## TODO
-
-- REALLY IMPORTANT TODO:
-    - instead of passing meAllocator* around, I should pass an allocator handle
-		- which is internally u32 and dereferences to the allocator itself.
-	- ~~should create a generic generation handle system~~
-
 ### Current focus
 - ~~RWlock~~
 - ~~REFLECTION~~
@@ -25,6 +18,9 @@ then `build.bat`
 	- ~~to/from string serialization~~
  		- chose .ini format
  	- binary to/from serialization with rel pointers
+- allow projects to "load themselves" and specify their own data directory
+	- project should have a root project config file that has res dir and all that
+	- then, engine just needs to be pointed at that root config (could do a scan of current dir and scan out to parent dirs)
 - Scene loading. 
 	- map a MAID to a filesystem path, or an arbitrary "actual" asset identifier that a loading system can use to actually load the thing fr
 	- Need a scene/asset description file. Going to use ini. To get data in/parse that description file, need reflection
@@ -85,6 +81,9 @@ Stretch goal: "reversible" physics/simulation?
 - meshlet compression (research said up to 60% savings from normal mesh storage holy crap)
 https://github.com/google/draco - mesh compression
 https://github.com/KhronosGroup/KTX-Software - texture compression
+- implicit surfaces/metaballs
+	- combined with modern amplification/mesh shaders, this could be really interesting for rendering?
+		- ^ would basically be marching cubes on the GPU
 
 ### Game ideas
 walking simulator-esc. No combat/levels/objectives/etc. Just telling a story

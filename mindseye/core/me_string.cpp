@@ -66,6 +66,7 @@ String& String::operator=(const String& other)
 	return *this;
 }
 
+
 String::String(String&& other) noexcept
 {
 	data = other.data;
@@ -109,6 +110,10 @@ String::String(size_t len, meAllocator* allocator)
 	this->allocator = allocator;
 }
 
+String::String(const StringBuilder& builder, meAllocator* allocator)
+{
+	InitFromBuf(this, builder.data, builder.len, allocator ? allocator : builder.allocator);
+}
 
 String::String(const StringView& str, meAllocator* allocator)
 {
@@ -139,9 +144,9 @@ void String::CopyOf(const String& str)
 void String::CopyOf(const StringView& str, meAllocator* allocator)
 {
 	if (!str) { *this = {}; return; }
-	this->len = str.len;
+	len = str.len;
 	this->allocator = allocator;
-	this->data = (char*)MEALLOC(allocator, this->len);
+	data = (char*)MEALLOC(this->allocator, len);
 	StringCopy(*this, str);
 }
 
@@ -154,6 +159,15 @@ StringView String::OffsetView(size_t offset)
 { 
     offset = offset > len ? len : offset;
     return {(char*)data + offset, len - offset};
+}
+
+const char* StringView::cstrForce(meAllocator* allocator) const
+{
+	if (data[len] == '\0') return data;
+	Allocation a = MEALLOC(allocator, len + 1);
+	a.data[len] = '\0';
+	BufferCopy(a, meSpan(data, len));
+	return a.data;
 }
 
 size_t CStringLength(const char* str)
@@ -189,14 +203,7 @@ const char* CStringFromString(
 
 bool StringCopy(StringView dst, StringView src)
 {
-    if (src.len > dst.len)
-    {
-        LOG_ERROR("Source string smaller than dst string!");
-        return false;
-    }
-    // source length will always be less than or equal to dst len
-    ME_MEMCPY((void*)dst.data, src.data, src.len);
-    return true;
+	return BufferCopy(dst.ToSpan(), src.ToSpan());
 }
 
 s32 FindInString(
@@ -246,7 +253,7 @@ s32 FindInStringRev(
     {
 		return -1;
     }
-	for (s32 hayStackIdx = ((s64)haystack.len) - 1 - (s32)offsetFromBack; hayStackIdx - needle.len >= 0; hayStackIdx--)
+	for (s32 hayStackIdx = ((s64)haystack.len) - 1 - (s32)offsetFromBack; hayStackIdx - static_cast<s64>(needle.len) >= 0; hayStackIdx--)
 	{
 		const char* haystackPtr = &haystack.data[hayStackIdx];
 		u32 i = 0;
@@ -290,6 +297,33 @@ u32 EatCharsOffset(StringView str, char c, bool invert)
 		result++;
 	}
 	return result;
+}
+
+StringView StringTrim(StringView str, StringView chars)
+{
+	for (u64 i = 0; i < chars.len; i++)
+	{
+		str = EatChars(str, chars[i]);
+	}
+	s64 i = str.len;
+	for (; i > 0; i--)
+	{
+		char c = str[i - 1];
+		for (u64 j = 0; j < chars.len; j++)
+		{
+			if (c != chars[j])
+			{
+				goto end;
+			}
+		}
+	}
+	end:
+	if (str.len > (u64)i)
+	{
+		str[i] = '\0';
+	}
+	str.len = i;
+	return str;
 }
 
 bool StringCompare(StringView str1, StringView str2, StringOpFlags flags)
@@ -520,6 +554,12 @@ s32 StringBuilder::AppendFormat(const char* fmt, ...)
 	Append(stringToAppend);
 	ME_ASSERT(capacity > len);
 	return numBytesWritten;
+}
+
+void StringBuilder::Clear()
+{
+	data[0] = '\0';
+	len = 0;
 }
 
 StringView StringFormat(const char *text, ...)

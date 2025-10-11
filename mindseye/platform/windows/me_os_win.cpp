@@ -234,7 +234,7 @@ void* LoadDynamicLibrary(const char* name)
 
 void* GetFunctionPtr(void* module, StringView functionName)
 {
-    return (void*)GetProcAddress((HMODULE)module, functionName.data);
+    return (void*)GetProcAddress((HMODULE)module, functionName.cstr());
 }
 
 
@@ -312,22 +312,52 @@ bool meOSDeleteFile(
 	return result;
 }
 
-char* meOSGetExeFilepath()
+StringView meOSGetExeFilepath()
 {
 	static char path[PATH_MAX];
-	ME_MEMCLEAR(path, PATH_MAX);
-	GetModuleFileNameA(NULL, path, sizeof(path));
-	return path;
+	if (path[0] == '\0')
+	{
+		ME_MEMCLEAR(path, PATH_MAX);
+		GetModuleFileNameA(NULL, path, sizeof(path));
+		meFsNormalizePathSeperators(StringView(path, CStringLength(path)));
+	}
+	return StringView(path, CStringLength(path));
 }
 
-char* meOSGetExeFileFolder()
+StringView meOSGetExeFileFolder()
 {
 	static char path[PATH_MAX];
-	ME_MEMCLEAR(path, PATH_MAX);
-	char* fullPath = meOSGetExeFilepath();
-	s32 lastDirSep = FindInStringRev(StringView(fullPath, PATH_MAX), STRING_LIT("\\"));
-	ME_MEMCPY(path, fullPath, lastDirSep);
-	return path;
+	if (path[0] == '\0')
+	{
+		ME_MEMCLEAR(path, PATH_MAX);
+		StringView fullPath = meOSGetExeFilepath();
+		s32 lastDirSep = FindInStringRev(fullPath, meFsGetDirectorySeperator());
+		ME_MEMCPY(path, fullPath.cstr(), lastDirSep);
+	}
+	return StringView(path, CStringLength(path));
+}
+
+StringView meOSGetWorkingDir()
+{
+	static char workingDirBuffer[PATH_MAX];
+	if (workingDirBuffer[0] == '\0')
+	{
+		ME_MEMCLEAR(workingDirBuffer, PATH_MAX);
+		DWORD dwRet = GetCurrentDirectoryA(PATH_MAX, workingDirBuffer);
+		if (dwRet == 0) 
+		{
+			// failure
+			DWORD error = GetLastError();
+			LOG_ERROR("Failed to get working directory. Err %i", error);
+			return {};
+		} 
+		else if (dwRet > PATH_MAX) 
+		{
+			// path is too long for the buffer
+			ME_ASSERT(false && "working dir is more than PATH_MAX characters");
+		}
+	}
+	return StringView(workingDirBuffer, CStringLength(workingDirBuffer));
 }
 
 BOOL DirectoryExists(const char* dirPath) {
@@ -420,10 +450,14 @@ String meOSResolveRelativeToAbsPath(
 {
 	String absolutePath = String(PATH_MAX, allocator);
 	ME_MEMCLEAR((char*)absolutePath, PATH_MAX);
-    DWORD result = GetFullPathNameA(potentiallyRelativePath.data, PATH_MAX, absolutePath.data, NULL);
+	char src[PATH_MAX];
+	ME_MEMCLEAR(src, PATH_MAX);
+	ME_MEMCPY(src, potentiallyRelativePath.data, potentiallyRelativePath.len);
+    DWORD result = GetFullPathNameA(src, PATH_MAX, absolutePath.data, NULL);
 	ME_ASSERT(result > 0);
-	absolutePath.len = CStringLength(absolutePath.data);
-	return absolutePath;
+	absolutePath.len = CStringLength(absolutePath.cstr());
+	meFsNormalizePathSeperators(absolutePath);
+	return meMove(absolutePath);
 }
 
 u32 meOSGetThreadID()

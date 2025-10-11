@@ -52,6 +52,7 @@ MEAPI meOwningSpan ReallocateBuffer(
 	meAllocator* allocator,
 	void* existingBuffer,
 	u64 existingBufferSize);
+MEAPI bool BufferCopy(meSpan dst, meSpan src);
 
 #define MESYSMALLOC(size) GetSystemAllocator()->meAlloc(size)
 #define MESYSFREE(ptr) GetSystemAllocator()->meFree(ptr)
@@ -62,7 +63,7 @@ MEAPI meOwningSpan ReallocateBuffer(
 	do { \
 		if (ptr != nullptr) { \
 			(allocator)->meFree(ptr); \
-			ptr = nullptr; \
+			ptr = {}; \
 		} \
 	} while(0)
 

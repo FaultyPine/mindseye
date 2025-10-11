@@ -15,18 +15,35 @@ struct meSceneManager;
 struct meMaterialPool;
 struct meTexturePool;
 
+struct MEREFLECT(type) meUserConfig
+{
+	String projectRootConfigFile = {};
+};
+struct MEREFLECT(type) meAppConfig
+{
+	String appName = {};
+	String resourcesDir = {};
+};
+
 typedef void(*InitFn)(EngineContext* engine);
 typedef void(*UpdateFn)(EngineContext* engine);
 typedef void(*ShutdownFn)(EngineContext* engine);
-struct AppCallbacks
+
+inline void defaultInitFn(EngineContext *){}
+inline void defaultUpdateFn(EngineContext *){}
+inline void defaultShutdownFn(EngineContext *){}
+
+struct AppRegistrationInfo
 {
-    InitFn initFn = nullptr;
-    UpdateFn updateFn = nullptr;
-    ShutdownFn shutdownFn = nullptr;
+    InitFn initFn = defaultInitFn;
+    UpdateFn updateFn = defaultUpdateFn;
+    ShutdownFn shutdownFn = defaultShutdownFn;
 };
+
 struct EngineContext
 {
-    AppCallbacks callbacks = {};
+    AppRegistrationInfo appInfo = {};
+	StringView appRootConfig = STRING_LIT(".");
     // allocators
     Arena gameArena = {};
     Arena engineArena = {}; // persistent, never cleared
@@ -48,6 +65,8 @@ struct EngineContext
     u32 frameCount = 0;
     u64 randomSeed = 0;
     
+	meUserConfig* userConfig = {};
+	meAppConfig* appConfig = {};
     String appName = {};
     OSStateView* osData = nullptr; // static, persistent throughout app
 
@@ -57,12 +76,13 @@ struct EngineContext
 MEAPI EngineContext* GetEngineCtx();
 
 // register a program
-MEAPI void InternalRegisterAppCallbacks(AppCallbacks callbacks);
-#define REGISTER_ME_CALLBACKS(appCallbacks) \
-    struct ME_CALLBACKS_STRUCT { \
-        ME_CALLBACKS_STRUCT() { InternalRegisterAppCallbacks(appCallbacks); } \
+MEAPI void InternalRegisterApp(AppRegistrationInfo callbacks);
+// pass parameters to AppRegistrationInfo constructor
+#define REGISTER_MINDSEYE_APP(...) \
+    struct ME_APPREG_STRUCT { \
+	ME_APPREG_STRUCT() { InternalRegisterApp(AppRegistrationInfo(__VA_ARGS__)); } \
     }; \
-    static ME_CALLBACKS_STRUCT globalCallbacksHolder = {};
+    static ME_APPREG_STRUCT globalAppRegistrationHolder = {};
 
 
 MEAPI void InitializeEngine(s32 argc, char** argv);

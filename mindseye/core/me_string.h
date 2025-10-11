@@ -1,20 +1,23 @@
 #pragma once
 
 #include "core/me_core.h"
+#include "core/containers/me_span.h"
 
 struct meAllocator;
 struct StringView;
+struct StringBuilder;
 struct String
 {
     char* data = nullptr;
-    size_t len = 0;
+    u64 len = 0;
 	meAllocator* allocator = nullptr;
 
-    MEAPI StringView OffsetView(size_t offset = 0);
-    MEAPI StringView OffsetView(size_t offset, size_t len);
-    MEAPI String(const char* data, size_t len, meAllocator* allocator);
-    MEAPI String(size_t len, meAllocator* allocator);
+    MEAPI StringView OffsetView(u64 offset = 0);
+    MEAPI StringView OffsetView(u64 offset, u64 len);
+    MEAPI String(const char* data, u64 len, meAllocator* allocator);
+    MEAPI String(u64 len, meAllocator* allocator);
     MEAPI String(const StringView& str, meAllocator* allocator = nullptr);
+	MEAPI String(const StringBuilder& builder, meAllocator* allocator = nullptr);
 	MEAPI String() = default;
 
 	MEAPI ~String();
@@ -26,7 +29,7 @@ struct String
 	MEAPI void CopyOfCStr(const char* cstr, meAllocator* allocator);
 	MEAPI void CopyOf(const String& str);
 	MEAPI void CopyOf(const StringView& str, meAllocator* allocator);
-	
+
 	MEAPI bool operator == (const String& sv) const;
 	MEAPI bool operator == (const StringView& sv) const;
     MEAPI explicit operator char*() { return data; }
@@ -34,7 +37,7 @@ struct String
 
 	const char* cstr() const 
 	{
-		ME_ASSERT(data[len] == '\0');
+		//ME_ASSERT(data[len-1] == '\0');
 		return data;
 	}
 };
@@ -53,6 +56,7 @@ struct StringBuilder
 	void SetAllocator(meAllocator* allocator) { this->allocator = allocator; }
 	void Append(StringView str);
 	s32 AppendFormat(const char* fmt, ...);
+	void Clear();
 };
 
 struct StringView
@@ -63,35 +67,43 @@ struct StringView
     MEAPI StringView(const String&& s) { data = (char*)s.data; len = s.len; }
     MEAPI StringView(const String& s) { data = (char*)s.data; len = s.len; }
     MEAPI StringView(const StringBuilder& s) { data = (char*)s.data; len = s.len; }
-	MEAPI StringView(const char* data, size_t len) { this->data = (char*)data; this->len = len; };
+	MEAPI StringView(const char* data, u64 len) { this->data = (char*)data; this->len = len; };
 	MEAPI explicit StringView(const meSpan& span) { this->data = (char*)span.data; this->len = span.size; }
 	MEAPI bool operator == (const StringView& sv) const;
-    explicit operator char*() { return data; }
 	explicit operator bool() const
 	{ 
 		return data && len; 
 	}
-	char& operator[](size_t idx) 
+	char& operator[](u64 idx) 
 	{
 		ME_ASSERT(idx < len);
 		return data[idx]; 
 	}
 
-    StringView OffsetView(size_t offset = 0) 
+    StringView OffsetView(u64 offset = 0) 
     { 
         offset = offset > len ? len : offset;
         return {data + offset, len - offset};
     }
-    StringView OffsetView(size_t offset, size_t len) 
+    StringView OffsetView(u64 offset, u64 len) 
     { 
         return {data + offset, this->len < len ? this->len : len};
     }
+	static StringView FromSpan(const meSpan& span)
+	{
+		return StringView(span.data, span.size);
+	}
+	meSpan ToSpan() const
+	{
+		return meSpan(data, len);
+	}
 
 	const char* cstr() const 
 	{
-		ME_ASSERT(data[len] == '\0');
+		//ME_ASSERT(data[len-1] == '\0');
 		return data;
 	}
+	const char* cstrForce(meAllocator* allocator) const;
 };
 
 using StringOpFlags = u32;
@@ -106,7 +118,7 @@ template <u64 N>
 StringView STRING_LIT(const char (&strlit)[N]) { return StringView{(char*)strlit, N-1}; }
 
 // %.*s
-#define STRING_VAARGS(str) str.len, str.data
+#define STRING_VAARGS(str) (s32)str.len, str.data
 
 MEAPI bool StringCopy(StringView dst, StringView src);
 
@@ -127,17 +139,18 @@ MEAPI s32 FindInStringRev(
 MEAPI StringView EatChars(StringView str, char c, bool invert = false);
 // invert meaning this eats anything except the given char
 MEAPI u32 EatCharsOffset(StringView str, char c, bool invert = false);
+MEAPI StringView StringTrim(StringView str);
 
 // flags = bitfield of StringCompareFlags
 MEAPI bool StringCompare(StringView str1, StringView str2, StringOpFlags flags = StringOpFlags(0));
 
-MEAPI size_t CStringLength(const char* str);
+MEAPI u64 CStringLength(const char* str);
 
 MEAPI StringView StringFromCString(const char* str, s32 strLen = -1);
 
 MEAPI const char* CStringFromString(StringView str, meAllocator* allocator);
 
-MEAPI size_t wcharToNarrow(const wchar_t* src, char * dest, size_t destLen);
+MEAPI u64 wcharToNarrow(const wchar_t* src, char * dest, u64 destLen);
 
 // I.E. start on (, scan until matching balanced ) appears
 // str[0] must be == opening
@@ -162,8 +175,6 @@ MEAPI s32 StringFormatIntoBuf(meSpan backingBuffer, const char *text, ...);
 // same as above, but allocates memory for the formatted string
 MEAPI StringView StringFormatNew(meAllocator* allocator, const char *text, ...);
 
-
-
 // (decimal only)
 MEAPI s32 StringParseInt32(StringView str);
 // (decimal only)
@@ -176,3 +187,24 @@ MEAPI u64 StringParseUInt64(StringView str);
 MEAPI float StringParseFloat(StringView str);
 // (supports scientific notation)
 MEAPI double StringParseDouble(StringView str);
+
+
+
+#include <string_view> // C++17 for std::string_view
+
+constexpr std::string_view::size_type constexpr_strstr(
+	std::string_view haystack, 
+	std::string_view needle) noexcept 
+{
+	if (needle.empty()) 
+	{
+		return 0; 
+	}
+	for (std::string_view::size_type i = 0; i + needle.length() <= haystack.length(); ++i) 
+	{
+		if (haystack.substr(i, needle.length()) == needle) {
+			return i;
+		}
+	}
+	return std::string_view::npos;
+}

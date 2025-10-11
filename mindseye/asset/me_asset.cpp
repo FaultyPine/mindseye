@@ -12,7 +12,7 @@ MEEVENT_DECLARE_STATIC(registerAssetLoader);
 
 static bool MEASSET_DEBUG_SINGLETHREADED_LOAD = 1;
 constexpr u32 NUM_ASSET_COMPILER_THREADS = 1;
-static StringView DEFAULT_RESOURCE_DIRECTORY_NAME = STRING_LIT("projects/testbed");
+static StringView DEFAULT_RESOURCE_DIRECTORY_NAME = STRING_LIT("."); // cwd
 
 static meAssetSystem& GetAssetSystem()
 {
@@ -185,7 +185,7 @@ StringView meAssetResource(StringView resourcePath)
 	if (FindInString(resourcePath, meAssetGetResourceDir()) == -1)
 	{
 		StringView resDir = meAssetGetResourceDir();
-		result = StringFormat("%.*s%c%.*s", STRING_VAARGS(resDir), meFsGetDirectorySeperator(), STRING_VAARGS(resourcePath));
+		result = StringFormat("%.*s%.*s%.*s", STRING_VAARGS(resDir), STRING_VAARGS(meFsGetDirectorySeperator()), STRING_VAARGS(resourcePath));
 	}
 	return result;
 }

@@ -29,12 +29,13 @@ void SerializeToIniBlocking(
 		{
 			continue;
 		}
+		if (field.offsetBits % 8 != 0)
+		{
+			UNIMPLEMENTED(); // TODO
+		}
 		u32 offsetBytes = field.offsetBits / 8;
 		meSpan fieldData = meSpan(typeData + offsetBytes, field.size);
 		StringView fieldStr = field.ToString(GetTLScratch(), fieldData);
-		// Doing this kind of textual human-readable serialization
-		// requires a heavy ToString call. Do I want to use human readable
-		// serialization formats???? Not sure what I really want to do here...
 		iniObj[typeDesc.name.cstr()][(const char*)field.name.cstr()] = (const char*)fieldStr.cstr();
 	}
 }
@@ -54,20 +55,26 @@ meSpan DeserializeFromIniBlocking(
 		const meTypeDescriptor& field = typeDesc.fields[i];
 		if (field.underlyingType == nullptr)
 		{
+			ME_MEMCLEAR(bumper.data, field.size);
 			bumper = bumper.Subspan(field.size);
 			continue;
 		}
-		std::string fieldStr = iniObj[typeDesc.name.cstr()].toString(field.name.data);
-		meSpan fieldData = field.FromString(scratch, StringView(fieldStr.c_str(), fieldStr.size()));
-		// Doing this kind of textual human-readable serialization
-		// requires a heavy ToString call. Do I want to use human readable
-		// serialization formats???? Not sure what I really want to do here...
-		ME_MEMCPY(bumper.data, fieldData.data, fieldData.size);
-		bumper = bumper.Subspan(fieldData.size);
+		std::string fieldStdStr = iniObj[typeDesc.name.cstr()].toString(field.name.data);
+		StringView fieldStr = StringView(fieldStdStr.c_str(), fieldStdStr.size());
+		fieldStr = StringTrim(fieldStr, STRING_LIT("\""));
+		DeserializeContext ctx = {};
+		ctx.inputData = fieldStr.ToSpan();
+		ctx.outputData = MEALLOC(scratch, field.size);
+		ctx.externalDataAllocator = allocator;
+		field.FromString(ctx);
+		ME_MEMCPY(bumper.data, ctx.outputData.data, ctx.outputData.size);
+		bumper = bumper.Subspan(ctx.outputData.size);
 	}
-	u64 deserializedSize = scratchWorkMem.size - bumper.size;
-	Allocation resultMemory = MEALLOC(allocator, deserializedSize);
-	ME_MEMCPY(resultMemory, scratchWorkMem, deserializedSize);
+	// not including "external" data, which was already allocated with our passed-in allocator
+	u64 deserializedPODSize = bumper.data - scratchWorkMem.data;
+	// NOTE: keep in mind that the "external" data is allocated before this is
+	Allocation resultMemory = MEALLOC(allocator, deserializedPODSize);
+	ME_MEMCPY(resultMemory, scratchWorkMem, deserializedPODSize);
 	return resultMemory;
 }
 

@@ -133,4 +133,5 @@ StringView meAssetGetResourceDir();
 // I.E. "models/obj.gltf" -> "C:/workingdir/mindseye/bin/resource/models/obj.gltf" or something similar
 // returns a short-lived string. This should only be used for "scratch" operations. If you need to store this string long-term,
 // copy it, or use something else
+// NOTE: allocates a temporary buffer
 StringView meAssetResource(StringView resourcePath);

@@ -13,16 +13,18 @@
 #include "render/me_material.h"
 #include "render/me_texture.h"
 
+#include "generatedtypes/me_app.generated.cpp"
+
 EngineContext* GetEngineCtx()
 {
     static EngineContext eng;
     return &eng;
 }
 
-void InternalRegisterAppCallbacks(AppCallbacks callbacks)
+void InternalRegisterApp(AppRegistrationInfo appInfo)
 {
     EngineContext* engine = GetEngineCtx();
-    engine->callbacks = callbacks;
+    engine->appInfo = appInfo;
 }
 
 void RunEngine(EngineContext* engine)
@@ -48,6 +50,8 @@ void InitializeEngine(s32 argc, char** argv)
     engine->isRunning = true;
 
     InitializeLogger();
+	StringView workingDir = meOSGetWorkingDir();
+	LOG_INFO("Working dir: %.*s", STRING_VAARGS(workingDir));
     InitializeAllocatorSystem(engine);
     InitializeCmdLine(argc, argv);
     meAssetInitialize(engine);     
@@ -59,6 +63,45 @@ void InitializeEngine(s32 argc, char** argv)
     meOSCreateWindow(windowCreationParams, engine);
     RendererInitialize(engine);
 
-    engine->callbacks.initFn(engine);
+	// start doing a scan from cwd
+	StringView mindseyeIniFile = STRING_LIT("mindseye.ini");
+	StringView userProjectConfigPath = meFsScanOutForFile(mindseyeIniFile, GetTLScratch());
+	if (!userProjectConfigPath)
+	{
+		// couldn't find mindseye.ini from cwd, try from exe location
+		StringView exeFolder = meOSGetExeFileFolder();
+		StringView userConfigExeFolder = StringFormat("%.*s%.*s%.*s", STRING_VAARGS(exeFolder), STRING_VAARGS(meFsGetDirectorySeperator()), STRING_VAARGS(mindseyeIniFile));
+		userProjectConfigPath = meFsScanOutForFile(userConfigExeFolder, GetTLScratch());
+	}
+	if (!userProjectConfigPath)
+	{
+		LOG_ERROR("Couldn't find mindseye.ini.");
+	}
+	else
+	{
+		meSpan configMem = DeserializeFromIniBlocking(TD_MEUSERCONFIG, &engine->engineArena, userProjectConfigPath);
+		engine->userConfig = (meUserConfig*)configMem;
+
+		StringView userAppConfigFile = engine->userConfig->projectRootConfigFile;
+		String userAppConfigPathAbs = meOSResolveRelativeToAbsPath(GetTLScratch(), userAppConfigFile);
+		meSpan* appConfigMem = DeserializeFromIniBlocking(TD_MEAPPCONFIG, &engine->engineArena, userAppConfigPathAbs);
+		engine->appConfig = (meAppConfig*)appConfigMem;
+		StringView userAppConfigDir = msFsGetDirFromPath(userAppConfigPathAbs);
+		StringView userAppResourceDir = StringFormat("%.*s%.*s%.*s", 
+													 STRING_VAARGS(userAppConfigDir),
+													 STRING_VAARGS(meFsGetDirectorySeperator()),
+													 STRING_VAARGS(engine->appConfig->resourcesDir));
+		meAssetSetResourceDir(String(userAppResourceDir, &engine->engineArena));
+		
+		StringView userAppDllName = StringFormat("%.*s.dll", STRING_VAARGS(engine->appConfig->appName));
+		void* gameLib = LoadDynamicLibrary(userAppDllName.cstr());
+		if (!gameLib)
+		{
+			LOG_ERROR("Failed to load game library %.*s", STRING_VAARGS(userAppDllName));
+		}
+	}
+
+    engine->appInfo.initFn(engine);
     RunEngine(engine);
+	engine->appInfo.shutdownFn(engine);
 }

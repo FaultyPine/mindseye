@@ -21,6 +21,8 @@ meScene
 
 	MEREFLECT(exclude) 
 	SceneRuntimeData runtime = {};
+
+	bool IsValid() const { return runtime.gltfData != nullptr; }
 };
 
 struct meSceneManager
