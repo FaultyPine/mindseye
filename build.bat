@@ -15,7 +15,7 @@ set root=%root:~0,-1%
 pushd %root%
 
 if not exist "build" mkdir "build"
-if not exist "tools\clang" (
+if not exist "tools\clang\bin\clang.exe" (
     echo [First time setup] downloading clang binaries...
     call "tools\download_clang.bat"
     IF %ERRORLEVEL% NEQ 0 (echo Error:%ERRORLEVEL% && exit /b)
