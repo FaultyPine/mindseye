@@ -5,9 +5,7 @@
 
 void testbed_init(EngineContext* engine)
 {
-	StringView sceneFile = STRING_LIT("testscene.scn");
-	meScene& testscene = engine->sceneSystem->scene;
-	engine->sceneSystem->LoadSceneFromFileBlocking(sceneFile, &engine->engineSceneAllocator, &testscene);
+
 }
 
 void testbed_update(EngineContext* engine)

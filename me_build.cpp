@@ -394,7 +394,7 @@ int main(int argc, char** argv)
 	NOB_CMD_APPEND_MULTIPLE(mindseyeCmd, compilerFlagsCommon);
 	// link
 	NOB_CMD_APPEND_MULTIPLE(mindseyeCmd, linkerFlagsCommon);
-	nob_cmd_append(&mindseyeCmd, "-lmindseye_ext", nob_temp_sprintf("-L%s/mindseye/external/ktx/lib", root), "-lktx");
+	nob_cmd_append(&mindseyeCmd, "-lmindseye_ext", nob_temp_sprintf("-L%s/mindseye/external/ktx/lib", root), "-lktx", "-lshell32");
 	if (mode == DEBUG)
 	{
 		nob_cmd_append(&mindseyeCmd, 

@@ -33,7 +33,7 @@ then `build.bat`
 ### General Roadmap
 - asset system
 	- ~~job system to support above loading~~
-- load basic example scene (USD?)
+- ~~load basic example scene (USD?)~~
 - Implement Relational mappers
 	- OneToMany, OneToOne (normal stdmap), ManyToOne, ManyToMany
 - render basic example scene
