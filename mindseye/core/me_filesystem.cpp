@@ -1,7 +1,7 @@
 #include "me_filesystem.h"
 
-#include "platform/me_os.h"
-#include "core/me_log.h"
+#include "mindseye/platform/me_os.h"
+#include "mindseye/core/me_log.h"
 
 bool meReadFileContents(StringView filepath, meSpan backingBuffer)
 {

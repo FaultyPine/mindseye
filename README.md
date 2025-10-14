@@ -22,9 +22,11 @@ then `build.bat`
 - ~~allow projects to "load themselves" and specify their own data directory~~
 	- project should have a root project config file that has res dir and all that
 	- then, engine just needs to be pointed at that root config (could do a scan of current dir and scan out to parent dirs)
-- Scene loading. 
+- ~~Scene loading. ~~
 	- map a MAID to a filesystem path, or an arbitrary "actual" asset identifier that a loading system can use to actually load the thing fr
 	- Need a scene/asset description file. Going to use ini. To get data in/parse that description file, need reflection
+- ~~Better build system that doesn't rebuild every time~~
+	- nob.h - turned out really really well. Was very easy to write & use, works great, very robust. Will be using this for future projects too.
 - game/engine hot reloading
 - have engine systems register themselves through a static event the engine core dispatches. each engine system needs to define the other engine systems it will touch (rw/ro), and has a bitset for those. Then, all systems aren't allowed to use GetEngineCtx, they can only access the systems they explicitly define in their initialization. Reflection not required for this, but it would make it way cleaner
 

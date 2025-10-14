@@ -1,7 +1,7 @@
 #pragma once 
 
-#include "core/me_defines.h"
-#include "core/me_core.h"
+#include "mindseye/core/me_defines.h"
+#include "mindseye/core/me_core.h"
 struct EngineContext;
 
 enum LogLevel

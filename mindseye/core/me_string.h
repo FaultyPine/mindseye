@@ -1,7 +1,7 @@
 #pragma once
 
-#include "core/me_core.h"
-#include "core/containers/me_span.h"
+#include "mindseye/core/me_core.h"
+#include "mindseye/core/containers/me_span.h"
 
 struct meAllocator;
 struct StringView;

@@ -46,9 +46,9 @@ void main()
 					, sin(index*2.0)*0.4 + 0.6
 					) * v_color0.xyz;
 
-	gl_FragColor.xyz = pow(vec3(0.07, 0.06, 0.08) + color*lc.y + fres*pow(lc.z, 128.0), vec3_splat(1.0/2.2) );
+	//gl_FragColor.xyz = pow(vec3(0.07, 0.06, 0.08) + color*lc.y + fres*pow(lc.z, 128.0), vec3_splat(1.0/2.2) );
 
 	vec4 diffuseSample = texture2D(texDiffuse, v_texcoord0);
-	gl_FragColor.xyz *= diffuseSample.rgb;
+	gl_FragColor.xyz = diffuseSample.rgb;
 	gl_FragColor.w = 1.0;
 }

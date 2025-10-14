@@ -22,8 +22,8 @@
 #include "external/bgfx/bgfx/examples/common/imgui/bgfx_imgui.cpp"
 
 // ---- shaders
-#include "shaders/fs.h"
-#include "shaders/vs.h"
+#include "shaders/generated/main_lit_fs.sc.h"
+#include "shaders/generated/main_lit_vs.sc.h"
 // -------------
 
 void OnWindowResize(int width, int height)
@@ -444,12 +444,12 @@ void* BgfxRendererBackend::RenderScene(RenderInput* input)
 			if (!mesh.IsLoaded())
 			{
 				LoadMeshFromGLTF(gltfResPath, meshPayloadAllocator, gltfmesh, mesh);
-				const bgfx::Memory* fsmem = bgfx::alloc(sizeof(fs)+1);
-				ME_MEMCPY(fsmem->data, fs, sizeof(fs));
+				const bgfx::Memory* fsmem = bgfx::alloc(sizeof(main_lit_fs)+1);
+				ME_MEMCPY(fsmem->data, main_lit_fs, sizeof(main_lit_fs));
 				fsmem->data[fsmem->size-1] = '\0';
 
-				const bgfx::Memory* vsmem = bgfx::alloc(sizeof(vs)+1);
-				ME_MEMCPY(vsmem->data, vs, sizeof(vs));
+				const bgfx::Memory* vsmem = bgfx::alloc(sizeof(main_lit_vs)+1);
+				ME_MEMCPY(vsmem->data, main_lit_vs, sizeof(main_lit_vs));
 				vsmem->data[vsmem->size-1] = '\0';
 
 				bgfx::ShaderHandle fsHandle = bgfx::createShader(fsmem);
@@ -461,7 +461,7 @@ void* BgfxRendererBackend::RenderScene(RenderInput* input)
 
 	u32 windowWidth = input->osData.windowWidth;
 	u32 windowHeight = input->osData.windowHeight;
-    const MouseState& mouseState = input->osData.mouseState;
+    //const MouseState& mouseState = input->osData.mouseState;
     //const bgfx::Stats* stats = bgfx::getStats();
     // Set view and clear
     bgfx::setViewClear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x443355FF, 1.0f, 0);

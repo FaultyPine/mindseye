@@ -1,8 +1,8 @@
 #pragma once
 
-#include "core/me_defines.h"
-#include "core/me_arena.h"
-#include "core/me_string.h"
+#include "mindseye/core/me_defines.h"
+#include "mindseye/core/me_arena.h"
+#include "mindseye/core/me_string.h"
 struct EngineContext;
 
 struct WindowCreationParams

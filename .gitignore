@@ -12,5 +12,9 @@ tools/clang
 *.10x
 *.rdbg
 *.cap
+*.ilk
+*.pdb
+me_build.exe
+*.rdi
 
 mindseye/external/vulkan_lib/Lib

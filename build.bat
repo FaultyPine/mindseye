@@ -20,133 +20,15 @@ if not exist "tools\clang\bin\clang.exe" (
     call "tools\download_clang.bat"
     IF %ERRORLEVEL% NEQ 0 (echo Error:%ERRORLEVEL% && exit /b)
 )
-if not exist "build\vulkan-1.dll" (
-    if not exist "mindseye\external\vulkan_lib\Lib" (
-        echo [First time setup] downloading vulkan sdk...
-        call "tools\download_vulkan.bat"
-        IF %ERRORLEVEL% NEQ 0 (echo Error:%ERRORLEVEL% && exit /b)
-    )
-    copy "mindseye\external\vulkan_lib\Lib\vulkan-1.dll" "build"
-)
-if not exist "mindseye\external\bgfx\bin" (
-    echo [Build setup] Downloading bgfx binaries...
-    call "tools\download_bgfx.bat"
-    IF %ERRORLEVEL% NEQ 0 (echo Error:%ERRORLEVEL% && exit /b)
-)
-IF %ERRORLEVEL% NEQ 0 (echo Error:%ERRORLEVEL% && exit /b)
-
-set "driver=0" 
-if not exist "build\driver.exe" (
-    set "driver=1" 
-)
-
-:: unpack cmd line args
-for %%a in (%*) do set "%%a=1"
-set reflector=1
-if not "%release%"=="1" set debug=1
-if "%debug%"=="1"   set release=0 && echo [debug mode]
-if "%release%"=="1" set debug=0 && echo [release mode]
-if "%~1"=="" echo [full build] && set "mindseye=1" && set "testbed=1"
-if not exist "build\mindseye_ext.lib" (
-    set "libs=1"
-)
-
-:: recursive fs search for specified file extensions
-:: dir /b /s | findstr /e /l ".cpp .c"
-::FOR /F "delims=" %%F IN ('dir /b /s ^| findstr /e /l ".cpp .c"') DO (
-::    SET sources=!sources!%%F,
-::)
-::echo SOURCES: %sources%
-
-@REM currently assuming we do compile+link all in one step, this may change.
-set include_libs=-I%root%\mindseye\external\imgui -I%root%\mindseye\external\bgfx\bgfx\include -I%root%\mindseye\external\bgfx\bgfx\3rdparty -I%root%\mindseye\external\bgfx\bx\include -I%root%\mindseye\external\bgfx\bimg\include -I%root%\mindseye\external\ktx
-
-@REM common compile flags
-set app_flags=-DSHIPPING_BUILD=0 -I%root%\mindseye -I%root%\mindseye\external
-set compile_flags_common=%app_flags% -I%root% %include_libs% -std=c++20 -Wno-deprecated-declarations -g -gcodeview -gno-column-info -Wall -Wextra -Wno-unused-parameter -Wno-microsoft-include -ferror-limit=500
-set linker_flags_common=-luser32 -lgdi32 -fuse-ld=lld-link
-
-
-:: external libraries
-set link_bgfx_libs_rel= -L%root%\mindseye\external\bgfx\bin -lbgfxRelease -lbimgRelease -lbxRelease
-set link_bgfx_libs_dbg= -L%root%\mindseye\external\bgfx\bin -lbgfxDebug -lbimgDebug -lbxDebug
-
-set link_ext_libs_common=%linker_flags_common%
-set compile_ext_libs_dbg=-O0 -DBUILD_DEBUG=1 -DMEEXPORT -DBX_CONFIG_DEBUG=1 -shared -D_DEBUG 
-set compile_ext_libs_rel=-O2 -DBUILD_DEBUG=0 -DMEEXPORT -DBX_CONFIG_DEBUG=0 -shared
-set link_ext_libs_dbg=%link_ext_libs_common%
-set link_ext_libs_rel=%link_ext_libs_common%
-
-
-:: mindseye engine
-set common_mindseye_linker=%linker_flags_common% -L%root%\mindseye\external\ktx\lib -lktx
-set compile_mindseye_dbg= -O0 -DBUILD_DEBUG=1 -DMEEXPORT -D_USRDLL -D_WINDLL -D_DLL -shared -DBX_CONFIG_DEBUG=1 -D_DEBUG
-set compile_mindseye_rel= -O2 -DBUILD_DEBUG=0 -DMEEXPORT -D_USRDLL -D_WINDLL -D_DLL -shared -DBX_CONFIG_DEBUG=0
-set link_mindseye_rel= %common_mindseye_linker% %link_bgfx_libs_rel% -lmindseye_ext
-set link_mindseye_dbg= %common_mindseye_linker% %link_bgfx_libs_dbg% -lmindseye_ext
-
-:: mindseye shaders
-set compile_mindseye_shader_fs=%root%\mindseye\external\bgfx\bin\shadercDebug.exe -f %root%\mindseye\shaders\fs.sc -o %root%\mindseye\shaders\fs.h --bin2c --platform windows --type fragment -p 440 --varyingdef %root%\mindseye\shaders\varying.def.sc
-set compile_mindseye_shader_vs=%root%\mindseye\external\bgfx\bin\shadercDebug.exe -f %root%\mindseye\shaders\vs.sc -o %root%\mindseye\shaders\vs.h --bin2c --platform windows --type vertex -p 440 --varyingdef %root%\mindseye\shaders\varying.def.sc
-set compile_mindseye_shaders=%compile_mindseye_shader_fs% && %compile_mindseye_shader_vs%
-
-:: testbed
-set compile_testbed_dbg= -O0 -DBUILD_DEBUG=1 -D_USRDLL -D_WINDLL -D_DLL -shared
-set compile_testbed_rel= -O2 -DBUILD_DEBUG=0 -D_USRDLL -D_WINDLL -D_DLL -shared
-set link_testbed=  -L%root%\build -lmindseye %linker_flags_common% %linker_flags_common%
-:: copy project config to engine executable dir
-copy /y "%root%\projects\testbed\mindseye.ini" "%root%\build" >NUL 2>&1
-if not exist "%root%\projects\testbed\gltf-samples" (
-	echo "gltf-samples not found in testbed project. If you want to use the demo scenes, make sure to pull this repo with submodules"
-)
-
-::driver
-set compile_driver_dbg= -O0 -DBUILD_DEBUG=1
-set compile_driver_rel= -O2 -DBUILD_DEBUG=0
-set link_driver= -L%root%\build -lmindseye %linker_flags_common% -Wl,/subsystem:windows
-
 
 set compile_exe="%root%\tools\clang\bin\clang.exe"
-if "%debug%"=="1" (
-    set compile_mindseye=%compile_exe% %compile_mindseye_dbg% %compile_flags_common% %link_mindseye_dbg%
-    set compile_testbed=%compile_exe% %compile_testbed_dbg% %compile_flags_common% %link_testbed%
-    set compile_driver=%compile_exe% %compile_driver_dbg% %compile_flags_common% %link_driver%
-    set compile_external_libraries=%compile_exe% %compile_ext_libs_dbg% %compile_flags_common% %link_ext_libs_dbg%
+
+if not exist "me_build.exe" (
+	%compile_exe% me_build.cpp -o me_build.exe -std=c++20 -g
 )
-if "%release%"=="1" ( 
-	for /f %%i in ('call git describe --always --dirty')   do set compile_flags_common=%compile_flags_common% -DBUILD_GIT_HASH=\"%%i\"
-    set compile_mindseye=%compile_exe% %compile_mindseye_rel% %compile_flags_common% %link_mindseye_rel%
-    set compile_testbed=%compile_exe% %compile_testbed_rel% %compile_flags_common% %link_testbed%
-    set compile_driver=%compile_exe% %compile_driver_rel% %compile_flags_common% %link_driver%
-    set compile_external_libraries=%compile_exe% %compile_ext_libs_rel% %compile_flags_common% %link_ext_libs_rel%
-)
-set compile_mindseye=%compile_mindseye% %root%\mindseye\me_unity.cpp -o mindseye.dll
-set external_lib_postprocess=call "%root%\tools\dll2lib.bat" 64 %root%\build\mindseye_ext.dll
-
-:: reflector needs to know about our project structure. The command we use to compile mindseye is enough info.
-set compile_commands_file=build\compile_commands_mindseye.txt
-echo %compile_mindseye% > %compile_commands_file%
-if "%reflector%"=="1" echo [Reflector compile] && call "mindseye/reflector/build.bat" %root%\%compile_commands_file%
-if %ERRORLEVEL% NEQ 0 (exit /b)
-
-if not exist build mkdir build
-pushd build
-
-if "%libs%"=="1" echo [External libraries compile] && %compile_external_libraries% %root%\mindseye\me_external_unity.cpp -o mindseye_ext.dll
-if %ERRORLEVEL% NEQ 0 (echo [External libraries compile] Error:%ERRORLEVEL% && exit /b)
-
-if "%mindseye%"=="1" echo [mindseye compile] && %compile_mindseye_shaders% && %compile_mindseye%
-if %ERRORLEVEL% NEQ 0 (echo [mindseye compile] Error:%ERRORLEVEL% && exit /b)
-
-if "%testbed%"=="1" echo [testbed compile] && %compile_testbed% %root%\projects\testbed\testbed.cpp -o testbed.dll
-if %ERRORLEVEL% NEQ 0 (echo [testbed compile] Error:%ERRORLEVEL% && exit /b)
-
-if "%driver%"=="1" echo [driver compile] && %compile_driver% %root%\mindseye\platform\driver.cpp -o driver.exe
-if %ERRORLEVEL% NEQ 0 (echo [driver compile] Error:%ERRORLEVEL% && exit /b)
-
-echo Successfully built. See %root%\build
-
-if "%run%"=="1" echo Running... && call testbed.exe
+me_build.exe %compile_exe% %root%
+:: windows weirdness, tmp file stays locked and isn't properly deleted in nob, ensure it here
+del /f /q me_build.exe.old >nul 2>&1
 
 popd
 

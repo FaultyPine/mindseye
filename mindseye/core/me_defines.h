@@ -52,7 +52,9 @@ typedef wchar_t wchar;
 #if __cplusplus < 202002L
 #error Expected C++ 20 standard or above
 #endif
+#ifndef _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_WARNINGS
+#endif
 
 #define NODISCARD [[nodiscard]]
 

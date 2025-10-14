@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core/me_defines.h"
+#include "mindseye/core/me_defines.h"
 
 
 
