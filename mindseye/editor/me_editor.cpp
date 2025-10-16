@@ -9,8 +9,6 @@ void meEditorInitialize(EngineContext* ctx)
 
 void meEditorDisplayGui(EngineContext* ctx)
 {
-	ctx->renderer->BeginImguiContext();
-
 	ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 5.0f);
 	if (ImGui::BeginMainMenuBar())
 	{
@@ -33,7 +31,4 @@ void meEditorDisplayGui(EngineContext* ctx)
 		ImGui::EndMainMenuBar();
 	}
 	ImGui::PopStyleVar();
-
-
-	ctx->renderer->EndImguiContext();
 }

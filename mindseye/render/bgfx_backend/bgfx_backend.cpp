@@ -13,7 +13,6 @@
 #include "external/cgltf.h"
 
 #include "external/ktx/ktx.h"
-#define STBI_ONLY_PNG
 #include "external/stb/stb_image.h"
 
 #include "bgfx/bgfx/include/bgfx/bgfx.h"
@@ -112,7 +111,7 @@ void BgfxRendererBackend::Initialize(EngineContext* engine)
     ME_ASSERT(!engine->osData->onResizeCB);
     engine->osData->onResizeCB = OnWindowResize;
     bgfx::Init init;
-    init.type = bgfx::RendererType::OpenGL;
+    init.type = bgfx::RendererType::Vulkan;
     init.vendorId = BGFX_PCI_ID_NONE; // prioritize integrated? discrete? microsft/nvidia/amd adapter? None means do it automatically
     init.platformData.ndt = nullptr;
     init.platformData.nwh = engine->osData->hwnd; // bgfx renderer backend needs platform window handle, this is hardcoded to windows rn. If another platform is supported in the future, this'll throw a compiler error
@@ -161,7 +160,7 @@ meGPUBuffer LoadTextureFromGLTF(
 		ME_ASSERT(FindInString(textureUri, STRING_LIT("data:")) == -1); // not supporting embedded texture data rn
 		StringView gltfResDir = msFsGetDirFromPath(gltfResPath);
 		StringView textureResourcePath = StringFormat("%.*s/%.*s", STRING_VAARGS(gltfResDir), STRING_VAARGS(textureUri));
-		// load compressed image data into mem
+		// TODO: offer a loading fast-path if an equivalent .ktx file is next to the source file
 		OSFileReference file;
 		if (!meOSOpenFile(file, textureResourcePath, OSFileFlags::OnlyIfExists))
 		{
@@ -185,82 +184,98 @@ meGPUBuffer LoadTextureFromGLTF(
 		meOSCloseFile(file);
 
 		// take loaded image -> decompress
-		s32 w,h,channels;
+		s32 w = 0; s32 h = 0; s32 channels = 0;
+		// TODO: this uses malloc/free, make it use my allocators
 		u8* pngDecompressed = stbi_load_from_memory((u8*)filebuf.data, filebuf.size, &w, &h, &channels, STBI_rgb_alpha);
 		u64 pngDecompressedSize = w * h * channels;
 		if (pngDecompressed == nullptr)
 		{
 			const char* loadFailure = stbi_failure_reason();
-			LOG_ERROR("Failed to load img %s", loadFailure);
+			LOG_ERROR("Failed to load img | %s", loadFailure);
 			break;
 		}
+		meSpan decompressedImgMem = meSpan(pngDecompressed, pngDecompressedSize);
 
 		const bgfx::Memory* imgMem = bgfx::makeRef(pngDecompressed, pngDecompressedSize);
+		bgfx::TextureFormat::Enum format = bgfx::TextureFormat::Enum::RGBA8;
+		if (channels == 3)
+		{
+			format = bgfx::TextureFormat::Enum::RGB8;
+		}
 		bgfx::TextureHandle tex = bgfx::createTexture2D(
-			w, h, false, 1, bgfx::TextureFormat::Enum::RGBA8, BGFX_TEXTURE_NONE|BGFX_SAMPLER_NONE, imgMem);
+			w, h, false, 1, format, BGFX_TEXTURE_NONE | BGFX_SAMPLER_NONE, imgMem);
 		resultGPUBuff.bufferHandle = tex.idx;
 
-		// decompressed image data -> ktx
-		ktxTexture2* texture;
-		ktxTextureCreateInfo createInfo;
-		KTX_error_code result; UNUSED(result);
-		ktx_uint32_t level, layer, faceSlice;
-		ktx_size_t srcSize;
+		// TODO: make this async
+		auto writeKtx = +[](s32 channels, s32 w, s32 h, meSpan imgMem, StringView textureResourcePath, meAllocator* texturePayloadAllocator)
+		{ // decompressed image data -> ktx
+			ktxTexture2* texture;
+			ktxTextureCreateInfo createInfo;
+			KTX_error_code result; UNUSED(result);
+			ktx_uint32_t level, layer, faceSlice;
+			ktx_size_t srcSize;
  
-		//createInfo.glInternalformat = GL_RGB8;   // Ignored if creating a ktxTexture2.
-		createInfo.vkFormat = 43; //VK_FORMAT_R8G8B8A8_SRGB;   // Ignored if creating a ktxTexture1.
-		createInfo.baseWidth = w;
-		createInfo.baseHeight = h;
-		createInfo.baseDepth = 1;
-		createInfo.numDimensions = 2;
-		// Note: it is not necessary to provide a full mipmap pyramid.
-		createInfo.numLevels = 1;//log2(createInfo.baseWidth) + 1;
-		createInfo.numLayers = 1;
-		createInfo.numFaces = 1;
-		createInfo.isArray = KTX_FALSE;
-		createInfo.generateMipmaps = KTX_FALSE; // generate later if needed
+			u32 vkFormat = 43; //VK_FORMAT_R8G8B8A8_SRGB
+			if (channels == 3)
+			{
+				//vkFormat = 29; // VK_FORMAT_R8G8B8_SRGB
+				vkFormat = 27; // VK_FORMAT_R8G8B8_UINT
+			}
+			//createInfo.glInternalformat = GL_RGB8;   // Ignored if creating a ktxTexture2.
+			createInfo.vkFormat = vkFormat;   // Ignored if creating a ktxTexture1.
+			createInfo.baseWidth = w;
+			createInfo.baseHeight = h;
+			createInfo.baseDepth = 1;
+			createInfo.numDimensions = 2;
+			// Note: it is not necessary to provide a full mipmap pyramid.
+			createInfo.numLevels = 1;//log2(createInfo.baseWidth) + 1;
+			createInfo.numLayers = 1;
+			createInfo.numFaces = 1;
+			createInfo.isArray = KTX_FALSE;
+			createInfo.generateMipmaps = KTX_FALSE; // generate later if needed
  
-		// Call ktxTexture1_Create to create a KTX texture.
-		result = ktxTexture2_Create(&createInfo,
-									KTX_TEXTURE_CREATE_ALLOC_STORAGE,
-									&texture);
-		ME_ASSERT(result == KTX_SUCCESS);
-		u8* src = pngDecompressed;
-		srcSize = pngDecompressedSize;
-		level = 0;
-		layer = 0;
-		faceSlice = 0;                           
-		result = ktxTexture_SetImageFromMemory(ktxTexture(texture),
-											   level, layer, faceSlice,
-											   src, srcSize);
-		ME_ASSERT(result == KTX_SUCCESS);
-		// Repeat for the other 15 slices of the base level and all other levels
-		// up to createInfo.numLevels.
+			// Call ktxTexture1_Create to create a KTX texture.
+			result = ktxTexture2_Create(&createInfo,
+										KTX_TEXTURE_CREATE_ALLOC_STORAGE,
+										&texture);
+			ME_ASSERT(result == KTX_SUCCESS);
+			u8* src = (u8*)imgMem.data;
+			srcSize = imgMem.size;
+			level = 0;
+			layer = 0;
+			faceSlice = 0;
+			result = ktxTexture_SetImageFromMemory(ktxTexture(texture),
+												level, layer, faceSlice,
+												src, srcSize);
+			ME_ASSERT(result == KTX_SUCCESS);
+			// Repeat for the other 15 slices of the base level and all other levels
+			// up to createInfo.numLevels.
 
-		u8* ktxApiMem = nullptr;
-		u64 ktxMemSize = 0;
-		// :/ can we reduce the number of redundant copies happening here?
-		result = ktxTexture_WriteToMemory(ktxTexture(texture), &ktxApiMem, &ktxMemSize);
-		ME_ASSERT(result == KTX_SUCCESS);
-		Allocation ktxMem = MEALLOC(texturePayloadAllocator, ktxMemSize);
-		ME_MEMCPY(ktxMem, ktxApiMem, ktxMemSize);
+			u8* ktxApiMem = nullptr;
+			u64 ktxMemSize = 0;
+			// :/ can we reduce the number of redundant copies happening here?
+			result = ktxTexture_WriteToMemory(ktxTexture(texture), &ktxApiMem, &ktxMemSize);
+			ME_ASSERT(result == KTX_SUCCESS);
+			Allocation ktxMem = MEALLOC(texturePayloadAllocator, ktxMemSize);
+			ME_MEMCPY(ktxMem, ktxApiMem, ktxMemSize);
 
-		// write to file
-		StringView texUriWithoutExt = textureResourcePath;
-		s32 texUriExtOffset = FindInString(textureResourcePath, STRING_LIT("."));
-		if (texUriExtOffset != -1)
-		{
-			texUriWithoutExt = textureResourcePath.OffsetView(texUriExtOffset);
-		}
-		StringBuilder outTexName = StringBuilder(GetTLScratch());
-		outTexName.Append(texUriWithoutExt);
-		outTexName.Append(STRING_LIT(".ktx"));
+			// write to file
+			StringView texUriWithoutExt = textureResourcePath;
+			s32 texUriExtOffset = FindInString(textureResourcePath, STRING_LIT("."));
+			if (texUriExtOffset != -1)
+			{
+				texUriWithoutExt = textureResourcePath.OffsetView(0, texUriExtOffset);
+			}
+			StringBuilder outTexName = StringBuilder(GetTLScratch());
+			outTexName.Append(texUriWithoutExt);
+			outTexName.Append(STRING_LIT(".ktx"));
 
-		ktxTexture_WriteToNamedFile(ktxTexture(texture), outTexName.data);
-		ktxTexture_Destroy(ktxTexture(texture));
+			ktxTexture_WriteToNamedFile(ktxTexture(texture), outTexName.data);
+			ktxTexture_Destroy(ktxTexture(texture));
+		};
+		writeKtx(channels, w, h, decompressedImgMem, textureResourcePath, texturePayloadAllocator);
 
-		//imageData = { ktxMem.data, ktxMemSize };
-		imageData = { pngDecompressed, pngDecompressedSize };
+		imageData = decompressedImgMem;
 	}
 	else
 	{
@@ -291,11 +306,12 @@ Eye LoadMaterialFromGLTF(
 			Eye textureHdl = texturePool.Create();
 			meTexture& texture = texturePool.Get(textureHdl);
 
-			String diffuseTexUniformName = STRING_LIT("texDiffuse");
+			meMaterialTextureType texType = meMaterialTextureType::Diffuse;
+			StringView diffuseTexUniformName = meMaterialGetTextureTypeName(texType);
 
 			texture.buffer = diffuseTextureMem;
 			texture.sampler = bgfx::createUniform(diffuseTexUniformName.cstr(), bgfx::UniformType::Sampler).idx;
-			material.textureHandles[meMaterialTextureType::DIFFUSE] = textureHdl;
+			material.textureHandles[texType] = textureHdl;
 		}
 	}
 
@@ -426,6 +442,7 @@ void BgfxRendererBackend::EndImguiContext()
 {
     imguiEndFrame();
 }
+void renderScreenSpaceQuad(uint8_t _view, bgfx::ProgramHandle _program, float _x, float _y, float _width, float _height, bgfx::TextureHandle tex = bgfx::TextureHandle(bgfx::kInvalidHandle));
 
 void* BgfxRendererBackend::RenderScene(RenderInput* input)
 {
@@ -485,28 +502,30 @@ void* BgfxRendererBackend::RenderScene(RenderInput* input)
 		//bgfx::setViewRect(0, 0, 0, uint16_t(m_width), uint16_t(m_height) );
 	}
 
-	float mtx[16];
-	bx::mtxRotateXY(mtx
-					, 0.0f
-					, GetTimeSec()*0.8f
-					);
-	bgfx::setTransform(mtx);
-
 	if (mesh.IsLoaded())
 	{
-		bgfx::setVertexBuffer(0, bgfx::VertexBufferHandle { static_cast<u16>(mesh.vertBuffer.bufferHandle) });
-		bgfx::setVertexBuffer(1, bgfx::VertexBufferHandle { static_cast<u16>(mesh.normBuffer.bufferHandle) });
-		bgfx::setVertexBuffer(2, bgfx::VertexBufferHandle { static_cast<u16>(mesh.texcoordBuffer.bufferHandle) });
-
-		bgfx::setIndexBuffer(bgfx::IndexBufferHandle { static_cast<u16>(mesh.idxBuffer.bufferHandle) });
-
 		// TODO: set uniforms
 		const meTexturePool& texturePool = meTextureGetPool();
 		const meMaterialPool& materialPool = meMaterialGetPool();
 		const meMaterial& material = materialPool.Get(mesh.materialHandle);
-		Eye diffuseTextureHdl = material.textureHandles[meMaterialTextureType::DIFFUSE];
+		Eye diffuseTextureHdl = material.textureHandles[meMaterialTextureType::Diffuse];
 		const meTexture& diffuseTex = texturePool.Get(diffuseTextureHdl);
-		bgfx::setTexture(0, bgfx::UniformHandle { static_cast<u16>(diffuseTex.sampler) }, bgfx::TextureHandle { static_cast<u16>(diffuseTex.buffer.bufferHandle) });
+		bgfx::TextureHandle bgfxDiffuseTex = bgfx::TextureHandle { static_cast<u16>(diffuseTex.buffer.bufferHandle) };
+
+		renderScreenSpaceQuad(0, program, 0, 0, 256, 256, bgfxDiffuseTex);
+
+		float mtx[16];
+		bx::mtxRotateXY(mtx
+						, 0.0f
+						, GetTimeSec()*0.8f
+						);
+		bgfx::setTransform(mtx);
+		bgfx::setVertexBuffer(0, bgfx::VertexBufferHandle { static_cast<u16>(mesh.vertBuffer.bufferHandle) });
+		bgfx::setVertexBuffer(1, bgfx::VertexBufferHandle { static_cast<u16>(mesh.normBuffer.bufferHandle) });
+		bgfx::setVertexBuffer(2, bgfx::VertexBufferHandle { static_cast<u16>(mesh.texcoordBuffer.bufferHandle) });
+		bgfx::setIndexBuffer(bgfx::IndexBufferHandle { static_cast<u16>(mesh.idxBuffer.bufferHandle) });
+		
+		bgfx::setTexture(0, bgfx::UniformHandle { static_cast<u16>(diffuseTex.sampler) }, bgfxDiffuseTex);
 		bgfx::setState(BGFX_STATE_WRITE_RGB
 					   | BGFX_STATE_WRITE_A
 					   | BGFX_STATE_WRITE_Z
@@ -514,6 +533,7 @@ void* BgfxRendererBackend::RenderScene(RenderInput* input)
 					   | BGFX_STATE_CULL_CCW
 					   | BGFX_STATE_MSAA);
 		bgfx::submit(0, program);
+
 	}
 
     ArenaClear(&rendererFrameArena);
@@ -526,39 +546,42 @@ void* BgfxRendererBackend::RenderScene(RenderInput* input)
 
 
 
-struct PosColorTexCoord0Vertex
+struct PosTexCoord0Vertex
 {
 	float m_x;
 	float m_y;
 	float m_z;
-	uint32_t m_abgr;
 	float m_u;
 	float m_v;
-	float m_blend;
-	float m_angle;
 
 	static void init()
 	{
 		ms_layout
 		.begin()
 		.add(bgfx::Attrib::Position,  3, bgfx::AttribType::Float)
-		.add(bgfx::Attrib::Color0,    4, bgfx::AttribType::Uint8, true)
-		.add(bgfx::Attrib::TexCoord0, 4, bgfx::AttribType::Float)
+		.add(bgfx::Attrib::TexCoord0, 2, bgfx::AttribType::Float)
 		.end();
 	}
 
 	static bgfx::VertexLayout ms_layout;
 };
-bgfx::VertexLayout PosColorTexCoord0Vertex::ms_layout;
+bgfx::VertexLayout PosTexCoord0Vertex::ms_layout;
 
-void renderScreenSpaceQuad(uint8_t _view, bgfx::ProgramHandle _program, float _x, float _y, float _width, float _height)
+void renderScreenSpaceQuad(uint8_t _view, bgfx::ProgramHandle _program, float _x, float _y, float _width, float _height, bgfx::TextureHandle tex)
 {
 	bgfx::TransientVertexBuffer tvb;
 	bgfx::TransientIndexBuffer tib;
-
-	if (bgfx::allocTransientBuffers(&tvb, PosColorTexCoord0Vertex::ms_layout, 4, &tib, 6) )
+	static bgfx::UniformHandle sampler = bgfx::UniformHandle(bgfx::kInvalidHandle);
+	if (sampler.idx == bgfx::kInvalidHandle)
 	{
-		PosColorTexCoord0Vertex* vertex = (PosColorTexCoord0Vertex*)tvb.data;
+		PosTexCoord0Vertex::init();
+		StringView uniformName = meMaterialGetTextureTypeName(Diffuse);
+		sampler = bgfx::createUniform(uniformName.cstr(), bgfx::UniformType::Sampler);
+	}
+	if (bgfx::allocTransientBuffers(&tvb, PosTexCoord0Vertex::ms_layout, 4, &tib, 6) )
+	{
+		
+		PosTexCoord0Vertex* vertex = (PosTexCoord0Vertex*)tvb.data;
 
 		float zz = 0.0f;
 
@@ -575,28 +598,24 @@ void renderScreenSpaceQuad(uint8_t _view, bgfx::ProgramHandle _program, float _x
 		vertex[0].m_x = minx;
 		vertex[0].m_y = miny;
 		vertex[0].m_z = zz;
-		vertex[0].m_abgr = 0xff0000ff;
 		vertex[0].m_u = minu;
 		vertex[0].m_v = minv;
 
 		vertex[1].m_x = maxx;
 		vertex[1].m_y = miny;
 		vertex[1].m_z = zz;
-		vertex[1].m_abgr = 0xff00ff00;
 		vertex[1].m_u = maxu;
 		vertex[1].m_v = minv;
 
 		vertex[2].m_x = maxx;
 		vertex[2].m_y = maxy;
 		vertex[2].m_z = zz;
-		vertex[2].m_abgr = 0xffff0000;
 		vertex[2].m_u = maxu;
 		vertex[2].m_v = maxv;
 
 		vertex[3].m_x = minx;
 		vertex[3].m_y = maxy;
 		vertex[3].m_z = zz;
-		vertex[3].m_abgr = 0xffffffff;
 		vertex[3].m_u = minu;
 		vertex[3].m_v = maxv;
 
@@ -609,7 +628,13 @@ void renderScreenSpaceQuad(uint8_t _view, bgfx::ProgramHandle _program, float _x
 		indices[4] = 3;
 		indices[5] = 2;
 
-		bgfx::setState(BGFX_STATE_DEFAULT);
+		bgfx::setState(BGFX_STATE_WRITE_RGB 
+					   | BGFX_STATE_WRITE_A 
+					   | BGFX_STATE_WRITE_Z 
+					   | BGFX_STATE_DEPTH_TEST_LESS 
+					   | BGFX_STATE_CULL_CCW 
+					   | BGFX_STATE_MSAA);
+		bgfx::setTexture(0, sampler, tex);
 		bgfx::setIndexBuffer(&tib);
 		bgfx::setVertexBuffer(0, &tvb);
 		bgfx::submit(_view, _program);

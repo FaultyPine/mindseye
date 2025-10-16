@@ -3,18 +3,22 @@
 
 #include "core/me_resourcepool.h"
 
+#define ME_MATERIAL_TEXTURE_TYPE_NAMES \
+X(Diffuse) \
+X(Normals) \
+X(Roughness) \
+X(Metallic) \
+X(AO) \
+X(Emissive) \
+X(Displacement) \
+X(Opacity) \
+X(NUM_MATERIAL_TEXTURE_TYPES)
+
 enum meMaterialTextureType : u32 
 {
-    DIFFUSE = 0,
-    NORMALS,
-    ROUGHNESS,
-    METALLIC,
-	AO,
-	EMISSIVE,
-	DISPLACEMENT,
-    OPACITY,
-
-    NUM_MATERIAL_TEXTURE_TYPES,
+    #define X(matname) matname,
+	ME_MATERIAL_TEXTURE_TYPE_NAMES
+	#undef X
 };
 
 struct meMaterial
@@ -36,3 +40,4 @@ void meMaterialInitialize(EngineContext* engine);
 
 meMaterialPool& meMaterialGetPool();
 
+StringView meMaterialGetTextureTypeName(meMaterialTextureType texType);

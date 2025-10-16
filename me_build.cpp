@@ -15,6 +15,7 @@ enum meBuildMode
 {
 	DEBUG, RELEASE,
 };
+static char* root = nullptr;
 
 struct BuildableArtifact
 {
@@ -24,7 +25,11 @@ struct BuildableArtifact
 	Nob_File_Paths inputs = {};
 	Nob_String_View output = {};
 
-
+	BuildableArtifact()
+	{
+		const char* mebuild = nob_temp_sprintf("%s/me_build.cpp", root);
+		addInputsNoCompile(&mebuild, 1);
+	}
 	void addInputs(const char** inputs, size_t numInputs)
 	{
 		for (int i = 0; i < numInputs; i++)
@@ -126,7 +131,7 @@ int main(int argc, char** argv)
 	NOB_GO_REBUILD_URSELF_PLUS(argc, argv, "mindseye/core/me_defines.h", "tools/nob.h");
 	nob_minimal_log_level = NOB_INFO;
 	char* compilerExe = argv[1];
-	char* root = argv[2];
+	root = argv[2];
 	normalizePathSeperators(root);
 	normalizePathSeperators(compilerExe);
 	meBuildMode mode = DEBUG;
@@ -315,7 +320,7 @@ int main(int argc, char** argv)
 	const char* shaderCompiler = nob_temp_sprintf("%s/mindseye/external/bgfx/bin/shadercDebug.exe", root);
 	const char* shaderCommonFlags[] =
 	{
-		"--bin2c", "--platform", "windows", "-p", "440", "--varyingdef", nob_temp_sprintf("%s/mindseye/shaders/varying.def.sc", root),
+		"--bin2c", "--platform", "windows", "-p", "spirv16-13", "--varyingdef", nob_temp_sprintf("%s/mindseye/shaders/varying.def.sc", root),
 	};
 	int shaderCompileIdx = 0;
 	for (int i = 0; i < ARRAY_SIZE(fragmentInputs); i++)

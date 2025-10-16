@@ -13,7 +13,6 @@
 
 #define STB_IMAGE_IMPLEMENTATION
 #define STBIDEF extern "C" MEAPI
-#define STBI_ONLY_PNG
 #include "external/stb/stb_image.h"
 #undef STB_IMAGE_IMPLEMENTATION
 #undef STBIDEF

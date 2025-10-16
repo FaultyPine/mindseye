@@ -32,6 +32,7 @@ void RunEngine(EngineContext* engine)
 {
     while (engine->isRunning)
     {
+		engine->renderer->BeginImguiContext();
         meOSTick(engine);
 		engine->sceneSystem->Tick(engine);
 		meEditorDisplayGui(engine);
@@ -40,6 +41,7 @@ void RunEngine(EngineContext* engine)
 		engine->sceneSystem->CopyToRenderInput(renderInput.scene);
         void* renderedSceneHandle = engine->renderer->RenderScene(&renderInput);
         UNUSED(renderedSceneHandle);
+		engine->renderer->EndImguiContext();
 		GetTLScratch()->meClear(); // clear the main engine thread's scratch buffer every frame
     }
     engine->renderer->Teardown(engine);
@@ -84,17 +86,14 @@ void InitializeEngine(s32 argc, char** argv)
 	{
 		meSpan configMem = DeserializeFromIniBlocking(TD_MEUSERCONFIG, &engine->engineArena, userProjectConfigPath);
 		engine->userConfig = (meUserConfig*)configMem;
-
+		
+		// "userApp" referring to a program that uses the mindseye engine
 		StringView userAppConfigFile = engine->userConfig->projectRootConfigFile;
 		String userAppConfigPathAbs = meOSResolveRelativeToAbsPath(GetTLScratch(), userAppConfigFile);
 		meSpan* appConfigMem = DeserializeFromIniBlocking(TD_MEAPPCONFIG, &engine->engineArena, userAppConfigPathAbs);
 		engine->appConfig = (meAppConfig*)appConfigMem;
 		StringView userAppConfigDir = msFsGetDirFromPath(userAppConfigPathAbs);
-		StringView userAppResourceDir = StringFormat("%.*s%.*s%.*s", 
-													 STRING_VAARGS(userAppConfigDir),
-													 STRING_VAARGS(meFsGetDirectorySeperator()),
-													 STRING_VAARGS(engine->appConfig->resourcesDir));
-		meAssetSetResourceDir(String(userAppResourceDir, &engine->engineArena));
+		meAssetSetResourceDir(userAppConfigDir);
 		
 		StringView userAppDllName = StringFormat("%.*s.dll", STRING_VAARGS(engine->appConfig->appName));
 		void* gameLib = LoadDynamicLibrary(userAppDllName.cstr());

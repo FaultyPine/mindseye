@@ -79,7 +79,6 @@ StringView meFsScanOutForFile(StringView fileStr, meAllocator* allocator)
 	{
 		return absPath;
 	}
-	// BOOKMARK
 	String result = absPath;
 	StringBuilder builder = StringBuilder(allocator);
 	while (result)

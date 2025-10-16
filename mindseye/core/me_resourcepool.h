@@ -66,6 +66,7 @@ void meResourcePool<ResourceType>::DestroyInternal(Eye eye)
 template <typename ResourceType>
 ResourceType& meResourcePool<ResourceType>::Get(Eye eye)
 {
+	ME_ASSERT(eye);
 	auto idx = eye.GetIndex();
 	auto& resource = resourcePool.get(idx);
 	ME_ASSERT(resource.generation == eye.GetGeneration());
@@ -75,6 +76,7 @@ ResourceType& meResourcePool<ResourceType>::Get(Eye eye)
 template <typename ResourceType>
 const ResourceType& meResourcePool<ResourceType>::Get(Eye eye) const
 {
+	ME_ASSERT(eye);
 	auto idx = eye.GetIndex();
 	const auto& resource = resourcePool.get(idx);
 	ME_ASSERT(resource.generation == eye.GetGeneration());

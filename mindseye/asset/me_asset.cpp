@@ -181,6 +181,7 @@ StringView meAssetGetResourceDir()
 
 StringView meAssetResource(StringView resourcePath)
 {
+	meFsNormalizePathSeperators(resourcePath);
 	StringView result = resourcePath;
 	if (FindInString(resourcePath, meAssetGetResourceDir()) == -1)
 	{
