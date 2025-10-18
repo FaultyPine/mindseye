@@ -23,6 +23,7 @@ struct MEREFLECT(type) meAppConfig
 {
 	String appName = {};
 	String resourcesDir = {};
+	String defaultSceneName = {};
 };
 
 typedef void(*InitFn)(EngineContext* engine);

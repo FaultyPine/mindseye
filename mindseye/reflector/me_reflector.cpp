@@ -747,7 +747,6 @@ int main(int argc, char* argv[])
 		// populates the parsingcontext with info about all reflected types
 		clang_visitChildren(cursor, visitTranslationUnit, &ctx);
 		GeneratedReflectionHeaders(ctx, headerOutputFolder);
-		LOG_INFO("[Mindseye Reflector] generated headers (see %s)", headerOutputFolder);
 	}
 	else
 	{
@@ -784,7 +783,7 @@ int main(int argc, char* argv[])
 // BELOW: Outputting generated headers from the reflection data we captured
 // ====================================================================
 
-void ProcessReflectedFile(
+bool ProcessReflectedFile(
 	const meReflectedFile& fileRefl, 
 	const char* headerOutputFolder,
 	meAllocator* allocator);
@@ -797,13 +796,16 @@ void GeneratedReflectionHeaders(
 	meOSEnsureDirectoriesExist(headerOutputFolder);
 
 	u32 numReflectedFiles = ctx.reflectedFiles.size();
+	u32 numProcessedFiles = 0;
 	for (const auto& [headerID, fileReflection] : ctx.reflectedFiles)
 	{
 		// TODO: this is ripe for super easy parallelism here
 		// chunk up allocators for each thread, and have them all generate & write out each header
 		Arena fileArena = ArenaInit(ArenaGetFreeSpace(ctx.allocator) / numReflectedFiles, "File Reflection Arena", ctx.allocator);
-		ProcessReflectedFile(fileReflection, headerOutputFolder, &fileArena);
+		bool didGenerate = ProcessReflectedFile(fileReflection, headerOutputFolder, &fileArena);
+		numProcessedFiles += didGenerate ? 1 : 0;
 	}
+	LOG_INFO("[Mindseye Reflector] wrote %d generated files", numProcessedFiles);
 }
 
 void GenerateForwardDecls(
@@ -845,9 +847,54 @@ void GenerateForwardDecls(
 	}
 }
 
+#ifdef OS_WINDOWS
+s32 needsRebuild(const char *output_path, const char **input_paths, size_t input_paths_count)
+{
+    BOOL bSuccess;
 
+    HANDLE output_path_fd = CreateFileA(output_path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_READONLY, NULL);
+    if (output_path_fd == INVALID_HANDLE_VALUE) {
+        // NOTE: if output does not exist it 100% must be rebuilt
+        if (GetLastError() == ERROR_FILE_NOT_FOUND) return 1;
+        //nob_log(NOB_ERROR, "Could not open file %s: %s", output_path, nob_win32_error_message(GetLastError()));
+        return 1;
+    }
+    FILETIME output_path_time;
+    bSuccess = GetFileTime(output_path_fd, NULL, NULL, &output_path_time);
+    CloseHandle(output_path_fd);
+    if (!bSuccess) {
+        //nob_log(NOB_ERROR, "Could not get time of %s: %s", output_path, nob_win32_error_message(GetLastError()));
+        return -1;
+    }
 
-void ProcessReflectedFile(
+    for (size_t i = 0; i < input_paths_count; ++i) {
+        const char *input_path = input_paths[i];
+        HANDLE input_path_fd = CreateFileA(input_path, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_READONLY, NULL);
+        if (input_path_fd == INVALID_HANDLE_VALUE) {
+            // NOTE: non-existing input is an error cause it is needed for building in the first place
+            //nob_log(NOB_ERROR, "Could not open file %s: %s", input_path, nob_win32_error_message(GetLastError()));
+            return -1;
+        }
+        FILETIME input_path_time;
+        bSuccess = GetFileTime(input_path_fd, NULL, NULL, &input_path_time);
+        CloseHandle(input_path_fd);
+        if (!bSuccess) {
+            //nob_log(NOB_ERROR, "Could not get time of %s: %s", input_path, nob_win32_error_message(GetLastError()));
+            return -1;
+        }
+
+        // NOTE: if even a single input_path is fresher than output_path that's 100% rebuild
+        if (CompareFileTime(&input_path_time, &output_path_time) == 1) return 1;
+    }
+
+    return 0;
+}
+#else
+// TODO: platform agnostic timestamp checking
+s32 needsRebuild(const char *output_path, const char **input_paths, size_t input_paths_count) { return 1; }
+#endif
+
+bool ProcessReflectedFile(
 	const meReflectedFile& fileRefl,
 	const char* headerOutputFolder,
 	meAllocator* allocator)
@@ -855,13 +902,20 @@ void ProcessReflectedFile(
 	StringBuilder headerContentBuilder = StringBuilder(allocator, MEGABYTES_BYTES(1));
 
 	StringView parsedHeaderExistingPath = fileRefl.fileName;
-	if (!parsedHeaderExistingPath)
+	if (!parsedHeaderExistingPath || FindInString(parsedHeaderExistingPath, StringFromCString(headerOutputFolder)) != -1)
 	{
-		return;
+		return false;
 	}
 	StringView parsedHeaderFilename = meFsGetFileFromFullPath(parsedHeaderExistingPath);
 	s32 extensionIdx = FindInStringRev(parsedHeaderFilename, STRING_LIT("."));
 	StringView parsedHeaderFilenameNoExt = parsedHeaderFilename.OffsetView(0, extensionIdx);
+	StringView dstHeaderFilePath = StringFormat("%s/%.*s.generated.h", headerOutputFolder, STRING_VAARGS(parsedHeaderFilenameNoExt));
+	const char* inputCheckFile = parsedHeaderExistingPath.cstr();
+	if (needsRebuild(dstHeaderFilePath.cstr(), &inputCheckFile, 1) == 0)
+	{
+		// doesn't need to be reprocessed. Already up-to-date
+		return false;
+	}
 
 	// for simplicity, if anyone wants access to the reflection data for some type, they shouldn't be including
 	// the actual header, not the generated one. The generated one should be included by the file it reflects
@@ -878,11 +932,10 @@ void ProcessReflectedFile(
 	{
 		OSFileReference headerFile = {};
 
-		StringView dstHeaderFilePath = StringFormat("%s/%.*s.generated.h", headerOutputFolder, STRING_VAARGS(parsedHeaderFilenameNoExt));
 		if (!meOSOpenFile(headerFile, dstHeaderFilePath, OSFileFlags::StompExisting))
 		{
 			LOG_ERROR("Failed to open file %s while trying to generated reflected headers", dstHeaderFilePath);
-			return;
+			return false;
 		}
 		// write to the file here
 		meOSWriteFileContent(headerFile, fileContent.data, fileContent.len);
@@ -965,11 +1018,13 @@ void ProcessReflectedFile(
 		if (!meOSOpenFile(sourceFile, dstFilePath, OSFileFlags::StompExisting))
 		{
 			LOG_ERROR("Failed to open file %s while trying to generated reflected headers", dstFilePath);
-			return;
+			return false;
 		}
 		// write to the file here
 		meOSWriteFileContent(sourceFile, fileContent.data, fileContent.len);
 		meOSCloseFile(sourceFile);
+		return true;
 	}
+	return false;
 }
 

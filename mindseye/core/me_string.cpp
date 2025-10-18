@@ -106,6 +106,7 @@ String::String(const char* data, size_t len, meAllocator* allocator)
 String::String(size_t len, meAllocator* allocator)
 {
 	this->data = MEALLOC(allocator, len + 1);
+	ME_MEMCLEAR(this->data, len + 1);
 	this->len = len;
 	this->allocator = allocator;
 }
@@ -127,7 +128,8 @@ String::String(const StringView& str, meAllocator* allocator)
 void String::CopyOfCStr(const char* cstr, meAllocator* allocator)
 {
 	len = CStringLength(cstr);
-	data = (char*)MEALLOC(allocator, len);
+	data = (char*)MEALLOC(allocator, len+1);
+	data[len] = '\0';
 	this->allocator = allocator;
 	StringCopy(*this, StringView(cstr, len));
 }
@@ -137,7 +139,8 @@ void String::CopyOf(const String& str)
 	if (!str) { *this = {}; return; }
 	this->len = str.len;
 	this->allocator = str.allocator;
-	this->data = (char*)MEALLOC(str.allocator, len);
+	this->data = (char*)MEALLOC(str.allocator, len+1);
+	this->data[this->len] = '\0';
 	StringCopy(*this, str);
 }
 
@@ -146,7 +149,8 @@ void String::CopyOf(const StringView& str, meAllocator* allocator)
 	if (!str) { *this = {}; return; }
 	len = str.len;
 	this->allocator = allocator;
-	data = (char*)MEALLOC(this->allocator, len);
+	data = (char*)MEALLOC(this->allocator, len+1);
+	this->data[this->len] = '\0';
 	StringCopy(*this, str);
 }
 
@@ -196,8 +200,8 @@ const char* CStringFromString(
 	meAllocator* allocator)
 {
 	const char* cstr = MEALLOC(allocator, str.len + 1);
-	ME_MEMCLEAR((void*)cstr, str.len + 1);
 	ME_MEMCPY((void*)cstr, str.data, str.len);
+	str.data[str.len] = '\0';
 	return cstr;
 }
 

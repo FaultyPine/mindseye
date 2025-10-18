@@ -101,6 +101,12 @@ void InitializeEngine(s32 argc, char** argv)
 		{
 			LOG_ERROR("Failed to load game library %.*s", STRING_VAARGS(userAppDllName));
 		}
+
+		if (!engine->sceneSystem->scene.IsValid())
+		{
+			// if no scene already, and user config specifies a default scene, load it
+			engine->sceneSystem->LoadSceneFromFileBlocking(engine->appConfig->defaultSceneName, &engine->engineSceneAllocator, &engine->sceneSystem->scene);
+		}
 	}
 
     engine->appInfo.initFn(engine);

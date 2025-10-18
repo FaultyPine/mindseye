@@ -94,4 +94,11 @@ throw in some non euclidean portal nonsense
 - View planes on all sides of camera slice objects persistently. Imagine a cube on the ground - looking to the side so the cube is half off the screen, then looking back at the full cube, you'd see half of the cube, as if it was squished against your view
 	Could use the view planes to push objects, cut things away.... "heavy" objects might prevent you from looking away from them
 - coop warioware
-
+- Tower defense, 3rd person, 3d. Interesting mechanic/experience is enemies do not follow predefined paths
+	like in every other tower defense game. They spawn and pathfind to their destination (what you're defending)
+	great design space from that: towers are no longer limited to "dealing damage" as their main purpose
+	towers can redirect enemies! imagine a large open space enemies move towards your "crystal". You can place
+	towers that "funnel" enemies in, making your own choke points for damage-dealing towers to attack
+	Certain towres can even "filter" enemies, so strong ones end up somewhere and weaker ones end up somehwere else
+	Portal springboard tower that flings enemies across the map. Imagine Factorio-esc rube goldberg machines that facilitate
+	your towers. Lots of emergent gameplay from some simple primitive towers.

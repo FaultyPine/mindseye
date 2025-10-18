@@ -25,11 +25,6 @@ struct BuildableArtifact
 	Nob_File_Paths inputs = {};
 	Nob_String_View output = {};
 
-	BuildableArtifact()
-	{
-		const char* mebuild = nob_temp_sprintf("%s/me_build.cpp", root);
-		addInputsNoCompile(&mebuild, 1);
-	}
 	void addInputs(const char** inputs, size_t numInputs)
 	{
 		for (int i = 0; i < numInputs; i++)
@@ -48,8 +43,12 @@ struct BuildableArtifact
 	}
 	void addOutput(const char* output)
 	{
+		ME_ASSERT(this->output.count == 0);
 		nob_cc_output(&compileCmd, output);
 		this->output = nob_sv_from_cstr(output);
+
+		const char* mebuild = nob_temp_sprintf("%s/me_build.cpp", root);
+		addInputsNoCompile(&mebuild, 1);
 	}
 
 	bool build(bool force = false)
@@ -142,6 +141,7 @@ int main(int argc, char** argv)
 		if (nob_sv_eq(argvSv, nob_sv_from_cstr("release")))
 		{
 			mode = RELEASE;
+			nob_log(NOB_INFO, "[Release mode]");
 		}
 		else if (nob_sv_eq(argvSv, nob_sv_from_cstr("libs")))
 		{
@@ -500,7 +500,7 @@ int main(int argc, char** argv)
 	}
 
 	mindseyeReflectorCompile.build();
-	mindseyeReflectorRun.build();
+	mindseyeReflectorRun.build(true);
 
 	nob_set_current_dir("build");
 

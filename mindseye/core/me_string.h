@@ -37,7 +37,7 @@ struct String
 
 	const char* cstr() const 
 	{
-		//ME_ASSERT(data[len-1] == '\0');
+		ME_ASSERT(data[len] == '\0');
 		return data;
 	}
 };
@@ -100,7 +100,7 @@ struct StringView
 
 	const char* cstr() const 
 	{
-		//ME_ASSERT(data[len-1] == '\0');
+		ME_ASSERT(data[len] == '\0');
 		return data;
 	}
 	const char* cstrForce(meAllocator* allocator) const;

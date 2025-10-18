@@ -376,6 +376,7 @@ bool CreateRecursiveDirectory(StringView path) {
 	{
         return false;
     }
+	ME_MEMCLEAR(tempPath, MAX_PATH);
     StringCopy(StringView(tempPath, MAX_PATH), path);
 
     char* p = tempPath;
