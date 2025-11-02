@@ -109,3 +109,18 @@ u32 HashBytes(u8* data, u32 size)
     return hash;
 }
 
+
+// Assuming floats are in the range [0.0, 1.0] and we want 8 bits per component
+u32 PackFloatsToU32(float f1, float f2, float f3, float f4) 
+{
+    // Quantize each float to an 8-bit integer (0-255)
+    u32 val1 = static_cast<u32>(floor(f1 * 255.0f));
+    u32 val2 = static_cast<u32>(floor(f2 * 255.0f));
+    u32 val3 = static_cast<u32>(floor(f3 * 255.0f));
+    u32 val4 = static_cast<u32>(floor(f4 * 255.0f));
+
+    // Pack into a single u32
+    // Assuming order: f1 (LSB), f2, f3, f4 (MSB)
+    u32 packed_value = (val4 << 24) | (val3 << 16) | (val2 << 8) | val1;
+    return packed_value;
+}

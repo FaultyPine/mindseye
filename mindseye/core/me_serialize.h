@@ -7,7 +7,8 @@ void SerializeToIniBlocking(
 	void* data,
 	StringView outFilename);
 
-meSpan DeserializeFromIniBlocking(
+bool DeserializeFromIniBlocking(
 	const meTypeDescriptor& typeDesc,
 	meAllocator* allocator,
-	StringView inFilename);
+	StringView inFilename,
+	meSpan outBuffer);

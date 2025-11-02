@@ -93,19 +93,21 @@ EntityRef CreateEntity(
     ME_ASSERT(entityID != U32_INVALID_ID); // make absolutely sure
     // we increment this every time, even if it's not what we use for the id.
     registry.entityCreationIndex++;
-    registry.entMap[ent.id] = ent;
-    return ent.id;
+    registry.entMap[entityID] = ent;
+    return entityID;
 }
 
 bool DestroyEntity(EntityRef ent)
 {
     EntityRegistry& registry = GetRegistry();
-    EntityData& entity = GetEntity(ent);
-    if (entity.id == U32_INVALID_ID)
-    {
-        return false;
-    }
-    entity.model.Delete();
+	EntityData& entity = GetEntity(ent);
+	UNUSED(entity);
+    //if (entity.id == U32_INVALID_ID)
+    //{
+    //    return false;
+    //}
+    //entity.mesh.Delete();
+	UNIMPLEMENTED();
     registry.entMap.erase(ent);
     return true;
 }
@@ -135,25 +137,25 @@ EntityData& GetEntity(const char* name)
 bool HasRenderable(EntityRef ent)
 {
     const EntityData& entity = GetEntity(ent);
-    return entity.model.isValid();
+    return (bool)entity.mesh;
 }
 
-bool AddRenderable(EntityRef ent, const Model& model)
+bool AddRenderable(EntityRef ent, const Eye& mesh)
 {
     EntityData& entity = GetEntity(ent);
     // if we already have a model, don't overwrite
-    if (entity.model.isValid())
+    if (entity.mesh)
     {
         return false;
     }
-    entity.model = model;
+    entity.mesh = mesh;
     return true;
 }
 
-void OverwriteRenderable(EntityRef ent, const Model& model)
+void OverwriteRenderable(EntityRef ent, const Eye& mesh)
 {
     EntityData& entity = GetEntity(ent);
-    entity.model = model;
+    entity.mesh = mesh;
 }
 
 void GetRenderableEntities(EntityRef* dst, u32* numEntities)
@@ -162,7 +164,7 @@ void GetRenderableEntities(EntityRef* dst, u32* numEntities)
     *numEntities = 0;
     for (const auto& [ref, ent] : registry.entMap)
     {
-        if (!IsFlag(ent, EntityFlags::DISABLED) && ent.model.isValid())
+        if (!IsFlag(ent, EntityFlags::DISABLED) && ent.mesh)
         {
             if (dst)
             {

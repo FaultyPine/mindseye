@@ -165,7 +165,8 @@ bool IsHeaderWeCareAbout(StringView headerPath, StringView projectRootDir)
 	// assumed these are both absolute paths for simplicity
 	bool inProjDir = FindInString(headerPath, projectRootDir) != -1;
 	s32 is3rdPartyLib = FindInString(headerPath, STRING_LIT("/external/")) != -1;
-	return inProjDir && !is3rdPartyLib;
+	bool isGeneratedHeader = FindInString(headerPath, STRING_LIT(".generated")) != -1;
+	return inProjDir && !is3rdPartyLib && !isGeneratedHeader;
 }
 
 void GetReflectedTypeHashes(
@@ -318,8 +319,40 @@ meReflectedType& GetReflectedType(CXCursor cr, meAllocator* allocator, ClangPars
 	return reflType;
 }
 
+bool DoesDeclarationHaveReflectionAnnotation(
+	CXCursor typeDecl,
+	ClangParsingContext& ctx)
+{
+	if (typeDecl.kind == CXCursor_NoDeclFound)
+	{
+		return false;
+	}
+	u32 result = clang_visitChildren(typeDecl, +[](CXCursor cr, CXCursor parent, CXClientData clientData)
+	{
+		CXCursorKind kind = clang_getCursorKind(cr);
+		switch (kind)
+		{
+			case CXCursor_AnnotateAttr:
+			{
+				ClangParsingContext& ctx = *(ClangParsingContext*)clientData;
+				StringView cursorName = GetCursorDisplayName(cr, ctx.allocator);
+				// when the cursor is the reflection attribute, the parent cursor is the one with the actual decl we care about
+				if (cursorName == STRING_LIT(ME_REFLECT_ATTR_STR))
+				{
+					return CXChildVisit_Break; // indicates to our code just below (result == 0) that we found an attribute, and already parsed this decl
+				}
+			}
+			break;
+			default: break;
+		}
+		return CXChildVisit_Continue;
+	}, &ctx);
+	bool foundReflectionAnnotation = result != 0;
+	return foundReflectionAnnotation;
+}
+
 // when we encounter a MEREFLECT macro, the entire content inside it is passed in here
-// I.E. MEREFLECT(something, another)     "something, another" would be passed in
+// I.E. MEREFLECT(something, another)     "something, another" would be passed in macroContent
 // In that case ^ the cursor points to either a fielddecl or structdecl that has been annotated
 // This also processes fielddecls that won't have the macro on them. For those,
 // the macroContent is empty and the cursor points to the fielddecl.
@@ -350,29 +383,37 @@ void StoreReflectedTypeInfo(
 	if (crKind == CXCursor_FieldDecl)
 	{
 		CXCursor fieldTypeCr = clang_getTypeDeclaration(crType);
-		bool isBuiltin = IsBuiltinType(fieldTypeCr);
-		if (isBuiltin && fieldTypeCr.kind == CXCursor_NoDeclFound)
+		bool isBuiltin = IsBuiltinType(fieldTypeCr) || fieldTypeCr.kind == CXCursor_NoDeclFound;
+		if (isBuiltin)
 		{
 			// primitive type. I.E. u32
 			fieldTypeCr = cr;
 		}
-		else if (!isBuiltin)
+		else
 		{
 			// non-builtin/primitive and unknown. Likely an external type we won't include in the final generated output
 			StoreReflectedTypeInfo(fieldTypeCr, ctx, {});
 		}
 		// annotated fields have their parentCr as the fielddecl. Unannotated fields have their parentCr as the struct decl
+		bool isReflectedType = DoesDeclarationHaveReflectionAnnotation(fieldTypeCr, ctx);
 		// TODO: does the above logic properly handle primitives VS external types? I.E. glm::vec3?
 		meReflectedType& fieldTypeRefl = GetReflectedType(fieldTypeCr, allocator, ctx);
 		fieldTypeRefl.isExcluded = fieldTypeRefl.isExcluded || excluded;
-
+		
 		meReflectedType& fieldMemberRefl = *MENEW(ctx.allocator, meReflectedType); // this will contain the field's type info
 		
 		meReflectedType& parentReflType = GetReflectedType(parentCr, allocator, ctx);
+		for (DynArray_Foreach(parentReflType.children, childIdx))
+		{
+			if (parentReflType.children[childIdx]->name == cursorName)
+			{
+				return;
+			}
+		}
 		DynArrayPush(parentReflType.children, &fieldMemberRefl);
 		fieldMemberRefl.innerType = &fieldTypeRefl;
 		reflTypePtr = &fieldMemberRefl;
-		if (isBuiltin)
+		if (isBuiltin || isReflectedType)
 		{
 			// for non-primitive builtin types (I.E. String) we should include those
 			SET_BIT(reflTypePtr->flags, INCLUDE_IN_GENERATED_HEADER, true);
@@ -392,13 +433,14 @@ void StoreReflectedTypeInfo(
 	}
 	CXType parentType = clang_getCursorType(parentCr);
 
-	// NOTE: for bitfields like
-	// u64 somebits: 48;
-	// u64 restofbits: 8;
-	// both of those fielddecls register as size 8.
-	// I'm outputting that as-is atm. This might end up becoming a weird
-	// bug since the size of the sum of the fields could be greater than the size of the struct...
 	s64 typeSize = clang_Type_getSizeOf(crType);
+	s32 typeSizeBits = clang_getFieldDeclBitWidth(cr);
+	if (typeSizeBits != -1)
+	{
+		StringView bitfieldTypeName = GetCursorDisplayName(parentCr, allocator);
+		LOG_ERROR("Bitfields are not supported in reflected types. %.*s::%.*s", STRING_VAARGS(bitfieldTypeName), STRING_VAARGS(cursorName));
+		return;
+	}
 	s64 typeAlign = clang_Type_getAlignOf(crType);
 	const char* fieldName = CStringFromString(cursorName, allocator);
 	s64 offset = clang_Type_getOffsetOf(parentType, fieldName);
@@ -538,7 +580,7 @@ CXVisitorResult VisitStructureFields(CXCursor cr, CXClientData clientData)
 					case CXCursor_AnnotateAttr:
 					{
 						OnFindInterestingDecl(cr, parent, clientData);
-						return CXChildVisit_Break; // indicates to our code just below that we found an attribute, and already parsed this decl
+						return CXChildVisit_Break; // indicates to our code just below (result == 0) that we found an attribute, and already parsed this decl
 					}
 					break;
 					default: break;
@@ -911,7 +953,7 @@ bool ProcessReflectedFile(
 	StringView parsedHeaderFilenameNoExt = parsedHeaderFilename.OffsetView(0, extensionIdx);
 	StringView dstHeaderFilePath = StringFormat("%s/%.*s.generated.h", headerOutputFolder, STRING_VAARGS(parsedHeaderFilenameNoExt));
 	const char* inputCheckFile = parsedHeaderExistingPath.cstr();
-	if (needsRebuild(dstHeaderFilePath.cstr(), &inputCheckFile, 1) == 0)
+	if (needsRebuild(dstHeaderFilePath.cstr(), &inputCheckFile, 1) == 0 && !AmIBeingDebugged()) // in a debugger, always rebuild
 	{
 		// doesn't need to be reprocessed. Already up-to-date
 		return false;
@@ -958,14 +1000,37 @@ bool ProcessReflectedFile(
 			if (numChildren > 0)
 			{
 				StringBuilder fieldsArrayContent = StringBuilder(allocator);
+				u32 numPaddingMembers = 0;
+				u32 currentOffsetBytes = 0;
 				for (s32 i = 0; i < numChildren; i++)
 				{
 					meReflectedType& childReflType = *typeRefl.children[i];
 
+					// NOTE: this whole padding thing might be made a lot better if I just use clang's 
+					// info like the offsetBits with the sizeBits and extract padding info from there instead of calculating it myself.
+
+					// this is an assumption to make implementation simpler. If this assert hits, there's likely a bitfield with a non-multiple-of-eight size. It could be supported, but requires more thought into the math here.
+					u32 childAlign = childReflType.align;
+					u32 childPadding = (childAlign - (currentOffsetBytes % childAlign)) % childAlign;
+					currentOffsetBytes += childReflType.size;
+					currentOffsetBytes += childPadding;
+
+					if (childPadding)
+					{
+						ME_ASSERT(i > 0); // first member should never have padding
+						StringBuilder paddingVarName = StringBuilder(GetTLScratch());
+						const meReflectedType& paddedField = *typeRefl.children[i - 1];
+						u32 paddedFieldSizeBits = paddedField.size * 8;
+						paddingVarName.AppendFormat(STRING_FMT "_padding", STRING_VAARGS(paddedField.name));
+						u32 paddingMemberOffsetBits = paddedField.offsetBits + paddedFieldSizeBits;
+						fieldsArrayContent.AppendFormat("\t{ .name = STRING_LIT(\"%.*s\"), .size = %i, .align = %i, .offsetBits = %i },\n", STRING_VAARGS(paddingVarName), childPadding, 1, paddingMemberOffsetBits);
+						numPaddingMembers++;
+					}
+
 					if (childReflType.isExcluded)
 					{
 						// excluded fields are still "there", but they have no underlying type
-						// think of it like "padding" bytes so the other field's offsets make sense
+						// think of it like "padding" bytes so the other field offsets make sense
 						fieldsArrayContent.AppendFormat("\t{ .name = STRING_LIT(\"%.*s\"), .size = %i, .align = %i, .offsetBits = %i },", STRING_VAARGS(childReflType.name), childReflType.size, childReflType.align, childReflType.offsetBits);
 						continue;
 					}
@@ -979,8 +1044,6 @@ bool ProcessReflectedFile(
 					fieldsArrayContent.AppendFormat(".offsetBits = %i, ", childReflType.offsetBits);
 					if (childReflType.innerType && childReflType.innerType->name && TEST_BIT(childReflType.flags, INCLUDE_IN_GENERATED_HEADER))
 					{
-						// TODO: Do a map check here if this type is something we "know" about in the generated headers.
-						// if it isn't.... if it's an "external type", maybe generate a stub descriptor for it, or leave the underlying type null
 						String underlyingTD = String(childReflType.innerType->name, allocator);
 						ToUpper(underlyingTD);
 						StringReplace(underlyingTD, ' ', '_');
@@ -991,8 +1054,23 @@ bool ProcessReflectedFile(
 					{
 						fieldsArrayContent.Append(STRING_LIT("\n"));
 					}
-				}				
-				sourceContentBuilder.AppendFormat("meTypeDescriptor g_%.*s_fields[%i] = {\n%.*s\n};\n", STRING_VAARGS(typeRefl.name), numChildren, STRING_VAARGS(fieldsArrayContent));
+				}
+				u64 structAlign = typeRefl.align;
+				u64 finalPadding = (structAlign - (currentOffsetBytes % structAlign)) % structAlign;
+				currentOffsetBytes += finalPadding;
+				ME_ASSERT(currentOffsetBytes == typeRefl.size);
+				if (finalPadding)
+				{
+					StringBuilder paddingVarName = StringBuilder(GetTLScratch());
+					const meReflectedType& paddedField = *typeRefl.children[numChildren - 1];
+					u32 paddedFieldSizeBits = paddedField.size * 8;
+					paddingVarName.AppendFormat(STRING_FMT "_padding", STRING_VAARGS(paddedField.name));
+					u32 paddingMemberOffsetBits = paddedField.offsetBits + paddedFieldSizeBits;
+					fieldsArrayContent.AppendFormat("\n\t{ .name = STRING_LIT(\"%.*s\"), .size = %i, .align = %i, .offsetBits = %i }", STRING_VAARGS(paddingVarName), finalPadding, 1, paddingMemberOffsetBits);
+					numPaddingMembers++;
+				}
+
+				sourceContentBuilder.AppendFormat("meTypeDescriptor g_%.*s_fields[%i] = {\n%.*s\n};\n", STRING_VAARGS(typeRefl.name), numChildren + numPaddingMembers, STRING_VAARGS(fieldsArrayContent));
 			}
 			StringBuilder mainTypeDescriptorContent = StringBuilder(allocator);
 			mainTypeDescriptorContent.AppendFormat("\t.name = STRING_LIT(\"%.*s\"),\n", STRING_VAARGS(typeRefl.name));

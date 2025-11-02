@@ -6,6 +6,7 @@
 #include "me_material.h"
 #include "me_shader.h"
 #include "me_texture.h"
+#include "me_camera.h"
 
 #include "renderer_frontend.h"
 //#include "vulkan_backend/vulkan_backend.h"
@@ -21,3 +22,5 @@
 #include "me_material.cpp"
 #include "me_shader.cpp"
 #include "me_texture.cpp"
+#include "me_camera.cpp"
+

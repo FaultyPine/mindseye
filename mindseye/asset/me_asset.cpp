@@ -67,7 +67,7 @@ meAssetLoadStage* meAssetRequestLoad(
 	for (u32 i = 0; i < numAssets; i++)
 	{
 		const meAssetIdent& assetIdent = assetIdents[i];
-		meAssetType assetType = meAssetType(assetIdent.id);
+		meAssetType assetType = meAssetType(assetIdent.id.GetType());
 		meAssetLoader* loader = assetSystem.assetLoaders[assetType];
 		meAssetLoadStage stage = Unloaded;
 		if (loader)
@@ -132,7 +132,7 @@ meAssetLoadStage* meAssetWaitForLoad(
 	{
 		// dispatch to the loader for this asset type
 		const meAssetIdent& assetIdent = assetIdents[i];
-		meAssetType assetType = meAssetType(assetIdents[i].id);
+		meAssetType assetType = meAssetType(assetIdents[i].id.GetType());
 		const meAssetSystem& assetSystem = GetAssetSystem();
 		meAssetLoader* loader = assetSystem.assetLoaders[assetType];
 		meAssetLoadStage stage = Unloaded;

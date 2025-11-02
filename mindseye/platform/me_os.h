@@ -3,6 +3,7 @@
 #include "mindseye/core/me_defines.h"
 #include "mindseye/core/me_arena.h"
 #include "mindseye/core/me_string.h"
+#include "platform/me_input.h"
 struct EngineContext;
 
 struct WindowCreationParams
@@ -15,34 +16,21 @@ struct WindowCreationParams
 typedef void(*OnOSWindowResize)(s32 width, s32 height);
 typedef void(*OnOSMouseMove)(s32 mx, s32 my);
 
-struct MouseState
-{
-    s32 mouseX = 0;
-    s32 mouseY = 0;
-    s32 scroll = 0;
-    enum MouseButtons : u32
-    {
-        LBUTTON,
-        RBUTTON,
-        MBUTTON,
-    };
-    u32 buttons = 0;
-};
-
 struct OSStateView
 {
     // TODO: make these events so multiple systems can subscribe
     OnOSWindowResize onResizeCB = nullptr;
-    OnOSMouseMove onMouseMove = nullptr;
-    MouseState mouseState = {};
+	meMouseInput mouseState = {};
     u32 windowWidth = 0;
     u32 windowHeight = 0; 
 	u64 ticksPerSecond = 0;
 	u64 ticksAtAppStart = 0;
+	meOSCursorState state = FREE;
 	u64 GetTicksUsec() const;
 #ifdef OS_WINDOWS
     void* hwnd = nullptr;
     void* hinstance = nullptr;
+	bool useRawInput = false;
 #else
 #endif
 };
@@ -144,6 +132,12 @@ MEAPI String meOSResolveRelativeToAbsPath(
 	StringView potentiallyRelativePath);
 
 MEAPI u32 meOSGetThreadID();
+
+MEAPI void meOSSetCursorState(
+	meOSCursorState state,
+	OSStateView& osState);
+
+MEAPI bool AmIBeingDebugged();
 
 struct OSFileReference
 {

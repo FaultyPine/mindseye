@@ -1,0 +1,6 @@
+type=meScene
+version=0
+
+
+[meScene]
+externalScenePath=tower_def_testroom.glb

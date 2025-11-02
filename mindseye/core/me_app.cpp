@@ -13,6 +13,9 @@
 
 #include "render/me_material.h"
 #include "render/me_texture.h"
+#include "render/me_mesh.h"
+#include "render/me_shader.h"
+#include "scene/me_entity.h"
 
 #include "generatedtypes/me_app.generated.cpp"
 
@@ -20,6 +23,11 @@ EngineContext* GetEngineCtx()
 {
     static EngineContext eng;
     return &eng;
+}
+
+f32 GetDeltaTime()
+{
+	return GetEngineCtx()->deltaTime;
 }
 
 void InternalRegisterApp(AppRegistrationInfo appInfo)
@@ -32,6 +40,8 @@ void RunEngine(EngineContext* engine)
 {
     while (engine->isRunning)
     {
+		f32 time = GetTimeSec();
+		engine->deltaTime = time - engine->lastFrameTime;
 		engine->renderer->BeginImguiContext();
         meOSTick(engine);
 		engine->sceneSystem->Tick(engine);
@@ -43,6 +53,7 @@ void RunEngine(EngineContext* engine)
         UNUSED(renderedSceneHandle);
 		engine->renderer->EndImguiContext();
 		GetTLScratch()->meClear(); // clear the main engine thread's scratch buffer every frame
+		engine->lastFrameTime = time;
     }
     engine->renderer->Teardown(engine);
 }
@@ -58,15 +69,21 @@ void InitializeEngine(s32 argc, char** argv)
 	LOG_INFO("Working dir: %.*s", STRING_VAARGS(workingDir));
     InitializeAllocatorSystem(engine);
     InitializeCmdLine(argc, argv);
+	    
+	WindowCreationParams windowCreationParams = {}; // TODO: from config/cmdline?
+    meOSCreateWindow(windowCreationParams, engine);
+	meEditorInitialize(engine);
+
+    RendererInitialize(engine);
     meAssetInitialize(engine);     
 	meSceneInitialize(engine);
 	meMaterialInitialize(engine);
 	meTextureInitialize(engine);
-    
-	WindowCreationParams windowCreationParams = {}; // TODO: from config/cmdline?
-    meOSCreateWindow(windowCreationParams, engine);
-    RendererInitialize(engine);
-	meEditorInitialize(engine);
+	meMeshInitialize(engine);
+	meShaderInitialize(engine);
+	Entity::InitializeEntitySystem(&engine->engineArena);
+
+	meOSSetCursorState(CAPTURED, *engine->osData);
 
 	// start doing a scan from cwd
 	StringView mindseyeIniFile = STRING_LIT("mindseye.ini");
@@ -84,28 +101,26 @@ void InitializeEngine(s32 argc, char** argv)
 	}
 	else
 	{
-		meSpan configMem = DeserializeFromIniBlocking(TD_MEUSERCONFIG, &engine->engineArena, userProjectConfigPath);
-		engine->userConfig = (meUserConfig*)configMem;
+		DeserializeFromIniBlocking(TD_MEUSERCONFIG, &engine->engineArena, userProjectConfigPath, meSpan(&engine->userConfig, sizeof(engine->userConfig)));
 		
 		// "userApp" referring to a program that uses the mindseye engine
-		StringView userAppConfigFile = engine->userConfig->projectRootConfigFile;
+		StringView userAppConfigFile = engine->userConfig.projectRootConfigFile;
 		String userAppConfigPathAbs = meOSResolveRelativeToAbsPath(GetTLScratch(), userAppConfigFile);
-		meSpan* appConfigMem = DeserializeFromIniBlocking(TD_MEAPPCONFIG, &engine->engineArena, userAppConfigPathAbs);
-		engine->appConfig = (meAppConfig*)appConfigMem;
+		DeserializeFromIniBlocking(TD_MEAPPCONFIG, &engine->engineArena, userAppConfigPathAbs, meSpan(&engine->appConfig, sizeof(engine->appConfig)));
 		StringView userAppConfigDir = msFsGetDirFromPath(userAppConfigPathAbs);
 		meAssetSetResourceDir(userAppConfigDir);
 		
-		StringView userAppDllName = StringFormat("%.*s.dll", STRING_VAARGS(engine->appConfig->appName));
+		StringView userAppDllName = StringFormat("%.*s.dll", STRING_VAARGS(engine->appConfig.appName));
 		void* gameLib = LoadDynamicLibrary(userAppDllName.cstr());
 		if (!gameLib)
 		{
 			LOG_ERROR("Failed to load game library %.*s", STRING_VAARGS(userAppDllName));
 		}
 
-		if (!engine->sceneSystem->scene.IsValid())
+		if (!engine->sceneSystem->rootScene.IsValid())
 		{
 			// if no scene already, and user config specifies a default scene, load it
-			engine->sceneSystem->LoadSceneFromFileBlocking(engine->appConfig->defaultSceneName, &engine->engineSceneAllocator, &engine->sceneSystem->scene);
+			engine->sceneSystem->LoadSceneFromFileBlocking(engine->appConfig.defaultSceneName, &engine->engineSceneAllocator, &engine->sceneSystem->rootScene);
 		}
 	}
 

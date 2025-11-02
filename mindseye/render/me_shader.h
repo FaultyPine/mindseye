@@ -1,6 +1,6 @@
 #pragma once
 
-
+#include "core/me_defines.h"
 #include "core/containers/dynarray.h"
 
 struct meShaderUniform;
@@ -8,7 +8,7 @@ struct meShaderUniform;
 struct meShader
 {
 	DynArray(meShaderUniform) uniformHandles;
-
+	u64 program;
 };
 
 enum meUniformDataType
@@ -25,12 +25,19 @@ enum meUniformDataType
     NUM_UNIFORM_DATA_TYPES,
 };
 
-enum meUniformUsageFrequency
+enum meShaderFlags : u32;
+enum meShaderFlags_
 {
-	TYPICAL = 0,
-	INFREQUENT,
-	FREQUENT,
+	// if set, reupload to gpu every frame
+	meShaderFlags_AlwaysReupload,
+	// if set, check IsDirty flag for if we should reupload
+	meShaderFlags_UseDirty,
+	meShaderFlags_IsDirty,
+
+	meShaderFlags_Count,
 };
+
+typedef void(*meShaderUniformUpdateCb)(meShaderUniform* uniform, void* userData);
 
 struct meShaderUniform
 {
@@ -38,8 +45,36 @@ struct meShaderUniform
 	void* uniformData = nullptr; 
 	// gpu handle
 	u64 handle = 0;
-	meUniformDataType dataType = UNKUNIFORMDATATYPE;
-	meUniformUsageFrequency usageFreq = TYPICAL;
-	bool dirty = false;
+	// call to repopulate uniformData with the most up-to-date data we should send to gpu
+	meShaderUniformUpdateCb updateCb = nullptr;
+	void* userData = nullptr;
+	u32 flags = 0;
+
+	// returns if we should reupload to gpu or not
+	bool RefreshInternalUniformData()
+	{
+		if (TEST_BIT(flags, meShaderFlags_AlwaysReupload)
+			|| TEST_BIT(flags, meShaderFlags_IsDirty))
+		{
+			SET_BIT(flags, meShaderFlags_IsDirty, false);
+			if (updateCb)
+			{
+				updateCb(this, userData);
+			}
+			return true;
+		}
+		return false;
+	}
 };
 
+struct meShaderPool : public meResourcePool<meShader>
+{
+	meShaderPool(
+		meAllocator* resourceAllocator,
+		meAllocator* payloadAllocator) :
+	meResourcePool<meShader>(resourceAllocator, payloadAllocator) {}
+};
+
+void meShaderInitialize(EngineContext* ctx);
+
+meShaderPool& meShaderGetPool();

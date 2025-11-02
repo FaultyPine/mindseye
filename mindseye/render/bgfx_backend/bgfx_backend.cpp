@@ -9,6 +9,7 @@
 #include "render/me_material.h"
 #include "render/me_texture.h"
 #include "core/me_string.h"
+#include "scene/me_entity.h"
 
 #include "external/cgltf.h"
 
@@ -125,6 +126,8 @@ void BgfxRendererBackend::Initialize(EngineContext* engine)
     bgfx::setViewRect(0, 0, 0, init.resolution.width, init.resolution.height);
     imguiCreate();
     engine->renderer->rendererLoggingEnabled = false; // tmp
+	bgfx::touch(0);
+	bgfx::frame();
 }
 
 
@@ -135,6 +138,7 @@ void BgfxRendererBackend::Teardown(EngineContext* engine)
 }
 
 meGPUBuffer LoadTextureFromGLTF(
+	RendererFrontend* renderer,
 	StringView gltfResPath,
 	const cgltf_image& gltfImage)
 {
@@ -185,7 +189,7 @@ meGPUBuffer LoadTextureFromGLTF(
 
 		// take loaded image -> decompress
 		s32 w = 0; s32 h = 0; s32 channels = 0;
-		// TODO: this uses malloc/free, make it use my allocators
+		// TODO: this uses malloc/free, make it use my allocators (texturePayloadAllocator)
 		u8* pngDecompressed = stbi_load_from_memory((u8*)filebuf.data, filebuf.size, &w, &h, &channels, STBI_rgb_alpha);
 		u64 pngDecompressedSize = w * h * channels;
 		if (pngDecompressed == nullptr)
@@ -195,16 +199,7 @@ meGPUBuffer LoadTextureFromGLTF(
 			break;
 		}
 		meSpan decompressedImgMem = meSpan(pngDecompressed, pngDecompressedSize);
-
-		const bgfx::Memory* imgMem = bgfx::makeRef(pngDecompressed, pngDecompressedSize);
-		bgfx::TextureFormat::Enum format = bgfx::TextureFormat::Enum::RGBA8;
-		if (channels == 3)
-		{
-			format = bgfx::TextureFormat::Enum::RGB8;
-		}
-		bgfx::TextureHandle tex = bgfx::createTexture2D(
-			w, h, false, 1, format, BGFX_TEXTURE_NONE | BGFX_SAMPLER_NONE, imgMem);
-		resultGPUBuff.bufferHandle = tex.idx;
+		resultGPUBuff.bufferHandle = renderer->UploadTextureToGPU(decompressedImgMem, channels, w, h);
 
 		// TODO: make this async
 		auto writeKtx = +[](s32 channels, s32 w, s32 h, meSpan imgMem, StringView textureResourcePath, meAllocator* texturePayloadAllocator)
@@ -288,46 +283,89 @@ meGPUBuffer LoadTextureFromGLTF(
 }
 
 Eye LoadMaterialFromGLTF(
+	RendererFrontend* renderer,
 	StringView gltfResPath,
 	const cgltf_material& gltfMaterial)
 {
 	meMaterialPool& materialPool = meMaterialGetPool();
 	Eye materialHdl = materialPool.Create();
 	meMaterial& material = materialPool.Get(materialHdl);
-
+	StringCopy(StringView(material.name, meMaterial::MEMATERIAL_MAX_NAME_LEN), StringFromCString(gltfMaterial.name));
+	
 	if (gltfMaterial.has_pbr_metallic_roughness)
 	{
-		const cgltf_texture& gltftex = *gltfMaterial.pbr_metallic_roughness.base_color_texture.texture;
 		meTexturePool& texturePool = meTextureGetPool();
-		meGPUBuffer diffuseTextureMem = LoadTextureFromGLTF(gltfResPath, *gltftex.image);
-		
+		Eye textureHdl = texturePool.Create();
+		meTexture& texture = texturePool.Get(textureHdl);
+
+		meMaterialTextureType texType = meMaterialTextureType::Diffuse;
+		StringView diffuseTexUniformName = meMaterialGetTextureTypeName(texType);
+
+		texture.sampler = bgfx::createUniform(diffuseTexUniformName.cstr(), bgfx::UniformType::Sampler).idx;
+		material.textureHandles[texType] = textureHdl;
+
+		meGPUBuffer diffuseTextureMem = {};
+		if (gltfMaterial.pbr_metallic_roughness.base_color_texture.texture)
+		{
+			const cgltf_texture& gltftex = *gltfMaterial.pbr_metallic_roughness.base_color_texture.texture;
+			diffuseTextureMem = LoadTextureFromGLTF(renderer, gltfResPath, *gltftex.image);
+			StringCopy(StringView(texture.name, meTexture::METEXTURE_MAX_NAME_LEN), StringFromCString(gltftex.name));
+		}
+		else
+		{
+			// 1x1 pixel of a single color
+			float* rgba = MEALLOC(renderer->rendererPersistentAllocator, sizeof(float) * 4);
+			ME_MEMCPY((void*)rgba, &gltfMaterial.pbr_metallic_roughness.base_color_factor[0], sizeof(float) * 4);
+			u32 textureData = PackFloatsToU32(rgba[0], rgba[1], rgba[2], rgba[3]);
+			const bgfx::Memory* imgMem = bgfx::makeRef(&textureData, sizeof(textureData));
+			bgfx::TextureFormat::Enum format = bgfx::TextureFormat::Enum::RGBA8;
+			bgfx::TextureHandle tex = bgfx::createTexture2D(
+				1, 1, false, 1, format, BGFX_TEXTURE_NONE | BGFX_SAMPLER_NONE, imgMem);
+			diffuseTextureMem = meGPUBuffer{.bufferHandle = tex.idx, .cpuData = meSpan(rgba, sizeof(float) * 4)};
+			StringCopy(StringView(texture.name, meTexture::METEXTURE_MAX_NAME_LEN), STRING_LIT("Static Color Texture"));
+		}
 		if (diffuseTextureMem.IsValid())
 		{
-			Eye textureHdl = texturePool.Create();
-			meTexture& texture = texturePool.Get(textureHdl);
-
-			meMaterialTextureType texType = meMaterialTextureType::Diffuse;
-			StringView diffuseTexUniformName = meMaterialGetTextureTypeName(texType);
-
 			texture.buffer = diffuseTextureMem;
-			texture.sampler = bgfx::createUniform(diffuseTexUniformName.cstr(), bgfx::UniformType::Sampler).idx;
-			material.textureHandles[texType] = textureHdl;
 		}
-	}
+		
+		// TODO: deduplicate, see comment in me_resourcepool.h
+		u64 litProgram = renderer->CreateShaderProgram(meSpan(main_lit_fs), meSpan(main_lit_vs));
+		meShaderPool& shaderPool = meShaderGetPool();
+		Eye shaderHandle = shaderPool.Create();
+		meShader& shader = shaderPool.Get(shaderHandle);
+		shader.uniformHandles = DynArrayCreate<meShaderUniform>(shaderPool.resourcePayloadAllocator);
+		meShaderUniform timeU = meShaderUniform();
+		timeU.uniformData = MEALLOC(shaderPool.resourcePayloadAllocator, sizeof(glm::vec4));;
+		timeU.handle = bgfx::createUniform("u_time", bgfx::UniformType::Enum::Vec4).idx;
+		SET_BIT(timeU.flags, meShaderFlags_AlwaysReupload, true);
+		timeU.updateCb = + [](meShaderUniform* uniform, void* userData) {
+			*((glm::vec4*)uniform->uniformData) = glm::vec4(GetTimeSec(), 0, 0, 0);
+		};
+		DynArrayPush(shader.uniformHandles, timeU);
+		shader.program = litProgram;
 
+		material.shaderHandle = shaderHandle;
+	}
 	return materialHdl;
 }
 
 void LoadMeshFromGLTF(
+	RendererFrontend* renderer,
 	StringView gltfResPath,
 	meAllocator* meshPayloadAllocator,
 	const cgltf_mesh& inMesh, 
 	meMesh& outMesh)
 {
+	outMesh.name = String(StringFromCString(inMesh.name), renderer->rendererPersistentAllocator);
+	BoundingBox& meshBounds = outMesh.meshBounds;
 	for (u64 meshPrimIdx = 0; meshPrimIdx < inMesh.primitives_count; meshPrimIdx++)
 	{
 		const cgltf_primitive& prim = inMesh.primitives[meshPrimIdx];
-		outMesh.materialHandle = LoadMaterialFromGLTF(gltfResPath, *prim.material);
+		if (prim.material)
+		{
+			outMesh.materialHandle = LoadMaterialFromGLTF(renderer, gltfResPath, *prim.material);
+		}
 		// attribs like position, texcoords, normals
 		for (u64 attributeIdx = 0; attributeIdx < prim.attributes_count; attributeIdx++)
 		{
@@ -346,6 +384,8 @@ void LoadMeshFromGLTF(
 					cgltf_accessor_read_float(accessor, posIdx, dataUnit, 3);
 					ME_MEMCPY(bumper, dataUnit, stride);
 					bumper = bumper.Subspan(stride);
+					meshBounds.min = glm::min(meshBounds.min, glm::make_vec3(dataUnit));
+					meshBounds.max = glm::max(meshBounds.max, glm::make_vec3(dataUnit));
 				}
 				outMesh.vertBuffer.cpuData = allocation;
 				bgfx::VertexLayout v_layout; 
@@ -426,12 +466,12 @@ void BgfxRendererBackend::BeginImguiContext()
 	OSStateView& osData = *GetEngineCtx()->osData;
 	u32 windowWidth = osData.windowWidth;
 	u32 windowHeight = osData.windowHeight;
-    const MouseState& mouseState = osData.mouseState;
-    imguiBeginFrame(mouseState.mouseX
-					,  mouseState.mouseY
-					,  (TEST_BIT(mouseState.buttons, MouseState::LBUTTON) ? IMGUI_MBUT_LEFT   : 0)
-					| (TEST_BIT(mouseState.buttons, MouseState::RBUTTON) ? IMGUI_MBUT_RIGHT  : 0)
-					| (TEST_BIT(mouseState.buttons, MouseState::MBUTTON) ? IMGUI_MBUT_MIDDLE : 0)
+    const meMouseInput& mouseState = osData.mouseState;
+    imguiBeginFrame(mouseState.mousePosScreen.x
+					,  mouseState.mousePosScreen.y
+					,  (TEST_BIT(mouseState.buttons, meMouseButton::LBUTTON) ? IMGUI_MBUT_LEFT   : 0)
+					| (TEST_BIT(mouseState.buttons, meMouseButton::RBUTTON) ? IMGUI_MBUT_RIGHT  : 0)
+					| (TEST_BIT(mouseState.buttons, meMouseButton::MBUTTON) ? IMGUI_MBUT_MIDDLE : 0)
 					, mouseState.scroll
 					, u16(windowWidth)
 					, u16(windowHeight)
@@ -442,98 +482,122 @@ void BgfxRendererBackend::EndImguiContext()
 {
     imguiEndFrame();
 }
+
+u64 BgfxRendererBackend::CreateShaderProgram(meSpan fsMem, meSpan vsMem)
+{
+	const bgfx::Memory* fsmem = bgfx::alloc(fsMem.size+1);
+	ME_MEMCPY(fsmem->data, fsMem.data, fsMem.size);
+	fsmem->data[fsmem->size-1] = '\0';
+
+	const bgfx::Memory* vsmem = bgfx::alloc(vsMem.size+1);
+	ME_MEMCPY(vsmem->data, vsMem.data, vsMem.size);
+	vsmem->data[vsmem->size-1] = '\0';
+
+	bgfx::ShaderHandle fsHandle = bgfx::createShader(fsmem);
+	bgfx::ShaderHandle vsHandle = bgfx::createShader(vsmem);
+	bgfx::ProgramHandle program = bgfx::createProgram(vsHandle, fsHandle);
+	return program.idx;
+}
+
+u64 BgfxRendererBackend::UploadTextureToGPU(meSpan textureMem, u32 channels, u32 width, u32 height)
+{
+	const bgfx::Memory* imgMem = bgfx::makeRef(textureMem.data, textureMem.size);
+	bgfx::TextureFormat::Enum format = bgfx::TextureFormat::Enum::RGBA8;
+	if (channels == 3)
+	{
+		format = bgfx::TextureFormat::Enum::RGB8;
+	}
+	bgfx::TextureHandle tex = bgfx::createTexture2D(
+		width, height, false, 1, format, BGFX_TEXTURE_NONE | BGFX_SAMPLER_NONE, imgMem);
+	return tex.idx;
+}
+
+void BgfxRendererBackend::LoadSceneRuntime(meScene& outScene, meAllocator* sceneAllocator)
+{
+	if (outScene.IsValid())
+	{
+		const cgltf_scene& scene = *outScene.runtime.gltfData->scene;
+		StringView gltfResPath = outScene.runtime.gltfResourcePath;
+		meMeshPool& meshPool = meMeshPoolGet();
+		outScene.runtime.entities = DynArrayCreate<EntityRef>(sceneAllocator);
+		for (u64 nodeIdx = 0; nodeIdx < scene.nodes_count; nodeIdx++)
+		{
+			const cgltf_node& node = *scene.nodes[nodeIdx];
+			float nodeMatrix[16];
+			cgltf_node_transform_local(&node, nodeMatrix);
+			Transform nodeTf = Transform(glm::make_mat4(nodeMatrix));
+			EntityRef entityRef = Entity::CreateEntity(node.name, nodeTf);
+			EntityData& entity = Entity::GetEntity(entityRef);
+			const cgltf_mesh& gltfmesh = *node.mesh;
+			Eye meshHandle = meshPool.Create();
+			meMesh& mesh = meshPool.Get(meshHandle);
+			meAllocator* meshPayloadAllocator = meshPool.resourcePayloadAllocator;
+			LoadMeshFromGLTF(this, gltfResPath, meshPayloadAllocator, gltfmesh, mesh);
+			entity.mesh = meshHandle;
+			entity.bounds = mesh.meshBounds; // may change due to stuff like animations/etc. Default initialized to mesh bounds
+			DynArrayPush(outScene.runtime.entities, entityRef);
+		}
+	}
+}
+
 void renderScreenSpaceQuad(uint8_t _view, bgfx::ProgramHandle _program, float _x, float _y, float _width, float _height, bgfx::TextureHandle tex = bgfx::TextureHandle(bgfx::kInvalidHandle));
 
 void* BgfxRendererBackend::RenderScene(RenderInput* input)
 {
-	meAllocator* meshPayloadAllocator = this->rendererPersistentAllocator;
-	static meMesh mesh = {};
-	static bgfx::ProgramHandle program;
-	if (input->scene.IsValid())
-	{
-		const cgltf_scene& scene = *input->scene.runtime.gltfData->scene;
-		StringView gltfResPath = input->scene.runtime.gltfResourcePath;
-		for (u64 nodeIdx = 0; nodeIdx < scene.nodes_count; nodeIdx++)
-		{
-			const cgltf_node& node = *scene.nodes[nodeIdx];
-
-			const cgltf_mesh& gltfmesh = *node.mesh;
-			if (!mesh.IsLoaded())
-			{
-				LoadMeshFromGLTF(gltfResPath, meshPayloadAllocator, gltfmesh, mesh);
-				const bgfx::Memory* fsmem = bgfx::alloc(sizeof(main_lit_fs)+1);
-				ME_MEMCPY(fsmem->data, main_lit_fs, sizeof(main_lit_fs));
-				fsmem->data[fsmem->size-1] = '\0';
-
-				const bgfx::Memory* vsmem = bgfx::alloc(sizeof(main_lit_vs)+1);
-				ME_MEMCPY(vsmem->data, main_lit_vs, sizeof(main_lit_vs));
-				vsmem->data[vsmem->size-1] = '\0';
-
-				bgfx::ShaderHandle fsHandle = bgfx::createShader(fsmem);
-				bgfx::ShaderHandle vsHandle = bgfx::createShader(vsmem);
-				program = bgfx::createProgram(vsHandle, fsHandle);
-			}
-		}
-	}
-
-	u32 windowWidth = input->osData.windowWidth;
-	u32 windowHeight = input->osData.windowHeight;
-    //const MouseState& mouseState = input->osData.mouseState;
-    //const bgfx::Stats* stats = bgfx::getStats();
-    // Set view and clear
+	const SceneRuntimeData& sceneRuntime = input->scene.runtime;
+	//u32 windowWidth = input->osData.windowWidth;
+	//u32 windowHeight = input->osData.windowHeight;
     bgfx::setViewClear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x443355FF, 1.0f, 0);
-
 	bgfx::touch(0);
-	//bgfx::setDebug(BGFX_DEBUG_PROFILER | BGFX_DEBUG_STATS | BGFX_DEBUG_TEXT);
 
-	const bx::Vec3 at  = { 0.0f, 1.0f,  0.0f };
-	const bx::Vec3 eye = { 0.0f, 1.0f, -2.5f };
-
-	// Set view and projection matrix for view 0.
+	for (DynArray_Foreach(sceneRuntime.entities, i))
 	{
-		float view[16];
-		bx::mtxLookAt(view, eye, at);
+		const EntityRef& entityRef = sceneRuntime.entities[i];
+		const EntityData& entity = Entity::GetEntity(entityRef);
+		const Eye& meshHandle = entity.mesh;
+		const meMesh& mesh = meMeshPoolGet().Get(meshHandle);
+		if (mesh.IsLoaded())
+		{
+			// TODO: set uniforms
+			const meTexturePool& texturePool = meTextureGetPool();
+			const meMaterialPool& materialPool = meMaterialGetPool();
+			const meMaterial& material = materialPool.Get(mesh.materialHandle);
+			Eye diffuseTextureHdl = material.textureHandles[meMaterialTextureType::Diffuse];
+			const meTexture& diffuseTex = texturePool.Get(diffuseTextureHdl);
+			bgfx::TextureHandle bgfxDiffuseTex = bgfx::TextureHandle { static_cast<u16>(diffuseTex.buffer.bufferHandle) };
+			meShader& shader = meShaderGetPool().Get(material.shaderHandle);
+			for (DynArray_Foreach(shader.uniformHandles, uniformIdx))
+			{
+				meShaderUniform& uniform = shader.uniformHandles[uniformIdx];
+				if (!uniform.RefreshInternalUniformData()) continue;
+				bgfx::setUniform(bgfx::UniformHandle(uniform.handle), uniform.uniformData);
+			}
+			bgfx::ProgramHandle program = bgfx::ProgramHandle(shader.program);
+			//renderScreenSpaceQuad(0, program, 0, 0, 256, 256, bgfxDiffuseTex);
 
-		float proj[16];
-		bx::mtxProj(proj, 60.0f, float(windowWidth)/float(windowHeight), 0.1f, 100.0f, bgfx::getCaps()->homogeneousDepth);
-		bgfx::setViewTransform(0, view, proj);
+			glm::mat4 modelMat = entity.transform.ToModelMatrix();
+			bgfx::setTransform(&modelMat[0]);
 
-		// Set view 0 default viewport.
-		//bgfx::setViewRect(0, 0, 0, uint16_t(m_width), uint16_t(m_height) );
-	}
+			const meCamera& cam = input->scene.mainCamera;
+			glm::mat4 proj = cam.GetProjectionMatrix();
+			glm::mat4 view = cam.GetViewMatrix();
+			bgfx::setViewTransform(0, glm::value_ptr(view), glm::value_ptr(proj));
 
-	if (mesh.IsLoaded())
-	{
-		// TODO: set uniforms
-		const meTexturePool& texturePool = meTextureGetPool();
-		const meMaterialPool& materialPool = meMaterialGetPool();
-		const meMaterial& material = materialPool.Get(mesh.materialHandle);
-		Eye diffuseTextureHdl = material.textureHandles[meMaterialTextureType::Diffuse];
-		const meTexture& diffuseTex = texturePool.Get(diffuseTextureHdl);
-		bgfx::TextureHandle bgfxDiffuseTex = bgfx::TextureHandle { static_cast<u16>(diffuseTex.buffer.bufferHandle) };
-
-		renderScreenSpaceQuad(0, program, 0, 0, 256, 256, bgfxDiffuseTex);
-
-		float mtx[16];
-		bx::mtxRotateXY(mtx
-						, 0.0f
-						, GetTimeSec()*0.8f
-						);
-		bgfx::setTransform(mtx);
-		bgfx::setVertexBuffer(0, bgfx::VertexBufferHandle { static_cast<u16>(mesh.vertBuffer.bufferHandle) });
-		bgfx::setVertexBuffer(1, bgfx::VertexBufferHandle { static_cast<u16>(mesh.normBuffer.bufferHandle) });
-		bgfx::setVertexBuffer(2, bgfx::VertexBufferHandle { static_cast<u16>(mesh.texcoordBuffer.bufferHandle) });
-		bgfx::setIndexBuffer(bgfx::IndexBufferHandle { static_cast<u16>(mesh.idxBuffer.bufferHandle) });
+			bgfx::setVertexBuffer(0, bgfx::VertexBufferHandle { static_cast<u16>(mesh.vertBuffer.bufferHandle) });
+			bgfx::setVertexBuffer(1, bgfx::VertexBufferHandle { static_cast<u16>(mesh.normBuffer.bufferHandle) });
+			bgfx::setVertexBuffer(2, bgfx::VertexBufferHandle { static_cast<u16>(mesh.texcoordBuffer.bufferHandle) });
+			bgfx::setIndexBuffer(bgfx::IndexBufferHandle { static_cast<u16>(mesh.idxBuffer.bufferHandle) });
 		
-		bgfx::setTexture(0, bgfx::UniformHandle { static_cast<u16>(diffuseTex.sampler) }, bgfxDiffuseTex);
-		bgfx::setState(BGFX_STATE_WRITE_RGB
-					   | BGFX_STATE_WRITE_A
-					   | BGFX_STATE_WRITE_Z
-					   | BGFX_STATE_DEPTH_TEST_LESS
-					   | BGFX_STATE_CULL_CCW
-					   | BGFX_STATE_MSAA);
-		bgfx::submit(0, program);
+			bgfx::setTexture(0, bgfx::UniformHandle { static_cast<u16>(diffuseTex.sampler) }, bgfxDiffuseTex);
+			bgfx::setState(BGFX_STATE_WRITE_RGB
+						   | BGFX_STATE_WRITE_A
+						   | BGFX_STATE_WRITE_Z
+						   | BGFX_STATE_DEPTH_TEST_LESS
+						   | BGFX_STATE_CULL_CCW
+						   | BGFX_STATE_MSAA);
+			bgfx::submit(0, program);
 
+		}
 	}
 
     ArenaClear(&rendererFrameArena);

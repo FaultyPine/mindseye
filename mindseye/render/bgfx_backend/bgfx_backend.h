@@ -11,4 +11,8 @@ struct BgfxRendererBackend : public RendererFrontend
 	// each renderer backend is responsible for drawing the ImDrawData imgui produces
 	virtual void BeginImguiContext() override;
 	virtual void EndImguiContext() override;
+
+	virtual u64 CreateShaderProgram(meSpan fsMem, meSpan vsMem) override;
+	virtual u64 UploadTextureToGPU(meSpan textureMem, u32 channels, u32 width, u32 height) override;
+	virtual void LoadSceneRuntime(meScene& scene, meAllocator* allocator) override;
 };

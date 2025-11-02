@@ -9,24 +9,27 @@ struct MEREFLECT(type) Transform
 {
     glm::vec3 position = glm::vec3(0);
     glm::vec3 scale = glm::vec3(1);
-    f32 rotation = 0.0;
-    glm::vec3 rotationAxis = {0,1,0};
+	glm::quat rotation = glm::identity<glm::quat>();
 
     Transform(
         const glm::vec3& pos = glm::vec3(0), 
         const glm::vec3& scl = glm::vec3(1), 
-        f32 rot = 0.0, 
-        const glm::vec3& rotAxis = {0,1,0})
+		const glm::quat& rot = glm::identity<glm::quat>())
     {
         position = pos;
         scale = scl;
-        rotation = rot;
-        rotationAxis = rotAxis;
+		rotation = rot;
     }
+	Transform(const glm::mat4x4& mat)
+	{
+		glm::vec3 skew;
+		glm::vec4 perspective;
+		glm::decompose(mat, scale, rotation, position, skew, perspective);
+	}
 
     glm::mat4 ToModelMatrix() const 
     {
-        return Math::Position3DToModelMat(position, scale, rotation, rotationAxis);
+        return Math::Position3DToModelMat(position, scale, rotation);
     }
 };
 

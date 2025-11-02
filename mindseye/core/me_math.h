@@ -7,6 +7,8 @@
 #include <external/glm/gtx/string_cast.hpp>
 #include <external/glm/gtc/matrix_transform.hpp>
 #include <external/glm/gtc/type_ptr.hpp>
+#include <external/glm/gtx/quaternion.hpp>
+#include <external/glm/gtx/matrix_decompose.hpp>
 
 extern meTypeDescriptor TD_VEC3;
 
@@ -77,6 +79,7 @@ MEAPI uint32_t hash(const char* message, size_t message_length);
 MEAPI u32 countLeadingZeroes(u32 n);
 
 MEAPI glm::mat4 Position3DToModelMat(const glm::vec3& position, const glm::vec3& scale = glm::vec3(1), f32 rotation = 0.0, const glm::vec3& rotationAxis = {1,0,0});
+MEAPI glm::mat4 Position3DToModelMat(const glm::vec3& position, const glm::vec3& scale = glm::vec3(1), const glm::quat& rotation = glm::identity<glm::quat>());
 MEAPI glm::mat4 Position2DToModelMat(const glm::vec2& position, const glm::vec2& scale = glm::vec3(1), f32 rotation = 0.0, const glm::vec3& rotationAxis = {0,0,1});
 
 template <typename T>

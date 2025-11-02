@@ -499,7 +499,12 @@ int main(int argc, char** argv)
 		return 1;
 	}
 
-	mindseyeReflectorCompile.build();
+	bool didRebuildReflector = mindseyeReflectorCompile.build();
+	if (didRebuildReflector)
+	{
+		// if we rebuilt the reflector program, we should force a full re-reflect of everything by deleting the output folder
+		nob_delete_dir(nob_temp_sprintf("%s/mindseye/generatedtypes", root));
+	}
 	mindseyeReflectorRun.build(true);
 
 	nob_set_current_dir("build");

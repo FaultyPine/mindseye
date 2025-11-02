@@ -5,6 +5,7 @@
 #include "core/me_event.h"
 
 #include "platform/me_os.h" 
+#include "platform/me_input.h"
 
 struct RendererFrontend;
 struct EngineContext;
@@ -14,6 +15,8 @@ struct CommandLineArgs;
 struct meSceneManager;
 struct meMaterialPool;
 struct meTexturePool;
+struct meMeshPool;
+struct meShaderPool;
 
 struct MEREFLECT(type) meUserConfig
 {
@@ -59,6 +62,8 @@ struct EngineContext
 	meSceneManager* sceneSystem = nullptr;
 	meMaterialPool* materialSystem = nullptr;
 	meTexturePool* textureSystem = nullptr;
+	meMeshPool* meshSystem = nullptr;
+	meShaderPool* shaderSystem = nullptr;
 
     // engine state
     f32 deltaTime = 0.0f;
@@ -66,8 +71,8 @@ struct EngineContext
     u32 frameCount = 0;
     u64 randomSeed = 0;
     
-	meUserConfig* userConfig = {};
-	meAppConfig* appConfig = {};
+	meUserConfig userConfig = {};
+	meAppConfig appConfig = {};
     String appName = {};
     OSStateView* osData = nullptr; // static, persistent throughout app
 
@@ -75,6 +80,7 @@ struct EngineContext
     bool isIdle = false;
 };
 MEAPI EngineContext* GetEngineCtx();
+MEAPI f32 GetDeltaTime();
 
 // register a program
 MEAPI void InternalRegisterApp(AppRegistrationInfo callbacks);

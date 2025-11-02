@@ -5,7 +5,7 @@
 
 void testbed_init(EngineContext* engine)
 {
-
+	//engine->sceneSystem->rootScene.mainCamera.cameraPos = { 10.0f, 5.0f, 10.0f };
 }
 
 void testbed_update(EngineContext* engine)

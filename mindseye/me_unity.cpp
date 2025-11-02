@@ -14,6 +14,7 @@
 
 // HEADER
 #include "platform/me_os.h"
+#include "platform/me_input.h"
 #include "core/me_log.h"
 #include "core/me_string.h"
 #include "core/me_arena.h"
@@ -43,6 +44,7 @@
 // SOURCE
 #ifndef ME_UNITY_HEADER_ONLY
 #include "platform/me_os.cpp"
+#include "platform/me_input.cpp"
 #include "core/me_log.cpp"
 #include "core/me_string.cpp"
 #include "core/me_arena.cpp"

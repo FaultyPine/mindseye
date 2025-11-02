@@ -77,3 +77,7 @@ u64 HashCombine(const Types&... args) {
     (HashCombineImpl(seed, args), ...); 
     return seed;
 }
+
+
+// Assuming floats are in the range [0.0, 1.0] and we want 8 bits per component
+uint32_t PackFloatsToU32(float f1, float f2, float f3, float f4);

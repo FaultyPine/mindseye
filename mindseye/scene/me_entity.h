@@ -3,8 +3,8 @@
 #include "core/me_defines.h"
 #include "scene/me_transform.h"
 #include "core/containers/me_map.h"
+#include "core/me_core.h"
 struct Arena;
-struct Model;
 
 enum EntityFlags
 {
@@ -19,7 +19,7 @@ typedef u32 EntityRef;
 struct EntityData
 {
     Transform transform = {};
-    //Model model = {};
+    Eye mesh = {};
     BoundingBox bounds = {};
     u32 flags = 0;
     s8 name[ENTITY_NAME_MAX_LENGTH];
@@ -56,8 +56,8 @@ MEAPI bool IsFlag(EntityRef ent, EntityFlags flag);
 MEAPI bool IsFlag(const EntityData& ent, EntityFlags flag);
 MEAPI void SetTransform(EntityRef ent, const Transform& tf);
 MEAPI bool HasRenderable(EntityRef ent);
-MEAPI bool AddRenderable(EntityRef ent, const Model& model);
-MEAPI void OverwriteRenderable(EntityRef ent, const Model& model);
+MEAPI bool AddRenderable(EntityRef ent, const Eye& mesh);
+MEAPI void OverwriteRenderable(EntityRef ent, const Eye& mesh);
 // if dst is nullptr, this returns the *number* of renderable entities
 // if dst is not nullptr, we fill in the buffer
 MEAPI void GetRenderableEntities(EntityRef* dst, u32* numEntities);

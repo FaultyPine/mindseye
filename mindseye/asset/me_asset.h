@@ -27,22 +27,29 @@ STATIC_ASSERT(NUM_ASSET_TYPES < 128);
 // mindseye asset id
 struct MEREFLECT(type) MAID
 {
-    u64 id: 48;
-    u64 type: 8;
-    bool isValid() const { return id != 0; }
-    bool operator==(const MAID& other) const { return id == other.id && type == other.type; }
-    operator u64() const { return ((u64)id) | ((u64)type << 48); }
-    operator meAssetType() const { return meAssetType(type); }
+	constexpr static u32 ID_BITS = 48; // lower bits
+	constexpr static u32 TYPE_BITS = 8; // top bits
+	u64 idAndType = U32_INVALID_ID;
+    bool isValid() const { return idAndType != U32_INVALID_ID; }
+    bool operator==(const MAID& other) const { return idAndType == other.idAndType; }
+	inline u64 GetType() const
+	{
+		return idAndType >> ID_BITS;
+	}
+	inline u64 GetID() const
+	{
+		return idAndType & (~0 >> TYPE_BITS);
+	}
+    operator u64() const { return idAndType; }
 };
 MEMAP_BEGIN_CUSTOM_HASHER(MAID, obj) 
 {
-    size_t h1 = std::hash<int>{}(obj.id);
-    size_t h2 = std::hash<int>{}(obj.type);
-    return h1 ^ (h2 << 1);
+    size_t h1 = std::hash<int>{}(obj.idAndType);
+	return h1;
 } MEMAP_END_CUSTOM_HASHER
 
 STATIC_ASSERT(sizeof(MAID) == sizeof(u64));
-constexpr MAID MAID_INVALID = {.id = 0, .type = 0};
+constexpr MAID MAID_INVALID = {};
 
 
 enum meAssetLoadStage

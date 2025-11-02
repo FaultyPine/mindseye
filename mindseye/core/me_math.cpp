@@ -80,12 +80,31 @@ u32 countLeadingZeroes(u32 n)
     return n == 0 ? 0 : log2(n & -n);
 }
 
-glm::mat4 Position3DToModelMat(const glm::vec3& position, const glm::vec3& scale, f32 rotation, const glm::vec3& rotationAxis) 
+glm::mat4 Position3DToModelMat(
+	const glm::vec3& position, 
+	const glm::vec3& scale, 
+	f32 rotation, 
+	const glm::vec3& rotationAxis) 
 {
     glm::mat4 model = glm::mat4(1);
     model = glm::translate(model, position);
     model = glm::scale(model, scale);
     model = glm::rotate(model, glm::radians(rotation), rotationAxis); 
+    return model;
+}
+
+glm::mat4 Position3DToModelMat(
+	const glm::vec3& position, 
+	const glm::vec3& scale, 
+	const glm::quat& rotation)
+{
+	float angle = glm::angle(rotation); // rotation angle in radians
+	glm::vec3 axis = glm::axis(rotation); // normalized rotation axis
+
+	glm::mat4 model = glm::mat4(1);
+    model = glm::translate(model, position);
+    model = glm::scale(model, scale);
+    model = glm::rotate(model, angle, axis); 
     return model;
 }
 

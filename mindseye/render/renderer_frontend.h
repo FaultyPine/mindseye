@@ -12,11 +12,11 @@ enum RendererBackendType
 #define RENDERER_BACKEND (RendererBackendType::BGFX)
 
 // after creation, intended as a readonly container
-// of everything the renderer needs to render a frame.
+// of *everything* the renderer needs to render *any* frame.
 struct RenderInput
 {
-    OSStateView osData; // window width/height, mouse state, etc
-    meScene scene;
+	OSStateView osData = {}; // window width/height, mouse state, etc
+	meScene scene = {};
 };
 
 struct RendererFrontend
@@ -35,6 +35,10 @@ struct RendererFrontend
 	// each renderer backend is responsible for drawing the ImDrawData imgui produces
 	virtual void BeginImguiContext() {}
 	virtual void EndImguiContext() {}
+
+	virtual u64 CreateShaderProgram(meSpan fsMem, meSpan vsMem) { return U32_INVALID_ID; }
+	virtual u64 UploadTextureToGPU(meSpan textureMem, u32 channels, u32 width, u32 height) { return U32_INVALID_ID; }
+	virtual void LoadSceneRuntime(meScene& scene, meAllocator* allocator) {}
 };
 
 void RendererInitialize(EngineContext* engine);

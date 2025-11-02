@@ -7,5 +7,5 @@
 
 
 
-//#include "me_entity.cpp"
+#include "me_entity.cpp"
 #include "me_scene.cpp"

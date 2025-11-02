@@ -117,8 +117,8 @@ enum StringOpFlags_Enum
 template <u64 N> 
 StringView STRING_LIT(const char (&strlit)[N]) { return StringView{(char*)strlit, N-1}; }
 
-// %.*s
 #define STRING_VAARGS(str) (s32)str.len, str.data
+#define STRING_FMT "%.*s"
 
 MEAPI bool StringCopy(StringView dst, StringView src);
 

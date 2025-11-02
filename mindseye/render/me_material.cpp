@@ -1,9 +1,9 @@
 #include "me_material.h"
 
 
-void meMaterialInitialize(EngineContext* engine)
+void meMaterialInitialize(EngineContext* ctx)
 {
-	engine->materialSystem = MENEW(&engine->engineArena, meMaterialPool, &engine->engineSceneAllocator, &engine->engineSceneAllocator);
+	ctx->materialSystem = MENEW(&ctx->engineArena, meMaterialPool, &ctx->engineArena, &ctx->engineArena);
 }
 
 meMaterialPool& meMaterialGetPool()

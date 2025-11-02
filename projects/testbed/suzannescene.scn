@@ -1,0 +1,6 @@
+type=meScene
+version=0
+
+
+[meScene]
+externalScenePath=gltf-samples/Models/Suzanne/glTF/Suzanne.gltf

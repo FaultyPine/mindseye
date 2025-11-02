@@ -66,7 +66,7 @@ void meBlockList<T, BLOCK_SIZE>::markDeleted(u32 index)
                 ++usedInBlock;
         }
 
-        if (remaining < usedInBlock)
+        if (remaining <= usedInBlock)
         {
             // Find the N-th used slot in this block
             for (u32 i = 0; i < BLOCK_SIZE; ++i)
@@ -104,6 +104,7 @@ void meBlockList<T, BLOCK_SIZE>::clear()
 
         Block* next = blk->next;
         MEDELETE(allocator, Block, blk);
+		ME_MEMCLEAR(blk, sizeof(Block));
         blk = next;
     }
     head = tail = nullptr;
@@ -128,7 +129,7 @@ const T& meBlockList<T, BLOCK_SIZE>::get(u32 index) const
                 ++usedInBlock;
         }
 
-        if (remaining < usedInBlock)
+        if (remaining <= usedInBlock)
         {
             // Find the N-th used slot in this block
             for (u32 i = 0; i < BLOCK_SIZE; ++i)

@@ -18,17 +18,17 @@ struct meBitArray
 
     bool get(u32 idx) const
     {
-        u8 nthBit = idx % BITS_PER_WORD;
         const Word& w = data[idx / BITS_PER_WORD];
+        u8 nthBit = idx % BITS_PER_WORD;
         return TEST_BIT(w, nthBit);
     }
 
     void set(u32 idx, bool value)
     {
         ME_ASSERT(idx < N);
-        u8 nthBit = idx % BITS_PER_WORD;
         Word& w = data[idx / BITS_PER_WORD];
-        w = SET_BIT(w, nthBit, value);
+        u8 nthBit = idx % BITS_PER_WORD;
+        SET_BIT(w, nthBit, value);
     }
 
     void clear()

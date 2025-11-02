@@ -40,41 +40,39 @@ void SerializeToIniBlocking(
 	}
 }
 
-meSpan DeserializeFromIniBlocking(
+bool DeserializeFromIniBlocking(
 	const meTypeDescriptor& typeDesc,
 	meAllocator* allocator,
-	StringView inFilename)
+	StringView inFilename,
+	meSpan outBuffer)
 {
 	ME_ASSERT(meOSFileExists(inFilename));
 	inicpp::IniManager iniObj(inFilename.data);
-	meAllocator* scratch = GetTLScratch();
-	Allocation scratchWorkMem = MEALLOC(scratch, MEGABYTES_BYTES(1));
-	Allocation bumper = scratchWorkMem;
+	Allocation bumper = outBuffer;
 	for (u64 i = 0; i < typeDesc.fields.size; i++)
 	{
 		const meTypeDescriptor& field = typeDesc.fields[i];
-		if (field.underlyingType == nullptr)
+		ME_ON_SCOPE_EXIT([&bumper, &field]() 
 		{
-			ME_MEMCLEAR(bumper.data, field.size);
 			bumper = bumper.Subspan(field.size);
+		});
+		std::string fieldStdStr = iniObj[typeDesc.name.cstr()].toString(field.name.data);
+		if (field.underlyingType == nullptr || fieldStdStr.empty())
+		{
+			// for reflected fields that don't have entries in the ini,
+			// leave them as-is. This way, the caller can default-initialize the structure and
+			// fields not in the ini will stay as their defaults.
 			continue;
 		}
-		std::string fieldStdStr = iniObj[typeDesc.name.cstr()].toString(field.name.data);
 		StringView fieldStr = StringView(fieldStdStr.c_str(), fieldStdStr.size());
 		fieldStr = StringTrim(fieldStr, STRING_LIT("\""));
 		DeserializeContext ctx = {};
 		ctx.inputData = fieldStr.ToSpan();
-		ctx.outputData = MEALLOC(scratch, field.size);
+		ctx.outputData = bumper;
 		ctx.externalDataAllocator = allocator;
 		field.FromString(ctx);
-		ME_MEMCPY(bumper.data, ctx.outputData.data, ctx.outputData.size);
-		bumper = bumper.Subspan(ctx.outputData.size);
 	}
-	// not including "external" data, which was already allocated with our passed-in allocator
-	u64 deserializedPODSize = bumper.data - scratchWorkMem.data;
-	// NOTE: keep in mind that the "external" data is allocated before this is
-	Allocation resultMemory = MEALLOC(allocator, deserializedPODSize);
-	ME_MEMCPY(resultMemory, scratchWorkMem, deserializedPODSize);
-	return resultMemory;
+	// NOTE: padding is relevant here...
+	ME_ASSERT(outBuffer.size == typeDesc.size);
+	return true;
 }
-

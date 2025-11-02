@@ -106,6 +106,7 @@ typedef wchar_t wchar;
 
 #define U32_INVALID_ID 0xFFFFFFFF
 #define U64_INVALID_ID 0xFFFFFFFFFFFFFFFF
+#define ME_EPSILON FLT_EPSILON
 
 #ifdef COMPILER_MSVC
 #define EXT_IMPORT __declspec(dllimport)
@@ -181,5 +182,31 @@ if (!(x)) MEUNLIKELY { DEBUG_BREAK; }
 #define BREAKABLE_SCOPE do {
 
 #define BREAKABLE_SCOPE_END } while (false);
+
+// counts zeroes going "left-to-right" (most significant -> least significant bits)
+#if defined(COMPILER_CLANG) || defined(COMPILER_GCC)
+#define CLZ32(x) ((x) == 0 ? 32 : __builtin_clz(x))
+#elif defined(COMPILER_MSVC)
+#include <intrin.h>
+static inline int __bsr_clz32(uint32_t x) 
+{
+	unsigned long index;
+	_BitScanReverse(&index, x);
+	return 31 - index;
+}
+#define CLZ32(x) ((x) == 0 ? 32 : __bsr_clz32(x))
+#endif
+// counts zeroes going "right-to-left" (least significant -> most significant bits)
+#if defined(COMPILER_CLANG) || defined(COMPILER_GCC)
+#define CTZ32(x) ((x) == 0 ? 32 : __builtin_ctz(x))
+#elif defined(COMPILER_MSVC)
+static inline int __bsr_ctz32(uint32_t x) 
+{
+	unsigned long index;
+	_BitScanForward(&index, x);
+	return index;
+}
+#define CTZ32(x) ((x) == 0 ? 32 : __bsr_ctz32(x))
+#endif
 
 #endif

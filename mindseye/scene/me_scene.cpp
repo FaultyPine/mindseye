@@ -16,21 +16,20 @@ void meSceneInitialize(EngineContext* ctx)
 
 void meSceneManager::Tick(EngineContext* ctx)
 {
-	
+	rootScene.mainCamera.UpdateCameraWithUserInput(ctx->osData->mouseState);
 }
 
-void meSceneManager::LoadSceneFromFileBlocking(StringView filename, meAllocator* allocator, meScene* outScene)
+void meSceneManager::LoadSceneFromFileBlocking(StringView filename, meAllocator* sceneAllocator, meScene* outScene)
 {
 	StringView assetPath = meAssetResource(filename);
-	meSpan deserializedSceneMem = DeserializeFromIniBlocking(TD_MESCENE, allocator, assetPath);
-	meScene* deserializedScene = (meScene*)deserializedSceneMem.data;
-	if (deserializedScene)
+	bool success = DeserializeFromIniBlocking(TD_MESCENE, sceneAllocator, assetPath, meSpan(outScene, sizeof(*outScene)));
+	if (success)
 	{
-		if (FindInString(deserializedScene->externalScenePath, STRING_LIT(".gltf")) != -1)
+		if (FindInString(outScene->externalScenePath, STRING_LIT(".gltf")) != -1 ||
+			FindInString(outScene->externalScenePath, STRING_LIT(".glb")) != -1)
 		{
-			meSceneLoadFromGLTF(allocator, deserializedScene->externalScenePath, *deserializedScene);
+			meSceneLoadFromGLTF(sceneAllocator, outScene->externalScenePath, *outScene);
 		}
-		*outScene = *deserializedScene;
 	}
 }
 
@@ -39,10 +38,30 @@ void meSceneManager::WriteSceneToFileBlocking(meScene* scene, StringView filenam
 	SerializeToIniBlocking(TD_MESCENE, scene, filename);
 }
 
+void meSceneManager::UnloadCurrentScene()
+{
+	cgltf_free(rootScene.runtime.gltfData);
+	rootScene.runtime.gltfData = nullptr;
+	rootScene = {};
+}
+
+void meSceneManager::ChangeCurrentSceneBlocking(StringView filename)
+{
+	if (FindInString(filename, STRING_LIT(".scn")) == -1)
+	{
+		LOG_ERROR("Can't load %.*s as a mindseye scene. Mindseye scene files have a .scn extension", STRING_VAARGS(filename));
+		return;
+	}
+	UnloadCurrentScene();
+	meAllocator* sceneAllocator = &GetEngineCtx()->engineSceneAllocator;
+	sceneAllocator->meClear();
+	LoadSceneFromFileBlocking(filename, sceneAllocator, &this->rootScene);
+}
+
 void meSceneManager::CopyToRenderInput(meScene& outScene)
 {
 	// copy the "current"? scene to the given scene for the renderer to use as its readonly copy. This will become complex later...
-	outScene = scene;
+	outScene = rootScene;
 }
 
 struct meSceneAssetLoader : public meAssetLoader
@@ -68,7 +87,7 @@ struct meSceneAssetLoader : public meAssetLoader
 MEEVENT_REGISTER_STATIC(registerAssetLoader, meSceneAssetLoader::RegisterAssetLoader);
 
 void meSceneLoadFromGLTF(
-	meAllocator* allocator, 
+	meAllocator* sceneAllocator, 
 	StringView resourcePathSv, 
 	meScene& outScene)
 {
@@ -76,7 +95,7 @@ void meSceneLoadFromGLTF(
 	OSFileReference file;
     meOSOpenFile(file, resourcePath, (OSFileFlags)(OSFileFlags::OnlyIfExists | OSFileFlags::ScopedFile));
 	u64 filesize = meOSGetFileSize(file);
-	Allocation gltfBuffer = MEALLOC(allocator, filesize);
+	Allocation gltfBuffer = MEALLOC(sceneAllocator, filesize);
     if (!meOSReadFileContents(file, gltfBuffer.data, gltfBuffer.size))
     {
         LOG_ERROR("[meScene] failed to load gltf scene %.*s", STRING_VAARGS(resourcePath));
@@ -102,14 +121,9 @@ void meSceneLoadFromGLTF(
 	{
 		LOG_WARN("Failed to parse gltf from %.*s", STRING_VAARGS(resourcePath));
 	}
-	// tmp
-	const char* sceneName = data->scene->name;
-	if (!sceneName)
-	{
-		sceneName = data->nodes_count ? data->nodes[0].name : "Unnamed scene";
-	}
-	outScene.externalScenePath = String(sceneName, CStringLength(sceneName), allocator);
-	outScene.runtime.gltfData = data;
+
 	StringView gltfResourcePath = msFsGetDirFromPath(resourcePath);
-	outScene.runtime.gltfResourcePath = String(gltfResourcePath, allocator);
+	outScene.runtime.gltfResourcePath = String(gltfResourcePath, sceneAllocator);
+	outScene.runtime.gltfData = data;
+	GetEngineCtx()->renderer->LoadSceneRuntime(outScene, sceneAllocator);
 }

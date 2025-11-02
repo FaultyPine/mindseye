@@ -1,7 +1,22 @@
 #include "me_shader.h"
 
 
+void meShaderInitialize(EngineContext* ctx)
+{
+	ctx->shaderSystem = MENEW(&ctx->engineArena, meShaderPool, &ctx->engineArena, &ctx->engineArena);
+	meShader badShader = {};
+	// BOOKMARK: create a "null" shader. Maybe hot pink
+	badShader.uniformHandles = DynArrayCreate<meShaderUniform>(ctx->shaderSystem->resourcePayloadAllocator);
 
+	ctx->shaderSystem->badData = badShader;
+}
+
+
+
+meShaderPool& meShaderGetPool()
+{
+	return *GetEngineCtx()->shaderSystem;
+}
 
 
 u32 UniformDataTypeToSize(meUniformDataType type)

@@ -16,39 +16,30 @@
 #ifndef ME_CORE_ONLY
 #include "core/me_app.h"
 
+constexpr u32 WINDOW_CURSOR_WRAP_BUFFER = 2;
+
 void OnResize(HWND hwnd, UINT flag, int width, int height)
 {
     EngineContext* ctx = GetEngineCtx();
-    if (ctx->osData)
-    {
-        if (ctx->osData->onResizeCB)
-        {
-            ctx->osData->onResizeCB(width, height);
-        }
-        ctx->osData->windowWidth = width;
-        ctx->osData->windowHeight = height;
-    }
+	if (ctx->osData->onResizeCB)
+	{
+		ctx->osData->onResizeCB(width, height);
+	}
+	ctx->osData->windowWidth = width;
+	ctx->osData->windowHeight = height;
     LOG_INFO("OnWindowResize OS %ix%i", width, height);
-}
-
-void OnMouseMove(HWND hwnd, UINT flag, int mx, int my)
-{
-    EngineContext* ctx = GetEngineCtx();
-    if (ctx->osData)
-    {
-        if (ctx->osData->onMouseMove)
-        {
-            ctx->osData->onMouseMove(mx, my);
-        }
-        ctx->osData->mouseState.mouseX = mx;
-        ctx->osData->mouseState.mouseY = my;
-    }
 }
 
 //WndProc function
 LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) 
 {
     EngineContext* ctx = GetEngineCtx();
+	if (!ctx->osData)
+	{
+		return DefWindowProc(hWnd, msg, wParam, lParam);
+	}
+	OSStateView* osState = ctx->osData;
+
     switch(msg) 
     {
         case WM_DESTROY:
@@ -63,29 +54,64 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
             OnResize(hWnd, (UINT)wParam, width, height);
         }
         break;
+		case WM_INPUT:
+		{
+			if (!osState->useRawInput)
+			{
+				LOG_WARN("Not using raw input but receiving raw input mouse msgs...");
+				break;
+			}
+			UINT dwSize = sizeof(RAWINPUT);
+			static BYTE lpb[sizeof(RAWINPUT)];
+			GetRawInputData((HRAWINPUT)lParam, RID_INPUT, lpb, &dwSize, sizeof(RAWINPUTHEADER));
+			RAWINPUT* raw = (RAWINPUT*)lpb;
+			if (raw->header.dwType == RIM_TYPEMOUSE)
+			{
+				POINT pos = { (s32)osState->windowWidth / 2, (s32)osState->windowHeight / 2 };
+				ClientToScreen(hWnd, &pos);
+				SetCursorPos(pos.x, pos.y);
+				if (raw->data.mouse.usFlags == MOUSE_MOVE_RELATIVE) 
+				{
+					glm::vec2 mouseDelta = glm::vec2(raw->data.mouse.lLastX, raw->data.mouse.lLastY);
+					osState->mouseState.mouseDelta = mouseDelta;
+				} 
+				else if (raw->data.mouse.usFlags == MOUSE_MOVE_ABSOLUTE) 
+				{
+					UNIMPLEMENTED();
+				}
+			}
+			break;
+		}
+		// TODO: os layer should keep "physical" mouse state
+		// rest of mindseye should use a "virtual" mouse state
         case WM_MOUSEMOVE:
         {
-            // Do not use the LOWORD or HIWORD macros to extract the x- and y- coordinates of the cursor position because these macros return incorrect results on systems with multiple monitors. Systems with multiple monitors can have negative x- and y- coordinates, and LOWORD and HIWORD treat the coordinates as unsigned quantities. https://learn.microsoft.com/en-us/windows/win32/inputdev/wm-mousemove
-            // Supposed to use GET_X_LPARAM and GET_Y_LPARAM, but don't want to bring in another windows header so i've hardcoded those macros in here
-            int mouseX = (int)(short)LOWORD(lParam); // GET_X_LPARAM
-            int mouseY = (int)(short)HIWORD(lParam); // GET_Y_LPARAM
-            OnMouseMove(hWnd, wParam, mouseX, mouseY);
+			if (osState->useRawInput)
+			{
+				LOG_WARN("Using raw input but receiving standard mouse msgs?");
+				break;
+			}
+			// Do not use the LOWORD or HIWORD macros to extract the x- and y- coordinates of the cursor position because these macros return incorrect results on systems with multiple monitors. Systems with multiple monitors can have negative x- and y- coordinates, and LOWORD and HIWORD treat the coordinates as unsigned quantities. https://learn.microsoft.com/en-us/windows/win32/inputdev/wm-mousemove
+			// Supposed to use GET_X_LPARAM and GET_Y_LPARAM, but don't want to bring in another windows header so i've hardcoded those macros in here
+			int mouseX = (int)(short)LOWORD(lParam); // GET_X_LPARAM
+			int mouseY = (int)(short)HIWORD(lParam); // GET_Y_LPARAM
+			osState->mouseState.UpdateMouseScreenPos(mouseX, mouseY);
         }
         break;
         case WM_LBUTTONDOWN: 
-        { SET_BIT(ctx->osData->mouseState.buttons, MouseState::LBUTTON, true); break; }
+        { SET_BIT(osState->mouseState.buttons, meMouseButton::LBUTTON, true); break; }
         case WM_MBUTTONDOWN:
-        { SET_BIT(ctx->osData->mouseState.buttons, MouseState::MBUTTON, true); break; }
+        { SET_BIT(osState->mouseState.buttons, meMouseButton::MBUTTON, true); break; }
         case WM_RBUTTONDOWN:
-        { SET_BIT(ctx->osData->mouseState.buttons, MouseState::RBUTTON, true); break; }
+        { SET_BIT(osState->mouseState.buttons, meMouseButton::RBUTTON, true); break; }
         case WM_LBUTTONUP:
-        { SET_BIT(ctx->osData->mouseState.buttons, MouseState::LBUTTON, false); break; }
+        { SET_BIT(osState->mouseState.buttons, meMouseButton::LBUTTON, false); break; }
         case WM_MBUTTONUP:
-        { SET_BIT(ctx->osData->mouseState.buttons, MouseState::MBUTTON, false); break; }
+        { SET_BIT(osState->mouseState.buttons, meMouseButton::MBUTTON, false); break; }
         case WM_RBUTTONUP:
-        { SET_BIT(ctx->osData->mouseState.buttons, MouseState::RBUTTON, false); break; }
+        { SET_BIT(osState->mouseState.buttons, meMouseButton::RBUTTON, false); break; }
         case WM_MOUSEWHEEL:
-        { ctx->osData->mouseState.scroll = (int)(short)HIWORD(wParam); break; } // expressed in multiples of WHEEL_DELTA
+        { osState->mouseState.scroll = (int)(short)HIWORD(wParam); break; } // expressed in multiples of WHEEL_DELTA
         break;
     }
     return DefWindowProc(hWnd, msg, wParam, lParam);
@@ -184,6 +210,29 @@ void meOSWinTick(EngineContext* engine)
         engine->isRunning = false;
     }
 #endif
+
+	if (GetAsyncKeyState(VK_TAB) & KEY_PRESSED) 
+	{
+        // when "tabbing" in and out of the game, the cursor position jumps around weirdly
+        // so here we save the last cursor pos when we tab out, and re-set it when we tab back in
+        //static glm::vec2 lastMousePos = glm::vec2(0);
+		#if 1
+		bool cursorLocked = engine->osData->useRawInput; // TODO: make this a separate state thingy
+        if (!cursorLocked)
+		{
+            meOSSetCursorState(CAPTURED, *engine->osData);
+            //SetCursorPos(lastMousePos.x, lastMousePos.y);
+			//engine->osData->mouseState.UpdateMouseScreenPos(lastMousePos.x, lastMousePos.y);
+            //cam.UpdateCamera();
+        }
+        else
+		{
+            //lastMousePos = engine->osData->mouseState.lastMousePos;
+            meOSSetCursorState(FREE, *engine->osData);
+            SetCursorPos(engine->osData->windowWidth / 2.0f, engine->osData->windowHeight / 2.0f);
+        }
+		#endif
+    }
 }
 
 s32 meOSMain(s32 argc, char** argv)
@@ -476,4 +525,78 @@ u64 OSStateView::GetTicksUsec() const
 	u64 time = (leftover * 1000000L) / ticksPerSecond;
 	time += seconds * 1000000L;
 	return time;
+}
+
+#ifndef HID_USAGE_PAGE_GENERIC
+#define HID_USAGE_PAGE_GENERIC 0x01
+#endif
+
+#ifndef HID_USAGE_GENERIC_MOUSE
+#define HID_USAGE_GENERIC_MOUSE 0x02
+#endif
+
+void meOSSetCursorState(
+	meOSCursorState state,
+	OSStateView& osState)
+{
+	if (state == CAPTURED)
+	{
+		HWND hwnd = (HWND)osState.hwnd;
+
+		RAWINPUTDEVICE rid;
+		rid.usUsagePage = HID_USAGE_PAGE_GENERIC;
+		rid.usUsage = HID_USAGE_GENERIC_MOUSE;
+		rid.dwFlags = RIDEV_NOLEGACY; // Exclude legacy WM_MOUSE* messages
+		rid.hwndTarget = hwnd;
+		if (!RegisterRawInputDevices(&rid, 1, sizeof(rid)))
+		{
+			osState.useRawInput = false;
+			LOG_WARN("Failed to register raw input device");
+		}
+		else
+		{
+			osState.useRawInput = true;
+		}
+
+		// Get the client area of your window and convert to screen coordinates
+		RECT clientRect;
+		GetClientRect(hwnd, &clientRect);
+		ClientToScreen(hwnd, (LPPOINT)&clientRect.left);
+		ClientToScreen(hwnd, (LPPOINT)&clientRect.right);
+
+		// Clip the cursor to the client area
+		//ClipCursor(&clientRect);
+		POINT centerPoint = { (s32)osState.windowWidth / 2, (s32)osState.windowHeight / 2 };
+		ClientToScreen(hwnd, &centerPoint);
+		SetCursorPos(centerPoint.x, centerPoint.y);
+		SetCapture(hwnd);
+
+		ShowCursor(false);
+	}
+	else if (state == FREE)
+	{
+		RAWINPUTDEVICE Rid[1];
+
+		Rid[0].usUsagePage = HID_USAGE_PAGE_GENERIC;
+		Rid[0].usUsage = HID_USAGE_GENERIC_MOUSE;
+		Rid[0].dwFlags = RIDEV_REMOVE;
+		Rid[0].hwndTarget = NULL;
+
+		if (!RegisterRawInputDevices(Rid, 1, sizeof(Rid[0])))
+		{
+			LOG_ERROR("Failed to unregister raw input device");
+		}
+		else
+		{
+			osState.useRawInput = false;
+		}
+		ClipCursor(nullptr);
+		ShowCursor(true);
+		ReleaseCapture();
+	}
+}
+
+bool AmIBeingDebugged()
+{
+	return IsDebuggerPresent();
 }

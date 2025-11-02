@@ -32,7 +32,7 @@ void Arena::meClear(bool deleteMemory)
 	{
 		MEFREE(backingAllocator, backing_mem);
 		backing_mem_size = 0;
-	} 
+	}
 	ArenaClear(this);
 }
 

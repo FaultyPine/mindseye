@@ -91,6 +91,11 @@ String& String::operator=(String&& other)
 
 static void InitFromBuf(String* str, const char* data, size_t len, meAllocator* allocator)
 {
+	if (len == 0)
+	{
+		*str = {};
+		return;
+	}
 	str->data = MEALLOC(allocator, len + 1);
 	ME_MEMCPY(str->data, data, len);
 	str->data[len] = '\0';
@@ -207,7 +212,9 @@ const char* CStringFromString(
 
 bool StringCopy(StringView dst, StringView src)
 {
-	return BufferCopy(dst.ToSpan(), src.ToSpan());
+	bool result = BufferCopy(dst.ToSpan(), src.ToSpan());
+	dst.data[dst.len] = '\0';
+	return result;
 }
 
 s32 FindInString(

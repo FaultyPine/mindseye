@@ -77,7 +77,7 @@ void SetTerminalColor(LogLevel level)
 #endif
 }
 
-void LogMessage(LogLevel level, u32 logCategory, const char* lineEnd, const char* message, ...)
+void LogMessage(LogLevel level, const char* file, u32 line, u32 logCategory, const char* lineEnd, const char* message, ...)
 {
     if ((LOG_LEVELS_ENABLED & (1 << level)) == 0 ||
 		(LOG_CATEGORIES_ENABLED & (1 << logCategory)) == 0)
@@ -99,7 +99,8 @@ void LogMessage(LogLevel level, u32 logCategory, const char* lineEnd, const char
     s32 bytesWritten = stbsp_vsnprintf(msgBuffer, LOG_MSG_LIMIT, message, args);
     va_end(args);
     ME_ASSERT(bytesWritten < LOG_MSG_LIMIT);
-    StringView outMsg = StringFormat("%s%s", msgBuffer, lineEnd);
+	StringView fileStr = StringFromCString(file);
+	StringView outMsg = StringFormat("[%.*s:%i] %s%s", STRING_VAARGS(fileStr), line, msgBuffer, lineEnd);
 	ME_ASSERT(outMsg.cstr());
 
     // append (optional)color and log level to message
