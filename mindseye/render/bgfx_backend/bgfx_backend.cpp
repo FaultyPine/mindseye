@@ -469,9 +469,9 @@ void BgfxRendererBackend::BeginImguiContext()
     const meMouseInput& mouseState = osData.mouseState;
     imguiBeginFrame(mouseState.mousePosScreen.x
 					,  mouseState.mousePosScreen.y
-					,  (TEST_BIT(mouseState.buttons, meMouseButton::LBUTTON) ? IMGUI_MBUT_LEFT   : 0)
-					| (TEST_BIT(mouseState.buttons, meMouseButton::RBUTTON) ? IMGUI_MBUT_RIGHT  : 0)
-					| (TEST_BIT(mouseState.buttons, meMouseButton::MBUTTON) ? IMGUI_MBUT_MIDDLE : 0)
+					,  (mouseState.IsMouseButtonDown(meMouseButton::LBUTTON) ? IMGUI_MBUT_LEFT   : 0)
+					| (mouseState.IsMouseButtonDown(meMouseButton::RBUTTON) ? IMGUI_MBUT_RIGHT  : 0)
+					| (mouseState.IsMouseButtonDown(meMouseButton::MBUTTON) ? IMGUI_MBUT_MIDDLE : 0)
 					, mouseState.scroll
 					, u16(windowWidth)
 					, u16(windowHeight)

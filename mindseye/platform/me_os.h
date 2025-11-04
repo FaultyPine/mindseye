@@ -21,11 +21,12 @@ struct OSStateView
     // TODO: make these events so multiple systems can subscribe
     OnOSWindowResize onResizeCB = nullptr;
 	meMouseInput mouseState = {};
+	meKeyboardInput keyboardState = {};
     u32 windowWidth = 0;
     u32 windowHeight = 0; 
 	u64 ticksPerSecond = 0;
 	u64 ticksAtAppStart = 0;
-	meOSCursorState state = FREE;
+	meOSCursorState cursorState = FREE;
 	u64 GetTicksUsec() const;
 #ifdef OS_WINDOWS
     void* hwnd = nullptr;

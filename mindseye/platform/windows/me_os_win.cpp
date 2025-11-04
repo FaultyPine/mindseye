@@ -54,6 +54,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
             OnResize(hWnd, (UINT)wParam, width, height);
         }
         break;
+		case WM_KEYDOWN: 
+		{
+			int virtualKeyCode = (int)wParam;
+			osState->keyboardState.keyStates.set(virtualKeyCode, true);
+		} break;
+		case WM_KEYUP: 
+		{
+			int virtualKeyCode = (int)wParam;
+			osState->keyboardState.keyStates.set(virtualKeyCode, false);
+		} break;
 		case WM_INPUT:
 		{
 			if (!osState->useRawInput)
@@ -191,6 +201,12 @@ void meOSWinCreateWindow(WindowCreationParams creationParams, EngineContext* eng
 void meOSWinTick(EngineContext* engine)
 {
     MSG msg;
+	OSStateView* osState = engine->osData;
+
+	// tick these before getting os messages
+	osState->mouseState.MouseInputTick();
+	osState->keyboardState.KeyboardInputTick();
+
     while (PeekMessage(&msg, 0, 0, 0, PM_REMOVE)) 
     {
         if (msg.message == WM_QUIT)
@@ -200,38 +216,30 @@ void meOSWinTick(EngineContext* engine)
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
-    while (::IsIconic((HWND)engine->osData->hwnd))
+    while (::IsIconic((HWND)osState->hwnd))
     {
         ::Sleep(10);
     }
 #if !SHIPPING_BUILD
-    if (GetKeyState(VK_ESCAPE) & 0x8000)
+    if (osState->keyboardState.keyStates.get(VK_ESCAPE))
     {
         engine->isRunning = false;
     }
 #endif
 
-	if (GetAsyncKeyState(VK_TAB) & KEY_PRESSED) 
+	// hitting "tab" in the engine releases/captures your mouse cursor
+	if (osState->keyboardState.IsKeyJustPressed(VK_TAB)) 
 	{
-        // when "tabbing" in and out of the game, the cursor position jumps around weirdly
-        // so here we save the last cursor pos when we tab out, and re-set it when we tab back in
-        //static glm::vec2 lastMousePos = glm::vec2(0);
-		#if 1
 		bool cursorLocked = engine->osData->useRawInput; // TODO: make this a separate state thingy
         if (!cursorLocked)
 		{
             meOSSetCursorState(CAPTURED, *engine->osData);
-            //SetCursorPos(lastMousePos.x, lastMousePos.y);
-			//engine->osData->mouseState.UpdateMouseScreenPos(lastMousePos.x, lastMousePos.y);
-            //cam.UpdateCamera();
         }
         else
 		{
-            //lastMousePos = engine->osData->mouseState.lastMousePos;
             meOSSetCursorState(FREE, *engine->osData);
             SetCursorPos(engine->osData->windowWidth / 2.0f, engine->osData->windowHeight / 2.0f);
         }
-		#endif
     }
 }
 
