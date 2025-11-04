@@ -26,6 +26,11 @@ struct RendererFrontend
     Arena rendererFrameArena = {};
     bool rendererLoggingEnabled = true;
 
+	virtual void PushLine(
+		const glm::vec3& start,
+		const glm::vec3& end,
+		const glm::vec4& color) {}
+
     virtual void Initialize(EngineContext* engine) {}
     virtual void Teardown(EngineContext* engine) {}
 

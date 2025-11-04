@@ -606,10 +606,6 @@ void* BgfxRendererBackend::RenderScene(RenderInput* input)
     return nullptr;
 }
 
-
-
-
-
 struct PosTexCoord0Vertex
 {
 	float m_x;
@@ -629,6 +625,16 @@ struct PosTexCoord0Vertex
 
 	static bgfx::VertexLayout ms_layout;
 };
+
+void BgfxRendererBackend::PushLine(
+	const glm::vec3& start,
+	const glm::vec3& end,
+	const glm::vec4& color)
+{
+	UNIMPLEMENTED();
+}
+
+
 bgfx::VertexLayout PosTexCoord0Vertex::ms_layout;
 
 void renderScreenSpaceQuad(uint8_t _view, bgfx::ProgramHandle _program, float _x, float _y, float _width, float _height, bgfx::TextureHandle tex)

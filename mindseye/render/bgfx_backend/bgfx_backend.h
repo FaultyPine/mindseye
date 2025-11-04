@@ -4,6 +4,11 @@
 
 struct BgfxRendererBackend : public RendererFrontend
 {
+	virtual void PushLine(
+		const glm::vec3& start,
+		const glm::vec3& end,
+		const glm::vec4& color) override;
+
     void Initialize(EngineContext* engine) override;
     void Teardown(EngineContext* engine) override;
     void* RenderScene(RenderInput* scene) override;

@@ -6,7 +6,6 @@ meTypeDescriptor TD_VEC3 = { .name = STRING_LIT("vec3"), .size = sizeof(glm::vec
 
 namespace Math {
 
-
 bool isOverlappingRectSize2D(const glm::vec2& pos1, const glm::vec2& size1, const glm::vec2& pos2, const glm::vec2& size2) 
 {
     glm::vec2 r1 = pos1 + size1;
@@ -156,4 +155,25 @@ uint32_t hash(const char* message, size_t message_length)
    return internal_state;
 }
 
+}
+
+Frustum::Frustum(
+	const glm::mat4& mat)
+{
+	for (int i = 4; i--; ) { left[i]   = mat[i][3] + mat[i][0]; }
+	for (int i = 4; i--; ) { right[i]  = mat[i][3] - mat[i][0]; }
+	for (int i = 4; i--; ) { bottom[i] = mat[i][3] + mat[i][1]; }
+	for (int i = 4; i--; ) { top[i]    = mat[i][3] - mat[i][1]; }
+	for (int i = 4; i--; ) { nplane[i]   = mat[i][3] + mat[i][2]; }
+	for (int i = 4; i--; ) { fplane[i]    = mat[i][3] - mat[i][2]; }
+}
+
+bool Frustum::ShouldCullSphere(glm::vec3 center, float radius)
+{
+	for(int i = 0; i < 6; i++)
+    {
+        float dist = glm::dot(glm::vec4(center, 1.0), planes[i]) + radius;
+        if(dist < 0) return true; // sphere culled
+    }
+    return false;
 }

@@ -10,6 +10,7 @@
 #include <external/glm/gtx/quaternion.hpp>
 #include <external/glm/gtx/matrix_decompose.hpp>
 
+
 extern meTypeDescriptor TD_VEC3;
 
 constexpr double PI   = 3.141592653589793238463;
@@ -26,14 +27,21 @@ inline f32 RadToDeg(f32 rad)
 
 struct Frustum
 {
-    glm::vec4 nearTopLeft;
-    glm::vec4 nearBottomLeft;
-    glm::vec4 nearTopRight;
-    glm::vec4 nearBottomRight;
-    glm::vec4 farTopLeft;
-    glm::vec4 farBottomLeft;
-    glm::vec4 farTopRight;
-    glm::vec4 farBottomRight;
+	union
+	{
+		glm::vec4 planes[6];
+		struct
+		{
+			glm::vec4 left; glm::vec4 right;
+			glm::vec4 bottom; glm::vec4 top;
+			glm::vec4 nplane; glm::vec4 fplane;
+		};
+	};
+	// Extracts frustum planes from a (projection * view) matrix (world-to-clip space)
+	Frustum(
+        const glm::mat4& projectionViewMatrix);
+
+	bool ShouldCullSphere(glm::vec3 center, float radius);
 };
 
 namespace Math {
