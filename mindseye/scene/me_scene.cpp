@@ -16,7 +16,7 @@ void meSceneInitialize(EngineContext* ctx)
 
 void meSceneManager::Tick(EngineContext* ctx)
 {
-	rootScene.mainCamera.UpdateCameraWithUserInput(ctx->osData->mouseState);
+	rootScene.mainCamera.UpdateCameraWithUserInput(*ctx->osData);
 }
 
 void meSceneManager::LoadSceneFromFileBlocking(StringView filename, meAllocator* sceneAllocator, meScene* outScene)

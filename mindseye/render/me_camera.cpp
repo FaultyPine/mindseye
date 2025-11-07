@@ -68,8 +68,9 @@ glm::mat4 meCamera::GetViewMatrix() const
     return glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
 }
 
-void meCamera::UpdateCameraWithUserInput(meMouseInput& mouseInput) 
+void meCamera::UpdateCameraWithUserInput(OSStateView& osState) 
 {
+	meMouseInput& mouseInput = osState.mouseState;
 	f32 xoffset = mouseInput.mouseDelta.x;
     f32 yoffset = -mouseInput.mouseDelta.y;
 
@@ -94,39 +95,37 @@ void meCamera::UpdateCameraWithUserInput(meMouseInput& mouseInput)
 	cameraFront = GetNormalizedLookDir();
     
 	meCamera& cam = *this;
+	meKeyboardInput& keyboardState = osState.keyboardState;
 	f32 cameraSpeed = cam.speed * GetDeltaTime();
-    if (GetAsyncKeyState(VK_LCONTROL) & KEY_PRESSED)
+    if (keyboardState.IsKeyDown(VK_CONTROL))
     {
         cameraSpeed *= 15.0f;
     }
-	u16 wKey = GetKeyState('w');
-	LOG_INFO("%hu", wKey);
-    if (GetAsyncKeyState('w') & KEY_PRESSED)
+    if (keyboardState.IsKeyDown('W'))
 	{
-		LOG_INFO("wWWWWW");
         cam.cameraPos += cameraSpeed * glm::vec3(cam.cameraFront.x, 0.0, cam.cameraFront.z);
     }
- //   if (GetKeyState('s')) 
-	//{
- //       cam.cameraPos -= cameraSpeed * glm::vec3(cam.cameraFront.x, 0.0, cam.cameraFront.z);
- //   }
-	//glm::vec3 cameraRight = glm::normalize(glm::cross(cam.cameraFront, cam.cameraUp));
- //   if (GetKeyState('a')) 
-	//{
- //       cam.cameraPos -= cameraRight * cameraSpeed;
- //   }
- //   if (GetKeyState('d')) 
-	//{
- //       cam.cameraPos += cameraRight * cameraSpeed;
- //   }
- //   if (GetKeyState(VK_SPACE)) 
-	//{
- //       cam.cameraPos.y += cameraSpeed;
- //   }
- //   if (GetKeyState(VK_SHIFT)) 
-	//{
- //       cam.cameraPos.y -= cameraSpeed;
- //   }
+    if (keyboardState.IsKeyDown('S')) 
+	{
+        cam.cameraPos -= cameraSpeed * glm::vec3(cam.cameraFront.x, 0.0, cam.cameraFront.z);
+    }
+	glm::vec3 cameraRight = glm::normalize(glm::cross(cam.cameraFront, cam.cameraUp));
+    if (keyboardState.IsKeyDown('A')) 
+	{
+        cam.cameraPos -= cameraRight * cameraSpeed;
+    }
+    if (keyboardState.IsKeyDown('D')) 
+	{
+        cam.cameraPos += cameraRight * cameraSpeed;
+    }
+    if (keyboardState.IsKeyDown(VK_SPACE)) 
+	{
+        cam.cameraPos.y += cameraSpeed;
+    }
+    if (keyboardState.IsKeyDown(VK_SHIFT)) 
+	{
+        cam.cameraPos.y -= cameraSpeed;
+    }
 }
 
 void meCamera::LookAt(glm::vec3 pos) 

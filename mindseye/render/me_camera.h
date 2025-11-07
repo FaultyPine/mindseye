@@ -34,6 +34,6 @@ struct MEREFLECT(type) meCamera
     MEAPI glm::mat4 GetViewMatrix() const;
     MEAPI void LookAt(glm::vec3 pos);
 
-    MEAPI void UpdateCameraWithUserInput(meMouseInput& mouseInput);
+    MEAPI void UpdateCameraWithUserInput(OSStateView& osState);
 };
 

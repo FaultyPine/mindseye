@@ -30,7 +30,6 @@ void meMouseInput::MouseInputTick()
 void meKeyboardInput::KeyboardInputTick()
 {
 	prevKeyStates = keyStates;
-	keyStates = {};
 }
 
 bool meKeyboardInput::IsKeyDown(s32 meVirtualKey) const

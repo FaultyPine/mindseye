@@ -10,7 +10,7 @@ run `build.bat`
 
 ### Current focus
 - Renderer frontend (mesh, shader, texture, material concepts)
-	- camera (& tinyengine tab mouse locking)
+	- ~~camera (& tinyengine tab mouse locking)~~
 - game/engine hot reloading
 - have engine systems register themselves through a static event the engine core dispatches. each engine system needs to define the other engine systems it will touch (rw/ro), and has a bitset for those. Then, all systems aren't allowed to use GetEngineCtx, they can only access the systems they explicitly define in their initialization. Reflection not required for this, but it would make it way cleaner
 	 this needs more thought, because an actual "static" event has undefined initialization order.
