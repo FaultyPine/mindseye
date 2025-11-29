@@ -13,9 +13,6 @@
 
 #include "external/cgltf.h"
 
-#include "external/ktx/ktx.h"
-#include "external/stb/stb_image.h"
-
 #include "bgfx/bgfx/include/bgfx/bgfx.h"
 #include "bgfx/bgfx/src/config.h"
 #include "bgfx/bx/include/bx/bx.h"
@@ -137,328 +134,15 @@ void BgfxRendererBackend::Teardown(EngineContext* engine)
     bgfx::shutdown();
 }
 
-meGPUBuffer LoadTextureFromGLTF(
-	RendererFrontend* renderer,
-	StringView gltfResPath,
-	const cgltf_image& gltfImage)
+cgltf_material GenerateDummyMaterial()
 {
-	meTexturePool& texturePool = meTextureGetPool();
-	meAllocator* texturePayloadAllocator = texturePool.GetPayloadAllocator();
-
-	meSpan imageData = {};
-	meGPUBuffer resultGPUBuff = {};
-	BREAKABLE_SCOPE
-	u64 offset = 0;
-	u64 size = 0;
-	if (gltfImage.buffer_view)
-	{
-		cgltf_buffer_view* gltfImgBufferView = gltfImage.buffer_view;
-		cgltf_buffer* buffer = gltfImgBufferView->buffer;
-		ME_ASSERT(!buffer->data && "Embedded gltf data not supported. Needs to be in external file");
-		offset = gltfImgBufferView->offset;
-		size = gltfImgBufferView->size;
-	}
-	if (gltfImage.uri)
-	{
-		StringView textureUri = StringView(gltfImage.uri, CStringLength(gltfImage.uri));
-		ME_ASSERT(FindInString(textureUri, STRING_LIT("data:")) == -1); // not supporting embedded texture data rn
-		StringView gltfResDir = msFsGetDirFromPath(gltfResPath);
-		StringView textureResourcePath = StringFormat("%.*s/%.*s", STRING_VAARGS(gltfResDir), STRING_VAARGS(textureUri));
-		// TODO: offer a loading fast-path if an equivalent .ktx file is next to the source file
-		OSFileReference file;
-		if (!meOSOpenFile(file, textureResourcePath, OSFileFlags::OnlyIfExists))
-		{
-			LOG_ERROR("Failed to open texture file %.*s", STRING_VAARGS(textureResourcePath));
-			break;
-		}
-		if (size == 0)
-		{
-			size = meOSGetFileSize(file);
-		}
-		if (offset != 0)
-		{
-			meOSSetFileCursor(file, offset, OSFileCursorMode::BEGIN);
-		}
-		Allocation filebuf = MEALLOC(GetTLScratch(), size);
-		if (!meOSReadFileContents(file, filebuf, size))
-		{
-			LOG_ERROR("Failed to read texture file %.*s", STRING_VAARGS(textureResourcePath));
-			break;
-		}
-		meOSCloseFile(file);
-
-		// take loaded image -> decompress
-		s32 w = 0; s32 h = 0; s32 channels = 0;
-		// TODO: this uses malloc/free, make it use my allocators (texturePayloadAllocator)
-		u8* pngDecompressed = stbi_load_from_memory((u8*)filebuf.data, filebuf.size, &w, &h, &channels, STBI_rgb_alpha);
-		u64 pngDecompressedSize = w * h * channels;
-		if (pngDecompressed == nullptr)
-		{
-			const char* loadFailure = stbi_failure_reason();
-			LOG_ERROR("Failed to load img | %s", loadFailure);
-			break;
-		}
-		meSpan decompressedImgMem = meSpan(pngDecompressed, pngDecompressedSize);
-		resultGPUBuff.bufferHandle = renderer->UploadTextureToGPU(decompressedImgMem, channels, w, h);
-
-		// TODO: make this async
-		auto writeKtx = +[](s32 channels, s32 w, s32 h, meSpan imgMem, StringView textureResourcePath, meAllocator* texturePayloadAllocator)
-		{ // decompressed image data -> ktx
-			ktxTexture2* texture;
-			ktxTextureCreateInfo createInfo;
-			KTX_error_code result; UNUSED(result);
-			ktx_uint32_t level, layer, faceSlice;
-			ktx_size_t srcSize;
- 
-			u32 vkFormat = 43; //VK_FORMAT_R8G8B8A8_SRGB
-			if (channels == 3)
-			{
-				//vkFormat = 29; // VK_FORMAT_R8G8B8_SRGB
-				vkFormat = 27; // VK_FORMAT_R8G8B8_UINT
-			}
-			//createInfo.glInternalformat = GL_RGB8;   // Ignored if creating a ktxTexture2.
-			createInfo.vkFormat = vkFormat;   // Ignored if creating a ktxTexture1.
-			createInfo.baseWidth = w;
-			createInfo.baseHeight = h;
-			createInfo.baseDepth = 1;
-			createInfo.numDimensions = 2;
-			// Note: it is not necessary to provide a full mipmap pyramid.
-			createInfo.numLevels = 1;//log2(createInfo.baseWidth) + 1;
-			createInfo.numLayers = 1;
-			createInfo.numFaces = 1;
-			createInfo.isArray = KTX_FALSE;
-			createInfo.generateMipmaps = KTX_FALSE; // generate later if needed
- 
-			// Call ktxTexture1_Create to create a KTX texture.
-			result = ktxTexture2_Create(&createInfo,
-										KTX_TEXTURE_CREATE_ALLOC_STORAGE,
-										&texture);
-			ME_ASSERT(result == KTX_SUCCESS);
-			u8* src = (u8*)imgMem.data;
-			srcSize = imgMem.size;
-			level = 0;
-			layer = 0;
-			faceSlice = 0;
-			result = ktxTexture_SetImageFromMemory(ktxTexture(texture),
-												level, layer, faceSlice,
-												src, srcSize);
-			ME_ASSERT(result == KTX_SUCCESS);
-			// Repeat for the other 15 slices of the base level and all other levels
-			// up to createInfo.numLevels.
-
-			u8* ktxApiMem = nullptr;
-			u64 ktxMemSize = 0;
-			// :/ can we reduce the number of redundant copies happening here?
-			result = ktxTexture_WriteToMemory(ktxTexture(texture), &ktxApiMem, &ktxMemSize);
-			ME_ASSERT(result == KTX_SUCCESS);
-			Allocation ktxMem = MEALLOC(texturePayloadAllocator, ktxMemSize);
-			ME_MEMCPY(ktxMem, ktxApiMem, ktxMemSize);
-
-			// write to file
-			StringView texUriWithoutExt = textureResourcePath;
-			s32 texUriExtOffset = FindInString(textureResourcePath, STRING_LIT("."));
-			if (texUriExtOffset != -1)
-			{
-				texUriWithoutExt = textureResourcePath.OffsetView(0, texUriExtOffset);
-			}
-			StringBuilder outTexName = StringBuilder(GetTLScratch());
-			outTexName.Append(texUriWithoutExt);
-			outTexName.Append(STRING_LIT(".ktx"));
-
-			ktxTexture_WriteToNamedFile(ktxTexture(texture), outTexName.data);
-			ktxTexture_Destroy(ktxTexture(texture));
-		};
-		writeKtx(channels, w, h, decompressedImgMem, textureResourcePath, texturePayloadAllocator);
-
-		imageData = decompressedImgMem;
-	}
-	else
-	{
-		LOG_ERROR("Tried to load a texture without a file payload... so there's nothing to load?");
-	}
-	resultGPUBuff.cpuData = imageData;
-	BREAKABLE_SCOPE_END
-
-	return resultGPUBuff;
-}
-
-Eye LoadMaterialFromGLTF(
-	RendererFrontend* renderer,
-	StringView gltfResPath,
-	const cgltf_material& gltfMaterial)
-{
-	meMaterialPool& materialPool = meMaterialGetPool();
-	Eye materialHdl = materialPool.Create();
-	meMaterial& material = materialPool.Get(materialHdl);
-	StringCopy(StringView(material.name, meMaterial::MEMATERIAL_MAX_NAME_LEN), StringFromCString(gltfMaterial.name));
-	
-	if (gltfMaterial.has_pbr_metallic_roughness)
-	{
-		meTexturePool& texturePool = meTextureGetPool();
-		Eye textureHdl = texturePool.Create();
-		meTexture& texture = texturePool.Get(textureHdl);
-
-		meMaterialTextureType texType = meMaterialTextureType::Diffuse;
-		StringView diffuseTexUniformName = meMaterialGetTextureTypeName(texType);
-
-		texture.sampler = bgfx::createUniform(diffuseTexUniformName.cstr(), bgfx::UniformType::Sampler).idx;
-		material.textureHandles[texType] = textureHdl;
-
-		meGPUBuffer diffuseTextureMem = {};
-		if (gltfMaterial.pbr_metallic_roughness.base_color_texture.texture)
-		{
-			const cgltf_texture& gltftex = *gltfMaterial.pbr_metallic_roughness.base_color_texture.texture;
-			diffuseTextureMem = LoadTextureFromGLTF(renderer, gltfResPath, *gltftex.image);
-			StringCopy(StringView(texture.name, meTexture::METEXTURE_MAX_NAME_LEN), StringFromCString(gltftex.name));
-		}
-		else
-		{
-			// 1x1 pixel of a single color
-			float* rgba = MEALLOC(renderer->rendererPersistentAllocator, sizeof(float) * 4);
-			ME_MEMCPY((void*)rgba, &gltfMaterial.pbr_metallic_roughness.base_color_factor[0], sizeof(float) * 4);
-			u32 textureData = PackFloatsToU32(rgba[0], rgba[1], rgba[2], rgba[3]);
-			const bgfx::Memory* imgMem = bgfx::makeRef(&textureData, sizeof(textureData));
-			bgfx::TextureFormat::Enum format = bgfx::TextureFormat::Enum::RGBA8;
-			bgfx::TextureHandle tex = bgfx::createTexture2D(
-				1, 1, false, 1, format, BGFX_TEXTURE_NONE | BGFX_SAMPLER_NONE, imgMem);
-			diffuseTextureMem = meGPUBuffer{.bufferHandle = tex.idx, .cpuData = meSpan(rgba, sizeof(float) * 4)};
-			StringCopy(StringView(texture.name, meTexture::METEXTURE_MAX_NAME_LEN), STRING_LIT("Static Color Texture"));
-		}
-		if (diffuseTextureMem.IsValid())
-		{
-			texture.buffer = diffuseTextureMem;
-		}
-		
-		// TODO: deduplicate, see comment in me_resourcepool.h
-		u64 litProgram = renderer->CreateShaderProgram(meSpan(main_lit_fs), meSpan(main_lit_vs));
-		meShaderPool& shaderPool = meShaderGetPool();
-		Eye shaderHandle = shaderPool.Create();
-		meShader& shader = shaderPool.Get(shaderHandle);
-		shader.uniformHandles = DynArrayCreate<meShaderUniform>(shaderPool.resourcePayloadAllocator);
-		meShaderUniform timeU = meShaderUniform();
-		timeU.uniformData = MEALLOC(shaderPool.resourcePayloadAllocator, sizeof(glm::vec4));;
-		timeU.handle = bgfx::createUniform("u_time", bgfx::UniformType::Enum::Vec4).idx;
-		SET_BIT(timeU.flags, meShaderFlags_AlwaysReupload, true);
-		timeU.updateCb = + [](meShaderUniform* uniform, void* userData) {
-			*((glm::vec4*)uniform->uniformData) = glm::vec4(GetTimeSec(), 0, 0, 0);
-		};
-		DynArrayPush(shader.uniformHandles, timeU);
-		shader.program = litProgram;
-
-		material.shaderHandle = shaderHandle;
-	}
-	return materialHdl;
-}
-
-void LoadMeshFromGLTF(
-	RendererFrontend* renderer,
-	StringView gltfResPath,
-	meAllocator* meshPayloadAllocator,
-	const cgltf_mesh& inMesh, 
-	meMesh& outMesh)
-{
-	outMesh.name = String(StringFromCString(inMesh.name), renderer->rendererPersistentAllocator);
-	BoundingBox& meshBounds = outMesh.meshBounds;
-	for (u64 meshPrimIdx = 0; meshPrimIdx < inMesh.primitives_count; meshPrimIdx++)
-	{
-		const cgltf_primitive& prim = inMesh.primitives[meshPrimIdx];
-		if (prim.material)
-		{
-			outMesh.materialHandle = LoadMaterialFromGLTF(renderer, gltfResPath, *prim.material);
-		}
-		// attribs like position, texcoords, normals
-		for (u64 attributeIdx = 0; attributeIdx < prim.attributes_count; attributeIdx++)
-		{
-			const cgltf_attribute& attrib = prim.attributes[attributeIdx];
-			StringView attribName = StringView(attrib.name, CStringLength(attrib.name));
-			if (attrib.type == cgltf_attribute_type_position)
-			{
-				const cgltf_accessor* accessor = attrib.data;
-				u64 stride = sizeof(f32) * 3;
-				u64 dataSize = stride * accessor->count;
-				Allocation allocation = MEALLOC(meshPayloadAllocator, dataSize);
-				Allocation bumper = allocation;
-				f32 dataUnit[3];
-				for (u64 posIdx = 0; posIdx < accessor->count; posIdx++)
-				{
-					cgltf_accessor_read_float(accessor, posIdx, dataUnit, 3);
-					ME_MEMCPY(bumper, dataUnit, stride);
-					bumper = bumper.Subspan(stride);
-					meshBounds.min = glm::min(meshBounds.min, glm::make_vec3(dataUnit));
-					meshBounds.max = glm::max(meshBounds.max, glm::make_vec3(dataUnit));
-				}
-				outMesh.vertBuffer.cpuData = allocation;
-				bgfx::VertexLayout v_layout; 
-				v_layout.begin()
-				.add(bgfx::Attrib::Position,  3, bgfx::AttribType::Float)
-				.end();
-				outMesh.vertBuffer.bufferHandle = bgfx::createVertexBuffer(bgfx::makeRef(outMesh.vertBuffer.cpuData, outMesh.vertBuffer.cpuData.size), v_layout).idx;
-			}
-			else if (attrib.type == cgltf_attribute_type_normal)
-			{
-				const cgltf_accessor* accessor = attrib.data;
-				u64 stride = sizeof(f32) * 3;
-				u64 dataSize = stride * accessor->count;
-				Allocation allocation = MEALLOC(meshPayloadAllocator, dataSize);
-				Allocation bumper = allocation;
-				f32 dataUnit[3];
-				for (u64 posIdx = 0; posIdx < accessor->count; posIdx++)
-				{
-					cgltf_accessor_read_float(accessor, posIdx, dataUnit, 3);
-					ME_MEMCPY(bumper, dataUnit, stride);
-					bumper = bumper.Subspan(stride);
-				}
-				outMesh.normBuffer.cpuData = allocation;
-				bgfx::VertexLayout v_layout; 
-				v_layout.begin()
-				.add(bgfx::Attrib::Normal,  3, bgfx::AttribType::Float)
-				.end();
-				outMesh.normBuffer.bufferHandle = bgfx::createVertexBuffer(bgfx::makeRef(outMesh.normBuffer.cpuData, outMesh.normBuffer.cpuData.size), v_layout).idx;
-			}
-			else if (attrib.type == cgltf_attribute_type_tangent)
-			{
-
-			}
-			else if (attrib.type == cgltf_attribute_type_texcoord)
-			{
-				const cgltf_accessor* accessor = attrib.data;
-				u64 stride = sizeof(f32) * 2;
-				u64 dataSize = stride * accessor->count;
-				Allocation allocation = MEALLOC(meshPayloadAllocator, dataSize);
-				Allocation bumper = allocation;
-				f32 dataUnit[2];
-				for (u64 posIdx = 0; posIdx < accessor->count; posIdx++)
-				{
-					cgltf_accessor_read_float(accessor, posIdx, dataUnit, 2);
-					ME_MEMCPY(bumper, dataUnit, stride);
-					bumper = bumper.Subspan(stride);
-				}
-				outMesh.texcoordBuffer.cpuData = allocation;
-				bgfx::VertexLayout v_layout; 
-				v_layout.begin()
-				.add(bgfx::Attrib::TexCoord0,  2, bgfx::AttribType::Float)
-				.end();
-				outMesh.texcoordBuffer.bufferHandle = bgfx::createVertexBuffer(bgfx::makeRef(outMesh.texcoordBuffer.cpuData, outMesh.texcoordBuffer.cpuData.size), v_layout).idx;
-			}
-		}
-
-		// indices
-		if (prim.indices)
-		{
-			u64 stride = prim.indices->stride;
-			u64 indicesMemSize = prim.indices->count * stride;
-			Allocation indicesMemory = MEALLOC(meshPayloadAllocator, indicesMemSize);
-			meSpan indicesBumper = indicesMemory;
-			for (u64 idx = 0; idx < prim.indices->count; idx++)
-			{
-				u64 readIdx = cgltf_accessor_read_index(prim.indices, idx);
-				ME_MEMCPY(indicesBumper.data, &readIdx, stride);
-				indicesBumper = indicesBumper.Subspan(stride);
-			}
-			outMesh.idxBuffer.cpuData = indicesMemory;
-			outMesh.idxBuffer.bufferHandle = bgfx::createIndexBuffer(bgfx::makeRef(outMesh.idxBuffer.cpuData, indicesMemSize)).idx;
-		}
-	}
+	cgltf_material mat;
+	ME_MEMCLEAR(&mat, sizeof(mat));
+	#pragma clang diagnostic push
+	#pragma clang diagnostic ignored "-Wwritable-strings"
+	mat.name = "NoMaterial";
+	#pragma clang diagnostic pop
+	return mat;
 }
 
 void BgfxRendererBackend::BeginImguiContext()
@@ -483,6 +167,60 @@ void BgfxRendererBackend::EndImguiContext()
     imguiEndFrame();
 }
 
+static bgfx::UniformType::Enum meShaderUniformTypeToBgfx(meUniformDataType type)
+{
+	switch (type)
+	{
+		case meUniformDataType::UNIFORM_FLOAT:
+		case meUniformDataType::UNIFORM_VEC4:
+		case meUniformDataType::UNIFORM_VEC3:
+		case meUniformDataType::UNIFORM_VEC2:
+			return bgfx::UniformType::Enum::Vec4;
+		case meUniformDataType::UNIFORM_SAMPLER:
+			return bgfx::UniformType::Enum::Sampler;
+		case meUniformDataType::UNIFORM_MAT3:
+			return bgfx::UniformType::Enum::Mat3;
+		case meUniformDataType::UNIFORM_MAT4:
+			return bgfx::UniformType::Enum::Mat4;
+		default: ME_ASSERT(false);
+	}
+	ME_ASSERT(false);
+	return bgfx::UniformType::Enum::Sampler;
+}
+
+u64 BgfxRendererBackend::CreateVertexBuffer(
+	meSpan bufferMem, 
+	meMeshVertexLayoutType layout)
+{
+	if (TEST_BIT(layout, meMeshVertexLayoutType_Index))
+	{
+		// if Index bit is specified, no other bits may be specified
+		// (Cannot interleave index buffers with other data)
+		ME_ASSERT((layout & (~NTH_BIT(meMeshVertexLayoutType_Index))) == 0);
+		u32 result = bgfx::createIndexBuffer(bgfx::makeRef(bufferMem.data, bufferMem.size)).idx;
+		return result;
+	}
+	bgfx::VertexLayout v_layout; 
+	v_layout.begin();
+	if (TEST_BIT(layout, meMeshVertexLayoutType_Position)) v_layout.add(bgfx::Attrib::Position,  3, bgfx::AttribType::Float);
+	if (TEST_BIT(layout, meMeshVertexLayoutType_Normal)) v_layout.add(bgfx::Attrib::Normal,  3, bgfx::AttribType::Float);
+	if (TEST_BIT(layout, meMeshVertexLayoutType_Tangent)) v_layout.add(bgfx::Attrib::Tangent,  3, bgfx::AttribType::Float);
+	if (TEST_BIT(layout, meMeshVertexLayoutType_TexCoord0)) v_layout.add(bgfx::Attrib::TexCoord0,  2, bgfx::AttribType::Float);
+	if (TEST_BIT(layout, meMeshVertexLayoutType_Color)) v_layout.add(bgfx::Attrib::Color0,  4, bgfx::AttribType::Float);
+	if (TEST_BIT(layout, meMeshVertexLayoutType_Weights)) v_layout.add(bgfx::Attrib::Weight,  1, bgfx::AttribType::Float);
+	v_layout.end();
+	u32 result = bgfx::createVertexBuffer(bgfx::makeRef(bufferMem.data, bufferMem.size), v_layout).idx;
+	return result;
+}
+
+u64 BgfxRendererBackend::CreateShaderUniform(
+	StringView name, 
+	meUniformDataType type)
+{
+	u64 result = bgfx::createUniform(name.cstr(), meShaderUniformTypeToBgfx(type)).idx;
+	return result;
+}
+
 u64 BgfxRendererBackend::CreateShaderProgram(meSpan fsMem, meSpan vsMem)
 {
 	const bgfx::Memory* fsmem = bgfx::alloc(fsMem.size+1);
@@ -499,6 +237,11 @@ u64 BgfxRendererBackend::CreateShaderProgram(meSpan fsMem, meSpan vsMem)
 	return program.idx;
 }
 
+void BgfxRendererBackend::DestroyShaderProgram(u64 programHandle)
+{
+	bgfx::destroy(static_cast<bgfx::ShaderHandle>(programHandle));
+}
+
 u64 BgfxRendererBackend::UploadTextureToGPU(meSpan textureMem, u32 channels, u32 width, u32 height)
 {
 	const bgfx::Memory* imgMem = bgfx::makeRef(textureMem.data, textureMem.size);
@@ -510,6 +253,11 @@ u64 BgfxRendererBackend::UploadTextureToGPU(meSpan textureMem, u32 channels, u32
 	bgfx::TextureHandle tex = bgfx::createTexture2D(
 		width, height, false, 1, format, BGFX_TEXTURE_NONE | BGFX_SAMPLER_NONE, imgMem);
 	return tex.idx;
+}
+
+void BgfxRendererBackend::DestroyGPUTexture(u64 textureHandle)
+{
+	bgfx::destroy(static_cast<bgfx::TextureHandle>(textureHandle));
 }
 
 void BgfxRendererBackend::LoadSceneRuntime(meScene& outScene, meAllocator* sceneAllocator)
@@ -528,19 +276,20 @@ void BgfxRendererBackend::LoadSceneRuntime(meScene& outScene, meAllocator* scene
 			Transform nodeTf = Transform(glm::make_mat4(nodeMatrix));
 			EntityRef entityRef = Entity::CreateEntity(node.name, nodeTf);
 			EntityData& entity = Entity::GetEntity(entityRef);
-			const cgltf_mesh& gltfmesh = *node.mesh;
-			Eye meshHandle = meshPool.Create();
-			meMesh& mesh = meshPool.Get(meshHandle);
-			meAllocator* meshPayloadAllocator = meshPool.resourcePayloadAllocator;
-			LoadMeshFromGLTF(this, gltfResPath, meshPayloadAllocator, gltfmesh, mesh);
-			entity.mesh = meshHandle;
-			entity.bounds = mesh.meshBounds; // may change due to stuff like animations/etc. Default initialized to mesh bounds
+			if (node.mesh)
+			{
+				const cgltf_mesh& gltfmesh = *node.mesh;
+				meMeshID meshHandle = meshPool.Load(this, gltfResPath, gltfmesh);
+				meMesh& mesh = meshPool.Get(meshHandle);
+				entity.mesh = meshHandle;
+				entity.authoritativeBounds = mesh.meshBounds; // may change due to anims. Default initialized to mesh bounds
+			}
 			DynArrayPush(outScene.runtime.entities, entityRef);
 		}
 	}
 }
 
-void renderScreenSpaceQuad(uint8_t _view, bgfx::ProgramHandle _program, float _x, float _y, float _width, float _height, bgfx::TextureHandle tex = bgfx::TextureHandle(bgfx::kInvalidHandle));
+void renderScreenSpaceQuad(const glm::mat4& proj, uint8_t _view, bgfx::ProgramHandle _program, float _x, float _y, float _width, float _height, bgfx::TextureHandle tex = bgfx::TextureHandle(bgfx::kInvalidHandle));
 
 void* BgfxRendererBackend::RenderScene(RenderInput* input)
 {
@@ -550,6 +299,9 @@ void* BgfxRendererBackend::RenderScene(RenderInput* input)
     bgfx::setViewClear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x443355FF, 1.0f, 0);
 	bgfx::touch(0);
 
+	const meTexturePool& texturePool = meTextureGetPool();
+	const meMaterialPool& materialPool = meMaterialGetPool();
+
 	for (DynArray_Foreach(sceneRuntime.entities, i))
 	{
 		const EntityRef& entityRef = sceneRuntime.entities[i];
@@ -558,9 +310,6 @@ void* BgfxRendererBackend::RenderScene(RenderInput* input)
 		const meMesh& mesh = meMeshPoolGet().Get(meshHandle);
 		if (mesh.IsLoaded())
 		{
-			// TODO: set uniforms
-			const meTexturePool& texturePool = meTextureGetPool();
-			const meMaterialPool& materialPool = meMaterialGetPool();
 			const meMaterial& material = materialPool.Get(mesh.materialHandle);
 			Eye diffuseTextureHdl = material.textureHandles[meMaterialTextureType::Diffuse];
 			const meTexture& diffuseTex = texturePool.Get(diffuseTextureHdl);
@@ -572,15 +321,17 @@ void* BgfxRendererBackend::RenderScene(RenderInput* input)
 				if (!uniform.RefreshInternalUniformData()) continue;
 				bgfx::setUniform(bgfx::UniformHandle(uniform.handle), uniform.uniformData);
 			}
+			
+			const meCamera& cam = input->scene.mainCamera;
+			glm::mat4 proj = cam.GetProjectionMatrix();
+			glm::mat4 view = cam.GetViewMatrix();
+
 			bgfx::ProgramHandle program = bgfx::ProgramHandle(shader.program);
-			//renderScreenSpaceQuad(0, program, 0, 0, 256, 256, bgfxDiffuseTex);
+			renderScreenSpaceQuad(proj, 0, program, 0, 0, 256, 256, bgfxDiffuseTex);
 
 			glm::mat4 modelMat = entity.transform.ToModelMatrix();
 			bgfx::setTransform(&modelMat[0]);
 
-			const meCamera& cam = input->scene.mainCamera;
-			glm::mat4 proj = cam.GetProjectionMatrix();
-			glm::mat4 view = cam.GetViewMatrix();
 			bgfx::setViewTransform(0, glm::value_ptr(view), glm::value_ptr(proj));
 
 			bgfx::setVertexBuffer(0, bgfx::VertexBufferHandle { static_cast<u16>(mesh.vertBuffer.bufferHandle) });
@@ -593,7 +344,7 @@ void* BgfxRendererBackend::RenderScene(RenderInput* input)
 						   | BGFX_STATE_WRITE_A
 						   | BGFX_STATE_WRITE_Z
 						   | BGFX_STATE_DEPTH_TEST_LESS
-						   | BGFX_STATE_CULL_CCW
+						   | BGFX_STATE_CULL_CW
 						   | BGFX_STATE_MSAA);
 			bgfx::submit(0, program);
 
@@ -637,7 +388,11 @@ void BgfxRendererBackend::PushLine(
 
 bgfx::VertexLayout PosTexCoord0Vertex::ms_layout;
 
-void renderScreenSpaceQuad(uint8_t _view, bgfx::ProgramHandle _program, float _x, float _y, float _width, float _height, bgfx::TextureHandle tex)
+void renderScreenSpaceQuad(const glm::mat4& proj,
+						   uint8_t _view, 
+						   bgfx::ProgramHandle _program, 
+						   float _x, float _y, float _width, float _height, 
+						   bgfx::TextureHandle tex)
 {
 	bgfx::TransientVertexBuffer tvb;
 	bgfx::TransientIndexBuffer tib;
@@ -698,11 +453,18 @@ void renderScreenSpaceQuad(uint8_t _view, bgfx::ProgramHandle _program, float _x
 		indices[4] = 3;
 		indices[5] = 2;
 
+		glm::mat4 modelMat = glm::mat4();
+		bgfx::setTransform(&modelMat[0]);
+
+		glm::mat4 view = glm::mat4();
+		bgfx::setViewTransform(0, glm::value_ptr(view), glm::value_ptr(proj));
+
+
 		bgfx::setState(BGFX_STATE_WRITE_RGB 
 					   | BGFX_STATE_WRITE_A 
 					   | BGFX_STATE_WRITE_Z 
 					   | BGFX_STATE_DEPTH_TEST_LESS 
-					   | BGFX_STATE_CULL_CCW 
+					   //| BGFX_STATE_CULL_CCW 
 					   | BGFX_STATE_MSAA);
 		bgfx::setTexture(0, sampler, tex);
 		bgfx::setIndexBuffer(&tib);

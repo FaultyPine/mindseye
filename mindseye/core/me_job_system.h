@@ -9,7 +9,11 @@ typedef void(*meJobCb)(void* payload);
 
 // FUTURE:
 // replace with lock free work stealing algo
+// spin on atomics w/cpu yields
 // or 3rd party lib equivalent (https://gametechdev.github.io/GTS-GamesTaskScheduler/documentation/html/index.html)
+// big plans...
+// need Queue Types (background async, asset compilation, frame tasks, multi-frame async tasks, ...)
+
 
 struct meJob
 {

@@ -2,6 +2,7 @@
 
 #include "me_entity.h"
 #include "core/me_core.h"
+#include "render/me_mesh.h"
 
 namespace Entity
 {

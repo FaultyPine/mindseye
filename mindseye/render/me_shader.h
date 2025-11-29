@@ -4,7 +4,7 @@
 #include "core/containers/dynarray.h"
 
 struct meShaderUniform;
-
+typedef Eye meShaderID;
 struct meShader
 {
 	DynArray(meShaderUniform) uniformHandles;
@@ -22,6 +22,7 @@ enum meUniformDataType
     UNIFORM_VEC4,
     UNIFORM_MAT3,
     UNIFORM_MAT4,
+	UNIFORM_SAMPLER,
     NUM_UNIFORM_DATA_TYPES,
 };
 

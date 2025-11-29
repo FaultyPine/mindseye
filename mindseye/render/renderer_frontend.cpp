@@ -17,3 +17,8 @@ void RendererTeardown()
 {
 
 }
+
+RendererFrontend& RendererGetMain()
+{
+	return *GetEngineCtx()->renderer;
+}

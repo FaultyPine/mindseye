@@ -20,13 +20,12 @@ struct EntityData
 {
     Transform transform = {};
     Eye mesh = {};
-    BoundingBox bounds = {};
+	// gameplay-focused bounds. Rendering bounds including anims may be different (stored on mesh)
+    BoundingBox authoritativeBounds = {}; 
     u32 flags = 0;
     s8 name[ENTITY_NAME_MAX_LENGTH];
     
-    //operator bool() { return isValid(); }
     EntityData() = default;
-    //inline bool isValid() { return id != U32_INVALID_ID; }
 };
 
 typedef meMap<EntityRef, EntityData> EntityMap;

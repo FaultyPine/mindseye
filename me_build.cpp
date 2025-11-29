@@ -459,12 +459,16 @@ int main(int argc, char** argv)
 	if (mode == DEBUG)
 	{
 		nob_cmd_append(&testbedCmd,
-					   "-O0", "-DBUILD_DEBUG=1", "-D_USRDLL", "-D_WINDLL", "-D_DLL", "-shared");
+						"-O0", "-DBUILD_DEBUG=1", 
+					   	//"-D_USRDLL", "-D_WINDLL", "-D_DLL", 
+					   	"-shared");
 	}
 	else if (mode == RELEASE)
 	{
 		nob_cmd_append(&testbedCmd,
-						"-O2", "-DBUILD_DEBUG=0", "-D_USRDLL", "-D_WINDLL", "-D_DLL", "-shared");
+						"-O2", "-DBUILD_DEBUG=0", 
+					   	//"-D_USRDLL", "-D_WINDLL", "-D_DLL", 
+					   	"-shared");
 	}
 	NOB_CMD_APPEND_MULTIPLE(testbedCmd, compilerFlagsCommon);
 	// link

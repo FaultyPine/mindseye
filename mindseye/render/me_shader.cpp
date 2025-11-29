@@ -1,13 +1,15 @@
 #include "me_shader.h"
-
+#include "shaders/generated/baddata_fs.sc.h"
+#include "shaders/generated/baddata_vs.sc.h"
 
 void meShaderInitialize(EngineContext* ctx)
 {
 	ctx->shaderSystem = MENEW(&ctx->engineArena, meShaderPool, &ctx->engineArena, &ctx->engineArena);
-	meShader badShader = {};
-	// BOOKMARK: create a "null" shader. Maybe hot pink
+	
+	// create a "null" shader
+	meShader badShader = {}; 
+	badShader.program = ctx->renderer->CreateShaderProgram(baddata_fs, baddata_vs);
 	badShader.uniformHandles = DynArrayCreate<meShaderUniform>(ctx->shaderSystem->resourcePayloadAllocator);
-
 	ctx->shaderSystem->badData = badShader;
 }
 

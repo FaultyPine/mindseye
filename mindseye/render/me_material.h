@@ -1,7 +1,10 @@
 #pragma once
 
-
 #include "core/me_resourcepool.h"
+struct cgltf_material;
+
+
+typedef Eye meMaterialID;
 
 #define ME_MATERIAL_TEXTURE_TYPE_NAMES \
 X(Diffuse) \
@@ -35,6 +38,11 @@ struct meMaterialPool : public meResourcePool<meMaterial>
 		meAllocator* resourceAllocator,
 		meAllocator* payloadAllocator) :
 	meResourcePool<meMaterial>(resourceAllocator, payloadAllocator) {}
+
+	meMaterialID Load(
+		RendererFrontend* renderer,
+		StringView gltfResPath,
+		const cgltf_material& gltfMaterial);
 };
 
 

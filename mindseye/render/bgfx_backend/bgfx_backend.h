@@ -17,7 +17,11 @@ struct BgfxRendererBackend : public RendererFrontend
 	virtual void BeginImguiContext() override;
 	virtual void EndImguiContext() override;
 
+	virtual u64 CreateVertexBuffer(meSpan bufferMem, meMeshVertexLayoutType layout) override;
+	virtual u64 CreateShaderUniform(StringView name, meUniformDataType type) override;
 	virtual u64 CreateShaderProgram(meSpan fsMem, meSpan vsMem) override;
+	virtual void DestroyShaderProgram(u64 programHandle) override;
 	virtual u64 UploadTextureToGPU(meSpan textureMem, u32 channels, u32 width, u32 height) override;
+	virtual void DestroyGPUTexture(u64 textureHandle) override;
 	virtual void LoadSceneRuntime(meScene& scene, meAllocator* allocator) override;
 };

@@ -29,7 +29,10 @@ struct meResourcePool
 	meResourcePool(const meResourcePool& other) = default;
 	meResourcePool(const meResourcePool&& other) = default;
 	bool Empty() const { return resourcePool.empty(); }
-	Eye Create() { return CreateInternal(); }
+	// derived resource pools will overload this Load function with
+	// their own signature. Those derived functions should use CreateInternal
+	// to return & write to the handle
+	Eye Load() { return CreateInternal(); }
 	void Destroy(Eye eye) { DestroyInternal(eye); }
 	ResourceType& Get(Eye eye);
 	const ResourceType& Get(Eye eye) const;
@@ -40,7 +43,7 @@ struct meResourcePool
 	// EX: a 1x1 white texture
 	ResourceType& GetBadData() { return badData; }
 
-protected:
+	// these shouldn't get overridden
 	Eye CreateInternal();
 	void DestroyInternal(Eye eye);
 };

@@ -48,9 +48,11 @@ void main()
 
 	//gl_FragColor.xyz = pow(vec3(0.07, 0.06, 0.08) + color*lc.y + fres*pow(lc.z, 128.0), vec3_splat(1.0/2.2) );
 
-	vec4 diffuseSample = texture2D(texDiffuse, v_texcoord0.xy) * vec4(lc.rgb, 1.0);
-	gl_FragColor.xyz = diffuseSample.rgb;
-	gl_FragColor.xyz = lc.ggg;
+	vec4 diffuseSample = texture2D(texDiffuse, v_texcoord0.xy);
+	// diffuseSample *= vec4(lc.rgb, 1.0);
+	//gl_FragColor.xyz = mix(sepia(diffuseSample.rgb), diffuseSample.rgb, 0.5);
+	//gl_FragColor.xyz = normal;
+	gl_FragColor.xyz = vec3(1.0, 1.0, 1.0);
 
 	gl_FragColor.w = 1.0;
 }

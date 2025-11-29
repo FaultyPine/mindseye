@@ -37,7 +37,7 @@ struct BoundingBox
 {
     BoundingBox() = default;
     BoundingBox(glm::vec3 mn, glm::vec3 mx) {min = mn; max = mx;}
-    static BoundingBox FromCenterHlfExtents(glm::vec3 center, glm::vec3 halfExtents)
+    static BoundingBox FromCenterHalfExtents(glm::vec3 center, glm::vec3 halfExtents)
     {
         return BoundingBox(center - halfExtents, center + halfExtents);
     }
@@ -52,4 +52,5 @@ struct BoundingBox
         glm::vec3 halfExtents = max - center();
         return halfExtents;
     }
+	bool Intersects(const BoundingBox& other) const;
 };
