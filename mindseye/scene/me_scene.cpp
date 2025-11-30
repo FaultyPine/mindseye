@@ -55,13 +55,18 @@ void meSceneManager::ChangeCurrentSceneBlocking(StringView filename)
 	UnloadCurrentScene();
 	meAllocator* sceneAllocator = &GetEngineCtx()->engineSceneAllocator;
 	sceneAllocator->meClear();
-	LoadSceneFromFileBlocking(filename, sceneAllocator, &this->rootScene);
+	LoadSceneFromFileBlocking(filename, sceneAllocator, &this->CurrentScene());
 }
 
 void meSceneManager::CopyToRenderInput(meScene& outScene)
 {
 	// copy the "current"? scene to the given scene for the renderer to use as its readonly copy. This will become complex later...
 	outScene = rootScene;
+}
+
+meScene& meSceneManager::CurrentScene()
+{
+	return GetEngineCtx()->sceneSystem->rootScene;
 }
 
 struct meSceneAssetLoader : public meAssetLoader

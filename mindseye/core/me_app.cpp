@@ -81,7 +81,7 @@ void InitializeEngine(s32 argc, char** argv)
 	meTextureInitialize(engine);
 	meMeshInitialize(engine);
 	meShaderInitialize(engine);
-	Entity::InitializeEntitySystem(&engine->engineArena);
+	Entity::InitializeEntitySystem(&engine->engineSceneAllocator);
 
 	meOSSetCursorState(CAPTURED, *engine->osData);
 
@@ -117,10 +117,10 @@ void InitializeEngine(s32 argc, char** argv)
 			LOG_ERROR("Failed to load game library %.*s", STRING_VAARGS(userAppDllName));
 		}
 
-		if (!engine->sceneSystem->rootScene.IsValid())
+		if (!engine->sceneSystem->CurrentScene().IsValid())
 		{
 			// if no scene already, and user config specifies a default scene, load it
-			engine->sceneSystem->LoadSceneFromFileBlocking(engine->appConfig.defaultSceneName, &engine->engineSceneAllocator, &engine->sceneSystem->rootScene);
+			engine->sceneSystem->LoadSceneFromFileBlocking(engine->appConfig.defaultSceneName, &engine->engineSceneAllocator, &meSceneManager::CurrentScene());
 		}
 	}
 

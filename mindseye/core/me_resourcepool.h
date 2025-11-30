@@ -21,6 +21,8 @@ template <typename ResourceType>
 struct meResourcePool
 {
 	// NOTE: meResourcePool should be assumed to have pointer stability to its resources
+	// There's no hard dependence on that rn, since everything uses handles to reference these, but it's still a nice thing
+	// but other than that, there's no constraints on what data structure is used here. Maybe this should be a map
 	meBlockList<meResourceSlot<ResourceType>> resourcePool;
 	meAllocator* resourcePayloadAllocator = nullptr;
 	ResourceType badData = {};

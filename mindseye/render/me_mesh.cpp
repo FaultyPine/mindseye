@@ -1,6 +1,8 @@
 #include "me_mesh.h"
 #include "external/cgltf.h"
 #include "render/me_material.h"
+#include "core/containers/dynarray.h"
+#include "render/renderer_frontend.h"
 
 void meMeshInitialize(EngineContext* engine)
 {
@@ -17,14 +19,42 @@ meMeshPool& meMeshPoolGet()
 }
 
 
-meMeshID meMeshLoadFromMemory(
+
+meMeshID meMeshPool::Load(
 	meSpan vertBuffer,
 	meSpan idxBuffer,
 	meSpan normBufferOpt,
-	meSpan texcoordBufferOpt)
+	meSpan texcoordBufferOpt,
+	meMaterialID materialIDOpt,
+	StringView nameOpt)
 {
-	ME_ASSERT(false);
-	return {};
+	meMeshPool& meshPool = meMeshPoolGet();
+	RendererFrontend& renderer = RendererGetMain();
+	meMeshID meshHandle = meshPool.CreateInternal();
+	meMesh& outMesh = meshPool.Get(meshHandle);
+	
+	outMesh.vertBuffer.cpuData = vertBuffer;
+	outMesh.vertBuffer.bufferHandle = renderer.CreateVertexBuffer(outMesh.vertBuffer.cpuData, NTH_BIT(meMeshVertexLayoutType_Position));
+	
+	outMesh.idxBuffer.cpuData = idxBuffer;
+	outMesh.idxBuffer.bufferHandle = renderer.CreateVertexBuffer(outMesh.idxBuffer.cpuData, NTH_BIT(meMeshVertexLayoutType_Index));
+	
+	if (normBufferOpt)
+	{
+		outMesh.normBuffer.cpuData = normBufferOpt;
+		outMesh.normBuffer.bufferHandle = renderer.CreateVertexBuffer(outMesh.normBuffer.cpuData, NTH_BIT(meMeshVertexLayoutType_Normal));
+	}
+	
+	if (texcoordBufferOpt)
+	{
+		outMesh.texcoordBuffer.cpuData = texcoordBufferOpt;
+		outMesh.texcoordBuffer.bufferHandle = renderer.CreateVertexBuffer(outMesh.texcoordBuffer.cpuData, NTH_BIT(meMeshVertexLayoutType_TexCoord0));
+	}
+
+	outMesh.materialHandle = materialIDOpt;
+	outMesh.name = nameOpt;
+
+	return meshHandle;
 }
 
 meMeshID meMeshPool::Load(
@@ -120,4 +150,134 @@ meMeshID meMeshPool::Load(
 		}
 	}
 	return meshHandle;
+}
+
+
+meMeshID GenPlaneMesh(u32 resolution) 
+{
+    resolution++; // resolution of 1 should really be 2
+	meMeshPool& meshPool = meMeshPoolGet();
+    DynArray(meFatVertex) planeverts = DynArrayCreate<meFatVertex>(meshPool.GetPayloadAllocator());
+
+    // https://github.com/raysan5/raylib/blob/master/src/rmodels.c#L2171
+    for (u32 z = 0; z < resolution; z++) {
+        // [-length/2, length/2]
+        f32 zPos = ((f32)z/(resolution - 1) - 0.5f);
+        for (u32 x = 0; x < resolution; x++) {
+            // [-width/2, width/2]
+            f32 xPos = ((f32)x/(resolution - 1) - 0.5f);
+            meFatVertex v = {};
+            v.normal = {0,1,0};
+            v.texCoords = {xPos, zPos};
+            v.position = {xPos, 0, zPos};
+            DynArrayPush(planeverts, v);
+        }
+    }
+
+    u32 numFaces = (resolution - 1)*(resolution - 1);
+    DynArray(u32) indices = {};
+    for (u32 face = 0; face < numFaces; face++) {
+        // Retrieve lower left corner from face ind
+        u32 i = face % (resolution - 1) + (face/(resolution - 1)*resolution);
+
+        DynArrayPush(indices, i + resolution);
+        DynArrayPush(indices, i + 1);
+        DynArrayPush(indices, i);
+
+        DynArrayPush(indices, i + resolution);
+        DynArrayPush(indices, i + resolution + 1);
+        DynArrayPush(indices, i + 1);
+    }
+
+	meSpan vertexBufferSpan = meSpan(planeverts, DynArrayGetSize(planeverts) * sizeof(meFatVertex));
+	meSpan indexBufferSpan = meSpan(indices, DynArrayGetSize(indices) * sizeof(u32));
+	meMeshID meshHandle = meshPool.Load(vertexBufferSpan, indexBufferSpan, {}, {}, {}, STRING_LIT("GeneratedPlaneMesh"));
+	return meshHandle;
+}
+
+
+meMeshID GenSphereMesh(u32 resolution)
+{
+	meMeshPool& meshPool = meMeshPoolGet();
+    f32 radius = 1.0f;
+    u32 stackCount = resolution;
+    u32 sectorCount = resolution;
+    DynArray(meFatVertex) vertices = DynArrayCreate<meFatVertex>(meshPool.GetPayloadAllocator(), stackCount * sectorCount);
+    DynArray(u32) indices = DynArrayCreate<u32>(meshPool.GetPayloadAllocator(), stackCount * sectorCount);
+
+    float x, y, z, xy;                              // vertex position
+    float nx, ny, nz, lengthInv = 1.0f / radius;    // vertex normal
+    float s, t;                                     // vertex texCoord
+
+    float sectorStep = 2 * PI / sectorCount;
+    float stackStep = PI / stackCount;
+    float sectorAngle, stackAngle;
+
+    for(u32 i = 0; i <= stackCount; ++i)
+    {
+        stackAngle = PI / 2 - i * stackStep;        // starting from pi/2 to -pi/2
+        xy = radius * cosf(stackAngle);             // r * cos(u)
+        z = radius * sinf(stackAngle);              // r * sin(u)
+
+        // add (sectorCount+1) vertices per stack
+        // first and last vertices have same position and normal, but different tex coords
+        for(u32 j = 0; j <= sectorCount; ++j)
+        {
+            sectorAngle = j * sectorStep;           // starting from 0 to 2pi
+            meFatVertex v = {};
+            // vertex position (x, y, z)
+            x = xy * cosf(sectorAngle);             // r * cos(u) * cos(v)
+            y = xy * sinf(sectorAngle);             // r * cos(u) * sin(v)
+            glm::vec3 vertexPosition = glm::vec3(x,y,z);
+            v.position = vertexPosition;
+
+            // normalized vertex normal (nx, ny, nz)
+            nx = x * lengthInv;
+            ny = y * lengthInv;
+            nz = z * lengthInv;
+            glm::vec3 normal = glm::vec3(nx, ny, nz);
+            v.normal = normal;
+
+            // vertex tex coord (s, t) range between [0, 1]
+            s = (float)j / sectorCount;
+            t = (float)i / stackCount;
+            glm::vec2 texcoord = glm::vec2(s,t);
+            v.texCoords = texcoord;
+
+            DynArrayPush(vertices, v);
+        }
+    }
+
+    u32 k1, k2;
+    for(u32 i = 0; i < stackCount; ++i)
+    {
+        k1 = i * (sectorCount + 1);     // beginning of current stack
+        k2 = k1 + sectorCount + 1;      // beginning of next stack
+
+        for(u32 j = 0; j < sectorCount; ++j, ++k1, ++k2)
+        {
+            // 2 triangles per sector excluding first and last stacks
+            // k1 => k2 => k1+1
+            if(i != 0)
+            {
+                DynArrayPush(indices, k1);
+				DynArrayPush(indices, k2);
+				DynArrayPush(indices, k1 + 1);
+            }
+
+            // k1+1 => k2 => k2+1
+            if(i != (stackCount-1))
+            {
+                DynArrayPush(indices, k1 + 1);
+				DynArrayPush(indices, k2);
+				DynArrayPush(indices, k2 + 1);
+            }
+        }
+    }
+    //vertices.shrink_to_fit();
+    //indices.shrink_to_fit();
+	meSpan vertexSpan = meSpan(vertices, DynArrayGetSize(vertices) * sizeof(*vertices));
+	meSpan indexSpan = meSpan(indices, DynArrayGetSize(indices) * sizeof(*indices));
+    meMeshID result = meshPool.Load(vertexSpan, indexSpan);
+	return result;
 }

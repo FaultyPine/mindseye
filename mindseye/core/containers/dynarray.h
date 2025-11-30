@@ -49,7 +49,7 @@ DynArray __DynArrayCreate(u32 stride, u32 initialCapacity, meAllocator* allocato
 
 // Create an array with an optional initial capacity (number of elements)
 template<typename T>
-T* DynArrayCreate(meAllocator* allocator, u32 initialCapacity = 5)
+T* DynArrayCreate(meAllocator* allocator, u32 initialCapacity = 10)
 {
     return (T*)__DynArrayCreate(sizeof(T), initialCapacity, allocator);
 }

@@ -43,7 +43,11 @@ struct meSceneManager
 	void Tick(EngineContext* ctx);
 	void CopyToRenderInput(meScene& outScene);
 
+	// TODO: store this somewhere better?
+	// maybe scenes should use a resourcepool too?
 	meScene rootScene = {};
+
+	static meScene& CurrentScene();
 };
 
 void meSceneInitialize(EngineContext* ctx);

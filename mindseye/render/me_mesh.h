@@ -4,7 +4,6 @@
 #include "me_gpu.h"
 #include "core/me_resourcepool.h"
 #include "render/me_material.h"
-#include "render/renderer_frontend.h"
 
 struct cgltf_mesh;
 
@@ -36,6 +35,18 @@ struct meMesh
 	bool IsLoaded() const { return vertBuffer.IsValid() && idxBuffer.IsValid(); }
 };
 
+// mostly used for runtime-generated meshes
+// not loaded meshes
+struct meFatVertex
+{
+	glm::vec3 position = glm::vec3(0);
+    glm::vec3 normal = glm::vec3(0);
+    glm::vec3 tangent = glm::vec3(0);
+    glm::vec2 texCoords = glm::vec3(0);
+    glm::vec4 color = glm::vec4(1);
+    u32 objectID = U32_INVALID_ID;
+};
+
 struct meMeshPool : public meResourcePool<meMesh>
 {
 	meMeshPool(
@@ -47,6 +58,14 @@ struct meMeshPool : public meResourcePool<meMesh>
 		RendererFrontend* renderer,
 		StringView gltfResPath,
 		const cgltf_mesh& inMesh);
+
+	meMeshID Load(
+		meSpan vertBuffer,
+		meSpan idxBuffer,
+		meSpan normBufferOpt = {},
+		meSpan texcoordBufferOpt = {},
+		meMaterialID materialIDOpt = {},
+		StringView nameOpt = {});
 };
 
 
@@ -54,10 +73,5 @@ void meMeshInitialize(EngineContext* engine);
 
 meMeshPool& meMeshPoolGet();
 
-// takes cpu-accessible buffers and uploads them to the gpu
-// returns a handle to the loaded mesh
-meMeshID meMeshLoadFromMemory(
-	meSpan vertBuffer,
-	meSpan idxBuffer,
-	meSpan normBufferOpt = {},
-	meSpan texcoordBufferOpt = {});
+MEAPI meMeshID GenSphereMesh(u32 resolution);
+MEAPI meMeshID GenPlaneMesh(u32 resolution);

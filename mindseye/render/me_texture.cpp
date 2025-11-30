@@ -34,7 +34,8 @@ static u32 GetChannelsFromTextureFormat(meTextureFormat format)
 {
 	switch (format)
 	{
-		case meTextureFormat_RGBA8: return 4;
+		case meTextureFormat_RGBA8: 
+			return 4;
 		default: ME_ASSERT(false);
 	}
 	return 0;

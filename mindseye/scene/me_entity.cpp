@@ -34,7 +34,7 @@ void InitializeEntitySystem(Arena* arena)
     GetEngineCtx()->entityRegistry = registryMem;
     // dummy entity with bad id so we can return it on failure from methods like GetEntity
     registryMem->entMap[U32_INVALID_ID] = {};
-    Entity::SetFlag(U32_INVALID_ID, EntityFlags::DISABLED, true);
+    Entity::SetFlag(U32_INVALID_ID, EntityFlags_DISABLED, true);
 }
 
 void SetFlag(EntityData& ent, EntityFlags flag, bool enabled)
@@ -133,53 +133,6 @@ EntityData& GetEntity(const char* name)
     }
     return registry.entMap[U32_INVALID_ID]; // if doesn't exist, return our dummy
 
-}
-
-bool HasRenderable(EntityRef ent)
-{
-    const EntityData& entity = GetEntity(ent);
-    return (bool)entity.mesh;
-}
-
-bool AddRenderable(EntityRef ent, const Eye& mesh)
-{
-    EntityData& entity = GetEntity(ent);
-    // if we already have a model, don't overwrite
-    if (entity.mesh)
-    {
-        return false;
-    }
-    entity.mesh = mesh;
-    return true;
-}
-
-void OverwriteRenderable(EntityRef ent, const Eye& mesh)
-{
-    EntityData& entity = GetEntity(ent);
-    entity.mesh = mesh;
-}
-
-void GetRenderableEntities(EntityRef* dst, u32* numEntities)
-{
-    EntityRegistry& registry = GetRegistry();
-    *numEntities = 0;
-    for (const auto& [ref, ent] : registry.entMap)
-    {
-        if (!IsFlag(ent, EntityFlags::DISABLED) && ent.mesh)
-        {
-            if (dst)
-            {
-                dst[*numEntities] = ref;
-            }
-            (*numEntities)++;
-        }
-    }
-}
-
-void SetTransform(EntityRef ent, const Transform& tf)
-{
-    EntityRegistry& registry = GetRegistry();
-    registry.entMap[ent].transform = tf;
 }
 
 

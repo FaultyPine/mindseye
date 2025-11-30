@@ -6,13 +6,15 @@
 #include "core/me_core.h"
 struct Arena;
 
-enum EntityFlags
+typedef u32 EntityFlags;
+enum EntityFlags_
 {
-    DISABLED = 1,
+    EntityFlags_DISABLED = 1,
+	EntityFlags_HIDDEN,
 
-    NUM_ENTITY_FLAGS,
+    EntityFlags_NUM_ENTITY_FLAGS,
 };
-STATIC_ASSERT(NUM_ENTITY_FLAGS < 32);
+STATIC_ASSERT(EntityFlags_NUM_ENTITY_FLAGS < 32);
 
 typedef u32 EntityRef;
 #define ENTITY_NAME_MAX_LENGTH 50
@@ -30,6 +32,11 @@ struct EntityData
 
 typedef meMap<EntityRef, EntityData> EntityMap;
 
+// at the moment, we keep a registry allocated with the current scene
+// this currently contains all entities at all times
+// This registry isn't meant to be used to know "what entities should I render"
+// or queries like that. For those, there's another structure of entity
+// references in the meScene
 struct EntityRegistry
 {
     EntityMap entMap = {};
@@ -53,13 +60,6 @@ MEAPI void SetFlag(EntityRef ent, EntityFlags flag, bool enabled);
 MEAPI void SetFlag(EntityData& ent, EntityFlags flag, bool enabled);
 MEAPI bool IsFlag(EntityRef ent, EntityFlags flag);
 MEAPI bool IsFlag(const EntityData& ent, EntityFlags flag);
-MEAPI void SetTransform(EntityRef ent, const Transform& tf);
-MEAPI bool HasRenderable(EntityRef ent);
-MEAPI bool AddRenderable(EntityRef ent, const Eye& mesh);
-MEAPI void OverwriteRenderable(EntityRef ent, const Eye& mesh);
-// if dst is nullptr, this returns the *number* of renderable entities
-// if dst is not nullptr, we fill in the buffer
-MEAPI void GetRenderableEntities(EntityRef* dst, u32* numEntities);
 
 } // namespace Entity
 
