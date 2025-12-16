@@ -16,5 +16,7 @@ tools/clang
 *.pdb
 me_build.exe
 *.rdi
+*.rdc
+*.blend1
 
 mindseye/external/vulkan_lib/Lib

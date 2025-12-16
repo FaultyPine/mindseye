@@ -99,11 +99,11 @@ StringView meFsScanOutForFile(StringView fileStr, meAllocator* allocator)
 		builder.Append(beforeFolder);
 		builder.Append(afterFolder);
 		file.InitWithoutOpening(builder);
+		result = builder;
 		if (meOSFileExists(file))
 		{
 			return result;
 		}
-		result = builder;
 		builder.Clear();
 	}
 	return {};

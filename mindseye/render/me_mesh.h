@@ -12,7 +12,8 @@ typedef Eye meMeshID;
 typedef u32 meMeshVertexLayoutType;
 enum meMeshVertexLayoutType_
 {
-	meMeshVertexLayoutType_Index,
+	meMeshVertexLayoutType_Index16,
+	meMeshVertexLayoutType_Index32,
 	meMeshVertexLayoutType_Position,
 	meMeshVertexLayoutType_Normal,
 	meMeshVertexLayoutType_Tangent,
@@ -61,7 +62,7 @@ struct meMeshPool : public meResourcePool<meMesh>
 
 	meMeshID Load(
 		meSpan vertBuffer,
-		meSpan idxBuffer,
+		meSpan idx16Buffer,
 		meSpan normBufferOpt = {},
 		meSpan texcoordBufferOpt = {},
 		meMaterialID materialIDOpt = {},

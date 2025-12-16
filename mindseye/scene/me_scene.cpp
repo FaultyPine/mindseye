@@ -6,6 +6,7 @@
 #include "core/me_scope_exit.h"
 #include "core/me_log.h"
 #include "core/me_serialize.h"
+#include "scene/me_entity.h"
 
 #include "generatedtypes/me_scene.generated.cpp"
 
@@ -43,6 +44,10 @@ void meSceneManager::UnloadCurrentScene()
 	cgltf_free(rootScene.runtime.gltfData);
 	rootScene.runtime.gltfData = nullptr;
 	rootScene = {};
+
+	meAllocator* sceneAllocator = &GetEngineCtx()->engineSceneAllocator;
+	sceneAllocator->meClear();
+	Entity::ReinitializeEntitySystem();
 }
 
 void meSceneManager::ChangeCurrentSceneBlocking(StringView filename)
@@ -53,9 +58,7 @@ void meSceneManager::ChangeCurrentSceneBlocking(StringView filename)
 		return;
 	}
 	UnloadCurrentScene();
-	meAllocator* sceneAllocator = &GetEngineCtx()->engineSceneAllocator;
-	sceneAllocator->meClear();
-	LoadSceneFromFileBlocking(filename, sceneAllocator, &this->CurrentScene());
+	LoadSceneFromFileBlocking(filename, &GetEngineCtx()->engineSceneAllocator, &this->CurrentScene());
 }
 
 void meSceneManager::CopyToRenderInput(meScene& outScene)

@@ -47,6 +47,7 @@ namespace Entity
 {
 
 void InitializeEntitySystem(Arena* arena);
+void DeinitializeEntitySystem();
 
 MEAPI EntityRef CreateEntity(
     const char* name, 

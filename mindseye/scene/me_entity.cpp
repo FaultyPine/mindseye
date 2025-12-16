@@ -37,6 +37,13 @@ void InitializeEntitySystem(Arena* arena)
     Entity::SetFlag(U32_INVALID_ID, EntityFlags_DISABLED, true);
 }
 
+void ReinitializeEntitySystem()
+{
+	EngineContext* ctx = GetEngineCtx();
+    ctx->entityRegistry = nullptr;
+	Entity::InitializeEntitySystem(&ctx->engineSceneAllocator);
+}
+
 void SetFlag(EntityData& ent, EntityFlags flag, bool enabled)
 {
     u32& bitfield = ent.flags;

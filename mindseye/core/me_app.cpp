@@ -44,6 +44,7 @@ void RunEngine(EngineContext* engine)
 		engine->deltaTime = time - engine->lastFrameTime;
 		engine->renderer->BeginImguiContext();
         meOSTick(engine);
+		engine->appInfo.updateFn(engine);
 		engine->sceneSystem->Tick(engine);
 		meEditorDisplayGui(engine);
         RenderInput renderInput = {};
@@ -56,6 +57,18 @@ void RunEngine(EngineContext* engine)
 		engine->lastFrameTime = time;
     }
     engine->renderer->Teardown(engine);
+}
+
+void InitializeEngineSystems(EngineContext* engine)
+{
+	RendererInitialize(engine);
+	meAssetInitialize(engine);
+	meSceneInitialize(engine);
+	meMaterialInitialize(engine);
+	meTextureInitialize(engine);
+	meMeshInitialize(engine);
+	meShaderInitialize(engine);
+	Entity::InitializeEntitySystem(&engine->engineSceneAllocator);
 }
 
 void InitializeEngine(s32 argc, char** argv)
@@ -74,14 +87,7 @@ void InitializeEngine(s32 argc, char** argv)
     meOSCreateWindow(windowCreationParams, engine);
 	meEditorInitialize(engine);
 
-    RendererInitialize(engine);
-    meAssetInitialize(engine);     
-	meSceneInitialize(engine);
-	meMaterialInitialize(engine);
-	meTextureInitialize(engine);
-	meMeshInitialize(engine);
-	meShaderInitialize(engine);
-	Entity::InitializeEntitySystem(&engine->engineSceneAllocator);
+	InitializeEngineSystems(engine);
 
 	meOSSetCursorState(CAPTURED, *engine->osData);
 

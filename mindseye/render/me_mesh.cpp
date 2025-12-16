@@ -22,7 +22,7 @@ meMeshPool& meMeshPoolGet()
 
 meMeshID meMeshPool::Load(
 	meSpan vertBuffer,
-	meSpan idxBuffer,
+	meSpan idx16Buffer,
 	meSpan normBufferOpt,
 	meSpan texcoordBufferOpt,
 	meMaterialID materialIDOpt,
@@ -36,8 +36,8 @@ meMeshID meMeshPool::Load(
 	outMesh.vertBuffer.cpuData = vertBuffer;
 	outMesh.vertBuffer.bufferHandle = renderer.CreateVertexBuffer(outMesh.vertBuffer.cpuData, NTH_BIT(meMeshVertexLayoutType_Position));
 	
-	outMesh.idxBuffer.cpuData = idxBuffer;
-	outMesh.idxBuffer.bufferHandle = renderer.CreateVertexBuffer(outMesh.idxBuffer.cpuData, NTH_BIT(meMeshVertexLayoutType_Index));
+	outMesh.idxBuffer.cpuData = idx16Buffer;
+	outMesh.idxBuffer.bufferHandle = renderer.CreateVertexBuffer(outMesh.idxBuffer.cpuData, NTH_BIT(meMeshVertexLayoutType_Index16));
 	
 	if (normBufferOpt)
 	{
@@ -135,18 +135,46 @@ meMeshID meMeshPool::Load(
 		// indices
 		if (prim.indices)
 		{
-			u64 stride = prim.indices->stride;
-			u64 indicesMemSize = prim.indices->count * stride;
-			Allocation indicesMemory = MEALLOC(meshPayloadAllocator, indicesMemSize);
-			meSpan indicesBumper = indicesMemory;
-			for (u64 idx = 0; idx < prim.indices->count; idx++)
-			{
-				u64 readIdx = cgltf_accessor_read_index(prim.indices, idx);
-				ME_MEMCPY(indicesBumper.data, &readIdx, stride);
-				indicesBumper = indicesBumper.Subspan(stride);
-			}
+			const cgltf_accessor* accessor = prim.indices;
+            u64 stride = accessor->stride;
+            u64 indicesMemSize = accessor->count * stride;
+            Allocation indicesMemory = MEALLOC(meshPayloadAllocator, indicesMemSize);
+            u8* indicesBumper = (u8*)indicesMemory.data;
+            meMeshVertexLayoutType indexLayoutType = meMeshVertexLayoutType_Index16;
+            switch (accessor->component_type)
+            {
+                case cgltf_component_type_r_16u:
+                    indexLayoutType = meMeshVertexLayoutType_Index16;
+                    break;
+                    case cgltf_component_type_r_32u:
+                    indexLayoutType = meMeshVertexLayoutType_Index32;
+                    break;
+                default:
+                    ME_ASSERT(false && "Unsupported index buffer stride");
+                    break;
+            }
+            for (u64 idx = 0; idx < accessor->count; idx++)
+            {
+                u32 readIdx = (u32)cgltf_accessor_read_index(accessor, idx);
+                switch (accessor->component_type)
+                {
+                    case cgltf_component_type_r_8u:
+                        *(u8*)indicesBumper = (u8)readIdx;
+                        break;
+                    case cgltf_component_type_r_16u:
+                        *(u16*)indicesBumper = (u16)readIdx;
+                        break;
+                    case cgltf_component_type_r_32u:
+                        *(u32*)indicesBumper = (u32)readIdx;
+                        break;
+                    default:
+                        // Handle error
+                        break;
+                }
+                indicesBumper += stride;
+            }
 			outMesh.idxBuffer.cpuData = indicesMemory;
-			outMesh.idxBuffer.bufferHandle = renderer->CreateVertexBuffer(outMesh.idxBuffer.cpuData, NTH_BIT(meMeshVertexLayoutType_Index));
+			outMesh.idxBuffer.bufferHandle = renderer->CreateVertexBuffer(outMesh.idxBuffer.cpuData, NTH_BIT(indexLayoutType));
 		}
 	}
 	return meshHandle;

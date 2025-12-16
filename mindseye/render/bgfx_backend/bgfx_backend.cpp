@@ -192,12 +192,12 @@ u64 BgfxRendererBackend::CreateVertexBuffer(
 	meSpan bufferMem, 
 	meMeshVertexLayoutType layout)
 {
-	if (TEST_BIT(layout, meMeshVertexLayoutType_Index))
+	if (TEST_BIT(layout, meMeshVertexLayoutType_Index16) || TEST_BIT(layout, meMeshVertexLayoutType_Index32))
 	{
 		// if Index bit is specified, no other bits may be specified
 		// (Cannot interleave index buffers with other data)
-		ME_ASSERT((layout & (~NTH_BIT(meMeshVertexLayoutType_Index))) == 0);
-		u32 result = bgfx::createIndexBuffer(bgfx::makeRef(bufferMem.data, bufferMem.size)).idx;
+		ME_ASSERT((layout & (~(NTH_BIT(meMeshVertexLayoutType_Index16) | NTH_BIT(meMeshVertexLayoutType_Index32)))) == 0);
+		u32 result = bgfx::createIndexBuffer(bgfx::makeRef(bufferMem.data, bufferMem.size), TEST_BIT(layout, meMeshVertexLayoutType_Index32) ? BGFX_BUFFER_INDEX32 : BGFX_BUFFER_NONE).idx;
 		return result;
 	}
 	bgfx::VertexLayout v_layout; 
