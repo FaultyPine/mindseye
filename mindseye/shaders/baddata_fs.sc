@@ -39,6 +39,6 @@ void main()
 	litCol = toGamma(litCol);
 	vec4 diffuseSample = texture2D(texDiffuse, v_texcoord0.xy);
 
-	gl_FragColor.xyz = mix(litCol, diffuseSample.xyz, 0.5);
+	gl_FragColor.xyz = litCol * diffuseSample.xyz;
 	gl_FragColor.w = 1.0;
 }

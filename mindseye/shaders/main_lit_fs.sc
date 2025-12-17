@@ -50,9 +50,7 @@ void main()
 
 	vec4 diffuseSample = texture2D(texDiffuse, v_texcoord0.xy);
 	// diffuseSample *= vec4(lc.rgb, 1.0);
-	//gl_FragColor.xyz = mix(sepia(diffuseSample.rgb), diffuseSample.rgb, 0.5);
-	//gl_FragColor.xyz = normal;
-	gl_FragColor.xyz = vec3(1.0, 1.0, 1.0);
+	gl_FragColor.xyz = diffuseSample.rgb;
 
 	gl_FragColor.w = 1.0;
 }

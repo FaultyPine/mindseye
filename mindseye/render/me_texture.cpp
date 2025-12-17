@@ -63,7 +63,7 @@ meGPUBuffer meTexturePool::Load(
 	meSpan imageData = {};
 	meGPUBuffer resultGPUBuff = {};
 	BREAKABLE_SCOPE
-		u64 offset = 0;
+	u64 offset = 0;
 	u64 size = 0;
 	if (gltfImage.buffer_view)
 	{
@@ -105,8 +105,10 @@ meGPUBuffer meTexturePool::Load(
 		// take loaded image -> decompress
 		s32 w = 0; s32 h = 0; s32 channels = 0;
 		// TODO: this uses malloc/free, make it use my allocators (texturePayloadAllocator)
+        // specifying STBI_rgb_alpha means even for images without alpha channels, it'll fill in 255
 		u8* pngDecompressed = stbi_load_from_memory((u8*)filebuf.data, filebuf.size, &w, &h, &channels, STBI_rgb_alpha);
-		u64 pngDecompressedSize = w * h * channels;
+		channels = 4; // channels will get set to the # channels in the source image, but i've asked stbi to fill in the alpha regardless to make things simple
+        u64 pngDecompressedSize = w * h * channels;
 		if (pngDecompressed == nullptr)
 		{
 			const char* loadFailure = stbi_failure_reason();
