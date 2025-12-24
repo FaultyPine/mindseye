@@ -1,5 +1,5 @@
 #include "me_editor.h"
-#include "external/imgui/imgui.h"
+#include "external/bgfx/bgfx/3rdparty/dear-imgui/imgui.h"
 #include "external/potable-file-dialogs.h"
 
 void meEditorInitialize(EngineContext* ctx)

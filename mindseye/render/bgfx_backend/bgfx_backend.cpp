@@ -16,7 +16,7 @@
 #include "bgfx/bgfx/include/bgfx/bgfx.h"
 #include "bgfx/bgfx/src/config.h"
 #include "bgfx/bx/include/bx/bx.h"
-#include "external/bgfx/bgfx/examples/common/imgui/bgfx_imgui.cpp"
+#include "external/bgfx/bgfx/examples/common/imgui/imgui.cpp"
 
 // ---- shaders
 #include "shaders/generated/main_lit_fs.sc.h"

@@ -104,7 +104,6 @@ void meBlockList<T, BLOCK_SIZE>::clear()
 
         Block* next = blk->next;
         MEDELETE(allocator, Block, blk);
-		ME_MEMCLEAR(blk, sizeof(Block));
         blk = next;
     }
     head = tail = nullptr;

@@ -17,13 +17,17 @@ set def_file=%dll_file_no_ext%.def
 set lib_file=%dll_file_no_ext%.lib
 set lib_name=%dll_file_no_ext%
 
-dumpbin /exports %dll_file% > %exports_file%
+set root=%~dp0
+:: remove trailing backslash
+set root=%root:~0,-1%
+
+"%root%/dumpbin" /exports %dll_file% > %exports_file%
 
 echo LIBRARY %lib_name% > %def_file%
 echo EXPORTS >> %def_file%
 for /f "skip=19 tokens=1,4" %%A in (%exports_file%) do if NOT "%%B" == "" (echo %%B @%%A >> %def_file%)
 
-lib /def:%def_file% /out:%lib_file% /machine:%machine%
+"%root%/lib" /def:%def_file% /out:%lib_file% /machine:%machine%
 
 REM Clean up temporary intermediate files
 del %exports_file% %def_file% %dll_file_no_ext%.exp

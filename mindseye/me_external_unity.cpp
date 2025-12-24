@@ -1,5 +1,3 @@
-
-
 // third party
 // TODO: pch?
 
@@ -12,6 +10,8 @@
 #undef STB_SPRINTF_IMPLEMENTATION
 
 #define STB_IMAGE_IMPLEMENTATION
+#define STBSP_NO_SIMD
+#define STBI_NO_SIMD
 #define STBIDEF extern "C" MEAPI
 #include "external/stb/stb_image.h"
 #undef STB_IMAGE_IMPLEMENTATION
@@ -25,9 +25,19 @@
 #pragma clang diagnostic ignored "-Wunused-function"
 #define IMGUI_DEFINE_MATH_OPERATORS
 #define IMGUI_API MEAPI
-#include "imgui\imgui.h"
-#include "imgui\imgui.cpp"
-#include "imgui\imgui_draw.cpp"
-#include "imgui\imgui_widgets.cpp"
-#include "imgui\imgui_tables.cpp"
+#define IMGUI_DISABLE_SSE
+
+#define STB_TRUETYPE_IMPLEMENTATION
+#define STB_RECT_PACK_IMPLEMENTATION
+#include "external/stb/stb_rect_pack.h"
+#include "external/stb/stb_truetype.h"
+#include "bgfx/bgfx/3rdparty/dear-imgui/imgui.h"
+#include "bgfx/bgfx/3rdparty/dear-imgui/imgui.cpp"
+#include "bgfx/bgfx/3rdparty/dear-imgui/imgui_draw.cpp"
+#include "bgfx/bgfx/3rdparty/dear-imgui/imgui_widgets.cpp"
+#include "bgfx/bgfx/3rdparty/dear-imgui/imgui_tables.cpp"
+#undef STB_TRUETYPE_IMPLEMENTATION
+#undef STB_RECT_PACK_IMPLEMENTATION
+#undef STBSP_NO_SIMD
+#undef STBI_NO_SIMD
 #pragma clang diagnostic pop

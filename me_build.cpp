@@ -1,4 +1,3 @@
-
 // TODO: put this and the build artifacts for this builder in the tools dir
 
 // cmdline used to build ourself. Should match the invocation in build.bat
@@ -190,13 +189,15 @@ int main(int argc, char** argv)
 	
 	const char* linkerFlagsCommon[] =
 	{ 
-		"-luser32", "-lgdi32", "-fuse-ld=lld-link" 
+		"-luser32", "-lgdi32", "-fuse-ld=lld-link", (mode == DEBUG ? "-lmsvcrtd" : "-lmsvcrt")
 	};
+	
 	const char* compilerFlagsCommon[] =
 	{
 		// general flags
 		nob_temp_sprintf("-I%s", root),
 		"-std=c++20",
+		"-msse", "-msse2", "-msse3",  // Enable SSE intrinsics support
 		"-Wno-deprecated-declarations",
 		"-g", "-gcodeview", "-gno-column-info",
 		"-Wall", "-Wextra", "-Wno-unused-parameter", "-Wno-microsoft-include", "-ferror-limit=500",
@@ -208,7 +209,7 @@ int main(int argc, char** argv)
 		nob_temp_sprintf("-I%s/mindseye/external", root),
 
 		// include libs
-		nob_temp_sprintf("-I%s/mindseye/external/imgui", root),
+		nob_temp_sprintf("-I%s/mindseye/external/bgfx/bgfx/3rdparty/dear-imgui", root),
 		nob_temp_sprintf("-I%s/mindseye/external/bgfx/bgfx/include", root),
 		nob_temp_sprintf("-I%s/mindseye/external/bgfx/bgfx/3rdparty", root),
 		nob_temp_sprintf("-I%s/mindseye/external/bgfx/bx/include", root),
@@ -317,7 +318,7 @@ int main(int argc, char** argv)
 	int numShadersToCompile = fragmentInputsTotal + vertexInputsTotal;
 	BuildableArtifact* shaderArtifacts = (BuildableArtifact*)nob_temp_alloc(sizeof(BuildableArtifact) * numShadersToCompile);
 	
-	const char* shaderCompiler = nob_temp_sprintf("%s/mindseye/external/bgfx/bin/shadercDebug.exe", root);
+	const char* shaderCompiler = nob_temp_sprintf("%s/mindseye/external/bgfx/bin/shadercRelease.exe", root);
 	const char* shaderCommonFlags[] =
 	{
 		"--bin2c", "--platform", "windows", "-p", "spirv16-13", "--varyingdef", nob_temp_sprintf("%s/mindseye/shaders/varying.def.sc", root),
