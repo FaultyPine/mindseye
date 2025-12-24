@@ -730,7 +730,7 @@ int main(int argc, char* argv[])
 	DynArrayPush(reflectorFilePath, exePath.data, exePath.len);
 	if (exePath[exePath.len - 1] != '\\' && exePath[exePath.len - 1] != '/') DynArrayPush(reflectorFilePath, '/');
 	DynArrayPush(reflectorFilePath, (char*)reflectorHeaderFilename, CStringLength(reflectorHeaderFilename));
-	auto idx = clang_createIndex(0, 1);
+	auto idx = clang_createIndex(0, 0);
 	u32 clangOptions = 0
 		| CXTranslationUnit_DetailedPreprocessingRecord
 		| CXTranslationUnit_SkipFunctionBodies

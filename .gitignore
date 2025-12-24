@@ -20,3 +20,4 @@ me_build.exe
 *.blend1
 
 mindseye/external/vulkan_lib/Lib
+mindseye/reflector/libclang.dll

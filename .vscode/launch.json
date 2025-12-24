@@ -16,5 +16,17 @@
             "environment": [],
             "console": "integratedTerminal"
         },
+        {
+            "name": "reflector",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}\\mindseye\\reflector\\me_reflector.exe",
+            "args": ["${workspaceFolder}/build/compile_commands_mindseye.txt", "${workspaceFolder}/mindseye", "${workspaceFolder}/mindseye/generatedtypes"],
+            "stopAtEntry": false,
+            //"preLaunchTask": "build_all",
+            "cwd": "${workspaceFolder}\\mindseye\\reflector",
+            "environment": [],
+            "console": "integratedTerminal"
+        },
     ]
 }

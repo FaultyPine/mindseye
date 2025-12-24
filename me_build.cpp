@@ -2,7 +2,7 @@
 
 // cmdline used to build ourself. Should match the invocation in build.bat
 // for debugging this builder program, add "-g" here
-#define NOB_REBUILD_URSELF(binary_path, source_path) "clang", "-o", binary_path, source_path, "-std=c++20", "-g"
+#define NOB_REBUILD_URSELF(binary_path, source_path) "\"./tools/clang/bin/clang.exe\"", "-o", binary_path, source_path, "-std=c++20", "-g"
 #define NOB_IMPLEMENTATION
 #define NOB_WARN_DEPRECATED
 #include "tools/nob.h"
@@ -15,6 +15,13 @@ enum meBuildMode
 	DEBUG, RELEASE,
 };
 static char* root = nullptr;
+
+enum BuildResult
+{
+	DID_NOT_BUILD,
+	BUILD_FAILED,
+	BUILD_SUCCEEDED,
+};
 
 struct BuildableArtifact
 {
@@ -50,7 +57,7 @@ struct BuildableArtifact
 		addInputsNoCompile(&mebuild, 1);
 	}
 
-	bool build(bool force = false)
+	BuildResult build(bool force = false)
 	{
 		if (force || (output.count && nob_needs_rebuild(output.data, inputs.items, inputs.count) > 0))
 		{
@@ -63,9 +70,9 @@ struct BuildableArtifact
 			{
 				result = nob_cmd_run_opt(&postprocessCmd, options);
 			}
-			return result;
+			return result ? BUILD_SUCCEEDED : BUILD_FAILED;
 		}
-		return false;
+		return DID_NOT_BUILD;
 	}
 };
 
@@ -130,6 +137,7 @@ int main(int argc, char** argv)
 	nob_minimal_log_level = NOB_INFO;
 	char* compilerExe = argv[1];
 	root = argv[2];
+	nob_log(NOB_INFO, "%s", compilerExe);
 	normalizePathSeperators(root);
 	normalizePathSeperators(compilerExe);
 	meBuildMode mode = DEBUG;
@@ -189,7 +197,10 @@ int main(int argc, char** argv)
 	
 	const char* linkerFlagsCommon[] =
 	{ 
-		"-luser32", "-lgdi32", "-fuse-ld=lld-link", (mode == DEBUG ? "-lmsvcrtd" : "-lmsvcrt")
+		"-luser32", "-lgdi32", "-fuse-ld=lld-link", (mode == DEBUG ? "-lmsvcrtd" : "-lmsvcrt"),
+		nob_temp_sprintf("-L%s/build", root),
+		nob_temp_sprintf("-L%s/tools/clang/lib/clang/18/lib/windows", root),
+		"-lclang_rt.builtins-x86_64",
 	};
 	
 	const char* compilerFlagsCommon[] =
@@ -197,7 +208,7 @@ int main(int argc, char** argv)
 		// general flags
 		nob_temp_sprintf("-I%s", root),
 		"-std=c++20",
-		"-msse", "-msse2", "-msse3",  // Enable SSE intrinsics support
+		"-march=native",
 		"-Wno-deprecated-declarations",
 		"-g", "-gcodeview", "-gno-column-info",
 		"-Wall", "-Wextra", "-Wno-unused-parameter", "-Wno-microsoft-include", "-ferror-limit=500",
@@ -225,7 +236,7 @@ int main(int argc, char** argv)
 	nob_cmd_append(&driverCompile, compilerExe);
 	if (mode == DEBUG)
 	{ 
-		nob_cmd_append(&driverCompile, "-O0", "-DBUILD_DEBUG=1");
+		nob_cmd_append(&driverCompile, "-Og", "-DBUILD_DEBUG=1");
 	} 
 	else if (mode == RELEASE)
 	{
@@ -234,8 +245,7 @@ int main(int argc, char** argv)
 	NOB_CMD_APPEND_MULTIPLE(driverCompile, compilerFlagsCommon);
 	// driver linker
 	NOB_CMD_APPEND_MULTIPLE(driverCompile, linkerFlagsCommon);
-	nob_cmd_append(&driverCompile,
-		nob_temp_sprintf("-L%s/build", root), "-lmindseye", "-Wl,/subsystem:windows");
+	nob_cmd_append(&driverCompile, "-lmindseye", "-Wl,/subsystem:windows");
 	// input/output
 	const char* input = nob_temp_sprintf("%s/mindseye/platform/driver.cpp", root);
 	driver.addInputs(&input, 1);
@@ -250,7 +260,7 @@ int main(int argc, char** argv)
 	if (mode == DEBUG)
 	{
 		nob_cmd_append(&externalLibsCmd,
-		"-O0", "-DBUILD_DEBUG=1" ,"-DMEEXPORT", "-DBX_CONFIG_DEBUG=1", "-shared", "-D_DEBUG", "-w");
+		"-Og", "-DBUILD_DEBUG=1" ,"-DMEEXPORT", "-DBX_CONFIG_DEBUG=1", "-shared", "-D_DEBUG", "-w");
 	}
 	else if (mode == RELEASE)
 	{
@@ -262,12 +272,10 @@ int main(int argc, char** argv)
 	NOB_CMD_APPEND_MULTIPLE(externalLibsCmd, linkerFlagsCommon);
 	nob_cmd_append(&externalLibsCmd, nob_temp_sprintf("-L%s/mindseye/external/bgfx/bin", root));
 	nob_cmd_append(&externalLibsCmd, "-lbgfxRelease", "-lbimgRelease", "-lbxRelease");
+	nob_cmd_append(&externalLibsCmd, "-Wl,/IMPLIB:mindseye_ext.lib");
 	const char* externalLibsInputs = nob_temp_sprintf("%s/mindseye/me_external_unity.cpp", root);
 	externalLibs.addInputs(&externalLibsInputs, 1);
 	externalLibs.addOutput("mindseye_ext.dll");
-	// create an import library from our mindseye_ext.dll
-	nob_cmd_append(&externalLibs.postprocessCmd, "cmd", "/c", "call", 
-				   nob_temp_sprintf("%s/tools/dll2lib.bat", root), "64", nob_temp_sprintf("%s/build/mindseye_ext.dll", root));
 	// =====================================================================================
 	
 	// ======================== Mindseye Shaders ==============================================
@@ -390,7 +398,7 @@ int main(int argc, char** argv)
 	if (mode == DEBUG)
 	{
 		nob_cmd_append(&mindseyeCmd, 
-		"-O0", "-DBUILD_DEBUG=1", "-DMEEXPORT", "-D_USRDLL", "-D_WINDLL", "-D_DLL", "-shared", "-DBX_CONFIG_DEBUG=1", "-D_DEBUG");
+		"-Og", "-DBUILD_DEBUG=1", "-DMEEXPORT", "-D_USRDLL", "-D_WINDLL", "-D_DLL", "-shared", "-DBX_CONFIG_DEBUG=1", "-D_DEBUG");
 	}
 	else if (mode == RELEASE)
 	{
@@ -450,6 +458,12 @@ int main(int argc, char** argv)
 				   "mindseye/reflector/me_reflector.exe", compileCommandsFileFullpath, nob_temp_sprintf("%s/mindseye", root), nob_temp_sprintf("%s/mindseye/generatedtypes", root));
 	mindseyeReflectorRun.addInputsNoCompile(mindseyeSourceFiles.items, mindseyeSourceFiles.count);
 	mindseyeReflectorRun.addInputsNoCompile(&mindseyeReflectorInputs, 1);
+
+	// copy tools/clang/bin/libclang.dll to reflector/ with nob_copy_file
+	const char* libclangSource = nob_temp_sprintf("%s/tools/clang/bin/libclang.dll", root);
+	const char* libclangDest = nob_temp_sprintf("%s/mindseye/reflector/libclang.dll", root);
+	nob_copy_file(libclangSource, libclangDest);
+	
 	// =====================================================================================
 
 	// ======================== Testbed ==============================================
@@ -460,7 +474,7 @@ int main(int argc, char** argv)
 	if (mode == DEBUG)
 	{
 		nob_cmd_append(&testbedCmd,
-						"-O0", "-DBUILD_DEBUG=1", 
+						"-Og", "-DBUILD_DEBUG=1", 
 					   	//"-D_USRDLL", "-D_WINDLL", "-D_DLL", 
 					   	"-shared");
 	}
@@ -490,13 +504,18 @@ int main(int argc, char** argv)
 
 	
 	// ======================== Invoke Build ==============================================
+	#define CHECK_BUILD_RESULT(buildResult) \
+		if (buildResult == BUILD_FAILED) \
+		{ \
+			return 1; \
+		}
 	Nob_Procs procs = {};
 	for (int i = 0; i < numShadersToCompile; i++)
 	{
 		BuildableArtifact& shaderArtifact = shaderArtifacts[i];
 		shaderArtifact.options.max_procs = 0; // implies nob_nprocs
 		//shaderArtifact.options.async = &procs;
-		shaderArtifact.build();
+		CHECK_BUILD_RESULT(shaderArtifact.build());
 	}
 	if (!nob_procs_flush(&procs))
 	{
@@ -504,23 +523,24 @@ int main(int argc, char** argv)
 		return 1;
 	}
 
-	bool didRebuildReflector = mindseyeReflectorCompile.build();
-	if (didRebuildReflector)
+	BuildResult reflectorBuildResult = mindseyeReflectorCompile.build();
+	if (reflectorBuildResult == BUILD_SUCCEEDED)
 	{
 		// if we rebuilt the reflector program, we should force a full re-reflect of everything by deleting the output folder
 		nob_delete_dir(nob_temp_sprintf("%s/mindseye/generatedtypes", root));
 	}
-	mindseyeReflectorRun.build(true);
+	CHECK_BUILD_RESULT(mindseyeReflectorRun.build(true));
 
 	nob_set_current_dir("build");
 
 	externalLibs.options.async = &procs;
 	externalLibs.options.max_procs = 0;
-	externalLibs.build(forceBuildLibs);
+	CHECK_BUILD_RESULT(externalLibs.build(forceBuildLibs));
 	
-	bool builtMindseye = mindseyeEngine.build();
-	testbed.build(builtMindseye);
-	driver.build();
+	BuildResult builtMindseye = mindseyeEngine.build();
+	CHECK_BUILD_RESULT(builtMindseye);
+	CHECK_BUILD_RESULT(testbed.build(builtMindseye));
+	CHECK_BUILD_RESULT(driver.build());
 	if (!nob_procs_flush(&procs))
 	{
 		nob_log(NOB_ERROR, "Tragedy struck while waiting for build processes");
