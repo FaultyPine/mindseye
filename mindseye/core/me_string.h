@@ -42,7 +42,9 @@ struct String
 	}
 };
 
-
+// despite allocating through the passed-in allocator in the ctor, we don't free it in dtor
+// I.E. the StringBuilder is not responsible for the memory lifetime of its data
+// it is used to create & build the string, then pass it off to someone else
 struct StringBuilder
 {
 	char* data = nullptr;
@@ -50,6 +52,7 @@ struct StringBuilder
 	u64 capacity = 0;
 	meAllocator* allocator = nullptr;
 
+	StringBuilder() = default;
 	StringBuilder(meAllocator* allocator, u32 initialSize = 1024);
 	~StringBuilder();
 
@@ -70,9 +73,10 @@ struct StringView
 	MEAPI StringView(const char* data, u64 len) { this->data = (char*)data; this->len = len; };
 	MEAPI explicit StringView(const meSpan& span) { this->data = (char*)span.data; this->len = span.size; }
 	MEAPI bool operator == (const StringView& sv) const;
+	MEAPI bool operator != (const StringView& sv) const;
 	explicit operator bool() const
 	{ 
-		return data && len; 
+		return data != nullptr && len > 0;
 	}
 	char& operator[](u64 idx) 
 	{
@@ -136,10 +140,19 @@ MEAPI s32 FindInStringRev(
 	StringOpFlags flags = StringOpFlags(0));
 
 // invert meaning this eats anything except the given char
-MEAPI StringView EatChars(StringView str, char c, bool invert = false);
+MEAPI StringView EatChars(StringView str, StringView chars, bool invert = false);
+StringView inline EatChars(StringView str, char c, bool invert = false)
+{
+	return EatChars(str, StringView(&c, 1), invert);
+}
 // invert meaning this eats anything except the given char
-MEAPI u32 EatCharsOffset(StringView str, char c, bool invert = false);
-MEAPI StringView StringTrim(StringView str);
+MEAPI u32 EatCharsOffset(StringView str, StringView chars, bool invert = false);
+MEAPI inline u32 EatCharsOffset(StringView str, char c, bool invert = false)
+{
+	return EatCharsOffset(str, StringView(&c, 1), invert);
+}
+
+MEAPI StringView StringTrim(StringView str, StringView chars);
 
 // flags = bitfield of StringCompareFlags
 MEAPI bool StringCompare(StringView str1, StringView str2, StringOpFlags flags = StringOpFlags(0));
@@ -175,18 +188,21 @@ MEAPI s32 StringFormatIntoBuf(meSpan backingBuffer, const char *text, ...);
 // same as above, but allocates memory for the formatted string
 MEAPI StringView StringFormatNew(meAllocator* allocator, const char *text, ...);
 
+
+// TODO: parsing functions modify the input StringView to consume the parsed portion
+
 // (decimal only)
-MEAPI s32 StringParseInt32(StringView str);
+MEAPI s32 StringParseInt32(StringView& str);
 // (decimal only)
-MEAPI u32 StringParseUInt32(StringView str);
+MEAPI u32 StringParseUInt32(StringView& str);
 // (decimal only)
-MEAPI s64 StringParseInt64(StringView str);
+MEAPI s64 StringParseInt64(StringView& str);
 // (decimal only)
-MEAPI u64 StringParseUInt64(StringView str);
+MEAPI u64 StringParseUInt64(StringView& str);
 // (supports scientific notation)
-MEAPI float StringParseFloat(StringView str);
+MEAPI float StringParseFloat(StringView& str);
 // (supports scientific notation)
-MEAPI double StringParseDouble(StringView str);
+MEAPI double StringParseDouble(StringView& str);
 
 
 

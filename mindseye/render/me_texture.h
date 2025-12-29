@@ -9,9 +9,10 @@ struct meTexture
 {
 	static constexpr u32 METEXTURE_MAX_NAME_LEN = 50;
 	char name[METEXTURE_MAX_NAME_LEN];
-	meGPUBuffer buffer;
-	u64 sampler;
+	meGPUBuffer buffer = {};
+	u64 sampler = U64_INVALID_ID;
 	// will likely also put tex format, width/height, etc
+	bool IsValid() const { return buffer.IsValid() && sampler != U64_INVALID_ID; }
 };
 
 typedef u32 meTextureFormat;

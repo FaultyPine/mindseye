@@ -6,6 +6,10 @@
 void meMaterialInitialize(EngineContext* ctx)
 {
 	ctx->materialSystem = MENEW(&ctx->engineArena, meMaterialPool, &ctx->engineArena, &ctx->engineArena);
+
+	meMaterial badMaterial = {};
+	StringCopy(StringView(badMaterial.name, meMaterial::MEMATERIAL_MAX_NAME_LEN), STRING_LIT("BadDataMaterial"));
+	ctx->materialSystem->badData = badMaterial;
 }
 
 meMaterialPool& meMaterialGetPool()

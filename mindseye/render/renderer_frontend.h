@@ -32,6 +32,12 @@ struct RendererFrontend
 		const glm::vec3& start,
 		const glm::vec3& end,
 		const glm::vec4& color) {}
+	
+	virtual void Push2DBox(
+		const glm::vec2& start,
+		const glm::vec2& end,
+		const glm::vec4& color) {}
+
 
     virtual void Initialize(EngineContext* engine) {}
     virtual void Teardown(EngineContext* engine) {}

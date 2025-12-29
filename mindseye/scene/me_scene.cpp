@@ -22,14 +22,27 @@ void meSceneManager::Tick(EngineContext* ctx)
 
 void meSceneManager::LoadSceneFromFileBlocking(StringView filename, meAllocator* sceneAllocator, meScene* outScene)
 {
+	if (!outScene->runtime.entities)
+	{
+		outScene->runtime.entities = DynArrayCreate<EntityRef>(sceneAllocator);
+	} 
 	StringView assetPath = meAssetResource(filename);
-	bool success = DeserializeFromIniBlocking(TD_MESCENE, sceneAllocator, assetPath, meSpan(outScene, sizeof(*outScene)));
+	bool success = DeserializeFromIniBlocking(TD_MESCENE, sceneAllocator, assetPath, SPAN_FROM(*outScene));
 	if (success)
 	{
 		if (FindInString(outScene->externalScenePath, STRING_LIT(".gltf")) != -1 ||
 			FindInString(outScene->externalScenePath, STRING_LIT(".glb")) != -1)
 		{
 			meSceneLoadFromGLTF(sceneAllocator, outScene->externalScenePath, *outScene);
+			StringView textScene = SerializeToTextBlocking(TD_MESCENE, outScene, GetTLScratch());
+			LOG_INFO("Loaded scene %.*s from gltf %.*s", STRING_VAARGS(filename), STRING_VAARGS(outScene->externalScenePath));
+			LOG_INFO("Scene data:\n%.*s", STRING_VAARGS(textScene));
+			meScene outTestScene = {};
+			DeserializeFromTextBlocking(TD_MESCENE, sceneAllocator, textScene, SPAN_FROM(outTestScene));
+			StringView textScene2 = SerializeToTextBlocking(TD_MESCENE, &outTestScene, GetTLScratch());
+			LOG_INFO("Re-serialized scene data:\n");
+			LOG_INFO("Loaded scene %.*s from gltf %.*s", STRING_VAARGS(filename), STRING_VAARGS(outTestScene.externalScenePath));
+			LOG_INFO("Scene data:\n%.*s", STRING_VAARGS(textScene2));
 		}
 	}
 }

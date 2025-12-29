@@ -65,8 +65,9 @@ StringView msFsGetDirFromPath(StringView path)
 }
 
 
-StringView meFsScanOutForFile(StringView fileStr, meAllocator* allocator)
+StringView meFsScanOutForFile(StringView fileStr)
 {
+	meAllocator* allocator = GetTLScratch();
 	OSFileReference file;
 	file.InitWithoutOpening(fileStr);
 	if (meOSFileExists(file))

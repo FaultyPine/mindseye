@@ -2,7 +2,15 @@
 
 // cmdline used to build ourself. Should match the invocation in build.bat
 // for debugging this builder program, add "-g" here
-#define NOB_REBUILD_URSELF(binary_path, source_path) "\"./tools/clang/bin/clang.exe\"", "-o", binary_path, source_path, "-std=c++20", "-g"
+
+enum meBuildMode
+{
+	DEBUG, RELEASE,
+};
+static char* root = nullptr;
+static char* g_compilerExe = nullptr;
+
+#define NOB_REBUILD_URSELF(binary_path, source_path) g_compilerExe, "-o", binary_path, source_path, "-std=c++20", "-g"
 #define NOB_IMPLEMENTATION
 #define NOB_WARN_DEPRECATED
 #include "tools/nob.h"
@@ -10,11 +18,6 @@
 #include "mindseye/core/me_defines.h"
 #include <stdio.h>
 
-enum meBuildMode
-{
-	DEBUG, RELEASE,
-};
-static char* root = nullptr;
 
 enum BuildResult
 {
@@ -133,13 +136,13 @@ const char* nob_get_filename_from_path(const char* path)
 
 int main(int argc, char** argv)
 {
-	NOB_GO_REBUILD_URSELF_PLUS(argc, argv, "mindseye/core/me_defines.h", "tools/nob.h");
 	nob_minimal_log_level = NOB_INFO;
-	char* compilerExe = argv[1];
+	g_compilerExe = argv[1];
+	NOB_GO_REBUILD_URSELF_PLUS(argc, argv, "mindseye/core/me_defines.h", "tools/nob.h");
 	root = argv[2];
-	nob_log(NOB_INFO, "%s", compilerExe);
+	nob_log(NOB_INFO, "%s", g_compilerExe);
 	normalizePathSeperators(root);
-	normalizePathSeperators(compilerExe);
+	normalizePathSeperators(g_compilerExe);
 	meBuildMode mode = DEBUG;
 	bool forceBuildLibs = false;
 	for (int i = 1; i < argc; i++)
@@ -233,10 +236,10 @@ int main(int argc, char** argv)
 	BuildableArtifact driver = {};
 	Nob_Cmd& driverCompile = driver.compileCmd;
 	// driver compile
-	nob_cmd_append(&driverCompile, compilerExe);
+	nob_cmd_append(&driverCompile, g_compilerExe);
 	if (mode == DEBUG)
 	{ 
-		nob_cmd_append(&driverCompile, "-Og", "-DBUILD_DEBUG=1");
+		nob_cmd_append(&driverCompile, "-O0", "-DBUILD_DEBUG=1");
 	} 
 	else if (mode == RELEASE)
 	{
@@ -256,11 +259,11 @@ int main(int argc, char** argv)
 	BuildableArtifact externalLibs = {};
 	Nob_Cmd& externalLibsCmd = externalLibs.compileCmd;
 	// compile
-	nob_cmd_append(&externalLibsCmd, compilerExe);
+	nob_cmd_append(&externalLibsCmd, g_compilerExe);
 	if (mode == DEBUG)
 	{
 		nob_cmd_append(&externalLibsCmd,
-		"-Og", "-DBUILD_DEBUG=1" ,"-DMEEXPORT", "-DBX_CONFIG_DEBUG=1", "-shared", "-D_DEBUG", "-w");
+		"-O0", "-DBUILD_DEBUG=1" ,"-DMEEXPORT", "-DBX_CONFIG_DEBUG=1", "-shared", "-D_DEBUG", "-w");
 	}
 	else if (mode == RELEASE)
 	{
@@ -394,11 +397,11 @@ int main(int argc, char** argv)
 	BuildableArtifact mindseyeEngine = {};
 	Nob_Cmd& mindseyeCmd = mindseyeEngine.compileCmd;
 	// compile
-	nob_cmd_append(&mindseyeCmd, compilerExe);
+	nob_cmd_append(&mindseyeCmd, g_compilerExe);
 	if (mode == DEBUG)
 	{
 		nob_cmd_append(&mindseyeCmd, 
-		"-Og", "-DBUILD_DEBUG=1", "-DMEEXPORT", "-D_USRDLL", "-D_WINDLL", "-D_DLL", "-shared", "-DBX_CONFIG_DEBUG=1", "-D_DEBUG");
+		"-O0", "-DBUILD_DEBUG=1", "-DMEEXPORT", "-D_USRDLL", "-D_WINDLL", "-D_DLL", "-shared", "-DBX_CONFIG_DEBUG=1", "-D_DEBUG");
 	}
 	else if (mode == RELEASE)
 	{
@@ -428,7 +431,7 @@ int main(int argc, char** argv)
 	// ======================== Mindseye Reflector==============================================
 	BuildableArtifact mindseyeReflectorCompile = {};
 	Nob_Cmd& mindseyeReflectorCompileCmd = mindseyeReflectorCompile.compileCmd;
-	nob_cmd_append(&mindseyeReflectorCompileCmd, compilerExe);
+	nob_cmd_append(&mindseyeReflectorCompileCmd, g_compilerExe);
 	nob_cmd_append(&mindseyeReflectorCompileCmd,
 				   nob_temp_sprintf("-I%s/mindseye", root), "-DMEEXPORT", "-DBUILD_DEBUG=1");
 	nob_cmd_append(&mindseyeReflectorCompileCmd,
@@ -462,19 +465,29 @@ int main(int argc, char** argv)
 	// copy tools/clang/bin/libclang.dll to reflector/ with nob_copy_file
 	const char* libclangSource = nob_temp_sprintf("%s/tools/clang/bin/libclang.dll", root);
 	const char* libclangDest = nob_temp_sprintf("%s/mindseye/reflector/libclang.dll", root);
-	nob_copy_file(libclangSource, libclangDest);
+	if (!nob_file_exists(libclangDest))
+	{
+		nob_copy_file(libclangSource, libclangDest);
+	}
+	// copy ktx.dll to build folder
+	const char* ktxDllSource = nob_temp_sprintf("%s/mindseye/external/ktx/bin/ktx.dll", root);
+	const char* ktxDllDest = nob_temp_sprintf("%s/build/ktx.dll", root);
+	if (!nob_file_exists(ktxDllDest))
+	{
+		nob_copy_file(ktxDllSource, ktxDllDest);
+	}
 	
 	// =====================================================================================
 
 	// ======================== Testbed ==============================================
-	BuildableArtifact testbed = {};
-	Nob_Cmd& testbedCmd = testbed.compileCmd;
+	BuildableArtifact app_artifact = {};
+	Nob_Cmd& testbedCmd = app_artifact.compileCmd;
 	// compile
-	nob_cmd_append(&testbedCmd, compilerExe);
+	nob_cmd_append(&testbedCmd, g_compilerExe);
 	if (mode == DEBUG)
 	{
 		nob_cmd_append(&testbedCmd,
-						"-Og", "-DBUILD_DEBUG=1", 
+						"-O0", "-DBUILD_DEBUG=1", 
 					   	//"-D_USRDLL", "-D_WINDLL", "-D_DLL", 
 					   	"-shared");
 	}
@@ -497,9 +510,9 @@ int main(int argc, char** argv)
 		nob_cmd_run(&submoduleUpdateCmd);
 	}
 	const char* testbedInputs = nob_temp_sprintf("%s/projects/testbed/testbed.cpp", root);
-	testbed.addInputs(&testbedInputs, 1);
-	testbed.addInputsNoCompile(mindseyeSourceFiles.items, mindseyeSourceFiles.count);
-	testbed.addOutput("testbed.dll");
+	app_artifact.addInputs(&testbedInputs, 1);
+	app_artifact.addInputsNoCompile(mindseyeSourceFiles.items, mindseyeSourceFiles.count);
+	app_artifact.addOutput("testbed.dll");
 	// =====================================================================================
 
 	
@@ -539,7 +552,7 @@ int main(int argc, char** argv)
 	
 	BuildResult builtMindseye = mindseyeEngine.build();
 	CHECK_BUILD_RESULT(builtMindseye);
-	CHECK_BUILD_RESULT(testbed.build(builtMindseye));
+	CHECK_BUILD_RESULT(app_artifact.build(builtMindseye));
 	CHECK_BUILD_RESULT(driver.build());
 	if (!nob_procs_flush(&procs))
 	{

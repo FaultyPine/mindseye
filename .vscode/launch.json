@@ -28,5 +28,17 @@
             "environment": [],
             "console": "integratedTerminal"
         },
+        {
+            "name": "builder",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}\\me_build.exe",
+            "args": ["${workspaceFolder}\\tools\\clang\\bin\\clang.exe", "${workspaceFolder}"],
+            "stopAtEntry": true,
+            //"preLaunchTask": "build_all",
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "console": "integratedTerminal"
+        },
     ]
 }

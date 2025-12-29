@@ -9,6 +9,11 @@ struct BgfxRendererBackend : public RendererFrontend
 		const glm::vec3& end,
 		const glm::vec4& color) override;
 
+	virtual void Push2DBox(
+		const glm::vec2& start,
+		const glm::vec2& end,
+		const glm::vec4& color) override;
+
     void Initialize(EngineContext* engine) override;
     void Teardown(EngineContext* engine) override;
     void* RenderScene(RenderInput* scene) override;

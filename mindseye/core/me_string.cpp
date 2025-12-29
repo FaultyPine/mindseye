@@ -26,6 +26,11 @@ bool StringView::operator==(const StringView& sv) const
     return sv.len == this->len && ME_MEMCMP(this->data, sv.data, sv.len) == 0;
 }
 
+bool StringView::operator != (const StringView& sv) const
+{
+    return !operator==(sv);    
+}
+
 bool String::operator==(const String& s) const
 {
 	return operator==((StringView)s);
@@ -291,19 +296,25 @@ s32 FindInStringRev(
 	return -1;
 }
 
-
-StringView EatChars(StringView str, char c, bool invert)
+// TODO: "invert" is a confusing name here, maybe something like skipCharsInSet?
+StringView EatChars(StringView str, StringView chars, bool invert)
 {
-	u32 offset = EatCharsOffset(str, c, invert);
+    u32 offset = EatCharsOffset(str, chars, invert);
 	StringView result = str.OffsetView(offset);
 	return result;
 }
 
-u32 EatCharsOffset(StringView str, char c, bool invert)
+u32 EatCharsOffset(StringView str, StringView chars, bool invert)
 {
 	u32 result = 0;
-	while (str && (invert ? str.data[0] != c : str.data[0] == c))
+	while (bool(str))
 	{
+        StringView thisChar = StringView(&str.data[0], 1);
+        bool matched = (invert ? FindInString(chars, thisChar) == -1 : FindInString(chars, thisChar) != -1);
+        if (!matched)
+        {
+            break;
+        }
 		str = str.OffsetView(1);
 		result++;
 	}
@@ -501,7 +512,6 @@ StringBuilder::StringBuilder(meAllocator* allocator, u32 initialSize)
 
 StringBuilder::~StringBuilder()
 {
-	MEFREE(allocator, data);
 	len = 0;
 	data = 0;
 }
@@ -523,10 +533,8 @@ void StringBuilder::Append(StringView str)
 	ME_ASSERT(allocator);
 	StringBuilderCheckGrow(*this, str);
 	ME_MEMCPY(data + len, str.data, str.len);
-	data[len + str.len] = '\0';
 	len += str.len;
 }
-
 
 #ifndef MAX_TEXTFORMAT_BUFFERS
 #define MAX_TEXTFORMAT_BUFFERS      12        // Maximum number of static buffers for text formatting
@@ -546,7 +554,7 @@ const char* InternalStringFormat(const char *text, va_list* args, s32& numBytesW
 
     numBytesWritten = stbsp_vsnprintf(currentBuffer, MAX_TEXT_BUFFER_LENGTH, text, *args);
 	ME_ASSERT((numBytesWritten + 1) < MAX_TEXT_BUFFER_LENGTH);
-	currentBuffer[numBytesWritten] = '\0'; // ensure c-string
+	currentBuffer[numBytesWritten] = '\0';
 
     index += 1;     // Move to next buffer for next function call
     if (index >= MAX_TEXTFORMAT_BUFFERS) index = 0;
@@ -597,17 +605,16 @@ s32 StringFormatIntoBuf(meSpan backingBuffer, const char *text, ...)
 StringView StringFormatNew(meAllocator* allocator, const char *text, ...)
 {
 	char backing[MAX_TEXT_BUFFER_LENGTH];
-	ME_MEMCLEAR(backing, MAX_TEXT_BUFFER_LENGTH);
 
     va_list args;
     va_start(args, text);
-    stbsp_vsnprintf(backing, MAX_TEXT_BUFFER_LENGTH, text, args);
+    s32 len = stbsp_vsnprintf(backing, MAX_TEXT_BUFFER_LENGTH, text, args);
+    ME_ASSERT(len > 0);
     va_end(args);
-
-	u64 len = CStringLength(backing);
+    backing[len] = '\0';
 	const char* result = MEALLOC(allocator, len + 1);
 	ME_MEMCPY((void*)result, backing, len + 1);
-	return {result, len};
+	return {result, (u64)len};
 }
 
 
@@ -628,197 +635,164 @@ inline bool IsDigit(char c)
 }
 
 
-s32 StringParseInt32(StringView str)
+s32 StringParseInt32(StringView& str)
 {
     if (!str.data || str.len == 0) return 0;
     
-    // Skip leading whitespace using EatChars with invert=true (eat non-whitespace)
-    // Actually, we want to skip whitespace, so we need a different approach
-    StringView trimmed = str;
-    u32 offset = 0;
-    while (offset < trimmed.len && IsWhitespace(trimmed.data[offset]))
-    {
-        offset++;
-    }
-    trimmed = trimmed.OffsetView(offset);
+    str = EatChars(str, STRING_LIT(" "));
     
-    if (trimmed.len == 0) return 0;
+    if (str.len == 0) return 0;
     
     // Check for sign
     bool negative = false;
-    if (trimmed.data[0] == '-')
+    if (str.data[0] == '-')
     {
         negative = true;
-        trimmed = trimmed.OffsetView(1);
+        str = str.OffsetView(1);
     }
-    else if (trimmed.data[0] == '+')
+    else if (str.data[0] == '+')
     {
-        trimmed = trimmed.OffsetView(1);
+        str = str.OffsetView(1);
     }
     
-    if (trimmed.len == 0) return 0;
+    if (str.len == 0) return 0;
     
     s32 result = 0;
     
-    // Parse decimal
-    for (u64 i = 0; i < trimmed.len && IsDigit(trimmed.data[i]); i++)
+    u64 i = 0;
+    for (;i < str.len && IsDigit(str.data[i]); i++)
     {
-        result = result * 10 + (trimmed.data[i] - '0');
+        result = result * 10 + (str.data[i] - '0');
     }
-    
+    str = str.OffsetView(i);
     return negative ? -result : result;
 }
 
-u32 StringParseUInt32(StringView str)
+u32 StringParseUInt32(StringView& str)
 {
     if (!str.data || str.len == 0) return 0;
     
-    // Skip leading whitespace
-    StringView trimmed = str;
-    u32 offset = 0;
-    while (offset < trimmed.len && IsWhitespace(trimmed.data[offset]))
-    {
-        offset++;
-    }
-    trimmed = trimmed.OffsetView(offset);
+    str = EatChars(str, STRING_LIT(" "));
     
-    if (trimmed.len == 0) return 0;
+    if (str.len == 0) return 0;
     
     // Skip optional '+' sign
-    if (trimmed.data[0] == '+')
+    if (str.data[0] == '+')
     {
-        trimmed = trimmed.OffsetView(1);
+        str = str.OffsetView(1);
     }
     
-    if (trimmed.len == 0) return 0;
+    if (str.len == 0) return 0;
     
     u32 result = 0;
     
-    // Parse decimal
-    for (u64 i = 0; i < trimmed.len && IsDigit(trimmed.data[i]); i++)
+    u64 i = 0;
+    for (; i < str.len && IsDigit(str.data[i]); i++)
     {
-        result = result * 10 + (trimmed.data[i] - '0');
+        result = result * 10 + (str.data[i] - '0');
     }
+    str = str.OffsetView(i);
     
     return result;
 }
 
-s64 StringParseInt64(StringView str)
+s64 StringParseInt64(StringView& str)
 {
     if (!str.data || str.len == 0) return 0;
     
-    // Skip leading whitespace
-    StringView trimmed = str;
-    u32 offset = 0;
-    while (offset < trimmed.len && IsWhitespace(trimmed.data[offset]))
-    {
-        offset++;
-    }
-    trimmed = trimmed.OffsetView(offset);
+    str = EatChars(str, STRING_LIT(" "));
     
-    if (trimmed.len == 0) return 0;
+    if (str.len == 0) return 0;
     
     // Check for sign
     bool negative = false;
-    if (trimmed.data[0] == '-')
+    if (str.data[0] == '-')
     {
         negative = true;
-        trimmed = trimmed.OffsetView(1);
+        str = str.OffsetView(1);
     }
-    else if (trimmed.data[0] == '+')
+    else if (str.data[0] == '+')
     {
-        trimmed = trimmed.OffsetView(1);
+        str = str.OffsetView(1);
     }
     
-    if (trimmed.len == 0) return 0;
+    if (str.len == 0) return 0;
     
     s64 result = 0;
     
-    // Parse decimal
-    for (u64 i = 0; i < trimmed.len && IsDigit(trimmed.data[i]); i++)
+    u64 i = 0;
+    for (; i < str.len && IsDigit(str.data[i]); i++)
     {
-        result = result * 10 + (trimmed.data[i] - '0');
+        result = result * 10 + (str.data[i] - '0');
     }
+    str = str.OffsetView(i);
     
     return negative ? -result : result;
 }
 
-u64 StringParseUInt64(StringView str)
+u64 StringParseUInt64(StringView& str)
 {
     if (!str.data || str.len == 0) return 0;
     
-    // Skip leading whitespace
-    StringView trimmed = str;
-    u32 offset = 0;
-    while (offset < trimmed.len && IsWhitespace(trimmed.data[offset]))
-    {
-        offset++;
-    }
-    trimmed = trimmed.OffsetView(offset);
+    str = EatChars(str, STRING_LIT(" "));
     
-    if (trimmed.len == 0) return 0;
+    if (str.len == 0) return 0;
     
     // Skip optional '+' sign
-    if (trimmed.data[0] == '+')
+    if (str.data[0] == '+')
     {
-        trimmed = trimmed.OffsetView(1);
+        str = str.OffsetView(1);
     }
     
-    if (trimmed.len == 0) return 0;
+    if (str.len == 0) return 0;
     
     u64 result = 0;
     
-    // Parse decimal
-    for (u64 i = 0; i < trimmed.len && IsDigit(trimmed.data[i]); i++)
+    u64 i = 0;
+    for (; i < str.len && IsDigit(str.data[i]); i++)
     {
-        result = result * 10 + (trimmed.data[i] - '0');
+        result = result * 10 + (str.data[i] - '0');
     }
+    str = str.OffsetView(i);
     
     return result;
 }
 
-float StringParseFloat(StringView str)
+float StringParseFloat(StringView& str)
 {
     if (!str.data || str.len == 0) return 0.0f;
     
-    // Skip leading whitespace
-    StringView trimmed = str;
-    u32 offset = 0;
-    while (offset < trimmed.len && IsWhitespace(trimmed.data[offset]))
-    {
-        offset++;
-    }
-    trimmed = trimmed.OffsetView(offset);
+    str = EatChars(str, STRING_LIT(" "));
     
-    if (trimmed.len == 0) return 0.0f;
+    if (str.len == 0) return 0.0f;
     
     // Check for sign
     bool negative = false;
-    if (trimmed.data[0] == '-')
+    if (str.data[0] == '-')
     {
         negative = true;
-        trimmed = trimmed.OffsetView(1);
+        str = str.OffsetView(1);
     }
-    else if (trimmed.data[0] == '+')
+    else if (str.data[0] == '+')
     {
-        trimmed = trimmed.OffsetView(1);
+        str = str.OffsetView(1);
     }
     
-    if (trimmed.len == 0) return 0.0f;
+    if (str.len == 0) return 0.0f;
     
     // Check for special values
-    if (trimmed.len >= 3)
+    if (str.len >= 3)
     {
-        if ((trimmed.data[0] == 'i' || trimmed.data[0] == 'I') &&
-            (trimmed.data[1] == 'n' || trimmed.data[1] == 'N') &&
-            (trimmed.data[2] == 'f' || trimmed.data[2] == 'F'))
+        if ((str.data[0] == 'i' || str.data[0] == 'I') &&
+            (str.data[1] == 'n' || str.data[1] == 'N') &&
+            (str.data[2] == 'f' || str.data[2] == 'F'))
         {
             return negative ? -INFINITY : INFINITY;
         }
         
-        if ((trimmed.data[0] == 'n' || trimmed.data[0] == 'N') &&
-            (trimmed.data[1] == 'a' || trimmed.data[1] == 'A') &&
-            (trimmed.data[2] == 'n' || trimmed.data[2] == 'N'))
+        if ((str.data[0] == 'n' || str.data[0] == 'N') &&
+            (str.data[1] == 'a' || str.data[1] == 'A') &&
+            (str.data[2] == 'n' || str.data[2] == 'N'))
         {
             return NAN;
         }
@@ -829,46 +803,46 @@ float StringParseFloat(StringView str)
     u64 i = 0;
     
     // Parse integer part
-    while (i < trimmed.len && IsDigit(trimmed.data[i]))
+    while (i < str.len && IsDigit(str.data[i]))
     {
-        result = result * 10.0f + (float)(trimmed.data[i] - '0');
+        result = result * 10.0f + (float)(str.data[i] - '0');
         i++;
     }
     
     // Parse fractional part
-    if (i < trimmed.len && trimmed.data[i] == '.')
+    if (i < str.len && str.data[i] == '.')
     {
         i++;
         float divisor = 10.0f;
         
-        while (i < trimmed.len && IsDigit(trimmed.data[i]))
+        while (i < str.len && IsDigit(str.data[i]))
         {
-            result += (float)(trimmed.data[i] - '0') / divisor;
+            result += (float)(str.data[i] - '0') / divisor;
             divisor *= 10.0f;
             i++;
         }
     }
     
     // Parse exponent
-    if (i < trimmed.len && (trimmed.data[i] == 'e' || trimmed.data[i] == 'E'))
+    if (i < str.len && (str.data[i] == 'e' || str.data[i] == 'E'))
     {
         i++;
         
         bool expNegative = false;
-        if (i < trimmed.len && trimmed.data[i] == '-')
+        if (i < str.len && str.data[i] == '-')
         {
             expNegative = true;
             i++;
         }
-        else if (i < trimmed.len && trimmed.data[i] == '+')
+        else if (i < str.len && str.data[i] == '+')
         {
             i++;
         }
         
         s32 exponent = 0;
-        while (i < trimmed.len && IsDigit(trimmed.data[i]))
+        while (i < str.len && IsDigit(str.data[i]))
         {
-            exponent = exponent * 10 + (trimmed.data[i] - '0');
+            exponent = exponent * 10 + (str.data[i] - '0');
             i++;
         }
         
@@ -893,53 +867,47 @@ float StringParseFloat(StringView str)
         
         result *= multiplier;
     }
+    str = str.OffsetView(i);
     
     return negative ? -result : result;
 }
 
 
-double StringParseDouble(StringView str)
+double StringParseDouble(StringView& str)
 {
     if (!str.data || str.len == 0) return 0.0;
     
-    // Skip leading whitespace
-    StringView trimmed = str;
-    u32 offset = 0;
-    while (offset < trimmed.len && IsWhitespace(trimmed.data[offset]))
-    {
-        offset++;
-    }
-    trimmed = trimmed.OffsetView(offset);
+    str = EatChars(str, STRING_LIT(" "));
     
-    if (trimmed.len == 0) return 0.0;
+    if (str.len == 0) return 0.0;
     
     // Check for sign
     bool negative = false;
-    if (trimmed.data[0] == '-')
+    if (str.data[0] == '-')
     {
         negative = true;
-        trimmed = trimmed.OffsetView(1);
+        str = str.OffsetView(1);
     }
-    else if (trimmed.data[0] == '+')
+    else if (str.data[0] == '+')
     {
-        trimmed = trimmed.OffsetView(1);
+        str = str.OffsetView(1);
     }
     
-    if (trimmed.len == 0) return 0.0;
+    if (str.len == 0) return 0.0;
     
     // Check for special values
-    if (trimmed.len >= 3)
+    if (str.len >= 3)
     {
-        if ((trimmed.data[0] == 'i' || trimmed.data[0] == 'I') &&
-            (trimmed.data[1] == 'n' || trimmed.data[1] == 'N') &&
-            (trimmed.data[2] == 'f' || trimmed.data[2] == 'F'))
+        if ((str.data[0] == 'i' || str.data[0] == 'I') &&
+            (str.data[1] == 'n' || str.data[1] == 'N') &&
+            (str.data[2] == 'f' || str.data[2] == 'F'))
         {
             return negative ? -INFINITY : INFINITY;
         }
         
-        if ((trimmed.data[0] == 'n' || trimmed.data[0] == 'N') &&
-            (trimmed.data[1] == 'a' || trimmed.data[1] == 'A') &&
-            (trimmed.data[2] == 'n' || trimmed.data[2] == 'N'))
+        if ((str.data[0] == 'n' || str.data[0] == 'N') &&
+            (str.data[1] == 'a' || str.data[1] == 'A') &&
+            (str.data[2] == 'n' || str.data[2] == 'N'))
         {
             return NAN;
         }
@@ -950,22 +918,22 @@ double StringParseDouble(StringView str)
     u64 i = 0;
     
     // Parse integer part
-    while (i < trimmed.len && IsDigit(trimmed.data[i]))
+    while (i < str.len && IsDigit(str.data[i]))
     {
-        result = result * 10.0 + (trimmed.data[i] - '0');
+        result = result * 10.0 + (str.data[i] - '0');
         i++;
     }
     
     // Parse fractional part
-    if (i < trimmed.len && trimmed.data[i] == '.')
+    if (i < str.len && str.data[i] == '.')
     {
         i++;
         double fraction = 0.0;
         double divisor = 10.0;
         
-        while (i < trimmed.len && IsDigit(trimmed.data[i]))
+        while (i < str.len && IsDigit(str.data[i]))
         {
-            fraction += (trimmed.data[i] - '0') / divisor;
+            fraction += (str.data[i] - '0') / divisor;
             divisor *= 10.0;
             i++;
         }
@@ -974,25 +942,25 @@ double StringParseDouble(StringView str)
     }
     
     // Parse exponent
-    if (i < trimmed.len && (trimmed.data[i] == 'e' || trimmed.data[i] == 'E'))
+    if (i < str.len && (str.data[i] == 'e' || str.data[i] == 'E'))
     {
         i++;
         
         bool expNegative = false;
-        if (i < trimmed.len && trimmed.data[i] == '-')
+        if (i < str.len && str.data[i] == '-')
         {
             expNegative = true;
             i++;
         }
-        else if (i < trimmed.len && trimmed.data[i] == '+')
+        else if (i < str.len && str.data[i] == '+')
         {
             i++;
         }
         
         s32 exponent = 0;
-        while (i < trimmed.len && IsDigit(trimmed.data[i]))
+        while (i < str.len && IsDigit(str.data[i]))
         {
-            exponent = exponent * 10 + (trimmed.data[i] - '0');
+            exponent = exponent * 10 + (str.data[i] - '0');
             i++;
         }
         
@@ -1017,7 +985,8 @@ double StringParseDouble(StringView str)
         
         result *= multiplier;
     }
-    
+    str = str.OffsetView(i);
+
     return negative ? -result : result;
 }
 

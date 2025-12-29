@@ -20,7 +20,7 @@ typedef u32 EntityRef;
 #define ENTITY_NAME_MAX_LENGTH 50
 struct EntityData
 {
-    Transform transform = {};
+    meTransform transform = {};
     Eye mesh = {};
 	// gameplay-focused bounds. Rendering bounds including anims may be different (stored on mesh)
     BoundingBox authoritativeBounds = {}; 
@@ -51,7 +51,7 @@ void DeinitializeEntitySystem();
 
 MEAPI EntityRef CreateEntity(
     const char* name, 
-    const Transform& tf = {}, 
+    const meTransform& tf = {}, 
     u32 flags = 0);
 MEAPI bool DestroyEntity(EntityRef ent);
 MEAPI EntityData& GetEntity(EntityRef ent);

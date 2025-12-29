@@ -73,7 +73,7 @@ meMeshID meMeshPool::Load(
 	for (u64 meshPrimIdx = 0; meshPrimIdx < inMesh.primitives_count; meshPrimIdx++)
 	{
 		const cgltf_primitive& prim = inMesh.primitives[meshPrimIdx];
-		outMesh.materialHandle = materialPool.Load(renderer, gltfResPath, prim.material ? *prim.material : GenerateDummyMaterial());
+		outMesh.materialHandle = materialPool.Load(renderer, gltfResPath, prim.material ? *prim.material : GenerateDummyGLTFMaterial());
 		// attribs like position, texcoords, normals
 		for (u64 attributeIdx = 0; attributeIdx < prim.attributes_count; attributeIdx++)
 		{
@@ -181,29 +181,28 @@ meMeshID meMeshPool::Load(
 }
 
 
-meMeshID GenPlaneMesh(u32 resolution) 
+meMeshID GenPlaneMesh(
+    u32 resolution,
+    meMaterialID materialID) 
 {
     resolution++; // resolution of 1 should really be 2
 	meMeshPool& meshPool = meMeshPoolGet();
-    DynArray(meFatVertex) planeverts = DynArrayCreate<meFatVertex>(meshPool.GetPayloadAllocator());
+    DynArray(glm::vec3) planeverts = DynArrayCreate<glm::vec3>(meshPool.GetPayloadAllocator());
 
     // https://github.com/raysan5/raylib/blob/master/src/rmodels.c#L2171
     for (u32 z = 0; z < resolution; z++) {
         // [-length/2, length/2]
-        f32 zPos = ((f32)z/(resolution - 1) - 0.5f);
+        f32 yPos = ((f32)z/(resolution - 1) - 0.5f);
         for (u32 x = 0; x < resolution; x++) {
             // [-width/2, width/2]
             f32 xPos = ((f32)x/(resolution - 1) - 0.5f);
-            meFatVertex v = {};
-            v.normal = {0,1,0};
-            v.texCoords = {xPos, zPos};
-            v.position = {xPos, 0, zPos};
+            glm::vec3 v = glm::vec3(xPos, yPos, 0.0f);
             DynArrayPush(planeverts, v);
         }
     }
 
     u32 numFaces = (resolution - 1)*(resolution - 1);
-    DynArray(u32) indices = {};
+    DynArray(u32) indices = DynArrayCreate<u32>(meshPool.GetPayloadAllocator());;
     for (u32 face = 0; face < numFaces; face++) {
         // Retrieve lower left corner from face ind
         u32 i = face % (resolution - 1) + (face/(resolution - 1)*resolution);
@@ -217,14 +216,16 @@ meMeshID GenPlaneMesh(u32 resolution)
         DynArrayPush(indices, i + 1);
     }
 
-	meSpan vertexBufferSpan = meSpan(planeverts, DynArrayGetSize(planeverts) * sizeof(meFatVertex));
+	meSpan vertexBufferSpan = meSpan(planeverts, DynArrayGetSize(planeverts) * sizeof(glm::vec3));
 	meSpan indexBufferSpan = meSpan(indices, DynArrayGetSize(indices) * sizeof(u32));
-	meMeshID meshHandle = meshPool.Load(vertexBufferSpan, indexBufferSpan, {}, {}, {}, STRING_LIT("GeneratedPlaneMesh"));
+	meMeshID meshHandle = meshPool.Load(vertexBufferSpan, indexBufferSpan, {}, {}, materialID, STRING_LIT("GeneratedPlaneMesh"));
 	return meshHandle;
 }
 
 
-meMeshID GenSphereMesh(u32 resolution)
+meMeshID GenSphereMesh(
+    u32 resolution,
+    meMaterialID materialID)
 {
 	meMeshPool& meshPool = meMeshPoolGet();
     f32 radius = 1.0f;
@@ -306,6 +307,6 @@ meMeshID GenSphereMesh(u32 resolution)
     //indices.shrink_to_fit();
 	meSpan vertexSpan = meSpan(vertices, DynArrayGetSize(vertices) * sizeof(*vertices));
 	meSpan indexSpan = meSpan(indices, DynArrayGetSize(indices) * sizeof(*indices));
-    meMeshID result = meshPool.Load(vertexSpan, indexSpan);
+    meMeshID result = meshPool.Load(vertexSpan, indexSpan, {}, {}, materialID, STRING_LIT("GeneratedSphereMesh"));
 	return result;
 }

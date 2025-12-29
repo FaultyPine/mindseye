@@ -19,10 +19,10 @@
 
 #include "generatedtypes/me_app.generated.cpp"
 
+static EngineContext g_eng;
 EngineContext* GetEngineCtx()
 {
-    static EngineContext eng;
-    return &eng;
+    return &g_eng;
 }
 
 f32 GetDeltaTime()
@@ -93,13 +93,13 @@ void InitializeEngine(s32 argc, char** argv)
 
 	// start doing a scan from cwd
 	StringView mindseyeIniFile = STRING_LIT("mindseye.ini");
-	StringView userProjectConfigPath = meFsScanOutForFile(mindseyeIniFile, GetTLScratch());
+	StringView userProjectConfigPath = meFsScanOutForFile(mindseyeIniFile);
 	if (!userProjectConfigPath)
 	{
 		// couldn't find mindseye.ini from cwd, try from exe location
 		StringView exeFolder = meOSGetExeFileFolder();
 		StringView userConfigExeFolder = StringFormat("%.*s%.*s%.*s", STRING_VAARGS(exeFolder), STRING_VAARGS(meFsGetDirectorySeperator()), STRING_VAARGS(mindseyeIniFile));
-		userProjectConfigPath = meFsScanOutForFile(userConfigExeFolder, GetTLScratch());
+		userProjectConfigPath = meFsScanOutForFile(userConfigExeFolder);
 	}
 	if (!userProjectConfigPath)
 	{

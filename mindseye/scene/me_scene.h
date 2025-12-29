@@ -47,7 +47,7 @@ struct meSceneManager
 	// maybe scenes should use a resourcepool too?
 	meScene rootScene = {};
 
-	static meScene& CurrentScene();
+	static MEAPI meScene& CurrentScene();
 };
 
 void meSceneInitialize(EngineContext* ctx);

@@ -26,7 +26,7 @@ struct Eye
 	explicit operator u32() const { return eye; }
 	explicit operator bool() const { return eye != U32_INVALID_ID; }
 };
-
+const Eye EYE_DEFAULT_INVALID = Eye();
 
 // returns the current time since app launch
 MEAPI f64 GetTimeUsec();

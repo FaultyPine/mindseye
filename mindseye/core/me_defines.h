@@ -13,10 +13,15 @@ typedef float f32;
 typedef double f64;
 typedef wchar_t wchar;
 
+// if the build system doesn't define whether we're a debug build or not, assume debug for now
+#ifndef BUILD_DEBUG
+#define BUILD_DEBUG 1
+#endif
 
-// assertions only in debug mode
 #if BUILD_DEBUG
 #define ME_ASSERTIONS_ENABLED
+#else
+#error bruh
 #endif
 
 #define UNUSED(x) (void)(x)
@@ -101,8 +106,11 @@ typedef wchar_t wchar;
 // op is an indicator to the reflection system of what the next stuff in the macro will be
 // like   MEREFLECT(type, someType)
 // or     MEREFLECT(exclude)
-// TODO: document these options once they're properly implemented
+#ifdef __INTELLISENSE__
+#define MEREFLECT(op, ...)
+#else
 #define MEREFLECT(op, ...) MEANNOTATE(ME_REFLECT_ATTR_STR) 
+#endif
 
 #define U32_INVALID_ID 0xFFFFFFFF
 #define U64_INVALID_ID 0xFFFFFFFFFFFFFFFF

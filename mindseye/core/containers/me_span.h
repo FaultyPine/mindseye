@@ -2,6 +2,8 @@
 
 #include "mindseye/core/me_defines.h"
 
+#define SPAN_FROM(var) meSpan(&var, sizeof(var))
+
 struct meSpan
 {
     char* data;

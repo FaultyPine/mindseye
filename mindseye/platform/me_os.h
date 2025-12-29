@@ -87,6 +87,8 @@ MEAPI void meOSFreeVirtualMemory(
 
 MEAPI StringView meOSFsDirectorySeperator();
 
+MEAPI bool meOSEnsureDirectoriesExist(const char* pathCstr);
+
 #define ME_OS_OPENFILE(varname, path, flags) OSFileReference varname; meOSOpenFile(varname, path, flags);
 
 MEAPI bool meOSOpenFile(

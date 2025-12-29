@@ -210,6 +210,7 @@ static std::unordered_map<CXTypeKind, meTypeDescriptor*> clangToMePrimitiveType 
 	{ CXType_UChar, &TD_UNSIGNED_CHAR},
 	{ CXType_Char16, &TD_SHORT},
 	{ CXType_Char32, &TD_INT},
+	{ CXType_Enum, &TD_INT}, // NOTE: enums are mapped to int. This may need to be revisited later
 	{ CXType_UShort, &TD_UNSIGNED_SHORT},
 	{ CXType_UInt, &TD_UNSIGNED_INT},
 	{ CXType_ULong, &TD_UNSIGNED_LONG},
@@ -554,6 +555,12 @@ void OnFindInterestingDecl(CXCursor cr, CXCursor parent, CXClientData clientData
 			CXType parentType = clang_getCursorType(parent);
 			clang_Type_visitFields(parentType, VisitStructureFields, clientData);
 		}
+		// else
+		// {
+		// 	CXString parentKindStr = clang_getCursorKindSpelling(parentKind);
+		// 	const char* parentKindCStr = clang_getCString(parentKindStr);
+		// 	LOG_ERROR("Unsupported reflection annotation on cursor %.*s type %s", STRING_VAARGS(cursorName), parentKindCStr);
+		// }
 	}
 	else
 	{
@@ -620,25 +627,14 @@ CXChildVisitResult visitTranslationUnit(CXCursor cr, CXCursor parent, CXClientDa
 	{
 		case CXCursor_AnnotateAttr:
 		{
-			CXCursorKind parentKind = clang_getCursorKind(parent);
-			// finding an annotated struct
-			if (parentKind == CXCursor_StructDecl)
-			{
-				OnFindInterestingDecl(cr, parent, clientData);
-			}
-		}
-		break;
-
-		case CXCursor_EnumDecl:
-		{
-			//TODO
+			OnFindInterestingDecl(cr, parent, clientData);
 			return CXChildVisit_Continue;
 		}
 		break;
 
 		// other potential TODOs to support...
-		// - reflected structs inside namespaces!
-		// - templated reflection???
+		// - reflected structs inside namespaces
+		// - templated reflection?
 
 		default:
 		{
@@ -890,6 +886,10 @@ void GenerateForwardDecls(
 }
 
 #ifdef OS_WINDOWS
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
 s32 needsRebuild(const char *output_path, const char **input_paths, size_t input_paths_count)
 {
     BOOL bSuccess;

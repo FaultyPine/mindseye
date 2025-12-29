@@ -71,7 +71,7 @@ bool IsFlag(EntityRef ent, EntityFlags flag)
 
 EntityRef CreateEntity(
     const char* name, 
-    const Transform& tf, 
+    const meTransform& tf, 
     u32 flags)
 {
     EntityRegistry& registry = GetRegistry();

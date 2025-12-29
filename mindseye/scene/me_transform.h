@@ -5,13 +5,13 @@
 
 #include "generatedtypes/me_transform.generated.h"
 
-struct MEREFLECT(type) Transform 
+struct MEREFLECT(type) meTransform 
 {
     glm::vec3 position = glm::vec3(0);
     glm::vec3 scale = glm::vec3(1);
 	glm::quat rotation = glm::identity<glm::quat>();
 
-    Transform(
+    meTransform(
         const glm::vec3& pos = glm::vec3(0), 
         const glm::vec3& scl = glm::vec3(1), 
 		const glm::quat& rot = glm::identity<glm::quat>())
@@ -20,7 +20,7 @@ struct MEREFLECT(type) Transform
         scale = scl;
 		rotation = rot;
     }
-	Transform(const glm::mat4x4& mat)
+	meTransform(const glm::mat4x4& mat)
 	{
 		glm::vec3 skew;
 		glm::vec4 perspective;

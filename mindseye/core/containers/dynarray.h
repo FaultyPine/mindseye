@@ -8,7 +8,7 @@
 // dynamic array that resizes itself when capacity is reached
 // stores capacity/size in a header section stored *before* the actual array pointer
 
-#define DynArray_Foreach(array, iteratorVarName) u32 iteratorVarName = 0; iteratorVarName < DynArrayGetSize(array); iteratorVarName++
+#define DynArray_Foreach(array, iteratorVarName) u32 iteratorVarName = 0; !!(array) && iteratorVarName < DynArrayGetSize(array); iteratorVarName++
 
 typedef void* DynArray;
 #define DynArray(type) type*
@@ -17,7 +17,7 @@ typedef void* DynArray;
 void DynArrayDestroy(DynArray& array);
 
 // Retrives the size from the DynArray header
-u32 DynArrayGetSize(DynArray array);
+MEAPI u32 DynArrayGetSize(DynArray array);
 template<typename T>
 u32 DynArrayGetSize(T* array)
 {
@@ -92,7 +92,7 @@ struct DynArrayScoped
 	}
 };
 
-void* __DynArrayPushAt(DynArray array, void* obj, u32 numObjs, u32 index);
+MEAPI void* __DynArrayPushAt(DynArray array, void* obj, u32 numObjs, u32 index);
 // Copies an object to a specified index (and moves all other elements over)
 // passing reference as this could potentially reallocate if backing mem is full
 // pushing to an index outside the range [0,length] returns nullptr, logs an error, and does nothing
@@ -114,7 +114,7 @@ void DynArrayPush(T*& array, T* objs, u64 numObjs)
 	array = (T*)__DynArrayPushAt((DynArray)array, (void*)objs, numObjs, DynArrayGetSize(array));
 }
 
-void __DynArrayPopAt(DynArray array, u32 index, void* out = 0);
+MEAPI void __DynArrayPopAt(DynArray array, u32 index, void* out = 0);
 // remove (and optionally return element) at specified index
 // popping at an index outside the range [0,length-1] does nothing and logs an error
 template <typename T>

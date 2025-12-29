@@ -10,6 +10,7 @@
 #include "render/me_texture.h"
 #include "core/me_string.h"
 #include "scene/me_entity.h"
+#include "core/me_scope_exit.h"
 
 #include "external/cgltf.h"
 
@@ -17,6 +18,8 @@
 #include "bgfx/bgfx/src/config.h"
 #include "bgfx/bx/include/bx/bx.h"
 #include "external/bgfx/bgfx/examples/common/imgui/imgui.cpp"
+#include "external/bgfx/bgfx/examples/common/debugdraw/debugdraw.h"
+#include "external/bgfx/bgfx/examples/common/debugdraw/debugdraw.cpp"
 
 // ---- shaders
 #include "shaders/generated/main_lit_fs.sc.h"
@@ -121,6 +124,7 @@ void BgfxRendererBackend::Initialize(EngineContext* engine)
     bgfx::setDebug(BGFX_DEBUG_TEXT);
     bgfx::setViewClear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x443355FF, 1.0f, 0);
     bgfx::setViewRect(0, 0, 0, init.resolution.width, init.resolution.height);
+	ddInit(); // uses malloc/free for debugdraw
     imguiCreate();
     engine->renderer->rendererLoggingEnabled = false; // tmp
 	bgfx::touch(0);
@@ -134,7 +138,7 @@ void BgfxRendererBackend::Teardown(EngineContext* engine)
     bgfx::shutdown();
 }
 
-cgltf_material GenerateDummyMaterial()
+cgltf_material GenerateDummyGLTFMaterial()
 {
 	cgltf_material mat;
 	ME_MEMCLEAR(&mat, sizeof(mat));
@@ -267,13 +271,13 @@ void BgfxRendererBackend::LoadSceneRuntime(meScene& outScene, meAllocator* scene
 		const cgltf_scene& scene = *outScene.runtime.gltfData->scene;
 		StringView gltfResPath = outScene.runtime.gltfResourcePath;
 		meMeshPool& meshPool = meMeshPoolGet();
-		outScene.runtime.entities = DynArrayCreate<EntityRef>(sceneAllocator);
+		if (!outScene.runtime.entities) outScene.runtime.entities = DynArrayCreate<EntityRef>(sceneAllocator);
 		for (u64 nodeIdx = 0; nodeIdx < scene.nodes_count; nodeIdx++)
 		{
 			const cgltf_node& node = *scene.nodes[nodeIdx];
 			float nodeMatrix[16];
 			cgltf_node_transform_local(&node, nodeMatrix);
-			Transform nodeTf = Transform(glm::make_mat4(nodeMatrix));
+			meTransform nodeTf = meTransform(glm::make_mat4(nodeMatrix));
 			EntityRef entityRef = Entity::CreateEntity(node.name, nodeTf);
 			EntityData& entity = Entity::GetEntity(entityRef);
 			if (node.mesh)
@@ -289,15 +293,19 @@ void BgfxRendererBackend::LoadSceneRuntime(meScene& outScene, meAllocator* scene
 	}
 }
 
-void renderScreenSpaceQuad(const glm::mat4& proj, uint8_t _view, bgfx::ProgramHandle _program, float _x, float _y, float _width, float _height, bgfx::TextureHandle tex = bgfx::TextureHandle(bgfx::kInvalidHandle));
+void renderScreenSpaceQuad(const glm::mat4& proj, uint8_t _view, bgfx::ProgramHandle _program, float _x, float _y, float _width, float _height, bgfx::TextureHandle tex);
 
 void* BgfxRendererBackend::RenderScene(RenderInput* input)
 {
 	const SceneRuntimeData& sceneRuntime = input->scene.runtime;
-	//u32 windowWidth = input->osData.windowWidth;
-	//u32 windowHeight = input->osData.windowHeight;
     bgfx::setViewClear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x443355FF, 1.0f, 0);
 	bgfx::touch(0);
+
+	DebugDrawEncoder dde;
+	dde.begin(0);
+	dde.drawAxis(0.0f, 0.0f, 0.0f);
+	dde.drawGrid(Axis::Y, { 0.0f, 0.0f, 0.0f }, 50);
+	ME_ON_SCOPE_EXIT([&dde](){ dde.end(); });
 
 	const meTexturePool& texturePool = meTextureGetPool();
 	const meMaterialPool& materialPool = meMaterialGetPool();
@@ -306,6 +314,10 @@ void* BgfxRendererBackend::RenderScene(RenderInput* input)
 	{
 		const EntityRef& entityRef = sceneRuntime.entities[i];
 		const EntityData& entity = Entity::GetEntity(entityRef);
+		if (Entity::IsFlag(entity, EntityFlags_HIDDEN))
+		{
+			continue;
+		}
 		const Eye& meshHandle = entity.mesh;
 		const meMesh& mesh = meMeshPoolGet().Get(meshHandle);
 		if (mesh.IsLoaded())
@@ -327,7 +339,7 @@ void* BgfxRendererBackend::RenderScene(RenderInput* input)
 			glm::mat4 view = cam.GetViewMatrix();
 
 			bgfx::ProgramHandle program = bgfx::ProgramHandle(shader.program);
-			renderScreenSpaceQuad(proj, 0, program, 0, 0, 256, 256, bgfxDiffuseTex);
+			//renderScreenSpaceQuad(proj, 0, program, 0, 0, 256, 256, bgfxDiffuseTex);
 
 			glm::mat4 modelMat = entity.transform.ToModelMatrix();
 			bgfx::setTransform(&modelMat[0]);
@@ -335,11 +347,20 @@ void* BgfxRendererBackend::RenderScene(RenderInput* input)
 			bgfx::setViewTransform(0, glm::value_ptr(view), glm::value_ptr(proj));
 
 			bgfx::setVertexBuffer(0, bgfx::VertexBufferHandle { static_cast<u16>(mesh.vertBuffer.bufferHandle) });
-			bgfx::setVertexBuffer(1, bgfx::VertexBufferHandle { static_cast<u16>(mesh.normBuffer.bufferHandle) });
-			bgfx::setVertexBuffer(2, bgfx::VertexBufferHandle { static_cast<u16>(mesh.texcoordBuffer.bufferHandle) });
 			bgfx::setIndexBuffer(bgfx::IndexBufferHandle { static_cast<u16>(mesh.idxBuffer.bufferHandle) });
+			if (mesh.normBuffer.IsValid())
+			{
+				bgfx::setVertexBuffer(1, bgfx::VertexBufferHandle { static_cast<u16>(mesh.normBuffer.bufferHandle) });
+			}
+			if (mesh.texcoordBuffer.IsValid())
+			{
+				bgfx::setVertexBuffer(2, bgfx::VertexBufferHandle { static_cast<u16>(mesh.texcoordBuffer.bufferHandle) });
+			}
 		
-			bgfx::setTexture(0, bgfx::UniformHandle { static_cast<u16>(diffuseTex.sampler) }, bgfxDiffuseTex);
+			if (diffuseTex.IsValid())
+			{
+				bgfx::setTexture(0, bgfx::UniformHandle { static_cast<u16>(diffuseTex.sampler) }, bgfxDiffuseTex);
+			}
 			bgfx::setState(BGFX_STATE_WRITE_RGB
 						   | BGFX_STATE_WRITE_A
 						   | BGFX_STATE_WRITE_Z
@@ -385,6 +406,16 @@ void BgfxRendererBackend::PushLine(
 	UNIMPLEMENTED();
 }
 
+void BgfxRendererBackend::Push2DBox(
+		const glm::vec2& start,
+		const glm::vec2& end,
+		const glm::vec4& color) 
+{
+	bgfx::TextureHandle tex = bgfx::TextureHandle { static_cast<u16>(meTextureGetPool().GetBadData().buffer.bufferHandle) };
+	renderScreenSpaceQuad(
+		glm::mat4(), 0, 
+		bgfx::ProgramHandle(), start.x, start.y, end.x - start.x, end.y - start.y, tex);
+}
 
 bgfx::VertexLayout PosTexCoord0Vertex::ms_layout;
 

@@ -29,7 +29,6 @@ meTypeDescriptor TD_STRING = { .name = STRING_LIT("String"), .flags = meTypeDesc
 
 StringView meTypeDescriptor::ToString(meAllocator* allocator, meSpan data) const
 {
-    // Allocate a reasonable buffer for the string representation
 	StringBuilder builder = StringBuilder(allocator);
     
     // Handle null/empty data
@@ -101,6 +100,11 @@ StringView meTypeDescriptor::ToString(meAllocator* allocator, meSpan data) const
 		{
 			builder.Append(StringView((const char*)data.data, data.size));
 		}
+        else if (this == &TD_VEC3)
+        {
+            float* vecData = (float*)data.data;
+            builder.AppendFormat("(%.6f %.6f %.6f)", vecData[0], vecData[1], vecData[2]);
+        }
         else 
 		{
 			UNIMPLEMENTED();
@@ -108,8 +112,19 @@ StringView meTypeDescriptor::ToString(meAllocator* allocator, meSpan data) const
     }
 	else
 	{
-		// TODO: composite struct types not supported
-		UNIMPLEMENTED();
+        builder.Append(STRING_LIT("{ "));
+		for (u64 i = 0; i < fields.size; i++)
+        {
+            const meTypeDescriptor& field = fields[i];
+            ME_ASSERT(field.offsetBits % 8 == 0);
+            StringView stringedField = field.ToString(allocator, meSpan(data.data + (field.offsetBits / 8), field.size));
+            builder.Append(stringedField);
+            if (i != fields.size - 1)
+            {
+                builder.Append(STRING_LIT(", "));
+            }
+        }
+        builder.Append(STRING_LIT(" }"));
 	}
 	return builder;
 }
@@ -198,7 +213,6 @@ bool meTypeDescriptor::FromString(DeserializeContext& ctx) const
         else if (this == &TD_BOOL) 
         {
             bool value = false;
-            // Case-insensitive comparison for boolean values
             if (StringCompare(str, STRING_LIT("true")) || StringCompare(str, STRING_LIT("True")) || 
                 StringCompare(str, STRING_LIT("TRUE")) || StringCompare(str, STRING_LIT("1")))
             {
@@ -206,16 +220,67 @@ bool meTypeDescriptor::FromString(DeserializeContext& ctx) const
             }
             *((bool*)result.data) = value;
         }
+        else if (this == &TD_VEC3)
+        {
+            glm::vec3 value = {};
+            // Expecting format (x, y, z)
+            str = EatChars(str, STRING_LIT("( "));
+            StringView xStr = str;
+            u32 offset = EatCharsOffset(xStr, ' ', true);
+            xStr = xStr.OffsetView(0, offset);
+            value.x = StringParseFloat(xStr);
+            str = str.OffsetView(offset);
+            str = EatChars(str, STRING_LIT(" "));
+            StringView yStr = str;
+            offset = EatCharsOffset(yStr, ' ', true);
+            yStr = yStr.OffsetView(0, offset);
+            value.y = StringParseFloat(yStr);
+            str = str.OffsetView(offset);
+            str = EatChars(str, STRING_LIT(" "));
+            StringView zStr = str;
+            offset = EatCharsOffset(zStr, ')');
+            zStr = zStr.OffsetView(0, offset);
+            value.z = StringParseFloat(zStr);
+            *((glm::vec3*)result.data) = value;
+            str = EatChars(str, STRING_LIT(")"), true);
+            str = EatChars(str, STRING_LIT("), "));
+        }
         else 
         {
             UNIMPLEMENTED();
         }
+        // changes to str are reflected back to the caller in this way
+        // I.E. when we deserialize something, we "consume" it from the input data
+        ctx.inputData = ctx.inputData.Subspan((u64)(str.data - ctx.inputData.data));
 		return true;
     }
     else
 	{
-		// TODO: composite struct types not supported
-		UNIMPLEMENTED();
+        str = EatChars(str, '{');
+        str = EatChars(str, ' ');
+		for (u64 i = 0; i < fields.size; i++)
+        {
+            const meTypeDescriptor& field = fields[i];
+            ME_ASSERT(field.offsetBits % 8 == 0);
+            s32 len = EatCharsOffset(str, STRING_LIT(", "), true);
+            if (len == -1)
+            {
+                LOG_ERROR("Failed to find delimiter for field %.*s", STRING_VAARGS(field.name));
+            }
+            // Need to copy data from inputdata stringview into field outputdata
+            DeserializeContext fieldCtx = ctx;
+            fieldCtx.inputData = meSpan(str.data, str.len);
+            fieldCtx.outputData = meSpan(ctx.outputData.data + (field.offsetBits / 8), field.size);
+            if (!field.FromString(fieldCtx))
+            {
+                LOG_ERROR("Failed to deserialize field %.*s", STRING_VAARGS(field.name));
+                return false;
+            }
+            str = StringView(fieldCtx.inputData);
+            str = EatChars(str, STRING_LIT(", "));
+        }
+        str = EatChars(str, ' ');
+        str = EatChars(str, '}');
 	}
 	return false;
 }

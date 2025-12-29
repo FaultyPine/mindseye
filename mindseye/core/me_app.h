@@ -27,6 +27,7 @@ struct MEREFLECT(type) meAppConfig
 	String appName = {};
 	String resourcesDir = {};
 	String defaultSceneName = {};
+    u32 pixelsPerUnit = 100;
 };
 
 typedef void(*InitFn)(EngineContext* engine);
