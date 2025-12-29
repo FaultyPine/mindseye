@@ -1,12 +1,3 @@
 [submodule "projects/gltf-samples"]
 	path = projects/testbed/gltf-samples
 	url = https://github.com/KhronosGroup/glTF-Sample-Assets
-[submodule "external/bgfx"]
-    path = mindseye/external/bgfx/bgfx
-    url = https://github.com/bkaradzic/bgfx
-[submodule "external/bx"]
-    path = mindseye/external/bgfx/bx
-    url = https://github.com/bkaradzic/bx
-[submodule "external/bimg"]
-    path = mindseye/external/bgfx/bimg
-    url = https://github.com/bkaradzic/bimg
