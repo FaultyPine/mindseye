@@ -17,6 +17,20 @@
 #include "bgfx/bgfx/include/bgfx/bgfx.h"
 #include "bgfx/bgfx/src/config.h"
 #include "bgfx/bx/include/bx/bx.h"
+
+// Stub ImGuizmo functions (we don't use them yet)
+namespace ImGuizmo {
+	void Create() {}
+	void Destroy() {}
+	void BeginFrame() {}
+}
+
+// Stub ImGui docking functions (we don't use docking yet)
+namespace ImGui {
+	void InitDockContext() {}
+	void ShutdownDockContext() {}
+}
+
 #include "external/bgfx/bgfx/examples/common/imgui/imgui.cpp"
 #include "external/bgfx/bgfx/examples/common/debugdraw/debugdraw.h"
 #include "external/bgfx/bgfx/examples/common/debugdraw/debugdraw.cpp"

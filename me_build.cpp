@@ -263,7 +263,7 @@ int main(int argc, char** argv)
 	if (mode == DEBUG)
 	{
 		nob_cmd_append(&externalLibsCmd,
-		"-O0", "-DBUILD_DEBUG=1" ,"-DMEEXPORT", "-DBX_CONFIG_DEBUG=1", "-shared", "-D_DEBUG", "-w");
+		"-O0", "-DBUILD_DEBUG=1" ,"-DMEEXPORT", "-DBX_CONFIG_DEBUG=0", "-shared", "-w");
 	}
 	else if (mode == RELEASE)
 	{
@@ -275,7 +275,7 @@ int main(int argc, char** argv)
 	NOB_CMD_APPEND_MULTIPLE(externalLibsCmd, linkerFlagsCommon);
 	nob_cmd_append(&externalLibsCmd, nob_temp_sprintf("-L%s/mindseye/external/bgfx/bin", root));
 	nob_cmd_append(&externalLibsCmd, "-lbgfxRelease", "-lbimgRelease", "-lbxRelease");
-	nob_cmd_append(&externalLibsCmd, "-Wl,/IMPLIB:mindseye_ext.lib");
+	nob_cmd_append(&externalLibsCmd, "-Wl,/FORCE:MULTIPLE", "-Wl,/ignore:4006", "-Wl,/IMPLIB:mindseye_ext.lib");
 	const char* externalLibsInputs = nob_temp_sprintf("%s/mindseye/me_external_unity.cpp", root);
 	externalLibs.addInputs(&externalLibsInputs, 1);
 	externalLibs.addOutput("mindseye_ext.dll");
@@ -401,7 +401,7 @@ int main(int argc, char** argv)
 	if (mode == DEBUG)
 	{
 		nob_cmd_append(&mindseyeCmd, 
-		"-O0", "-DBUILD_DEBUG=1", "-DMEEXPORT", "-D_USRDLL", "-D_WINDLL", "-D_DLL", "-shared", "-DBX_CONFIG_DEBUG=1", "-D_DEBUG");
+		"-O0", "-DBUILD_DEBUG=1", "-DMEEXPORT", "-D_USRDLL", "-D_WINDLL", "-D_DLL", "-shared", "-DBX_CONFIG_DEBUG=0");
 	}
 	else if (mode == RELEASE)
 	{
@@ -412,16 +412,8 @@ int main(int argc, char** argv)
 	// link
 	NOB_CMD_APPEND_MULTIPLE(mindseyeCmd, linkerFlagsCommon);
 	nob_cmd_append(&mindseyeCmd, "-lmindseye_ext", nob_temp_sprintf("-L%s/mindseye/external/ktx/lib", root), "-lktx", "-lshell32");
-	if (mode == DEBUG)
-	{
-		nob_cmd_append(&mindseyeCmd, 
-		nob_temp_sprintf("-L%s/mindseye/external/bgfx/bin", root), "-lbgfxDebug", "-lbimgDebug", "-lbxDebug");
-	}
-	else if (mode == RELEASE)
-	{
-		nob_cmd_append(&mindseyeCmd, 
-		nob_temp_sprintf("-L%s/mindseye/external/bgfx/bin", root), "-lbgfxRelease", "-lbimgRelease", "-lbxRelease");
-	}
+	nob_cmd_append(&mindseyeCmd, nob_temp_sprintf("-L%s/mindseye/external/bgfx/bin", root), "-lbgfxRelease", "-lbimgRelease", "-lbxRelease");
+	nob_cmd_append(&mindseyeCmd, "-Wl,/FORCE:MULTIPLE", "-Wl,/ignore:4006");
 	const char* mindseyeEngineInputs = nob_temp_sprintf("%s/mindseye/me_unity.cpp", root);
 	mindseyeEngine.addInputs(&mindseyeEngineInputs, 1);
 	mindseyeEngine.addInputsNoCompile(mindseyeSourceFiles.items, mindseyeSourceFiles.count);

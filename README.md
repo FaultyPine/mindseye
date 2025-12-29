@@ -6,6 +6,9 @@
 Must be on windows.
 run `build.bat`
 
+TODO: get rid of the "external_lib" build concept
+put it in with mindseye, and instead of build & linking separate stuff,
+build mindseye and the libs as 2 objs, then do the link step separately
 
 
 ### Current focus

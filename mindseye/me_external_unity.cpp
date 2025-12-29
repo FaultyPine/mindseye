@@ -32,6 +32,7 @@
 #include "external/stb/stb_rect_pack.h"
 #include "external/stb/stb_truetype.h"
 #include "bgfx/bgfx/3rdparty/dear-imgui/imgui.h"
+#undef IMGUI_INCLUDE_IMGUI_USER_INL
 #include "bgfx/bgfx/3rdparty/dear-imgui/imgui.cpp"
 #include "bgfx/bgfx/3rdparty/dear-imgui/imgui_draw.cpp"
 #include "bgfx/bgfx/3rdparty/dear-imgui/imgui_widgets.cpp"
