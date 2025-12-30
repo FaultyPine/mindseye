@@ -255,30 +255,26 @@ int main(int argc, char** argv)
 	driver.addOutput("driver.exe");
 	// =====================================================================================
 
-	// ======================== External libraries ==============================================
-	BuildableArtifact externalLibs = {};
-	Nob_Cmd& externalLibsCmd = externalLibs.compileCmd;
-	// compile
+	// ======================== External libraries (Object) ==============================================
+	BuildableArtifact externalLibsObj = {};
+	Nob_Cmd& externalLibsCmd = externalLibsObj.compileCmd;
+	// compile to object file
 	nob_cmd_append(&externalLibsCmd, g_compilerExe);
 	if (mode == DEBUG)
 	{
 		nob_cmd_append(&externalLibsCmd,
-		"-O0", "-DBUILD_DEBUG=1" ,"-DMEEXPORT", "-DBX_CONFIG_DEBUG=0", "-shared", "-w");
+		"-O0", "-DBUILD_DEBUG=1" ,"-DMEEXPORT", "-DBX_CONFIG_DEBUG=0", "-c", "-w");
 	}
 	else if (mode == RELEASE)
 	{
 		nob_cmd_append(&externalLibsCmd, 
-		"-O2", "-DBUILD_DEBUG=0", "-DMEEXPORT", "-DBX_CONFIG_DEBUG=0", "-shared", "-w");
+		"-O2", "-DBUILD_DEBUG=0", "-DMEEXPORT", "-DBX_CONFIG_DEBUG=0", "-c", "-w");
 	}
 	NOB_CMD_APPEND_MULTIPLE(externalLibsCmd, compilerFlagsCommon);
-	// link
-	NOB_CMD_APPEND_MULTIPLE(externalLibsCmd, linkerFlagsCommon);
-	nob_cmd_append(&externalLibsCmd, nob_temp_sprintf("-L%s/mindseye/external/bgfx/bin", root));
-	nob_cmd_append(&externalLibsCmd, "-lbgfxRelease", "-lbimgRelease", "-lbxRelease");
-	nob_cmd_append(&externalLibsCmd, "-Wl,/FORCE:MULTIPLE", "-Wl,/ignore:4006", "-Wl,/IMPLIB:mindseye_ext.lib");
+	// input/output
 	const char* externalLibsInputs = nob_temp_sprintf("%s/mindseye/me_external_unity.cpp", root);
-	externalLibs.addInputs(&externalLibsInputs, 1);
-	externalLibs.addOutput("mindseye_ext.dll");
+	externalLibsObj.addInputs(&externalLibsInputs, 1);
+	externalLibsObj.addOutput("mindseye_ext.o");
 	// =====================================================================================
 	
 	// ======================== Mindseye Shaders ==============================================
@@ -394,30 +390,41 @@ int main(int argc, char** argv)
 		}
 	}
 
-	BuildableArtifact mindseyeEngine = {};
-	Nob_Cmd& mindseyeCmd = mindseyeEngine.compileCmd;
-	// compile
+	BuildableArtifact mindseyeEngineObj = {};
+	Nob_Cmd& mindseyeCmd = mindseyeEngineObj.compileCmd;
+	// compile to object file
 	nob_cmd_append(&mindseyeCmd, g_compilerExe);
 	if (mode == DEBUG)
 	{
 		nob_cmd_append(&mindseyeCmd, 
-		"-O0", "-DBUILD_DEBUG=1", "-DMEEXPORT", "-D_USRDLL", "-D_WINDLL", "-D_DLL", "-shared", "-DBX_CONFIG_DEBUG=0");
+		"-O0", "-DBUILD_DEBUG=1", "-DMEEXPORT", "-D_USRDLL", "-D_WINDLL", "-D_DLL", "-c", "-DBX_CONFIG_DEBUG=0");
 	}
 	else if (mode == RELEASE)
 	{
 		nob_cmd_append(&mindseyeCmd, 
-		"-O2", "-DBUILD_DEBUG=0", "-DMEEXPORT", "-D_USRDLL", "-D_WINDLL", "-D_DLL", "-shared", "-DBX_CONFIG_DEBUG=0");
+		"-O2", "-DBUILD_DEBUG=0", "-DMEEXPORT", "-D_USRDLL", "-D_WINDLL", "-D_DLL", "-c", "-DBX_CONFIG_DEBUG=0");
 	}
 	NOB_CMD_APPEND_MULTIPLE(mindseyeCmd, compilerFlagsCommon);
-	// link
-	NOB_CMD_APPEND_MULTIPLE(mindseyeCmd, linkerFlagsCommon);
-	nob_cmd_append(&mindseyeCmd, "-lmindseye_ext", nob_temp_sprintf("-L%s/mindseye/external/ktx/lib", root), "-lktx", "-lshell32");
-	nob_cmd_append(&mindseyeCmd, nob_temp_sprintf("-L%s/mindseye/external/bgfx/bin", root), "-lbgfxRelease", "-lbimgRelease", "-lbxRelease");
-	nob_cmd_append(&mindseyeCmd, "-Wl,/FORCE:MULTIPLE", "-Wl,/ignore:4006");
+	// input/output
 	const char* mindseyeEngineInputs = nob_temp_sprintf("%s/mindseye/me_unity.cpp", root);
-	mindseyeEngine.addInputs(&mindseyeEngineInputs, 1);
-	mindseyeEngine.addInputsNoCompile(mindseyeSourceFiles.items, mindseyeSourceFiles.count);
-	mindseyeEngine.addOutput("mindseye.dll");
+	mindseyeEngineObj.addInputs(&mindseyeEngineInputs, 1);
+	mindseyeEngineObj.addInputsNoCompile(mindseyeSourceFiles.items, mindseyeSourceFiles.count);
+	mindseyeEngineObj.addOutput("mindseye.o");
+	// =====================================================================================
+
+	// ======================== Mindseye DLL (Link Step) ==============================================
+	BuildableArtifact mindseyeDll = {};
+	Nob_Cmd& mindseyeLinkCmd = mindseyeDll.compileCmd;
+	// link object files together into DLL
+	nob_cmd_append(&mindseyeLinkCmd, g_compilerExe, "-shared");
+	NOB_CMD_APPEND_MULTIPLE(mindseyeLinkCmd, linkerFlagsCommon);
+	nob_cmd_append(&mindseyeLinkCmd, nob_temp_sprintf("-L%s/mindseye/external/ktx/lib", root), "-lktx", "-lshell32");
+	nob_cmd_append(&mindseyeLinkCmd, nob_temp_sprintf("-L%s/mindseye/external/bgfx/bin", root), "-lbgfxRelease", "-lbimgRelease", "-lbxRelease");
+	nob_cmd_append(&mindseyeLinkCmd, "-Wl,/FORCE:MULTIPLE", "-Wl,/ignore:4006");
+	// input objects
+	const char* mindseyeDllInputs[] = { "mindseye.o", "mindseye_ext.o" };
+	mindseyeDll.addInputs(mindseyeDllInputs, ARRAY_SIZE(mindseyeDllInputs));
+	mindseyeDll.addOutput("mindseye.dll");
 	// =====================================================================================
 
 	// ======================== Mindseye Reflector==============================================
@@ -439,7 +446,7 @@ int main(int argc, char** argv)
 	Nob_Cmd& mindseyeReflectorRunCmd = mindseyeReflectorRun.compileCmd;
 
 	Nob_String_Builder mindseyeEngineRenderedCmd = {};
-	nob_cmd_render(mindseyeEngine.compileCmd, &mindseyeEngineRenderedCmd);
+	nob_cmd_render(mindseyeEngineObj.compileCmd, &mindseyeEngineRenderedCmd);
 	nob_sb_append_null(&mindseyeEngineRenderedCmd); // just in case...
 	const char* mindseyeBuildCommand = mindseyeEngineRenderedCmd.items;
 	const char* compileCommandsFile = "build/compile_commands_mindseye.txt";
@@ -538,13 +545,27 @@ int main(int argc, char** argv)
 
 	nob_set_current_dir("build");
 
-	externalLibs.options.async = &procs;
-	externalLibs.options.max_procs = 0;
-	CHECK_BUILD_RESULT(externalLibs.build(forceBuildLibs));
+	// Build object files in parallel
+	externalLibsObj.options.async = &procs;
+	externalLibsObj.options.max_procs = 0;
+	CHECK_BUILD_RESULT(externalLibsObj.build(forceBuildLibs));
 	
-	BuildResult builtMindseye = mindseyeEngine.build();
+	BuildResult builtMindseyeObjRes = mindseyeEngineObj.build();
+	bool builtMindseyeObj = builtMindseyeObjRes == BUILD_SUCCEEDED;
+	CHECK_BUILD_RESULT(builtMindseyeObj);
+	
+	// Wait for object builds to finish before linking
+	if (!nob_procs_flush(&procs))
+	{
+		nob_log(NOB_ERROR, "Tragedy struck while waiting for object build processes");
+		return 1;
+	}
+	
+	// Link the object files into mindseye.dll
+	BuildResult builtMindseye = mindseyeDll.build(builtMindseyeObj || forceBuildLibs);
 	CHECK_BUILD_RESULT(builtMindseye);
-	CHECK_BUILD_RESULT(app_artifact.build(builtMindseye));
+	
+	CHECK_BUILD_RESULT(app_artifact.build(builtMindseye == BUILD_SUCCEEDED));
 	CHECK_BUILD_RESULT(driver.build());
 	if (!nob_procs_flush(&procs))
 	{
