@@ -27,16 +27,20 @@
 #define IMGUI_API MEAPI
 #define IMGUI_DISABLE_SSE
 
+// Define STB implementations BEFORE including ImGui to prevent ImGui from defining them again
 #define STB_TRUETYPE_IMPLEMENTATION
 #define STB_RECT_PACK_IMPLEMENTATION
 #include "external/stb/stb_rect_pack.h"
 #include "external/stb/stb_truetype.h"
+
+// Now include ImGui - it will skip defining STB implementations since they're already defined
 #include "bgfx/bgfx/3rdparty/dear-imgui/imgui.h"
 #undef IMGUI_INCLUDE_IMGUI_USER_INL
 #include "bgfx/bgfx/3rdparty/dear-imgui/imgui.cpp"
 #include "bgfx/bgfx/3rdparty/dear-imgui/imgui_draw.cpp"
 #include "bgfx/bgfx/3rdparty/dear-imgui/imgui_widgets.cpp"
 #include "bgfx/bgfx/3rdparty/dear-imgui/imgui_tables.cpp"
+
 #undef STB_TRUETYPE_IMPLEMENTATION
 #undef STB_RECT_PACK_IMPLEMENTATION
 #undef STBSP_NO_SIMD

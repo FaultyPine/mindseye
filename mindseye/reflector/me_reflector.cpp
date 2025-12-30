@@ -1,6 +1,14 @@
 
 
 #define ME_CORE_ONLY
+
+// Include STB_SPRINTF implementation for the reflector
+#define STB_SPRINTF_IMPLEMENTATION
+#define STBSP__PUBLICDEC extern "C"
+#include "mindseye/external/stb/stb_sprintf.h"
+#undef STB_SPRINTF_IMPLEMENTATION
+#undef STBSP__PUBLICDEC
+
 #include "mindseye/me_unity.cpp"
 
 #include "clang/AST/AST.h"

@@ -3,14 +3,16 @@
 
 #include "core/me_defines.h"
 
-#ifdef ME_CORE_ONLY
-#define STB_SPRINTF_IMPLEMENTATION
-#endif
+// Make STB functions static in this compilation unit to avoid conflicts
+// The real implementations (with external linkage) are in me_external_unity.cpp
+#define STBRP_STATIC
+#define STBTT_STATIC
+#define STBRP_ASSERT(x)
+#define STBTT_assert(x)
+
+// STB_SPRINTF_IMPLEMENTATION is now in me_external_unity.cpp
 #define STBSP__PUBLICDEC extern "C" MEAPI
 #include "external/stb/stb_sprintf.h"
-#ifdef ME_CORE_ONLY
-#undef STB_SPRINTF_IMPLEMENTATION
-#endif
 
 // HEADER
 #include "platform/me_os.h"

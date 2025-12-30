@@ -145,6 +145,7 @@ int main(int argc, char** argv)
 	normalizePathSeperators(g_compilerExe);
 	meBuildMode mode = DEBUG;
 	bool forceBuildLibs = false;
+	Nob_Procs procs = {};
 	for (int i = 1; i < argc; i++)
 	{
 		Nob_String_View argvSv = nob_sv_from_cstr(argv[i]);
@@ -213,7 +214,7 @@ int main(int argc, char** argv)
 		"-std=c++20",
 		"-march=native",
 		"-Wno-deprecated-declarations",
-		"-g", "-gcodeview", "-gno-column-info",
+		"-g", "-gno-column-info",
 		"-Wall", "-Wextra", "-Wno-unused-parameter", "-Wno-microsoft-include", "-ferror-limit=500",
 		// 	for /f %%i in ('call git describe --always --dirty')   do set compile_flags_common=%compile_flags_common% -DBUILD_GIT_HASH=\"%%i\"
 
@@ -418,6 +419,7 @@ int main(int argc, char** argv)
 	// link object files together into DLL
 	nob_cmd_append(&mindseyeLinkCmd, g_compilerExe, "-shared");
 	NOB_CMD_APPEND_MULTIPLE(mindseyeLinkCmd, linkerFlagsCommon);
+	NOB_CMD_APPEND_MULTIPLE(mindseyeLinkCmd, compilerFlagsCommon);
 	nob_cmd_append(&mindseyeLinkCmd, nob_temp_sprintf("-L%s/mindseye/external/ktx/lib", root), "-lktx", "-lshell32");
 	nob_cmd_append(&mindseyeLinkCmd, nob_temp_sprintf("-L%s/mindseye/external/bgfx/bin", root), "-lbgfxRelease", "-lbimgRelease", "-lbxRelease");
 	nob_cmd_append(&mindseyeLinkCmd, "-Wl,/FORCE:MULTIPLE", "-Wl,/ignore:4006");
@@ -479,8 +481,8 @@ int main(int argc, char** argv)
 	// =====================================================================================
 
 	// ======================== Testbed ==============================================
-	BuildableArtifact app_artifact = {};
-	Nob_Cmd& testbedCmd = app_artifact.compileCmd;
+	BuildableArtifact testbedBuild = {};
+	Nob_Cmd& testbedCmd = testbedBuild.compileCmd;
 	// compile
 	nob_cmd_append(&testbedCmd, g_compilerExe);
 	if (mode == DEBUG)
@@ -509,9 +511,9 @@ int main(int argc, char** argv)
 		nob_cmd_run(&submoduleUpdateCmd);
 	}
 	const char* testbedInputs = nob_temp_sprintf("%s/projects/testbed/testbed.cpp", root);
-	app_artifact.addInputs(&testbedInputs, 1);
-	app_artifact.addInputsNoCompile(mindseyeSourceFiles.items, mindseyeSourceFiles.count);
-	app_artifact.addOutput("testbed.dll");
+	testbedBuild.addInputs(&testbedInputs, 1);
+	testbedBuild.addInputsNoCompile(mindseyeSourceFiles.items, mindseyeSourceFiles.count);
+	testbedBuild.addOutput("testbed.dll");
 	// =====================================================================================
 
 	
@@ -521,20 +523,17 @@ int main(int argc, char** argv)
 		{ \
 			return 1; \
 		}
-	Nob_Procs procs = {};
 	for (int i = 0; i < numShadersToCompile; i++)
 	{
 		BuildableArtifact& shaderArtifact = shaderArtifacts[i];
 		shaderArtifact.options.max_procs = 0; // implies nob_nprocs
-		//shaderArtifact.options.async = &procs;
+		shaderArtifact.options.async = &procs;
 		CHECK_BUILD_RESULT(shaderArtifact.build());
 	}
-	if (!nob_procs_flush(&procs))
-	{
-		nob_log(NOB_ERROR, "Tragedy struck while waiting for build processes");
-		return 1;
-	}
-
+	
+	// can check build for reflector in parallel with shaders
+	mindseyeReflectorCompile.options.max_procs = 0;
+	mindseyeReflectorCompile.options.async = &procs;
 	BuildResult reflectorBuildResult = mindseyeReflectorCompile.build();
 	if (reflectorBuildResult == BUILD_SUCCEEDED)
 	{
@@ -542,17 +541,26 @@ int main(int argc, char** argv)
 		nob_delete_dir(nob_temp_sprintf("%s/mindseye/generatedtypes", root));
 	}
 	CHECK_BUILD_RESULT(mindseyeReflectorRun.build(true));
-
+	
+	if (!nob_procs_flush(&procs))
+	{
+		nob_log(NOB_ERROR, "Tragedy struck while waiting for build processes");
+		return 1;
+	}
 	nob_set_current_dir("build");
 
 	// Build object files in parallel
 	externalLibsObj.options.async = &procs;
 	externalLibsObj.options.max_procs = 0;
-	CHECK_BUILD_RESULT(externalLibsObj.build(forceBuildLibs));
+	BuildResult externalLibsBuildRes = externalLibsObj.build(forceBuildLibs);
+	CHECK_BUILD_RESULT(externalLibsBuildRes);
+	bool builtExternalLibs = externalLibsBuildRes == BUILD_SUCCEEDED;
 	
+	mindseyeEngineObj.options.async = &procs;
+	mindseyeEngineObj.options.max_procs = 0;
 	BuildResult builtMindseyeObjRes = mindseyeEngineObj.build();
 	bool builtMindseyeObj = builtMindseyeObjRes == BUILD_SUCCEEDED;
-	CHECK_BUILD_RESULT(builtMindseyeObj);
+	CHECK_BUILD_RESULT(builtMindseyeObjRes);
 	
 	// Wait for object builds to finish before linking
 	if (!nob_procs_flush(&procs))
@@ -562,10 +570,10 @@ int main(int argc, char** argv)
 	}
 	
 	// Link the object files into mindseye.dll
-	BuildResult builtMindseye = mindseyeDll.build(builtMindseyeObj || forceBuildLibs);
+	BuildResult builtMindseye = mindseyeDll.build(builtMindseyeObj || builtExternalLibs || forceBuildLibs);
 	CHECK_BUILD_RESULT(builtMindseye);
 	
-	CHECK_BUILD_RESULT(app_artifact.build(builtMindseye == BUILD_SUCCEEDED));
+	CHECK_BUILD_RESULT(testbedBuild.build(builtMindseye == BUILD_SUCCEEDED));
 	CHECK_BUILD_RESULT(driver.build());
 	if (!nob_procs_flush(&procs))
 	{
