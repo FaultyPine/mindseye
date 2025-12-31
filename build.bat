@@ -23,10 +23,12 @@ if not exist "tools\clang\bin\clang.exe" (
 
 set compile_exe="%root%\tools\clang\bin\clang.exe"
 
-if not exist "me_build.exe" (
-	%compile_exe% me_build.cpp -o me_build.exe -std=c++20 -g
+if not exist "tools/me_build.exe" (
+    pushd tools
+	%compile_exe% %root%/me_build.cpp -o me_build.exe -std=c++20 -g
+    popd
 )
-me_build.exe %compile_exe% %root% %*
+"tools/me_build.exe" %compile_exe% %root% %*
 :: windows weirdness, tmp file stays locked and isn't properly deleted in nob, ensure it here
 del /f /q me_build.exe.old >nul 2>&1
 
