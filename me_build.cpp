@@ -539,7 +539,7 @@ int main(int argc, char** argv)
 	{
 		nob_log(NOB_INFO, "Testbed project relies on gltf-samples submodule. Pulling it in now...");
 		Nob_Cmd submoduleUpdateCmd = {};
-		nob_cmd_append(&submoduleUpdateCmd, "git", "submodule", "update");
+		nob_cmd_append(&submoduleUpdateCmd, "git", "submodule", "update", "--init", "--recursive");
 		nob_cmd_run(&submoduleUpdateCmd);
 	}
 	const char* testbedInputs = nob_temp_sprintf("%s/projects/testbed/testbed.cpp", root);
