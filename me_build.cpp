@@ -242,6 +242,7 @@ int main(int argc, char** argv)
 		"-g", "-gno-column-info",
 		"-Wall", "-Wextra", "-Wno-unused-parameter", "-Wno-microsoft-include", "-ferror-limit=500",
 		// 	for /f %%i in ('call git describe --always --dirty')   do set compile_flags_common=%compile_flags_common% -DBUILD_GIT_HASH=\"%%i\"
+        (mode == DEBUG ? "-D_DEBUG" : "-DNDEBUG"),
 
 		// app flags
 		"-DSHIPPING_BUILD=0", 
@@ -289,7 +290,7 @@ int main(int argc, char** argv)
 	if (mode == DEBUG)
 	{
 		nob_cmd_append(&externalLibsCmd,
-		"-O0", "-DBUILD_DEBUG=1" ,"-DMEEXPORT", "-DBX_CONFIG_DEBUG=0", "-c", "-w");
+		"-O0", "-DBUILD_DEBUG=1" ,"-DMEEXPORT", "-DBX_CONFIG_DEBUG=1", "-c", "-w");
 	}
 	else if (mode == RELEASE)
 	{
@@ -423,7 +424,7 @@ int main(int argc, char** argv)
 	if (mode == DEBUG)
 	{
 		nob_cmd_append(&mindseyeCmd, 
-		"-O0", "-DBUILD_DEBUG=1", "-DMEEXPORT", "-D_USRDLL", "-D_WINDLL", "-D_DLL", "-c", "-DBX_CONFIG_DEBUG=0");
+		"-O0", "-DBUILD_DEBUG=1", "-DMEEXPORT", "-D_USRDLL", "-D_WINDLL", "-D_DLL", "-c", "-DBX_CONFIG_DEBUG=1");
 	}
 	else if (mode == RELEASE)
 	{
@@ -446,8 +447,14 @@ int main(int argc, char** argv)
 	NOB_CMD_APPEND_MULTIPLE(mindseyeLinkCmd, linkerFlagsCommon);
 	NOB_CMD_APPEND_MULTIPLE(mindseyeLinkCmd, compilerFlagsCommon);
 	nob_cmd_append(&mindseyeLinkCmd, nob_temp_sprintf("-L%s/mindseye/external/ktx/lib", root), "-lktx", "-lshell32");
-	nob_cmd_append(&mindseyeLinkCmd, nob_temp_sprintf("-L%s/mindseye/external/bgfx/bin", root), "-lbgfxRelease", "-lbimgRelease", "-lbxRelease");
-	nob_cmd_append(&mindseyeLinkCmd, "-Wl,/FORCE:MULTIPLE", "-Wl,/ignore:4006");
+	if (mode == DEBUG) 
+    {
+		nob_cmd_append(&mindseyeLinkCmd, nob_temp_sprintf("-L%s/mindseye/external/bgfx/bin", root), "-lbgfxDebug", "-lbimgDebug", "-lbxDebug");
+	} 
+    else 
+    {
+		nob_cmd_append(&mindseyeLinkCmd, nob_temp_sprintf("-L%s/mindseye/external/bgfx/bin", root), "-lbgfxRelease", "-lbimgRelease", "-lbxRelease");
+	}
 	// input objects
 	const char* mindseyeDllInputs[] = { "mindseye.o", "mindseye_ext.o" };
 	mindseyeDll.addInputs(mindseyeDllInputs, ARRAY_SIZE(mindseyeDllInputs));
