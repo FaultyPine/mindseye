@@ -134,12 +134,37 @@ const char* nob_get_filename_from_path(const char* path)
 	return filename;
 }
 
+void clean()
+{
+    nob_log(NOB_INFO, "Cleaning...");
+    nob_delete_dir("build");
+    nob_delete_dir("mindseye/generatedtypes");
+    nob_delete_dir("mindseye/shaders/generated");
+
+    Nob_File_Paths toolsfiles = {};
+    nob_read_entire_dir("tools", &toolsfiles);
+    for (int i = 0; i < toolsfiles.count; i++)
+    {
+        const char* toolsfile = toolsfiles.items[i];
+        if (strstr(toolsfile, "me_build"))
+        {
+            nob_delete_file(nob_temp_sprintf("%s/tools/%s", root, toolsfile));
+        }
+    }
+}
+
 int main(int argc, char** argv)
 {
 	nob_minimal_log_level = NOB_INFO;
 	g_compilerExe = argv[1];
 	NOB_GO_REBUILD_URSELF_PLUS(argc, argv, "mindseye/core/me_defines.h", "tools/nob.h");
 	root = argv[2];
+    const char* command = argv[3];
+    if (argc > 3 && strcmp(command, "clean") == 0)
+    {
+        clean();
+        return 0;
+    }
 	nob_log(NOB_INFO, "%s", g_compilerExe);
 	normalizePathSeperators(root);
 	normalizePathSeperators(g_compilerExe);

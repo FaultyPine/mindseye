@@ -1635,6 +1635,10 @@ NOBDEF bool nob_delete_file(const char *path)
     nob_log(NOB_INFO, "deleting %s", path);
 	#ifdef _WIN32
     if (!DeleteFileA(path)) {
+        if (RemoveDirectoryA(path))
+        {
+            return true;
+        }
         nob_log(NOB_ERROR, "Could not delete file %s: %s", path, nob_win32_error_message(GetLastError()));
         return false;
     }

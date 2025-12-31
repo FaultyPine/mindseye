@@ -32,7 +32,7 @@
             "name": "builder",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceFolder}\\me_build.exe",
+            "program": "${workspaceFolder}\\tools\\me_build.exe",
             "args": ["${workspaceFolder}\\tools\\clang\\bin\\clang.exe", "${workspaceFolder}"],
             "stopAtEntry": true,
             //"preLaunchTask": "build_all",
