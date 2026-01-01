@@ -10,6 +10,10 @@ run `build.bat`
 - render 2d squares and have em move around
 - flesh out custom serialization format, implement for all current assets, like meshes, shaders, textures, and have them load through that data
     - i.e. a meScene asset on disk refers to a collection of "serialized entities" which contain materials, meshes, transforms
+    - for this, need to be able to serialize a reference to another asset. This is equivalent to axe's .type system having a sno in it
+        - for me, this is when a serialized struct has an MAID member (TODO: what is difference between MAID and Eye)
+            - i'd like to add something to the mereflect macro where you can add a function for serialize/deserialize from the macro itself
+
     - after this, we will have the foundation to build a proper "asset compiler", so game just reads in compiled stuff
         - stretch idea: have compilation be a separate process (literally) that the game client asks for compiled stuff, I.E. bill + compilation server
 

@@ -33,7 +33,9 @@ void meSceneManager::LoadSceneFromFileBlocking(StringView filename, meAllocator*
     {
         OSFileReference file;
         meOSOpenFile(file, assetPath, OSFileFlags(OnlyIfExists | ScopedFile));
-        success = DeserializeFromTextBlocking(TD_MESCENE, sceneAllocator, assetPath, SPAN_FROM(*outScene));
+        ScopedAllocation tempFileContent(GetTLScratch(), meOSGetFileSize(file));
+        meOSReadFileContents(file, tempFileContent.allocation, tempFileContent.allocation.size);
+        success = DeserializeFromTextBlocking(TD_MESCENE, sceneAllocator, StringView(tempFileContent.allocation), SPAN_FROM(*outScene));
     }
 	if (success)
 	{
@@ -97,12 +99,16 @@ struct meSceneAssetLoader : public meAssetLoader
 {
 	virtual meRTAsset meAssetLoad(meAssetIdent ident)
 	{
+        EngineContext* engine = GetEngineCtx();
 		meRTAsset result = {};
 		result.id = ident.id;
 		result.type = meAssetType::Scene;
 		result.loadStage = Loaded;
-		// actual loading, need to fill out the loadedData span
-
+        // TODO: implement async scene loading, so this would return loadStage=Loading
+        // and would itself enqueue more asset compiling jobs for the individual parts of the scene
+        meScene* resultingScene = MENEW(&engine->engineSceneAllocator, meScene);
+		engine->sceneSystem->LoadSceneFromFileBlocking(ident.diskIdent, &engine->engineSceneAllocator, resultingScene);
+        result.loadedData = meOwningSpan(resultingScene, sizeof(meScene));
 		return result;
 	}
 
@@ -115,7 +121,7 @@ struct meSceneAssetLoader : public meAssetLoader
 
 MEEVENT_REGISTER_STATIC(registerAssetLoader, meSceneAssetLoader::RegisterAssetLoader);
 
-void LoadSceneRuntime(meScene& outScene, meAllocator* sceneAllocator)
+void LoadSceneRuntimeFromGLTF(meScene& outScene, meAllocator* sceneAllocator)
 {
 	if (outScene.IsValid())
 	{
@@ -183,5 +189,5 @@ void meSceneLoadFromGLTF(
 	StringView gltfResourcePath = msFsGetDirFromPath(resourcePath);
 	outScene.runtime.gltfResourcePath = String(gltfResourcePath, sceneAllocator);
 	outScene.runtime.gltfData = data;
-	LoadSceneRuntime(outScene, sceneAllocator);
+	LoadSceneRuntimeFromGLTF(outScene, sceneAllocator);
 }

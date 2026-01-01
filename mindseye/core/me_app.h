@@ -33,21 +33,24 @@ struct MEREFLECT(type) meAppConfig
 typedef void(*InitFn)(EngineContext* engine);
 typedef void(*UpdateFn)(EngineContext* engine);
 typedef void(*ShutdownFn)(EngineContext* engine);
+typedef void(*OnSceneLoaded)(EngineContext* engine);
 
 inline void defaultInitFn(EngineContext *){}
 inline void defaultUpdateFn(EngineContext *){}
 inline void defaultShutdownFn(EngineContext *){}
+inline void defaultOnSceneLoadedFn(EngineContext *){}
 
-struct AppRegistrationInfo
+struct MindseyeAppCallbacks
 {
     InitFn initFn = defaultInitFn;
     UpdateFn updateFn = defaultUpdateFn;
     ShutdownFn shutdownFn = defaultShutdownFn;
+    OnSceneLoaded onSceneLoadFn = defaultOnSceneLoadedFn;
 };
 
 struct EngineContext
 {
-    AppRegistrationInfo appInfo = {};
+    MindseyeAppCallbacks appCallbacks = {};
 	StringView appRootConfig = STRING_LIT(".");
     // allocators
     Arena gameArena = {};
@@ -84,11 +87,11 @@ MEAPI EngineContext* GetEngineCtx();
 MEAPI f32 GetDeltaTime();
 
 // register a program
-MEAPI void InternalRegisterApp(AppRegistrationInfo callbacks);
-// pass parameters to AppRegistrationInfo constructor
+MEAPI void InternalRegisterApp(MindseyeAppCallbacks callbacks);
+// pass parameters to MindseyeAppCallbacks constructor
 #define REGISTER_MINDSEYE_APP(...) \
     struct ME_APPREG_STRUCT { \
-	ME_APPREG_STRUCT() { InternalRegisterApp(AppRegistrationInfo(__VA_ARGS__)); } \
+	ME_APPREG_STRUCT() { InternalRegisterApp(MindseyeAppCallbacks(__VA_ARGS__)); } \
     }; \
     static ME_APPREG_STRUCT globalAppRegistrationHolder = {};
 

@@ -10,7 +10,7 @@
 
 MEEVENT_DECLARE_STATIC(registerAssetLoader);
 
-static bool MEASSET_DEBUG_SINGLETHREADED_LOAD = 1;
+static bool MEASSET_DEBUG_SINGLETHREADED_LOAD = 0;
 constexpr u32 NUM_ASSET_COMPILER_THREADS = 1;
 static StringView DEFAULT_RESOURCE_DIRECTORY_NAME = STRING_LIT("."); // cwd
 
@@ -43,6 +43,20 @@ void meAssetRegisterLoader(meAssetLoader* loader, meAssetType type)
 	assetSystem.assetLoaders[type] = loader;
 }
 
+MAID::MAID(u64 id, meAssetType type)
+{
+    SetID(id);
+    SetType(type);
+}
+
+meAssetIdent::meAssetIdent(StringView diskIdent, meAssetType type)
+{
+    this->diskIdent = diskIdent;
+    u32 identHash = HashBytes((u8*)diskIdent.data, diskIdent.len);
+    // NOTE: maid takes a 48 bit identifier. Currently passing a 32 bit hash, so 16 of our id bits aren't used...
+    this->id = MAID(identHash, type);
+}
+
 meAssetLoadStage meAssetLoader::meAssetWaitForLoad(meAssetIdent ident)
 {
 	meRTAsset* asset = meAssetTryGetLoaded(ident);
@@ -60,7 +74,8 @@ meAssetLoadStage meAssetLoader::meAssetWaitForLoad(meAssetIdent ident)
 meAssetLoadStage* meAssetRequestLoad(
 	meAllocator* allocator, 
 	meAssetIdent* assetIdents, 
-	u32 numAssets)
+	u32 numAssets,
+    meAssetOnAssetLoadCb cb)
 {
 	meAssetSystem& assetSystem = GetAssetSystem();
 	meAssetLoadStage* results = MEALLOC(allocator, sizeof(meAssetLoadStage) * numAssets);
@@ -91,19 +106,23 @@ meAssetLoadStage* meAssetRequestLoad(
 				struct AssetCompilerJobData
 				{
 					meAssetIdent ident;
-					meAssetSystem* system;
 					meAssetLoader* loader;
+                    meAssetOnAssetLoadCb cb;
 				};
 				AssetCompilerJobData jobData = {};
 				jobData.ident = assetIdent;
-				jobData.system = &assetSystem;
 				jobData.loader = loader;
-				auto loadFunc = [jobData]() 
+                jobData.cb = cb;
+				auto loadFunc = [jobData, &assetSystem]() 
 				{
 					meRTAsset loadedAsset = jobData.loader->meAssetLoad(jobData.ident);
 					ME_ASSERT(loadedAsset.loadStage == Loaded && loadedAsset.loadedData.isValid());
-					RWLockWrite(jobData.system->assetRegistryLock);
-					jobData.system->assetRegistry[jobData.ident] = loadedAsset;
+					RWLockWrite(assetSystem.assetRegistryLock);
+					assetSystem.assetRegistry[jobData.ident] = loadedAsset;
+                    if (jobData.cb)
+                    {
+                        jobData.cb(loadedAsset);
+                    }
 				};
 				if (MEASSET_DEBUG_SINGLETHREADED_LOAD)
 				{
@@ -114,8 +133,11 @@ meAssetLoadStage* meAssetRequestLoad(
 					meJobId compilerJobId = assetSystem.assetCompilerJobs.Execute(loadFunc);
 					UNUSED(compilerJobId);
 				}
-				
 			}
+            if (meRTAsset* asset = meAssetTryGetLoaded(assetIdent))
+            {
+                stage = asset->loadStage;
+            }
 		}
 		results[i] = stage;
 	}
@@ -166,7 +188,8 @@ meRTAsset* meAssetTryGetLoaded(meAssetIdent assetID)
 	{
 		return nullptr;
 	}
-	return &assetSystem.assetRegistry[assetID];
+    meRTAsset* asset = &assetSystem.assetRegistry[assetID];
+	return asset->isLoaded() ? asset : nullptr;
 }
 
 void meAssetSetResourceDir(StringView dir)

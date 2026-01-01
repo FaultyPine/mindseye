@@ -13,14 +13,19 @@ struct GameGlobals
 	bool IsValid() const { return initialized; }
 };
 
-void testbed_init(EngineContext* engine)
+void testbed_onsceneload(EngineContext* engine)
 {
-	GameGlobals& globals = *MENEW(&engine->gameArena, GameGlobals);
+    GameGlobals& globals = *MENEW(&engine->gameArena, GameGlobals);
 	globals.testEntity = Entity::CreateEntity("bruh", meTransform());
 	DynArrayPush(engine->sceneSystem->CurrentScene().runtime.entities, globals.testEntity);
 	EntityData& entity = Entity::GetEntity(globals.testEntity);
 	// Entity::SetFlag(entity, EntityFlags_HIDDEN, true);
 	entity.mesh = GenPlaneMesh(2);
+}
+
+void testbed_init(EngineContext* engine)
+{
+    engine->appCallbacks.onSceneLoadFn = testbed_onsceneload;
 }
 
 void testbed_update(EngineContext* engine)

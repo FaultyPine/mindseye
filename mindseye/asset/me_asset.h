@@ -20,15 +20,16 @@ ME_DECLARE_ASSET_TYPES
 #undef X
     NUM_ASSET_TYPES
 };
-#define ASSET_TYPE_BITS (((u64)0xff) << 48)
-STATIC_ASSERT(NUM_ASSET_TYPES < 128);
+STATIC_ASSERT(NUM_ASSET_TYPES < 255);
 
 
-// mindseye asset id
+// Mindseye Asset ID
 struct MEREFLECT(type) MAID
 {
 	constexpr static u32 ID_BITS = 48; // lower bits
 	constexpr static u32 TYPE_BITS = 8; // top bits
+    MAID() = default;
+    MAID(u64 id, meAssetType type);
 	u64 idAndType = U32_INVALID_ID;
     bool isValid() const { return idAndType != U32_INVALID_ID; }
     bool operator==(const MAID& other) const { return idAndType == other.idAndType; }
@@ -36,10 +37,22 @@ struct MEREFLECT(type) MAID
 	{
 		return idAndType >> ID_BITS;
 	}
+    inline void SetType(meAssetType type)
+    {
+        u64 typefull = (u64)type;
+        typefull = typefull << ID_BITS;
+        idAndType |= typefull;
+    }
 	inline u64 GetID() const
 	{
 		return idAndType & (~0 >> TYPE_BITS);
 	}
+    inline void SetID(u64 id)
+    {
+        // make sure top type bits aren't set
+        ME_ASSERT(id == (id & ~(((u64)0xff) << ID_BITS)));
+        idAndType |= id;
+    }
     operator u64() const { return idAndType; }
 };
 MEMAP_BEGIN_CUSTOM_HASHER(MAID, obj) 
@@ -84,6 +97,9 @@ struct meAssetIdent
     // TODO: will be a hash of the "source" data that the asset is created from.
     // EX: shaders will be a hash of their source file. Images - hash of the .png or whatever
     u32 assetSourceHash = 0;
+    String diskIdent = {};
+    meAssetIdent() = default;
+    meAssetIdent(StringView diskIdent, meAssetType type);
     bool operator==(const meAssetIdent& other) const 
 	{ 
 		return id == other.id && assetSourceHash == other.assetSourceHash; 
@@ -99,8 +115,9 @@ MEMAP_BEGIN_CUSTOM_HASHER(meAssetIdent, ident)
 
 struct meAssetLoader
 {
+    // called on asset threads
     virtual meRTAsset meAssetLoad(meAssetIdent) = 0;
-	virtual meAssetLoadStage meAssetWaitForLoad(meAssetIdent);
+	meAssetLoadStage meAssetWaitForLoad(meAssetIdent);
 };
 
 struct meAssetSystem
@@ -118,10 +135,15 @@ void meAssetInitialize(EngineContext* engine);
 void meAssetTeardown(EngineContext* engine);
 void meAssetRegisterLoader(meAssetLoader* loader, meAssetType type);
 
+MAID meAssetCreateNewMAID(meAssetType type);
+
+typedef void(*meAssetOnAssetLoadCb)(const meRTAsset&);
+
 meAssetLoadStage* meAssetRequestLoad(
 	meAllocator* allocator,
 	meAssetIdent* assetIdents, 
-	u32 numAssets = 1);
+	u32 numAssets = 1,
+    meAssetOnAssetLoadCb cb = nullptr);
 
 meAssetLoadStage* meAssetWaitForLoad(
 	meAllocator* allocator,

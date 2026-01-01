@@ -31,9 +31,16 @@ namespace ImGui {
 	void ShutdownDockContext() {}
 }
 
+#ifdef COMPILER_CLANG
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
+#endif
 #include "external/bgfx/bgfx/examples/common/imgui/imgui.cpp"
 #include "external/bgfx/bgfx/examples/common/debugdraw/debugdraw.h"
 #include "external/bgfx/bgfx/examples/common/debugdraw/debugdraw.cpp"
+#ifdef COMPILER_CLANG
+#pragma GCC diagnostic pop
+#endif
 
 // ---- shaders
 #include "shaders/generated/main_lit_fs.sc.h"
@@ -292,6 +299,11 @@ void* BgfxRendererBackend::RenderScene(RenderInput* input)
 	dde.drawGrid(Axis::Y, { 0.0f, 0.0f, 0.0f }, 50);
 	ME_ON_SCOPE_EXIT([&dde](){ dde.end(); });
 
+    const meCamera& cam = input->scene.mainCamera;
+    glm::mat4 proj = cam.GetProjectionMatrix();
+    glm::mat4 view = cam.GetViewMatrix();
+	bgfx::setViewTransform(0, glm::value_ptr(view), glm::value_ptr(proj));
+
 	const meTexturePool& texturePool = meTextureGetPool();
 	const meMaterialPool& materialPool = meMaterialGetPool();
 
@@ -318,18 +330,12 @@ void* BgfxRendererBackend::RenderScene(RenderInput* input)
 				if (!uniform.RefreshInternalUniformData()) continue;
 				bgfx::setUniform(bgfx::UniformHandle(uniform.handle), uniform.uniformData);
 			}
-			
-			const meCamera& cam = input->scene.mainCamera;
-			glm::mat4 proj = cam.GetProjectionMatrix();
-			glm::mat4 view = cam.GetViewMatrix();
 
 			bgfx::ProgramHandle program = bgfx::ProgramHandle(shader.program);
 			//renderScreenSpaceQuad(proj, 0, program, 0, 0, 256, 256, bgfxDiffuseTex);
 
 			glm::mat4 modelMat = entity.transform.ToModelMatrix();
 			bgfx::setTransform(&modelMat[0]);
-
-			bgfx::setViewTransform(0, glm::value_ptr(view), glm::value_ptr(proj));
 
 			bgfx::setVertexBuffer(0, bgfx::VertexBufferHandle { static_cast<u16>(mesh.vertBuffer.bufferHandle) });
 			bgfx::setIndexBuffer(bgfx::IndexBufferHandle { static_cast<u16>(mesh.idxBuffer.bufferHandle) });
@@ -353,7 +359,6 @@ void* BgfxRendererBackend::RenderScene(RenderInput* input)
 						   | BGFX_STATE_CULL_CW
 						   | BGFX_STATE_MSAA);
 			bgfx::submit(0, program);
-
 		}
 	}
 

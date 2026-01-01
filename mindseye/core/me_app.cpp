@@ -31,10 +31,10 @@ f32 GetDeltaTime()
 	return GetEngineCtx()->deltaTime;
 }
 
-void InternalRegisterApp(AppRegistrationInfo appInfo)
+void InternalRegisterApp(MindseyeAppCallbacks appCallbacks)
 {
     EngineContext* engine = GetEngineCtx();
-    engine->appInfo = appInfo;
+    engine->appCallbacks = appCallbacks;
 }
 
 void RunEngine(EngineContext* engine)
@@ -45,7 +45,7 @@ void RunEngine(EngineContext* engine)
 		engine->deltaTime = time - engine->lastFrameTime;
 		engine->renderer->BeginImguiContext();
         meOSTick(engine);
-		engine->appInfo.updateFn(engine);
+		engine->appCallbacks.updateFn(engine);
 		engine->sceneSystem->Tick(engine);
 		meEditorDisplayGui(engine);
         RenderInput renderInput = {};
@@ -138,11 +138,18 @@ void InitializeEngine(s32 argc, char** argv)
 		if (!engine->sceneSystem->CurrentScene().IsValid())
 		{
 			// if no scene already, and user config specifies a default scene, load it
-			engine->sceneSystem->LoadSceneFromFileBlocking(engine->appConfig.defaultSceneName, &engine->engineSceneAllocator, &meSceneManager::CurrentScene());
+            meAssetIdent sceneIdent = meAssetIdent(engine->appConfig.defaultSceneName, meAssetType::Scene);
+            auto onSceneLoad = +[](const meRTAsset& asset)
+            {
+                meScene* loadedSceneData = (meScene*)asset.loadedData.data;
+                meSceneManager::CurrentScene() = *loadedSceneData;
+                GetEngineCtx()->appCallbacks.onSceneLoadFn(GetEngineCtx());
+            };
+            meAssetRequestLoad(GetTLScratch(), &sceneIdent, 1, onSceneLoad);
 		}
 	}
 
-    engine->appInfo.initFn(engine);
+    engine->appCallbacks.initFn(engine);
     RunEngine(engine);
-	engine->appInfo.shutdownFn(engine);
+	engine->appCallbacks.shutdownFn(engine);
 }
