@@ -1,13 +1,13 @@
 #include "me_serialize.h"
 
-#include "external/inicpp.hpp"
 #include "reflector/reflection_types.h"
 #include "platform/me_os.h"
 
-StringView SerializeToTextBlocking(
+meSerializeResult SerializeToTextBlocking(
 	const meTypeDescriptor& typeDesc, 
 	void* data,
-	meAllocator* allocator)
+	meAllocator* allocator,
+    StringView& outResult)
 {
 	StringBuilder sb(allocator);
 	sb.AppendFormat("version: %d\n", typeDesc.version);
@@ -30,10 +30,11 @@ StringView SerializeToTextBlocking(
 		sb.AppendFormat("%s: %.*s\n", (const char*)field.name.cstr(), STRING_VAARGS(fieldStr));
 	}
 	// stringbuilders don't own their data, so it's safe to return the data pointer
-	return sb;
+	outResult = sb;
+    return SER_SUCCESS;
 }
 
-bool DeserializeFromTextBlocking(
+meSerializeResult DeserializeFromTextBlocking(
 	const meTypeDescriptor& typeDesc,
 	meAllocator* allocator,
 	StringView inText,
@@ -48,14 +49,14 @@ bool DeserializeFromTextBlocking(
 		{
 			return {};
 		}
-		s32 colonPos = FindInString(inText.OffsetView(fieldPos), STRING_LIT(":")); // relative to fieldPos
+		s32 colonPos = EatCharsOffset(inText.OffsetView(fieldPos), STRING_LIT("="), true); // relative to fieldPos, either ":" or "="
 		if (colonPos == -1)
 		{
 			return {};
 		}
 		colonPos += fieldPos;
 		s32 valueStart = colonPos + 1;
-		s32 lineEnd = FindInString(inText.OffsetView(valueStart), STRING_LIT("\n")); // relative to valueStart
+        s32 lineEnd = EatCharsOffset(inText.OffsetView(valueStart), STRING_LIT("\r\n"), true); // relative to valueStart, finding either \r or \n, whichever comes first
 		if (lineEnd == -1)
 		{
 			lineEnd = inText.len;
@@ -71,6 +72,7 @@ bool DeserializeFromTextBlocking(
 		LOG_ERROR("Type mismatch deserializing from text. Expected %.*s but got %.*s", 
 			STRING_VAARGS(typeDesc.name), 
 			STRING_VAARGS(typeStr));
+        return SER_FAILURE;
 	}
 	StringView versionStr = findFieldValueInText(STRING_LIT("version"));
 	s32 version = StringParseInt32(versionStr);
@@ -80,6 +82,7 @@ bool DeserializeFromTextBlocking(
 			STRING_VAARGS(typeDesc.name), 
 			typeDesc.version,
 			version);
+        return SER_VERSION_MISMATCH;
 	}
 
 	for (u64 i = 0; i < typeDesc.fields.size; i++)
@@ -106,79 +109,6 @@ bool DeserializeFromTextBlocking(
 	}
 	// NOTE: padding is relevant here...
 	ME_ASSERT(outBuffer.size == typeDesc.size);
-	return true;
+	return SER_SUCCESS;
 }
 
-// TODO: this inicpp library is not good. 
-// It works, so i'm using it to stand up the rest of the infra here
-// Swap it out asap.
-
-
-void SerializeToIniBlocking(
-	const meTypeDescriptor& typeDesc, 
-	void* data,
-	StringView outFilename)
-{
-	{
-		OSFileReference outExistingFile;
-		outExistingFile.InitWithoutOpening(outFilename);
-		meOSFileDelete(outExistingFile);
-	}
-	inicpp::IniManager iniObj(outFilename.data);
-	iniObj.set("type", (const char*)typeDesc.name.data);
-	iniObj.set("version", typeDesc.version);
-	char* typeData = (char*)data;
-	for (u64 i = 0; i < typeDesc.fields.size; i++)
-	{
-		const meTypeDescriptor& field = typeDesc.fields[i];
-		if (field.underlyingType == nullptr)
-		{
-			continue;
-		}
-		if (field.offsetBits % 8 != 0)
-		{
-			UNIMPLEMENTED(); // TODO
-		}
-		u32 offsetBytes = field.offsetBits / 8;
-		meSpan fieldData = meSpan(typeData + offsetBytes, field.size);
-		StringView fieldStr = field.ToString(GetTLScratch(), fieldData);
-		iniObj[typeDesc.name.cstr()][(const char*)field.name.cstr()] = (const char*)fieldStr.cstr();
-	}
-}
-
-bool DeserializeFromIniBlocking(
-	const meTypeDescriptor& typeDesc,
-	meAllocator* allocator,
-	StringView inFilename,
-	meSpan outBuffer)
-{
-	ME_ASSERT(meOSFileExists(inFilename));
-	inicpp::IniManager iniObj(inFilename.data);
-	Allocation bumper = outBuffer;
-	for (u64 i = 0; i < typeDesc.fields.size; i++)
-	{
-		const meTypeDescriptor& field = typeDesc.fields[i];
-		ME_ON_SCOPE_EXIT([&bumper, &field]() 
-		{
-			bumper = bumper.Subspan(field.size);
-		});
-		std::string fieldStdStr = iniObj[typeDesc.name.cstr()].toString(field.name.data);
-		if (field.underlyingType == nullptr || fieldStdStr.empty())
-		{
-			// for reflected fields that don't have entries in the ini,
-			// leave them as-is. This way, the caller can default-initialize the structure and
-			// fields not in the ini will stay as their defaults.
-			continue;
-		}
-		StringView fieldStr = StringView(fieldStdStr.c_str(), fieldStdStr.size());
-		fieldStr = StringTrim(fieldStr, STRING_LIT("\""));
-		DeserializeContext ctx = {};
-		ctx.inputData = fieldStr.ToSpan();
-		ctx.outputData = bumper;
-		ctx.externalDataAllocator = allocator;
-		field.FromString(ctx);
-	}
-	// NOTE: padding is relevant here...
-	ME_ASSERT(outBuffer.size == typeDesc.size);
-	return true;
-}

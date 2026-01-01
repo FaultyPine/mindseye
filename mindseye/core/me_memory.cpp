@@ -3,6 +3,17 @@
 #include "core/me_core.h"
 #include "platform/me_os.h"
 
+ScopedAllocation::ScopedAllocation(meAllocator* allocator, u64 size)
+{
+    this->allocator = allocator;
+    this->allocation = MEALLOC(allocator, size);
+}
+
+ScopedAllocation::~ScopedAllocation()
+{
+    MEFREE(allocator, allocation.data);
+}
+
 Allocation meSystemAllocator::meAlloc(u64 size)
 {
 	Allocation reservation = Allocation(meOSReserveVirtualMemory(size), size);

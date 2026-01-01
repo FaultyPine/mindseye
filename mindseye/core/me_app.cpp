@@ -16,6 +16,7 @@
 #include "render/me_mesh.h"
 #include "render/me_shader.h"
 #include "scene/me_entity.h"
+#include "core/me_serialize.h"
 
 #include "generatedtypes/me_app.generated.cpp"
 
@@ -107,12 +108,23 @@ void InitializeEngine(s32 argc, char** argv)
 	}
 	else
 	{
-		DeserializeFromIniBlocking(TD_MEUSERCONFIG, &engine->engineArena, userProjectConfigPath, meSpan(&engine->userConfig, sizeof(engine->userConfig)));
-		
+        {
+            OSFileReference file;
+            meOSOpenFile(file, userProjectConfigPath, OSFileFlags(OnlyIfExists | ScopedFile));
+            ScopedAllocation tmpFileContent(GetTLScratch(), meOSGetFileSize(file));
+            meOSReadFileContents(file, tmpFileContent.allocation.data, tmpFileContent.allocation.size);
+            DeserializeFromTextBlocking(TD_MEUSERCONFIG, &engine->engineArena, StringView(tmpFileContent.allocation), meSpan(&engine->userConfig, sizeof(engine->userConfig)));
+        }
 		// "userApp" referring to a program that uses the mindseye engine
 		StringView userAppConfigFile = engine->userConfig.projectRootConfigFile;
 		String userAppConfigPathAbs = meOSResolveRelativeToAbsPath(GetTLScratch(), userAppConfigFile);
-		DeserializeFromIniBlocking(TD_MEAPPCONFIG, &engine->engineArena, userAppConfigPathAbs, meSpan(&engine->appConfig, sizeof(engine->appConfig)));
+        {
+            OSFileReference file;
+            meOSOpenFile(file, userAppConfigPathAbs, OSFileFlags(OnlyIfExists | ScopedFile));
+            ScopedAllocation tmpFileContent(GetTLScratch(), meOSGetFileSize(file));
+            meOSReadFileContents(file, tmpFileContent.allocation.data, tmpFileContent.allocation.size);
+            DeserializeFromTextBlocking(TD_MEAPPCONFIG, &engine->engineArena, StringView(tmpFileContent.allocation), meSpan(&engine->appConfig, sizeof(engine->appConfig)));
+        }
 		StringView userAppConfigDir = msFsGetDirFromPath(userAppConfigPathAbs);
 		meAssetSetResourceDir(userAppConfigDir);
 		

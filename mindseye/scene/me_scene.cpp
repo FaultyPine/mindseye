@@ -8,6 +8,7 @@
 #include "core/me_serialize.h"
 #include "scene/me_entity.h"
 #include "render/me_mesh.h"
+#include "platform/me_os.h"
 
 #include "generatedtypes/me_scene.generated.cpp"
 
@@ -28,7 +29,12 @@ void meSceneManager::LoadSceneFromFileBlocking(StringView filename, meAllocator*
 		outScene->runtime.entities = DynArrayCreate<EntityRef>(sceneAllocator);
 	} 
 	StringView assetPath = meAssetResource(filename);
-	bool success = DeserializeFromIniBlocking(TD_MESCENE, sceneAllocator, assetPath, SPAN_FROM(*outScene));
+    bool success = false;
+    {
+        OSFileReference file;
+        meOSOpenFile(file, assetPath, OSFileFlags(OnlyIfExists | ScopedFile));
+        success = DeserializeFromTextBlocking(TD_MESCENE, sceneAllocator, assetPath, SPAN_FROM(*outScene));
+    }
 	if (success)
 	{
 		if (FindInString(outScene->externalScenePath, STRING_LIT(".gltf")) != -1 ||
@@ -42,7 +48,16 @@ void meSceneManager::LoadSceneFromFileBlocking(StringView filename, meAllocator*
 
 void meSceneManager::WriteSceneToFileBlocking(meScene* scene, StringView filename)
 {
-	SerializeToIniBlocking(TD_MESCENE, scene, filename);
+    meAllocator* tempAllocator = GetTLScratch();
+    StringView sceneString = {};
+	meSerializeResult res = SerializeToTextBlocking(TD_MESCENE, scene, tempAllocator, sceneString);
+    ME_ASSERT(res == SER_SUCCESS);
+    OSFileReference file;
+    meOSOpenFile(file, filename, OSFileFlags(OnlyIfExists | ScopedFile));
+    if (!meOSWriteFileContent(file, sceneString.data, sceneString.len))
+    {
+        LOG_ERROR("Failed to write scene to file. filename = " STRING_FMT "\nsceneString = " STRING_FMT, STRING_VAARGS(filename), STRING_VAARGS(sceneString));
+    }
 }
 
 void meSceneManager::UnloadCurrentScene()
