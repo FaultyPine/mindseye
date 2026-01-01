@@ -7,6 +7,7 @@
 #include "core/me_log.h"
 #include "core/me_serialize.h"
 #include "scene/me_entity.h"
+#include "render/me_mesh.h"
 
 #include "generatedtypes/me_scene.generated.cpp"
 
@@ -34,17 +35,9 @@ void meSceneManager::LoadSceneFromFileBlocking(StringView filename, meAllocator*
 			FindInString(outScene->externalScenePath, STRING_LIT(".glb")) != -1)
 		{
 			meSceneLoadFromGLTF(sceneAllocator, outScene->externalScenePath, *outScene);
-			StringView textScene = SerializeToTextBlocking(TD_MESCENE, outScene, GetTLScratch());
-			LOG_INFO("Loaded scene %.*s from gltf %.*s", STRING_VAARGS(filename), STRING_VAARGS(outScene->externalScenePath));
-			LOG_INFO("Scene data:\n%.*s", STRING_VAARGS(textScene));
-			meScene outTestScene = {};
-			DeserializeFromTextBlocking(TD_MESCENE, sceneAllocator, textScene, SPAN_FROM(outTestScene));
-			StringView textScene2 = SerializeToTextBlocking(TD_MESCENE, &outTestScene, GetTLScratch());
-			LOG_INFO("Re-serialized scene data:\n");
-			LOG_INFO("Loaded scene %.*s from gltf %.*s", STRING_VAARGS(filename), STRING_VAARGS(outTestScene.externalScenePath));
-			LOG_INFO("Scene data:\n%.*s", STRING_VAARGS(textScene2));
 		}
 	}
+    outScene->sceneAssetPath = filename;
 }
 
 void meSceneManager::WriteSceneToFileBlocking(meScene* scene, StringView filename)
@@ -107,6 +100,35 @@ struct meSceneAssetLoader : public meAssetLoader
 
 MEEVENT_REGISTER_STATIC(registerAssetLoader, meSceneAssetLoader::RegisterAssetLoader);
 
+void LoadSceneRuntime(meScene& outScene, meAllocator* sceneAllocator)
+{
+	if (outScene.IsValid())
+	{
+		const cgltf_scene& scene = *outScene.runtime.gltfData->scene;
+		StringView gltfResPath = outScene.runtime.gltfResourcePath;
+		meMeshPool& meshPool = meMeshPoolGet();
+		if (!outScene.runtime.entities) outScene.runtime.entities = DynArrayCreate<EntityRef>(sceneAllocator);
+		for (u64 nodeIdx = 0; nodeIdx < scene.nodes_count; nodeIdx++)
+		{
+			const cgltf_node& node = *scene.nodes[nodeIdx];
+			float nodeMatrix[16];
+			cgltf_node_transform_local(&node, nodeMatrix);
+			meTransform nodeTf = meTransform(glm::make_mat4(nodeMatrix));
+			EntityRef entityRef = Entity::CreateEntity(node.name, nodeTf);
+			EntityData& entity = Entity::GetEntity(entityRef);
+			if (node.mesh)
+			{
+				const cgltf_mesh& gltfmesh = *node.mesh;
+				meMeshID meshHandle = meshPool.Load(GetEngineCtx()->renderer, gltfResPath, gltfmesh);
+				meMesh& mesh = meshPool.Get(meshHandle);
+				entity.mesh = meshHandle;
+				entity.authoritativeBounds = mesh.meshBounds; // may change due to anims. Default initialized to mesh bounds
+			}
+			DynArrayPush(outScene.runtime.entities, entityRef);
+		}
+	}
+}
+
 void meSceneLoadFromGLTF(
 	meAllocator* sceneAllocator, 
 	StringView resourcePathSv, 
@@ -146,5 +168,5 @@ void meSceneLoadFromGLTF(
 	StringView gltfResourcePath = msFsGetDirFromPath(resourcePath);
 	outScene.runtime.gltfResourcePath = String(gltfResourcePath, sceneAllocator);
 	outScene.runtime.gltfData = data;
-	GetEngineCtx()->renderer->LoadSceneRuntime(outScene, sceneAllocator);
+	LoadSceneRuntime(outScene, sceneAllocator);
 }

@@ -27,6 +27,9 @@ meScene
 	// this stores the scene data necessary at runtime
 	MEREFLECT(exclude) 
 	SceneRuntimeData runtime = {};
+    
+	MEREFLECT(exclude) 
+    String sceneAssetPath = {};
 
 	bool IsValid() const { return runtime.gltfData != nullptr; }
 };

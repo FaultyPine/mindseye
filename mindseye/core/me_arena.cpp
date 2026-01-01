@@ -28,7 +28,6 @@ Allocation Arena::meRealloc(const Allocation& allocation, u64 newSize)
 
 void Arena::meClear(bool deleteMemory) 
 { 
-	ME_MEMCLEAR(backing_mem, backing_mem_size);
 	if (deleteMemory && backingAllocator && backing_mem)
 	{
 		MEFREE(backingAllocator, backing_mem);

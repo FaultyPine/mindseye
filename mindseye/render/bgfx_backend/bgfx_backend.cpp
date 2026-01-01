@@ -278,35 +278,6 @@ void BgfxRendererBackend::DestroyGPUTexture(u64 textureHandle)
 	bgfx::destroy(static_cast<bgfx::TextureHandle>(textureHandle));
 }
 
-void BgfxRendererBackend::LoadSceneRuntime(meScene& outScene, meAllocator* sceneAllocator)
-{
-	if (outScene.IsValid())
-	{
-		const cgltf_scene& scene = *outScene.runtime.gltfData->scene;
-		StringView gltfResPath = outScene.runtime.gltfResourcePath;
-		meMeshPool& meshPool = meMeshPoolGet();
-		if (!outScene.runtime.entities) outScene.runtime.entities = DynArrayCreate<EntityRef>(sceneAllocator);
-		for (u64 nodeIdx = 0; nodeIdx < scene.nodes_count; nodeIdx++)
-		{
-			const cgltf_node& node = *scene.nodes[nodeIdx];
-			float nodeMatrix[16];
-			cgltf_node_transform_local(&node, nodeMatrix);
-			meTransform nodeTf = meTransform(glm::make_mat4(nodeMatrix));
-			EntityRef entityRef = Entity::CreateEntity(node.name, nodeTf);
-			EntityData& entity = Entity::GetEntity(entityRef);
-			if (node.mesh)
-			{
-				const cgltf_mesh& gltfmesh = *node.mesh;
-				meMeshID meshHandle = meshPool.Load(this, gltfResPath, gltfmesh);
-				meMesh& mesh = meshPool.Get(meshHandle);
-				entity.mesh = meshHandle;
-				entity.authoritativeBounds = mesh.meshBounds; // may change due to anims. Default initialized to mesh bounds
-			}
-			DynArrayPush(outScene.runtime.entities, entityRef);
-		}
-	}
-}
-
 void renderScreenSpaceQuad(const glm::mat4& proj, uint8_t _view, bgfx::ProgramHandle _program, float _x, float _y, float _width, float _height, bgfx::TextureHandle tex);
 
 void* BgfxRendererBackend::RenderScene(RenderInput* input)

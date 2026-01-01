@@ -7,8 +7,12 @@ Must be on windows.
 run `build.bat`
 
 ### Current focus
-- Renderer frontend (mesh, shader, texture, material concepts)
-	- ~~camera (& tinyengine tab mouse locking)~~
+- render 2d squares and have em move around
+- flesh out custom serialization format, implement for all current assets, like meshes, shaders, textures, and have them load through that data
+    - i.e. a meScene asset on disk refers to a collection of "serialized entities" which contain materials, meshes, transforms
+    - after this, we will have the foundation to build a proper "asset compiler", so game just reads in compiled stuff
+        - stretch idea: have compilation be a separate process (literally) that the game client asks for compiled stuff, I.E. bill + compilation server
+
 - game/engine hot reloading
 - have engine systems register themselves through a static event the engine core dispatches. each engine system needs to define the other engine systems it will touch (rw/ro), and has a bitset for those. Then, all systems aren't allowed to use GetEngineCtx, they can only access the systems they explicitly define in their initialization. Reflection not required for this, but it would make it way cleaner
 	 this needs more thought, because an actual "static" event has undefined initialization order.

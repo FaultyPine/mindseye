@@ -28,5 +28,4 @@ struct BgfxRendererBackend : public RendererFrontend
 	virtual void DestroyShaderProgram(u64 programHandle) override;
 	virtual u64 UploadTextureToGPU(meSpan textureMem, u32 channels, u32 width, u32 height) override;
 	virtual void DestroyGPUTexture(u64 textureHandle) override;
-	virtual void LoadSceneRuntime(meScene& scene, meAllocator* allocator) override;
 };

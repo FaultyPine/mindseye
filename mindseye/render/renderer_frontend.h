@@ -56,7 +56,6 @@ struct RendererFrontend
 	virtual void DestroyShaderProgram(u64 programHandle) {}
 	virtual u64 UploadTextureToGPU(meSpan textureMem, u32 channels, u32 width, u32 height) { return U32_INVALID_ID; }
 	virtual void DestroyGPUTexture(u64 textureHandle) {}
-	virtual void LoadSceneRuntime(meScene& scene, meAllocator* allocator) {}
 };
 
 void RendererInitialize(EngineContext* engine);
