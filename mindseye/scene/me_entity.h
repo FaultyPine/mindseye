@@ -4,6 +4,7 @@
 #include "scene/me_transform.h"
 #include "core/containers/me_map.h"
 #include "core/me_core.h"
+#include "asset/me_asset.h"
 struct Arena;
 
 typedef u32 EntityFlags;
@@ -21,7 +22,7 @@ typedef u32 EntityRef;
 struct MEREFLECT(type) EntityData
 {
     meTransform transform = {};
-    Eye mesh = {};
+    MAID mesh = {};
 	// gameplay-focused bounds. Rendering bounds including anims may be different (stored on mesh)
     BoundingBox authoritativeBounds = {}; 
     u32 flags = 0;

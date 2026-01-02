@@ -138,7 +138,7 @@ void InitializeEngine(s32 argc, char** argv)
 		if (!engine->sceneSystem->CurrentScene().IsValid())
 		{
 			// if no scene already, and user config specifies a default scene, load it
-            meAssetIdent sceneIdent = meAssetIdent(engine->appConfig.defaultSceneName, meAssetType::Scene);
+            meAssetIdent sceneIdent = meAssetIdent(engine->appConfig.defaultSceneName, meAssetType::MAScene);
             auto onSceneLoad = +[](const meRTAsset& asset)
             {
                 meScene* loadedSceneData = (meScene*)asset.loadedData.data;

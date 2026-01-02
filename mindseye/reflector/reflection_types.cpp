@@ -2,6 +2,17 @@
 #include "reflection_types.h"
 #include "core/me_string.h"
 
+StringView meTypeDescriptorFlagToString(meTypeDescriptorFlag flag)
+{
+	switch (flag)
+	{
+		#define X(name) case meTypeDescriptorFlag_##name: return STRING_LIT(ME_MACRO_STRINGIZE_EX(ME_MACRO_CONCAT(meTypeDescriptorFlag_, name)));
+		DECLARE_METYPEDESCRIPTOR_FLAGS
+		#undef X
+		default: return {};
+	};
+}
+
 meTypeDescriptor TD_UNSIGNED_INT = { .name = STRING_LIT("unsigned int"), .size = 4, .align = 4 };
 meTypeDescriptor TD_INT = { .name = STRING_LIT("int"), .size = 4, .align = 4 };
 meTypeDescriptor TD_UNSIGNED_SHORT = { .name = STRING_LIT("unsigned short"), .size = 2, .align = 2 };

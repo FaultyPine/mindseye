@@ -17,14 +17,21 @@ struct DeserializeContext
 	meAllocator* externalDataAllocator = {};
 };
 
-typedef s32 meTypeID;
 
 // type flags bitfield
 typedef s32 meTypeDescriptorFlag;
+#define DECLARE_METYPEDESCRIPTOR_FLAGS \
+X(ExternalPtr)\
+X(ConstantArray)
+
 enum meTypeDescriptorFlag_
 {
-	meTypeDescriptorFlag_ExternalPtr,
+	#define X(name) meTypeDescriptorFlag_##name,
+	DECLARE_METYPEDESCRIPTOR_FLAGS
+	#undef X
 };
+
+StringView meTypeDescriptorFlagToString(meTypeDescriptorFlag flag);
 
 struct meTypeDescriptor
 {
@@ -60,7 +67,7 @@ struct meTypeDescriptor
 			offsetBits == other.offsetBits &&
 			align == other.align && 
 			flags == other.flags && 
-			underlyingType == other.underlyingType;
+			*underlyingType == *other.underlyingType;
 	}
 };
 

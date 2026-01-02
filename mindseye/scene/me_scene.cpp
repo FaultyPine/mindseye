@@ -102,7 +102,7 @@ struct meSceneAssetLoader : public meAssetLoader
         EngineContext* engine = GetEngineCtx();
 		meRTAsset result = {};
 		result.id = ident.id;
-		result.type = meAssetType::Scene;
+		result.type = meAssetType::MAScene;
 		result.loadStage = Loaded;
         // TODO: implement async scene loading, so this would return loadStage=Loading
         // and would itself enqueue more asset compiling jobs for the individual parts of the scene
@@ -115,7 +115,7 @@ struct meSceneAssetLoader : public meAssetLoader
 	static void RegisterAssetLoader(meEventPayload payload)
 	{
 		meAllocator* allocator = (meAllocator*)payload.payload;
-		meAssetRegisterLoader(MENEW(allocator, meSceneAssetLoader), meAssetType::Scene);
+		meAssetRegisterLoader(MENEW(allocator, meSceneAssetLoader), meAssetType::MAScene);
 	}
 };
 

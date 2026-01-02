@@ -4,7 +4,7 @@
 #include "core/containers/dynarray.h"
 
 struct meShaderUniform;
-typedef Eye meShaderID;
+typedef MAID meShaderID;
 struct meShader
 {
 	DynArray(meShaderUniform) uniformHandles;
@@ -68,12 +68,17 @@ struct meShaderUniform
 	}
 };
 
-struct meShaderPool : public meResourcePool<meShader>
+struct meShaderPool : public meResourcePool<meShader, meShaderPool>
 {
 	meShaderPool(
 		meAllocator* resourceAllocator,
 		meAllocator* payloadAllocator) :
-	meResourcePool<meShader>(resourceAllocator, payloadAllocator) {}
+	meResourcePool<meShader, meShaderPool>(resourceAllocator, payloadAllocator) {}
+
+	meAssetType GetAssetType() const
+	{
+		return MAShader;
+	}
 };
 
 void meShaderInitialize(EngineContext* ctx);

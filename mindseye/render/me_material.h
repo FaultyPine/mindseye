@@ -1,10 +1,24 @@
 #pragma once
 
 #include "core/me_resourcepool.h"
+#include "asset/me_asset.h"
 struct cgltf_material;
 
 
-typedef Eye meMaterialID;
+struct meMaterialID : public MAID
+{
+	inline u64 GetType() const
+	{
+		ME_ASSERT(MAID::GetType() == MAMaterial);
+		return MAMaterial;
+	}
+	meMaterialID(const MAID& maid) : MAID(maid)
+	{}
+	meMaterialID() : MAID(MAID_INVALID)
+	{
+		this->SetType(MAMaterial);
+	}
+};
 
 #define ME_MATERIAL_TEXTURE_TYPE_NAMES \
 X(Diffuse) \
@@ -28,8 +42,8 @@ struct meMaterial
 {
 	static constexpr u32 MEMATERIAL_MAX_NAME_LEN = 50;
 	char name[MEMATERIAL_MAX_NAME_LEN];
-	Eye shaderHandle = {};
-	Eye textureHandles[NUM_MATERIAL_TEXTURE_TYPES];
+	MAID shaderHandle = {};
+	MAID textureHandles[NUM_MATERIAL_TEXTURE_TYPES];
 
 	meMaterial()
 	{
@@ -42,12 +56,17 @@ struct meMaterial
 	}
 };
 
-struct meMaterialPool : public meResourcePool<meMaterial>
+struct meMaterialPool : public meResourcePool<meMaterial, meMaterialPool>
 {
 	meMaterialPool(
 		meAllocator* resourceAllocator,
 		meAllocator* payloadAllocator) :
-	meResourcePool<meMaterial>(resourceAllocator, payloadAllocator) {}
+	meResourcePool<meMaterial, meMaterialPool>(resourceAllocator, payloadAllocator) {}
+
+	meAssetType GetAssetType() const
+	{
+		return MAMaterial;
+	}
 
 	meMaterialID Load(
 		RendererFrontend* renderer,

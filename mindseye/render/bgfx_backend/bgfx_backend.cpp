@@ -132,6 +132,7 @@ void BgfxRendererBackend::Initialize(EngineContext* engine)
     // If multiple systems are trying to subscribe here, it's time to make this an actual event, rather than one fn ptr
     ME_ASSERT(!engine->osData->onResizeCB);
     engine->osData->onResizeCB = OnWindowResize;
+    engine->renderer->rendererLoggingEnabled = false; // tmp
     bgfx::Init init;
     init.type = bgfx::RendererType::Vulkan;
     init.vendorId = BGFX_PCI_ID_NONE; // prioritize integrated? discrete? microsft/nvidia/amd adapter? None means do it automatically
@@ -147,7 +148,6 @@ void BgfxRendererBackend::Initialize(EngineContext* engine)
     bgfx::setViewRect(0, 0, 0, init.resolution.width, init.resolution.height);
 	ddInit(); // uses malloc/free for debugdraw
     imguiCreate();
-    engine->renderer->rendererLoggingEnabled = false; // tmp
 	bgfx::touch(0);
 	bgfx::frame();
 }
@@ -315,12 +315,12 @@ void* BgfxRendererBackend::RenderScene(RenderInput* input)
 		{
 			continue;
 		}
-		const Eye& meshHandle = entity.mesh;
+		const MAID& meshHandle = entity.mesh;
 		const meMesh& mesh = meMeshPoolGet().Get(meshHandle);
 		if (mesh.IsLoaded())
 		{
 			const meMaterial& material = materialPool.Get(mesh.materialHandle);
-			Eye diffuseTextureHdl = material.textureHandles[meMaterialTextureType::Diffuse];
+			MAID diffuseTextureHdl = material.textureHandles[meMaterialTextureType::Diffuse];
 			const meTexture& diffuseTex = texturePool.Get(diffuseTextureHdl);
 			bgfx::TextureHandle bgfxDiffuseTex = bgfx::TextureHandle { static_cast<u16>(diffuseTex.buffer.bufferHandle) };
 			meShader& shader = meShaderGetPool().Get(material.shaderHandle);

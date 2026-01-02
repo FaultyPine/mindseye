@@ -4,7 +4,7 @@
 #include "me_gpu.h"
 struct cgltf_image;
 
-typedef Eye meTextureID;
+typedef MAID meTextureID;
 struct meTexture
 {
 	static constexpr u32 METEXTURE_MAX_NAME_LEN = 50;
@@ -33,12 +33,17 @@ struct meTextureLoadParams
 	meSpan mem = {};
 };
 
-struct meTexturePool : public meResourcePool<meTexture>
+struct meTexturePool : public meResourcePool<meTexture, meTexturePool>
 {
 	meTexturePool(
 		meAllocator* resourceAllocator,
 		meAllocator* payloadAllocator) :
-	meResourcePool<meTexture>(resourceAllocator, payloadAllocator) {}
+	meResourcePool<meTexture, meTexturePool>(resourceAllocator, payloadAllocator) {}
+
+	meAssetType GetAssetType() const
+	{
+		return MATexture;
+	}
 
 	meGPUBuffer Load(
 		RendererFrontend* renderer,

@@ -9,10 +9,12 @@
 #include "generatedtypes/me_asset.generated.h"
 
 #define ME_DECLARE_ASSET_TYPES \
-X(BadData)\
-X(Scene)\
-X(Shader)\
-X(Image)
+X(MABadData)\
+X(MAScene)\
+X(MAShader)\
+X(MAMaterial)\
+X(MAMesh)\
+X(MATexture)
 
 enum meAssetType : u8
 {
@@ -31,6 +33,10 @@ struct MEREFLECT(type) MAID
 	constexpr static u32 TYPE_BITS = 8; // top bits
     MAID() = default;
     MAID(u64 id, meAssetType type);
+	MAID(u64 idAndType)
+	{
+		this->idAndType = idAndType;
+	}
 	u64 idAndType = U32_INVALID_ID;
     bool isValid() const { return idAndType != U32_INVALID_ID; }
     bool operator==(const MAID& other) const { return idAndType == other.idAndType; }
@@ -52,7 +58,8 @@ struct MEREFLECT(type) MAID
     {
         // make sure top type bits aren't set
         ME_ASSERT(id == (id & ~(((u64)0xff) << ID_BITS)));
-        idAndType |= id;
+		idAndType &= (~0ull << ID_BITS); // clear all id bits
+        idAndType |= id; // set id bits
     }
     operator u64() const { return idAndType; }
 };
@@ -81,12 +88,12 @@ struct meRTAsset
 {
     MAID id = MAID_INVALID;
     meOwningSpan loadedData = {};
-    meAssetType type = BadData;
+    meAssetType type = MABadData;
     meAssetLoadStage loadStage = Unloaded;
 	bool isLoaded() const 
 	{
 		return id != MAID_INVALID && loadedData.isValid() && 
-			   type != BadData    && loadStage == Loaded; 
+			type != MABadData    && loadStage == Loaded; 
 	}
 };
 
