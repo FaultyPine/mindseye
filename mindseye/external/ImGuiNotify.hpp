@@ -609,8 +609,8 @@ namespace ImGui
                     // NEEDS TO BE REWORKED
                     float scale = 0.8f;
 
-					// NOTE(gclark): Needed to change this to GetContentRegionAvail, since it was previously
-					// using an obselete imgui function, though it seems to make things jitter a lot...
+					// NOTE(gclark): Needed to change this, since it was previously
+					// using an obselete imgui function
 					// used to be GetWindowContentRegionMax().x
                     if (CalcTextSize(content).x > (GetCursorScreenPos().x + GetContentRegionAvail().x))
                     {
