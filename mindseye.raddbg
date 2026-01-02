@@ -1,0 +1,24 @@
+// raddbg 0.9.21 project file
+
+recent_file: path: "mindseye/reflector/me_reflector.cpp"
+recent_file: path: "mindseye/core/me_log.cpp"
+recent_file: path: "mindseye/editor/me_editor.cpp"
+recent_file: path: "mindseye/core/me_string.cpp"
+recent_file: path: "mindseye/external/bgfx/bgfx/3rdparty/dear-imgui/imgui.cpp"
+recent_file: path: "mindseye/core/me_string.h"
+recent_file: path: "mindseye/core/me_app.cpp"
+recent_file: path: "mindseye/asset/me_asset.cpp"
+recent_file: path: "mindseye/core/me_event.cpp"
+recent_file: path: "mindseye/core/containers/me_hybrid_array.cpp"
+target:
+{
+  executable: "build/driver.exe"
+  working_directory: "../mindseye"
+}
+target:
+{
+  executable: "mindseye/reflector/me_reflector.exe"
+  working_directory: "../mindseye"
+  enabled: 1
+  arguments: "build/compile_commands_mindseye.txt . ./mindseye/generatedtypes"
+}
