@@ -86,9 +86,9 @@ void InitializeEngine(s32 argc, char** argv)
 	    
 	WindowCreationParams windowCreationParams = {}; // TODO: from config/cmdline?
     meOSCreateWindow(windowCreationParams, engine);
-	meEditorInitialize(engine);
 
 	InitializeEngineSystems(engine);
+	meEditorInitialize(engine);
 
 	meOSSetCursorState(CAPTURED, *engine->osData);
 

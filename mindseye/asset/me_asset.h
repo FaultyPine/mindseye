@@ -4,6 +4,7 @@
 #include "core/containers/me_map.h"
 #include "core/thread/me_rw_lock.h"
 #include "core/me_job_system.h"
+#include "core/me_event.h"
 
 #include "generatedtypes/me_asset.generated.h"
 
@@ -128,14 +129,14 @@ struct meAssetSystem
     meMap<meAssetIdent, meRTAsset> assetRegistry = {};
     // meAssetType -> loader
     meAssetLoader* assetLoaders[NUM_ASSET_TYPES] = {};
-	meJobSystem assetCompilerJobs = {};
+	meJobSystem assetCompilerJobs = {}; // TODO: replace this with a unified job system which should have multiple "queue" types
+    meEvent assetBeginLoadingEvent = {};
+    meEvent assetFinishedLoadingEvent = {};
 };
 
 void meAssetInitialize(EngineContext* engine);
 void meAssetTeardown(EngineContext* engine);
 void meAssetRegisterLoader(meAssetLoader* loader, meAssetType type);
-
-MAID meAssetCreateNewMAID(meAssetType type);
 
 typedef void(*meAssetOnAssetLoadCb)(const meRTAsset&);
 

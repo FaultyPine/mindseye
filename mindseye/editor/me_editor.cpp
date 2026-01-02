@@ -1,14 +1,68 @@
 #include "me_editor.h"
+
 #include "external/bgfx/bgfx/3rdparty/dear-imgui/imgui.h"
+
+#ifdef COMPILER_CLANG
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmacro-redefined"
+#endif
+#include "res/IconsFontAwesome6.h"
+#include "ImGuiNotify.hpp"
+#include "res/fa-solid-900.h"
+#ifdef COMPILER_CLANG
+#pragma GCC diagnostic pop
+#endif
+
 #include "external/potable-file-dialogs.h"
 
-void meEditorInitialize(EngineContext* ctx)
-{
+#include "core/me_event.h"
+#include "asset/me_asset.h"
 
+
+void meEditorOnAssetBeginLoading(meEventPayload payload)
+{
+	const meAssetIdent& ident = *(meAssetIdent*)payload.payload;
+	ImGui::InsertNotification({ImGuiToastType::Info, 3000, "Began loading " STRING_FMT, STRING_VAARGS(ident.diskIdent)});
 }
 
-void meEditorDisplayGui(EngineContext* ctx)
+void meEditorOnAssetFinishedLoading(meEventPayload payload)
 {
+	const meAssetIdent& ident = *(meAssetIdent*)payload.payload;
+	ImGui::InsertNotification({ImGuiToastType::Info, 3000, "Finished loading " STRING_FMT, STRING_VAARGS(ident.diskIdent)});
+}
+
+void meEditorInitialize(EngineContext* engine)
+{
+	meEventSubscribe(engine->assetSystem->assetBeginLoadingEvent, meEditorOnAssetBeginLoading);
+	meEventSubscribe(engine->assetSystem->assetFinishedLoadingEvent, meEditorOnAssetFinishedLoading);
+
+	ImGui::GetIO().Fonts->AddFontDefault();
+
+	float baseFontSize = 16.0f;
+	float iconFontSize = baseFontSize * 2.0f / 3.0f; // FontAwesome fonts need to have their sizes reduced by 2.0f/3.0f in order to align correctly
+
+	static constexpr ImWchar iconsRanges[] = {ICON_MIN_FA, ICON_MAX_16_FA, 0};
+	ImFontConfig iconsConfig;
+	iconsConfig.MergeMode = true;
+	iconsConfig.PixelSnapH = true;
+	iconsConfig.GlyphMinAdvanceX = iconFontSize;
+	ImGui::GetIO().Fonts->AddFontFromMemoryCompressedTTF(fa_solid_900_compressed_data, fa_solid_900_compressed_size, iconFontSize, &iconsConfig, iconsRanges);
+}
+
+void meEditorDisplayGui(EngineContext* engine)
+{				
+	// Notifications style setup
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.f); // Disable round borders
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.f); // Disable borders
+	// Notifications color setup
+	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.10f, 0.10f, 0.10f, 1.00f)); // Background color
+	// Main rendering function
+	ImGui::RenderNotifications();
+	// Argument MUST match the amount of ImGui::PushStyleVar() calls 
+	ImGui::PopStyleVar(2);
+	// Argument MUST match the amount of ImGui::PushStyleColor() calls 
+	ImGui::PopStyleColor(1);
+   
 	ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 5.0f);
 	if (ImGui::BeginMainMenuBar())
 	{
@@ -22,19 +76,19 @@ void meEditorDisplayGui(EngineContext* ctx)
                     ME_ASSERT(openFileResult.size() == 1);
                     StringView sceneFile = StringFromCString(openFileResult[0].c_str());
                     meFsNormalizePathSeperators(sceneFile);
-                    ctx->sceneSystem->ChangeCurrentSceneBlocking(sceneFile);
+                    engine->sceneSystem->ChangeCurrentSceneBlocking(sceneFile);
                 }
             }
             if (ImGui::MenuItem("Save"))
             {
-                meScene* currentScene = &ctx->sceneSystem->CurrentScene();
+                meScene* currentScene = &engine->sceneSystem->CurrentScene();
                 StringView fullpath = meAssetResource(currentScene->sceneAssetPath);
-                ctx->sceneSystem->WriteSceneToFileBlocking(currentScene, fullpath);
+                engine->sceneSystem->WriteSceneToFileBlocking(currentScene, fullpath);
             }
             ImGui::EndMenu();
         }
 		
-		StringView rightAlignedText = StringFormat("Avg framerate: %6.2f | %.*s", ImGui::GetIO().Framerate, STRING_VAARGS(ctx->appConfig.appName));
+		StringView rightAlignedText = StringFormat("Avg framerate: %6.2f | %.*s", ImGui::GetIO().Framerate, STRING_VAARGS(engine->appConfig.appName));
 		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetColumnWidth() - ImGui::CalcTextSize(rightAlignedText.cstr()).x
 							 - ImGui::GetScrollX() - 2 * ImGui::GetStyle().ItemSpacing.x);
 		ImGui::TextEx(rightAlignedText.cstr());
@@ -42,4 +96,5 @@ void meEditorDisplayGui(EngineContext* ctx)
 		ImGui::EndMainMenuBar();
 	}
 	ImGui::PopStyleVar();
+
 }

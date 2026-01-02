@@ -109,6 +109,7 @@ meAssetLoadStage* meAssetRequestLoad(
 					meAssetLoader* loader;
                     meAssetOnAssetLoadCb cb;
 				};
+                assetSystem.assetBeginLoadingEvent(meEventPayload((void*)&assetIdent));
 				AssetCompilerJobData jobData = {};
 				jobData.ident = assetIdent;
 				jobData.loader = loader;
@@ -123,6 +124,7 @@ meAssetLoadStage* meAssetRequestLoad(
                     {
                         jobData.cb(loadedAsset);
                     }
+                    assetSystem.assetFinishedLoadingEvent(meEventPayload((void*)&jobData.ident));
 				};
 				if (MEASSET_DEBUG_SINGLETHREADED_LOAD)
 				{

@@ -6,6 +6,11 @@
 struct meEventPayload
 {
     void* payload = nullptr;
+    meEventPayload() = default;
+    meEventPayload(void* p)
+    {
+        payload = p;
+    }
 };
 
 typedef void(*MeEventCb)(meEventPayload payload);
