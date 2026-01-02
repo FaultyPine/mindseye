@@ -3,6 +3,7 @@
 #include "me_entity.h"
 #include "core/me_core.h"
 #include "render/me_mesh.h"
+#include "generatedtypes/me_entity.generated.cpp"
 
 namespace Entity
 {
@@ -139,7 +140,6 @@ EntityData& GetEntity(const char* name)
         return registry.entMap[namehash];
     }
     return registry.entMap[U32_INVALID_ID]; // if doesn't exist, return our dummy
-
 }
 
 

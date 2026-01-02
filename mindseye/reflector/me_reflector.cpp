@@ -239,6 +239,7 @@ static std::unordered_map<StringView, meTypeDescriptor*> builtinStructs =
 	{ STRING_LIT("StringView"), &TD_STRINGVIEW },
 	{ STRING_LIT("meSpan"), &TD_SPAN },
 	{ STRING_LIT("glm::vec<3, float>"), &TD_VEC3 },
+	{ STRING_LIT("glm::qua<float>"), &TD_QUAT },
 };
 
 meTypeDescriptor* MapClangPrimitiveTypeToTypeDescriptor(CXCursor cr)
@@ -1039,7 +1040,7 @@ bool ProcessReflectedFile(
 					{
 						// excluded fields are still "there", but they have no underlying type
 						// think of it like "padding" bytes so the other field offsets make sense
-						fieldsArrayContent.AppendFormat("\t{ .name = STRING_LIT(\"%.*s\"), .size = %i, .align = %i, .offsetBits = %i },", STRING_VAARGS(childReflType.name), childReflType.size, childReflType.align, childReflType.offsetBits);
+						fieldsArrayContent.AppendFormat("\t{ .name = STRING_LIT(\"%.*s\"), .size = %i, .align = %i, .offsetBits = %i },\n", STRING_VAARGS(childReflType.name), childReflType.size, childReflType.align, childReflType.offsetBits);
 						continue;
 					}
 					

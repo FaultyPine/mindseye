@@ -3,6 +3,7 @@
 #include "core/me_core.h"
 
 meTypeDescriptor TD_VEC3 = { .name = STRING_LIT("vec3"), .size = sizeof(glm::vec3), .align = alignof(glm::vec3) };
+meTypeDescriptor TD_QUAT = { .name = STRING_LIT("quat"), .size = sizeof(glm::quat), .align = alignof(glm::quat) };
 
 namespace Math {
 

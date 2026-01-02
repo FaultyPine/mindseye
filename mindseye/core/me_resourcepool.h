@@ -35,10 +35,9 @@ struct meResourcePool
 	// their own signature. Those derived functions should use CreateInternal
 	// to return & write to the handle
 	Eye Load() { return CreateInternal(); }
-    // does not "free" resource, just marks spot as deleted for future loads to overwrite
-	void Destroy(Eye eye) { DestroyInternal(eye); }
-	ResourceType& Get(Eye eye);
-	const ResourceType& Get(Eye eye) const;
+	void Destroy(Eye handle) { DestroyInternal(handle); }
+	ResourceType& Get(Eye handle);
+	const ResourceType& Get(Eye handle) const;
 	meAllocator* GetPayloadAllocator() const { return resourcePayloadAllocator; }
 
 	// each resource pool should assign a default "no data" object
@@ -48,7 +47,7 @@ struct meResourcePool
 
 	// these shouldn't get overridden
 	Eye CreateInternal();
-	void DestroyInternal(Eye eye);
+	void DestroyInternal(Eye handle);
 };
 
 
@@ -71,36 +70,37 @@ Eye meResourcePool<ResourceType>::CreateInternal()
 }
 
 template <typename ResourceType>
-void meResourcePool<ResourceType>::DestroyInternal(Eye eye)
+void meResourcePool<ResourceType>::DestroyInternal(Eye handle)
 {
-	auto idx = eye.GetIndex();
+	auto idx = handle.GetIndex();
 	meResourceSlot<ResourceType>& resource = resourcePool.get(idx);
+	resource.obj.~ResourceType();
 	resource.generation++;
-	resourcePool.markDeleted(eye);
+	resourcePool.markDeleted(handle);
 }
 
 template <typename ResourceType>
-ResourceType& meResourcePool<ResourceType>::Get(Eye eye)
+ResourceType& meResourcePool<ResourceType>::Get(Eye handle)
 {
-	if (!eye)
+	if (!handle)
 	{
 		return GetBadData();
 	}
-	auto idx = eye.GetIndex();
+	auto idx = handle.GetIndex();
 	meResourceSlot<ResourceType>& resource = resourcePool.get(idx);
-	ME_ASSERT(resource.generation == eye.GetGeneration());
+	ME_ASSERT(resource.generation == handle.GetGeneration());
 	return resource.obj;
 }
 
 template <typename ResourceType>
-const ResourceType& meResourcePool<ResourceType>::Get(Eye eye) const
+const ResourceType& meResourcePool<ResourceType>::Get(Eye handle) const
 {
-	if (!eye)
+	if (!handle)
 	{
 		return const_cast<meResourcePool<ResourceType>*>(this)->GetBadData();
 	}
-	auto idx = eye.GetIndex();
+	auto idx = handle.GetIndex();
 	const meResourceSlot<ResourceType>& resource = resourcePool.get(idx);
-	ME_ASSERT(resource.generation == eye.GetGeneration());
+	ME_ASSERT(resource.generation == handle.GetGeneration());
 	return resource.obj;
 }

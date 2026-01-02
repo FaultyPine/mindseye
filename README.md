@@ -11,8 +11,15 @@ run `build.bat`
 - flesh out custom serialization format, implement for all current assets, like meshes, shaders, textures, and have them load through that data
     - i.e. a meScene asset on disk refers to a collection of "serialized entities" which contain materials, meshes, transforms
     - for this, need to be able to serialize a reference to another asset. This is equivalent to axe's .type system having a sno in it
-        - for me, this is when a serialized struct has an MAID member (TODO: what is difference between MAID and Eye)
-            - i'd like to add something to the mereflect macro where you can add a function for serialize/deserialize from the macro itself
+        - for me, this is when a serialized struct has an MAID member
+		- difference between MAID and Eye is MAID is an asset identifier, whereas Eye is a runtime-only concept
+			- TODO: replace current "Eye" usage with MAID somehow
+				- i think the "core" mistake was using Eye in meResourcePool
+					replacing that with MAID i think is the right call
+        - i'd like to add something to the mereflect macro where you can add a function for serialize/deserialize from the macro itself
+		- TODO: to be able to have a serializable list of entities in the scene, we need to serialize DynArray, which feels weird
+			- might be time for that dynarray refactor i've wanted to do - turning it into a more official type rather than implicitly working on a pointer
+
 
     - after this, we will have the foundation to build a proper "asset compiler", so game just reads in compiled stuff
         - stretch idea: have compilation be a separate process (literally) that the game client asks for compiled stuff, I.E. bill + compilation server

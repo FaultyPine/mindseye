@@ -18,7 +18,7 @@ STATIC_ASSERT(EntityFlags_NUM_ENTITY_FLAGS < 32);
 
 typedef u32 EntityRef;
 #define ENTITY_NAME_MAX_LENGTH 50
-struct EntityData
+struct MEREFLECT(type) EntityData
 {
     meTransform transform = {};
     Eye mesh = {};

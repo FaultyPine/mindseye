@@ -105,6 +105,11 @@ StringView meTypeDescriptor::ToString(meAllocator* allocator, meSpan data) const
             float* vecData = (float*)data.data;
             builder.AppendFormat("(%.6f %.6f %.6f)", vecData[0], vecData[1], vecData[2]);
         }
+		else if (this == &TD_QUAT) // 4 component vector & quat are the same
+		{
+            float* vecData = (float*)data.data;
+			builder.AppendFormat("(%.6f %.6f %.6f %.6f)", vecData[0], vecData[1], vecData[2], vecData[3]);
+		}
         else 
 		{
 			UNIMPLEMENTED();
@@ -225,26 +230,66 @@ bool meTypeDescriptor::FromString(DeserializeContext& ctx) const
             glm::vec3 value = {};
             // Expecting format (x, y, z)
             str = EatChars(str, STRING_LIT("( "));
+
             StringView xStr = str;
             u32 offset = EatCharsOffset(xStr, ' ', true);
             xStr = xStr.OffsetView(0, offset);
             value.x = StringParseFloat(xStr);
             str = str.OffsetView(offset);
             str = EatChars(str, STRING_LIT(" "));
+
             StringView yStr = str;
             offset = EatCharsOffset(yStr, ' ', true);
             yStr = yStr.OffsetView(0, offset);
             value.y = StringParseFloat(yStr);
             str = str.OffsetView(offset);
             str = EatChars(str, STRING_LIT(" "));
+
             StringView zStr = str;
             offset = EatCharsOffset(zStr, ')');
             zStr = zStr.OffsetView(0, offset);
             value.z = StringParseFloat(zStr);
-            *((glm::vec3*)result.data) = value;
             str = EatChars(str, STRING_LIT(")"), true);
             str = EatChars(str, STRING_LIT("), "));
+
+            *((glm::vec3*)result.data) = value;
         }
+		else if (this == &TD_QUAT) // quat and vec4 are the same
+		{
+			glm::vec4 value = {};
+			// Expecting format (x, y, z, w)
+            str = EatChars(str, STRING_LIT("( "));
+
+            StringView xStr = str;
+            u32 offset = EatCharsOffset(xStr, ' ', true);
+            xStr = xStr.OffsetView(0, offset);
+            value.x = StringParseFloat(xStr);
+            str = str.OffsetView(offset);
+            str = EatChars(str, STRING_LIT(" "));
+
+            StringView yStr = str;
+            offset = EatCharsOffset(yStr, ' ', true);
+            yStr = yStr.OffsetView(0, offset);
+            value.y = StringParseFloat(yStr);
+            str = str.OffsetView(offset);
+            str = EatChars(str, STRING_LIT(" "));
+
+			StringView zStr = str;
+            offset = EatCharsOffset(yStr, ' ', true);
+            zStr = zStr.OffsetView(0, offset);
+            value.z = StringParseFloat(zStr);
+            str = str.OffsetView(offset);
+            str = EatChars(str, STRING_LIT(" "));
+
+            StringView wStr = str;
+            offset = EatCharsOffset(wStr, ')');
+            wStr = wStr.OffsetView(0, offset);
+            value.w = StringParseFloat(wStr);
+            str = EatChars(str, STRING_LIT(")"), true);
+            str = EatChars(str, STRING_LIT("), "));
+
+            *((glm::vec4*)result.data) = value;
+		}
         else 
         {
             UNIMPLEMENTED();

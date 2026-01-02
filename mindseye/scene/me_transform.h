@@ -33,7 +33,7 @@ struct MEREFLECT(type) meTransform
     }
 };
 
-struct BoundingBox 
+struct MEREFLECT(type) BoundingBox 
 {
     BoundingBox() = default;
     BoundingBox(glm::vec3 mn, glm::vec3 mx) {min = mn; max = mx;}

@@ -12,6 +12,7 @@
 
 
 extern meTypeDescriptor TD_VEC3;
+extern meTypeDescriptor TD_QUAT;
 
 constexpr double PI   = 3.141592653589793238463;
 constexpr float  PI_F = 3.14159265358979f;

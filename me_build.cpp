@@ -494,6 +494,8 @@ int main(int argc, char** argv)
 				   "mindseye/reflector/me_reflector.exe", compileCommandsFileFullpath, nob_temp_sprintf("%s/mindseye", root), nob_temp_sprintf("%s/mindseye/generatedtypes", root));
 	mindseyeReflectorRun.addInputsNoCompile(mindseyeSourceFiles.items, mindseyeSourceFiles.count);
 	mindseyeReflectorRun.addInputsNoCompile(&mindseyeReflectorInputs, 1);
+	
+	// =====================================================================================
 
 	// copy tools/clang/bin/libclang.dll to reflector/ with nob_copy_file
 	const char* libclangSource = nob_temp_sprintf("%s/tools/clang/bin/libclang.dll", root);
@@ -509,8 +511,6 @@ int main(int argc, char** argv)
 	{
 		nob_copy_file(ktxDllSource, ktxDllDest);
 	}
-	
-	// =====================================================================================
 
 	// ======================== Testbed ==============================================
 	BuildableArtifact testbedBuild = {};
