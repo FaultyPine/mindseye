@@ -19,10 +19,15 @@ struct DeserializeContext
 
 
 // type flags bitfield
-typedef s32 meTypeDescriptorFlag;
+typedef s32 meTypeDescriptorFlags;
 #define DECLARE_METYPEDESCRIPTOR_FLAGS \
 X(ExternalPtr)\
-X(ConstantArray)
+X(ConstantArray)\
+X(NonSerializedFlagsMarker)\
+X(INCLUDE_IN_GENERATED_HEADER)
+
+#define meTypeDescriptorFlagsSerializedBitmask \
+	(~((~0) << meTypeDescriptorFlag_NonSerializedFlagsMarker))
 
 enum meTypeDescriptorFlag_
 {
@@ -31,7 +36,7 @@ enum meTypeDescriptorFlag_
 	#undef X
 };
 
-StringView meTypeDescriptorFlagToString(meTypeDescriptorFlag flag);
+StringView meTypeDescriptorFlagToString(meTypeDescriptorFlags flag);
 
 struct meTypeDescriptor
 {
@@ -40,7 +45,7 @@ struct meTypeDescriptor
 	String tooltip = {};
 	meSpanTyped<meTypeDescriptor> fields = {};
 	s32 value = 0;
-	s32 flags = 0;
+	meTypeDescriptorFlags flags = 0;
 	s32 version = 0;
 	
 	u32 size = 0;
@@ -68,6 +73,25 @@ struct meTypeDescriptor
 			align == other.align && 
 			flags == other.flags && 
 			*underlyingType == *other.underlyingType;
+	}
+	void CopyFrom(const meTypeDescriptor& other)
+	{
+		name = other.name;
+		editorName = other.editorName;
+		tooltip = other.tooltip;
+		for (u32 i = 0; i < other.fields.size; i++)
+		{
+			fields[i].CopyFrom(other.fields[i]);
+		}
+		value = other.value;
+		flags = other.flags;
+		version = other.version;
+	
+		size = other.size;
+		align = other.align;
+		offsetBits = other.offsetBits;
+
+		underlyingType = other.underlyingType;
 	}
 };
 

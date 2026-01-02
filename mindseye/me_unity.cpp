@@ -29,7 +29,6 @@
 #include "core/me_job_system.h"
 #include "core/me_scope_exit.h"
 #include "core/me_serialize.h"
-#include "core/me_resourcepool.h"
 
 #include "core/containers/dynarray.h"
 #include "core/containers/me_hybrid_array.h"
@@ -40,6 +39,7 @@
 #include "core/me_cmdline.h"
 #include "core/me_app.h"
 #include "asset/me_asset.h"
+#include "core/me_resourcepool.h"
 #endif
 
 // SOURCE

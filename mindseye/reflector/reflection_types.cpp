@@ -2,7 +2,7 @@
 #include "reflection_types.h"
 #include "core/me_string.h"
 
-StringView meTypeDescriptorFlagToString(meTypeDescriptorFlag flag)
+StringView meTypeDescriptorFlagToString(meTypeDescriptorFlags flag)
 {
 	switch (flag)
 	{
