@@ -7,7 +7,7 @@ struct meShaderUniform;
 typedef MAID meShaderID;
 struct meShader
 {
-	DynArray(meShaderUniform) uniformHandles;
+	DynArray<meShaderUniform> uniformHandles;
 	u64 program;
 };
 

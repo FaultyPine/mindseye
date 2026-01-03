@@ -44,7 +44,7 @@ https://github.com/BobbyAnguelov/Esoterica/tree/main/Code/Applications/Reflector
 // EDIT: Just merge these two... 
 struct meReflectedType
 {
-	DynArray(meReflectedType*) children = {};
+	DynArray<meReflectedType*> children = {};
 	StringView name = {};
 	CXCursorKind kind = CXCursor_NoDeclFound;
 	meReflectedType* innerType = nullptr; // for fields, this is their type
@@ -689,11 +689,11 @@ struct CompileCommand
 	StringView arguments = {};
 };
 
-DynArray(CompileCommand) CompileDatabaseToCommandsList(
+DynArray<CompileCommand> CompileDatabaseToCommandsList(
 	meAllocator* allocator,
 	StringView compileDatabasePath)
 {
-	CompileCommand* cmds = DynArrayCreate<CompileCommand>(allocator);
+	DynArray<CompileCommand> cmds = DynArrayCreate<CompileCommand>(allocator);
 	OSFileReference compileCmdsFile = {};
 	if (!meOSOpenFile(compileCmdsFile, compileDatabasePath, OnlyIfExists))
 	{
@@ -746,7 +746,7 @@ int main(int argc, char* argv[])
 	Arena& reflectorArena = *MENEW(systemAllocator, Arena);
 	reflectorArena = ArenaInit(MEGABYTES_BYTES(100ull), "Main reflector arena", systemAllocator);
 	// create a header file on disk that is a sort of "unity" build single file that includes all the files we want to run our reflection parser on
-	DynArray(CompileCommand) compileCommands = CompileDatabaseToCommandsList(&reflectorArena, compileCmdsDatabaseFilePath);
+	DynArray<CompileCommand> compileCommands = CompileDatabaseToCommandsList(&reflectorArena, compileCmdsDatabaseFilePath);
 	if (DynArrayGetSize(compileCommands) == 0)
 	{
 		LOG_WARN("[Reflector] No compile commands found");
@@ -754,7 +754,7 @@ int main(int argc, char* argv[])
 	}
 
 	const char* reflectorHeaderFilename = "Reflector.h";
-	char* reflectorFilePath = DynArrayCreate<char>(&reflectorArena, 50);
+	DynArray<char> reflectorFilePath = DynArrayCreate<char>(&reflectorArena, 50);
 	StringView exePath = meOSGetExeFileFolder();
 	// we expect Reflector.h to be next to the reflector executable
 	DynArrayPush(reflectorFilePath, exePath.data, exePath.len);
@@ -769,7 +769,7 @@ int main(int argc, char* argv[])
 		//| CXTranslationUnit_SingleFileParse
 		;
 
-	DynArray(const char*) clangArgs = DynArrayCreate<const char*>(&reflectorArena, 20);
+	DynArray<const char*> clangArgs = DynArrayCreate<const char*>(&reflectorArena, 20);
 	u32 numCompileCommands = DynArrayGetSize(compileCommands);
 	for (u32 i = 0; i < numCompileCommands; i++)
 	{

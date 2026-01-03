@@ -1,18 +1,19 @@
+#pragma once
 #include "dynarray.h"
 
 
 #include "core/me_log.h"
 #include "core/me_memory.h"
 
-#define ARRAY_CHECKS 1
+#define ARRAY_CHECKS (1)
 
 
-
-DynArrayHeader* GetHeaderPointer(DynArray array)
+template<typename T>
+DynArrayHeader* GetHeaderPointer(const DynArray<T>& array)
 {
     u32 headerSize = sizeof(DynArrayHeader);
     // our header will always be 'behind' our array pointer.
-    DynArrayHeader* headerPtr = (DynArrayHeader*)(((u8*)array) - headerSize);
+    DynArrayHeader* headerPtr = (DynArrayHeader*)(((u8*)array.data) - headerSize);
     return headerPtr;
 }
 
@@ -28,8 +29,10 @@ void DynArrayInternalFree(meAllocator* allocator, Allocation data)
     allocator->meFree(data);
 }
 
-DynArray __DynArrayCreate(u32 stride, u32 initialCapacity, meAllocator* allocator)
+template<typename T>
+DynArray<T> DynArrayCreate(meAllocator* allocator, u32 initialCapacity)
 {
+	u32 stride = sizeof(T);
     u32 headerSize = sizeof(DynArrayHeader);
     u32 arraySize = initialCapacity * stride;
     u32 allocSize = headerSize + arraySize;
@@ -42,28 +45,29 @@ DynArray __DynArrayCreate(u32 stride, u32 initialCapacity, meAllocator* allocato
     headerPointer->capacity = initialCapacity;
     headerPointer->stride = stride;
     headerPointer->allocator = allocator;
-    // our DynArray is a pointer to our array elements, and metadata about the array
-    // is stored just before that pointer
-    DynArray result = arrayBackingMem + headerSize; 
+	// our DynArray is a pointer to our array elements, and metadata about the array
+	// is stored just before that pointer
+	DynArray<T> result = { (T*)(arrayBackingMem + headerSize) };
     return result;
 }
 
-void __DynArrayDestroy(void* dynArrayPtr)
+template<typename T>
+void DynArrayDestroy(DynArray<T>& array)
 {
-	DynArray& array = *(DynArray*)dynArrayPtr;
     // since header info is stored before the array pointer, move back to the beginning of the allocation to free it
     DynArrayHeader* baseArrayPtr = GetHeaderPointer(array);
     DynArrayInternalFree(baseArrayPtr->allocator, Allocation(baseArrayPtr, baseArrayPtr->size));
-	array = (void*)0;
+	array = {};
 }
 
-DynArray DynArrayResize(DynArray array, u32 newCapacity)
+template<typename T>
+DynArray<T> DynArrayResize(DynArray<T> array, u32 newCapacity)
 {
     DynArrayHeader* header = GetHeaderPointer(array);
 #if ARRAY_CHECKS
     ME_ASSERT(header->capacity != 0 && "resize called on array with 0 capacity");
 #endif
-    DynArray newArray = __DynArrayCreate(header->stride, newCapacity, header->allocator);
+    DynArray<T> newArray = DynArrayCreate<T>(header->allocator, newCapacity);
     DynArrayHeader* newArrayBasePtr = GetHeaderPointer(newArray);
     u32 totalOldArraySize = (header->size * header->stride) + sizeof(DynArrayHeader);
     ME_MEMCPY(newArrayBasePtr, header, totalOldArraySize);
@@ -74,14 +78,15 @@ DynArray DynArrayResize(DynArray array, u32 newCapacity)
 
 // ===== Modify array ======
 
-void* __DynArrayPushAt(DynArray array, void* objs, u32 numObjs, u32 index)
+template <typename T>
+bool DynArrayPushAt(DynArray<T>& array, void* objs, u32 numObjs, u32 index)
 {
     DynArrayHeader* header = GetHeaderPointer(array);
 #if ARRAY_CHECKS
     if (index > header->size)
     {
         LOG_FATAL("Tried to push element outside the bounds of a dynarray. index = %u  arr size = %u", index, header->size);
-        return nullptr;
+        return false;
     }
 #endif
     while (header->size + numObjs > header->capacity)
@@ -106,10 +111,11 @@ void* __DynArrayPushAt(DynArray array, void* objs, u32 numObjs, u32 index)
     // copy object(s) to the index
     ME_MEMCPY(destination, objs, numObjs * stride);
     header->size += numObjs;
-    return array;
+    return true;
 }
 
-void __DynArrayPopAt(DynArray array, u32 index, void* out)
+template<typename T>
+void __DynArrayPopAt(DynArray<T>& array, u32 index, void* out)
 {
     DynArrayHeader* header = GetHeaderPointer(array);
     u32 arrSize = header->size;
@@ -137,12 +143,14 @@ void __DynArrayPopAt(DynArray array, u32 index, void* out)
     header->size--;
 }
 
-void __DynArrayPop(DynArray array, void* out)
+template<typename T>
+void __DynArrayPop(DynArray<T>& array, void* out)
 {
     return __DynArrayPopAt(array, DynArrayGetSize(array)-1, out);
 }
 
-void DynArrayClear(DynArray array)
+template<typename T>
+void DynArrayClear(DynArray<T>& array)
 {
     DynArrayHeader* header = GetHeaderPointer(array);
     header->size = 0;
@@ -150,25 +158,29 @@ void DynArrayClear(DynArray array)
 
 // ===== Get header info ======
 
-u32 DynArrayGetSize(DynArray array)
+template<typename T>
+u32 DynArrayGetSize(const DynArray<T>& array)
 {
-    DynArrayHeader* headerPtr = GetHeaderPointer(array);
+    const DynArrayHeader* headerPtr = GetHeaderPointer(array);
     return headerPtr->size;
 }
 
-u32 DynArrayGetCapacity(DynArray array)
+template<typename T>
+u32 DynArrayGetCapacity(const DynArray<T>& array)
 {
     DynArrayHeader* headerPtr = GetHeaderPointer(array);
     return headerPtr->capacity;
 }
 
-u32 DynArrayGetStride(DynArray array)
+template<typename T>
+u32 DynArrayGetStride(const DynArray<T>& array)
 {
     DynArrayHeader* headerPtr = GetHeaderPointer(array);
     return headerPtr->stride;
 }
 
-meAllocator* DynArrayGetAllocator(DynArray array)
+template<typename T>
+meAllocator* DynArrayGetAllocator(const DynArray<T>& array)
 {
     DynArrayHeader* headerPtr = GetHeaderPointer(array);
     return headerPtr->allocator;
@@ -177,7 +189,7 @@ meAllocator* DynArrayGetAllocator(DynArray array)
 void DynArrayTests()
 {
     LOG_INFO("Testing DynArray...");
-    s32* arr = DynArrayCreate<s32>(GetSystemAllocator());
+    DynArray<s32> arr = DynArrayCreate<s32>(GetSystemAllocator());
     s32 x = 1;
     DynArrayPush(arr, x);
     ME_ASSERT(DynArrayGetSize(arr) == 1);
@@ -221,11 +233,11 @@ void DynArrayTests()
     DynArrayClear(arr);
     ME_ASSERT(DynArrayGetSize(arr) == 0);
 
-    u32 shouldntChange = 0xDEADBEEF;
+    s32 shouldntChange = 12345678;
     LOG_INFO("Expecting two fatal errors here:");
     DynArrayPop(arr, shouldntChange);
     DynArrayPopAt(arr, 0, shouldntChange);
-    ME_ASSERT(shouldntChange == 0xDEADBEEF);
+    ME_ASSERT(shouldntChange == 12345678);
 
     LOG_INFO("DynArray Tests complete");
 }

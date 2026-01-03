@@ -187,7 +187,7 @@ meMeshID GenPlaneMesh(
 {
     resolution++; // resolution of 1 should really be 2
 	meMeshPool& meshPool = meMeshPoolGet();
-    DynArray(glm::vec3) planeverts = DynArrayCreate<glm::vec3>(meshPool.GetPayloadAllocator());
+    DynArray<glm::vec3> planeverts = DynArrayCreate<glm::vec3>(meshPool.GetPayloadAllocator());
 
     // https://github.com/raysan5/raylib/blob/master/src/rmodels.c#L2171
     for (u32 z = 0; z < resolution; z++) {
@@ -202,7 +202,7 @@ meMeshID GenPlaneMesh(
     }
 
     u32 numFaces = (resolution - 1)*(resolution - 1);
-    DynArray(u32) indices = DynArrayCreate<u32>(meshPool.GetPayloadAllocator());;
+    DynArray<u32> indices = DynArrayCreate<u32>(meshPool.GetPayloadAllocator());;
     for (u32 face = 0; face < numFaces; face++) {
         // Retrieve lower left corner from face ind
         u32 i = face % (resolution - 1) + (face/(resolution - 1)*resolution);
@@ -216,8 +216,8 @@ meMeshID GenPlaneMesh(
         DynArrayPush(indices, i + 1);
     }
 
-	meSpan vertexBufferSpan = meSpan(planeverts, DynArrayGetSize(planeverts) * sizeof(glm::vec3));
-	meSpan indexBufferSpan = meSpan(indices, DynArrayGetSize(indices) * sizeof(u32));
+	meSpan vertexBufferSpan = meSpan((s8*)planeverts, DynArrayGetSize(planeverts) * sizeof(glm::vec3));
+	meSpan indexBufferSpan = meSpan((s8*)indices, DynArrayGetSize(indices) * sizeof(u32));
 	meMeshID meshHandle = meshPool.Load(vertexBufferSpan, indexBufferSpan, {}, {}, materialID, STRING_LIT("GeneratedPlaneMesh"));
 	return meshHandle;
 }
@@ -231,8 +231,8 @@ meMeshID GenSphereMesh(
     f32 radius = 1.0f;
     u32 stackCount = resolution;
     u32 sectorCount = resolution;
-    DynArray(meFatVertex) vertices = DynArrayCreate<meFatVertex>(meshPool.GetPayloadAllocator(), stackCount * sectorCount);
-    DynArray(u32) indices = DynArrayCreate<u32>(meshPool.GetPayloadAllocator(), stackCount * sectorCount);
+    DynArray<meFatVertex> vertices = DynArrayCreate<meFatVertex>(meshPool.GetPayloadAllocator(), stackCount * sectorCount);
+    DynArray<u32> indices = DynArrayCreate<u32>(meshPool.GetPayloadAllocator(), stackCount * sectorCount);
 
     float x, y, z, xy;                              // vertex position
     float nx, ny, nz, lengthInv = 1.0f / radius;    // vertex normal
@@ -305,8 +305,8 @@ meMeshID GenSphereMesh(
     }
     //vertices.shrink_to_fit();
     //indices.shrink_to_fit();
-	meSpan vertexSpan = meSpan(vertices, DynArrayGetSize(vertices) * sizeof(*vertices));
-	meSpan indexSpan = meSpan(indices, DynArrayGetSize(indices) * sizeof(*indices));
+	meSpan vertexSpan = meSpan((s8*)vertices, DynArrayGetSize(vertices) * sizeof(*vertices));
+	meSpan indexSpan = meSpan((s8*)indices, DynArrayGetSize(indices) * sizeof(*indices));
     meMeshID result = meshPool.Load(vertexSpan, indexSpan, {}, {}, materialID, STRING_LIT("GeneratedSphereMesh"));
 	return result;
 }

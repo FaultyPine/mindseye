@@ -10,62 +10,7 @@
 
 #define DynArray_Foreach(array, iteratorVarName) u32 iteratorVarName = 0; !!(array) && iteratorVarName < DynArrayGetSize(array); iteratorVarName++
 
-typedef void* DynArray;
-#define DynArray(type) type*
-
-// Frees backing memory
-void DynArrayDestroy(DynArray& array);
-
-// Retrives the size from the DynArray header
-MEAPI u32 DynArrayGetSize(DynArray array);
-template<typename T>
-u32 DynArrayGetSize(T* array)
-{
-	return DynArrayGetSize((DynArray)array);
-}
-// Retrives the capacity from the DynArray header
-u32 DynArrayGetCapacity(DynArray array);
-template <typename T>
-u32 DynArrayGetCapacity(T* array)
-{
-	return DynArrayGetCapacity((DynArray)array);
-}
-// Retrives the stride from the DynArray header
-u32 DynArrayGetStride(DynArray array);
-template <typename T>
-u32 DynArrayGetStride(T* array)
-{
-	return DynArrayGetStride((DynArray)array);
-}
-meAllocator* DynArrayGetAllocator(DynArray array);
-template <typename T>
-inline T& DynArrayGet(DynArray array, u32 index)
-{
-    return ((T*)array)[index];
-}
-
-// internal
-DynArray __DynArrayCreate(u32 stride, u32 initialCapacity, meAllocator* allocator);
-
-// Create an array with an optional initial capacity (number of elements)
-template<typename T>
-T* DynArrayCreate(meAllocator* allocator, u32 initialCapacity = 10)
-{
-    return (T*)__DynArrayCreate(sizeof(T), initialCapacity, allocator);
-}
-// Create an array with an optional initial capacity (number of elements)
-template<typename T>
-T* DynArrayCreate(meAllocator* allocator, u32 initialSize, T* initialData)
-{
-    T* result = (T*)__DynArrayCreate(sizeof(T), initialSize, allocator);
-    ME_MEMCPY(result, initialData, sizeof(T)*initialSize);
-    GetHeaderPointer()->size = initialSize;
-    return result;
-}
-
-void __DynArrayDestroy(DynArray& array);
-#define DynArrayDestroy(dynarray) __DynArrayDestroy((void*)&dynarray)
-
+// TODO: maybe some magic at the beginning would be a good idea
 struct DynArrayHeader
 {
     // number of elements currently in the array
@@ -76,12 +21,112 @@ struct DynArrayHeader
     u32 stride;
     meAllocator* allocator;
 };
-DynArrayHeader* GetHeaderPointer(DynArray array);
+
+template <typename T>
+struct DynArray
+{
+	T* data;
+
+	operator bool() const
+	{
+		return data != nullptr;
+	}
+	T& operator[](u32 index)
+	{
+		return data[index];
+	}
+	const T & operator[](u32 index) const
+	{
+		return data[index];
+	}
+	operator T*()
+	{
+		return data;
+	}
+	explicit operator u8*() { return (u8*)data; }
+	explicit operator s8*() { return (s8*)data; }
+};
+
+// Create an array with an optional initial capacity (number of elements)
+template<typename T>
+DynArray<T> DynArrayCreate(meAllocator* allocator, u32 initialCapacity = 10);
+
+// Frees backing memory
+template <typename T>
+void DynArrayDestroy(DynArray<T>& array);
+
+// ================================= DynArray modifiers =================================
+
+// Copies an object to a specified index (and moves all other elements over)
+// passing reference as this could potentially reallocate if backing mem is full
+// pushing to an index outside the range [0,length] returns nullptr, logs an error, and does nothing
+template <typename T>
+void DynArrayPushAt(DynArray<T>& array, T obj, u32 index)
+{
+    DynArrayPushAt(array, &obj, 1, index);
+}
+// Copies an object to the end of the array
+template <typename T>
+void DynArrayPush(DynArray<T>& array, T obj)
+{
+    DynArrayPushAt(array, (void*)&obj, 1, DynArrayGetSize(array));
+}
+
+template<typename T>
+void DynArrayPush(DynArray<T>& array, T* objs, u64 numObjs)
+{
+	DynArrayPushAt(array, (void*)objs, numObjs, DynArrayGetSize(array));
+}
+
+// remove (and optionally return element) at specified index
+// popping at an index outside the range [0,length-1] does nothing and logs an error
+template <typename T>
+inline void DynArrayPopAt(DynArray<T>& array, u32 index, T& out)
+{
+    __DynArrayPopAt(array, index, &out);
+}
+
+// remove (and optionally return) the last element
+template <typename T>
+inline void DynArrayPop(DynArray<T>& array, T& out)
+{
+    __DynArrayPop<T>(array, &out);
+}
+
+// sets array size to 0, does not free backing memory
+template <typename T>
+void DynArrayClear(DynArray<T>& array);
+
+
+// ================================= DynArray accessors =================================
+
+// Retrives the size from the DynArray header
+template <typename T>
+u32 DynArrayGetSize(const DynArray<T>& array);
+
+// Retrives the capacity from the DynArray header
+template <typename T>
+u32 DynArrayGetCapacity(const DynArray<T>& array);
+
+// Retrives the stride from the DynArray header
+template <typename T>
+u32 DynArrayGetStride(const DynArray<T>& array);
+
+template <typename T>
+meAllocator* DynArrayGetAllocator(DynArray<T>& array);
+
+template <typename T>
+inline T& DynArrayGet(DynArray<T>& array, u32 index)
+{
+    return array[index];
+}
+
+// ==========================================================================
 
 template<typename T>
 struct DynArrayScoped
 {
-	DynArray(T) arr;
+	DynArray<T> arr;
 	DynArrayScoped(meAllocator* allocator, u32 initialCapacity = 5)
 	{
 		arr = DynArrayCreate<T>(allocator, initialCapacity);
@@ -92,49 +137,11 @@ struct DynArrayScoped
 	}
 };
 
-MEAPI void* __DynArrayPushAt(DynArray array, void* obj, u32 numObjs, u32 index);
-// Copies an object to a specified index (and moves all other elements over)
-// passing reference as this could potentially reallocate if backing mem is full
-// pushing to an index outside the range [0,length] returns nullptr, logs an error, and does nothing
-template <typename T>
-void DynArrayPushAt(T*& array, T obj, u32 index)
-{
-    array = (T*)__DynArrayPushAt(array, &obj, 1, index);
-}
-// Copies an object to the end of the array
-template <typename T>
-void DynArrayPush(T*& array, T obj)
-{
-    array = (T*)__DynArrayPushAt((DynArray)array, (void*)&obj, 1, DynArrayGetSize(array));
-}
-
-template<typename T>
-void DynArrayPush(T*& array, T* objs, u64 numObjs)
-{
-	array = (T*)__DynArrayPushAt((DynArray)array, (void*)objs, numObjs, DynArrayGetSize(array));
-}
-
-MEAPI void __DynArrayPopAt(DynArray array, u32 index, void* out = 0);
-// remove (and optionally return element) at specified index
-// popping at an index outside the range [0,length-1] does nothing and logs an error
-template <typename T>
-inline void DynArrayPopAt(DynArray array, u32 index, T& out)
-{
-    __DynArrayPopAt(array, index, &out);
-}
-
-// remove (and optionally return) the last element
-inline void __DynArrayPop(DynArray array, void* out = 0);
-template <typename T>
-inline void DynArrayPop(DynArray array, T& out)
-{
-    __DynArrayPop(array, &out);
-}
-
-// sets array size to 0, does not free backing memory
-void DynArrayClear(DynArray array);
+void DynArrayTests();
 
 
-MEAPI void DynArrayTests();
+// ugh templates....
+#include "dynarray.cpp"
+
 
 #endif
