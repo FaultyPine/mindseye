@@ -24,6 +24,7 @@ typedef s32 meTypeDescriptorFlags;
 X(ExternalPtr)\
 X(ConstantArray)\
 X(PaddingMember)\
+X(Excluded)\
 X(NonSerializedFlagsMarker)\
 X(IncludeInGeneratedHeader)
 

@@ -55,7 +55,6 @@ struct meReflectedType
 	u32 align = 0;
 	u32 version = 0;
 	meTypeDescriptorFlags flags = 0;
-	bool isExcluded = false;
 	void Print() const;
 	bool operator==(const meReflectedType& other) const
 	{
@@ -63,6 +62,10 @@ struct meReflectedType
 			size == other.size &&
 			offsetBits == other.offsetBits &&
 			align == other.align;
+	}
+	bool IsExcluded() const
+	{
+		return TEST_BIT(flags, meTypeDescriptorFlag_Excluded);
 	}
 
 	meReflectedType() = default;	
@@ -93,7 +96,7 @@ struct ClangParsingContext
 void meReflectedType::Print() const
 {
 	LOG_INFO("%.*s\n\t[excluded = %i] [editorName = %.*s] [tooltip = %.*s] offset = %i size = %u align = %u", 
-		STRING_VAARGS(name), isExcluded, STRING_VAARGS(editorName), STRING_VAARGS(tooltip), offsetBits, size, align);
+		STRING_VAARGS(name), IsExcluded(), STRING_VAARGS(editorName), STRING_VAARGS(tooltip), offsetBits, size, align);
 	if (children)
 	{
 		s32 numChildren = DynArrayGetSize(children);
@@ -424,7 +427,7 @@ void StoreReflectedTypeInfo(
 		// annotated fields have their parentCr as the fielddecl. Unannotated fields have their parentCr as the struct decl
 		bool isReflectedType = DoesDeclarationHaveReflectionAnnotation(fieldTypeCr, ctx);
 		meReflectedType& fieldInnerTypeRefl = GetReflectedType(fieldTypeCr, allocator, ctx);
-		fieldInnerTypeRefl.isExcluded = fieldInnerTypeRefl.isExcluded || excluded;
+		SET_BIT(fieldInnerTypeRefl.flags, meTypeDescriptorFlag_Excluded, fieldInnerTypeRefl.IsExcluded() || excluded);
 		
 		meReflectedType& fieldMemberRefl = *MENEW(ctx.allocator, meReflectedType); // this will contain the field's type info
 		// if it's a const array, mark the field as such. It's inner type will indicate what it's an array of, and it's size / sizeof(inner type) indicates the num elements in the array
@@ -529,7 +532,7 @@ void StoreReflectedTypeInfo(
 		StringView versionParam = GetStringParam(STRING_LIT("Version"), macroContent);
 		if (versionParam) reflType.version = StringToUint(versionParam);
 
-		reflType.isExcluded = reflType.isExcluded || excluded;
+		SET_BIT(reflType.flags, meTypeDescriptorFlag_Excluded, reflType.IsExcluded() || excluded);
 	}
 }
 
@@ -884,7 +887,7 @@ void GenerateForwardDecls(
 {
 	for (const auto& [nameID, typeRefl] : reflectedTypes)
 	{
-		if (typeRefl.isExcluded) continue;
+		if (typeRefl.IsExcluded()) continue;
 		if (typeRefl.kind == CXCursor_StructDecl)
 		{
 			String uppercaseName = String(typeRefl.name, allocator);
@@ -1021,7 +1024,7 @@ bool ProcessReflectedFile(
 
 	for (const auto& [nameID, typeRefl] : fileRefl.reflectedTypes)
 	{
-		if (typeRefl.isExcluded) continue;
+		if (typeRefl.IsExcluded()) continue;
 		if (typeRefl.kind == CXCursor_StructDecl)
 		{
 			String uppercaseName = String(typeRefl.name, allocator);
@@ -1060,11 +1063,13 @@ bool ProcessReflectedFile(
 						numPaddingMembers++;
 					}
 
-					if (childReflType.isExcluded)
+					if (childReflType.IsExcluded())
 					{
 						// excluded fields are still "there", but they have no underlying type
 						// think of it like "padding" bytes so the other field offsets make sense
-						fieldsArrayContent.AppendFormat("\t{ .name = STRING_LIT(\"%.*s\"), .size = %i, .align = %i, .offsetBits = %i },\n", STRING_VAARGS(childReflType.name), childReflType.size, childReflType.align, childReflType.offsetBits);
+						fieldsArrayContent.AppendFormat(
+							"\t{ .name = STRING_LIT(\"%.*s\"), .flags = (meTypeDescriptorFlag_Excluded), .size = %i, .align = %i, .offsetBits = %i },\n", 
+							STRING_VAARGS(childReflType.name), childReflType.size, childReflType.align, childReflType.offsetBits);
 						continue;
 					}
 					
