@@ -71,7 +71,7 @@ bool IsFlag(EntityRef ent, EntityFlags flag)
 }
 
 EntityRef CreateEntity(
-    const char* name, 
+    StringView name, 
     const meTransform& tf, 
     u32 flags)
 {
@@ -84,9 +84,8 @@ EntityRef CreateEntity(
     {
         // if this entity has a name, use the name's hash as the id
         // this is so we can lookup entities by name
-        size_t strlength = strnlen(name, ENTITY_NAME_MAX_LENGTH);
-        ME_MEMCPY(ent.name, name, strlength);
-        entityID = HashBytes((u8*)name, strlength);
+		StringCopy(StringView((const char*)&ent.name[0], ENTITY_NAME_MAX_LENGTH), name);
+        entityID = HashBytes((u8*)name.data, name.len);
     }
     else
     {

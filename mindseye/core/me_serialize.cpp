@@ -10,8 +10,8 @@ meSerializeResult SerializeToTextBlocking(
     StringView& outResult)
 {
 	StringBuilder sb(allocator);
-	sb.AppendFormat("version: %d\n", typeDesc.version);
-	sb.AppendFormat("type: %s\n", (const char*)typeDesc.name.data);
+	sb.AppendFormat("version= %d\n", typeDesc.version);
+	sb.AppendFormat("type= %s\n", (const char*)typeDesc.name.data);
 	char* typeData = (char*)data;
 	for (u64 i = 0; i < typeDesc.fields.size; i++)
 	{
@@ -27,7 +27,7 @@ meSerializeResult SerializeToTextBlocking(
 		u32 offsetBytes = field.offsetBits / 8;
 		meSpan fieldData = meSpan(typeData + offsetBytes, field.size);
 		StringView fieldStr = field.ToString(GetTLScratch(), fieldData);
-		sb.AppendFormat("%s: %.*s\n", (const char*)field.name.cstr(), STRING_VAARGS(fieldStr));
+		sb.AppendFormat("%s= %.*s\n", (const char*)field.name.cstr(), STRING_VAARGS(fieldStr));
 	}
 	// stringbuilders don't own their data, so it's safe to return the data pointer
 	outResult = sb;
@@ -49,14 +49,16 @@ meSerializeResult DeserializeFromTextBlocking(
 		{
 			return {};
 		}
-		s32 colonPos = EatCharsOffset(inText.OffsetView(fieldPos), STRING_LIT("="), true); // relative to fieldPos, either ":" or "="
+		StringView fieldView = inText.OffsetView(fieldPos);
+		s32 colonPos = EatCharsOffset(fieldView, STRING_LIT("="), true); // relative to fieldPos, either ":" or "="
 		if (colonPos == -1)
 		{
 			return {};
 		}
 		colonPos += fieldPos;
 		s32 valueStart = colonPos + 1;
-        s32 lineEnd = EatCharsOffset(inText.OffsetView(valueStart), STRING_LIT("\r\n"), true); // relative to valueStart, finding either \r or \n, whichever comes first
+		StringView valueView = inText.OffsetView(valueStart);
+        s32 lineEnd = EatCharsOffset(valueView, STRING_LIT("\r\n"), true); // relative to valueStart, finding either \r or \n, whichever comes first
 		if (lineEnd == -1)
 		{
 			lineEnd = inText.len;

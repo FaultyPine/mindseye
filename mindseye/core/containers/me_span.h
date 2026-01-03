@@ -19,6 +19,13 @@ struct meSpan
         ME_ASSERT(size >= offset);
         return meSpan(((u8*)data)+offset, size - offset);
     }
+	meSpan Subspan(u64 offset, u64 len)
+    {
+        ME_ASSERT(size >= offset);
+		ME_ASSERT(size - offset >= len);
+        return meSpan(((u8*)data)+offset, len);
+    }
+
     template<typename T>
     operator T*() const 
     {

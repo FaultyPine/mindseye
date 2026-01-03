@@ -544,19 +544,32 @@ void StringBuilder::Append(StringView str)
 #endif
 
 // yoinked from raylib
-const char* InternalStringFormat(const char *text, va_list* args, s32& numBytesWritten)
+const char* InternalStringFormat(
+	const char *text, 
+	va_list* args, 
+	s32& numBytesWritten,
+	meAllocator* allocator = nullptr)
 {
     // We create an array of buffers so strings don't expire until MAX_TEXTFORMAT_BUFFERS invocations
     static thread_local char buffers[MAX_TEXTFORMAT_BUFFERS][MAX_TEXT_BUFFER_LENGTH] = { {0} };
     static thread_local int index = 0;
 
-    char *currentBuffer = buffers[index];
-
-    numBytesWritten = stbsp_vsnprintf(currentBuffer, MAX_TEXT_BUFFER_LENGTH, text, *args);
+	char* currentBuffer = nullptr;
+	// NOTE: stbsp_vsnprintf always null-terminates, and DOES NOT include the null terminator in numBytesWritten
+	if (allocator)
+	{
+		char tempBuf[MAX_TEXT_BUFFER_LENGTH];
+		numBytesWritten = stbsp_vsnprintf(tempBuf, MAX_TEXT_BUFFER_LENGTH, text, *args);
+		currentBuffer = MEALLOC(allocator, numBytesWritten);
+		ME_MEMCPY(currentBuffer, tempBuf, numBytesWritten);
+	}
+	else
+	{
+		currentBuffer = buffers[index++];
+		numBytesWritten = stbsp_vsnprintf(currentBuffer, MAX_TEXT_BUFFER_LENGTH, text, *args);
+	}
 	ME_ASSERT((numBytesWritten + 1) < MAX_TEXT_BUFFER_LENGTH);
-	currentBuffer[numBytesWritten] = '\0';
 
-    index += 1;     // Move to next buffer for next function call
     if (index >= MAX_TEXTFORMAT_BUFFERS) index = 0;
 
     return currentBuffer;
@@ -567,7 +580,7 @@ s32 StringBuilder::AppendFormat(const char* fmt, ...)
     va_list args;
     va_start(args, fmt);
 	s32 numBytesWritten = 0;
-	const char* formattedTmpBuf = InternalStringFormat(fmt, &args, numBytesWritten);
+	const char* formattedTmpBuf = InternalStringFormat(fmt, &args, numBytesWritten, allocator);
     va_end(args);
 	StringView stringToAppend = StringView(formattedTmpBuf, numBytesWritten);
 	Append(stringToAppend);

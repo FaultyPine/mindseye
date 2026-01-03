@@ -84,11 +84,13 @@ struct StringView
 		return data[idx]; 
 	}
 
+	// for strings, subspans that exceed the string length get silently clamped
     StringView OffsetView(u64 offset = 0) 
-    { 
+    {
         offset = offset > len ? len : offset;
         return {data + offset, len - offset};
     }
+	// for strings, subspans that exceed the string length get silently clamped
     StringView OffsetView(u64 offset, u64 len) 
     { 
         return {data + offset, this->len < len ? this->len : len};

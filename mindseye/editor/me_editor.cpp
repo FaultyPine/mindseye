@@ -79,7 +79,7 @@ void meEditorDisplayGui(EngineContext* engine)
                     engine->sceneSystem->ChangeCurrentSceneBlocking(sceneFile);
                 }
             }
-            if (ImGui::MenuItem("Save"))
+            if (ImGui::MenuItem("Save", "CTRL+S"))
             {
                 meScene* currentScene = &engine->sceneSystem->CurrentScene();
                 StringView fullpath = meAssetResource(currentScene->sceneAssetPath);

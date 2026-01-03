@@ -23,8 +23,9 @@ typedef s32 meTypeDescriptorFlags;
 #define DECLARE_METYPEDESCRIPTOR_FLAGS \
 X(ExternalPtr)\
 X(ConstantArray)\
+X(PaddingMember)\
 X(NonSerializedFlagsMarker)\
-X(INCLUDE_IN_GENERATED_HEADER)
+X(IncludeInGeneratedHeader)
 
 #define meTypeDescriptorFlagsSerializedBitmask \
 	(~((~0) << meTypeDescriptorFlag_NonSerializedFlagsMarker))

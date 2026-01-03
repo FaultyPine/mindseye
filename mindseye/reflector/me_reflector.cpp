@@ -244,8 +244,7 @@ static std::unordered_map<StringView, meTypeDescriptor*> builtinStructs =
 };
 
 meTypeDescriptor* MapClangPrimitiveTypeToTypeDescriptor(
-	CXCursor cr,
-	meAllocator* allocator)
+	CXCursor cr)
 {
 	CXType type = clang_getCursorType(cr);
 	CXTypeKind kind = type.kind;
@@ -277,13 +276,9 @@ meTypeDescriptor* MapClangPrimitiveTypeToTypeDescriptor(
 		// if you want the number of elements in the array, take the total type size and divide by the inner type's size
 		CXType internalArrayType = clang_getArrayElementType(type);
 		CXCursor internalArrayCursor = clang_getTypeDeclaration(internalArrayType);
-		meTypeDescriptor* internalArrayDescriptor = MapClangPrimitiveTypeToTypeDescriptor(internalArrayCursor, allocator);
+		meTypeDescriptor* internalArrayDescriptor = MapClangPrimitiveTypeToTypeDescriptor(internalArrayCursor);
 		ME_ASSERT(internalArrayDescriptor);
-		meTypeDescriptor* newArrayDescriptor = MENEW(allocator, meTypeDescriptor);
-		// make a copy, since we don't want to modify the primitive descriptors
-		newArrayDescriptor->CopyFrom(*internalArrayDescriptor);
-		SET_BIT(newArrayDescriptor->flags, meTypeDescriptorFlag_ConstantArray, true);
-		return newArrayDescriptor;
+		return internalArrayDescriptor;
 	}
 	else if (clangToMePrimitiveType.count(kind))
 	{
@@ -313,13 +308,13 @@ bool IsPrimitiveType(CXTypeKind kind)
 	return (kind >= CXType_FirstBuiltin && kind <= CXType_LastBuiltin) || (kind == CXType_Pointer);
 }
 
-bool IsBuiltinType(CXCursor cr, meAllocator* allocator)
+bool IsBuiltinType(CXCursor cr)
 {
 	CXType type = clang_getCursorType(cr);
 	CXCursor typeDecl = clang_getTypeDeclaration(type);
 	CXType underlyingtype = clang_getCursorType(typeDecl);
 	CXTypeKind kind = underlyingtype.kind;
-	meTypeDescriptor* builtinTypeDesc = MapClangPrimitiveTypeToTypeDescriptor(cr, allocator);
+	meTypeDescriptor* builtinTypeDesc = MapClangPrimitiveTypeToTypeDescriptor(cr);
 	if (kind == CXType_Typedef)
 	{
 		kind = clang_getTypedefDeclUnderlyingType(typeDecl).kind;
@@ -327,7 +322,10 @@ bool IsBuiltinType(CXCursor cr, meAllocator* allocator)
 	return builtinTypeDesc != nullptr || IsPrimitiveType(kind);
 }
 
-meReflectedType& GetReflectedType(CXCursor cr, meAllocator* allocator, ClangParsingContext& ctx)
+meReflectedType& GetReflectedType(
+	CXCursor cr, 
+	meAllocator* allocator, 
+	ClangParsingContext& ctx)
 {
 	u32 headerID = 0;
 	u32 nameID = 0;
@@ -339,7 +337,7 @@ meReflectedType& GetReflectedType(CXCursor cr, meAllocator* allocator, ClangPars
 	}
 	String headerPath = GetHeaderPathForCursor(cr, allocator);
 	ctx.reflectedFiles[headerID].fileName = headerPath;
-	meTypeDescriptor* builtinTypeDesc = MapClangPrimitiveTypeToTypeDescriptor(cr, allocator);
+	meTypeDescriptor* builtinTypeDesc = MapClangPrimitiveTypeToTypeDescriptor(cr);
 	if (builtinTypeDesc)
 	{
 		reflType = TransferRelevantReflectedTypeInfoToTypeDescriptor(builtinTypeDesc);
@@ -405,13 +403,14 @@ void StoreReflectedTypeInfo(
 	CXCursor parentCr = clang_getCursorLexicalParent(cr);
 	StringView cursorName = GetCursorDisplayName(cr, allocator);
 	CXType crType = clang_getCursorType(cr);
+	// FOUND FIELD TO REFLECT
 
 	meReflectedType* reflTypePtr = nullptr;
 	// for fields, fill out the inner type, and add this type to the parent struct's children
 	if (crKind == CXCursor_FieldDecl)
 	{
 		CXCursor fieldTypeCr = clang_getTypeDeclaration(crType);
-		bool isBuiltin = IsBuiltinType(fieldTypeCr, allocator) || fieldTypeCr.kind == CXCursor_NoDeclFound;
+		bool isBuiltin = IsBuiltinType(fieldTypeCr) || fieldTypeCr.kind == CXCursor_NoDeclFound;
 		if (isBuiltin)
 		{
 			// primitive type. I.E. u32
@@ -424,11 +423,16 @@ void StoreReflectedTypeInfo(
 		}
 		// annotated fields have their parentCr as the fielddecl. Unannotated fields have their parentCr as the struct decl
 		bool isReflectedType = DoesDeclarationHaveReflectionAnnotation(fieldTypeCr, ctx);
-		meReflectedType& fieldTypeRefl = GetReflectedType(fieldTypeCr, allocator, ctx);
-		fieldTypeRefl.isExcluded = fieldTypeRefl.isExcluded || excluded;
+		meReflectedType& fieldInnerTypeRefl = GetReflectedType(fieldTypeCr, allocator, ctx);
+		fieldInnerTypeRefl.isExcluded = fieldInnerTypeRefl.isExcluded || excluded;
 		
 		meReflectedType& fieldMemberRefl = *MENEW(ctx.allocator, meReflectedType); // this will contain the field's type info
-		
+		// if it's a const array, mark the field as such. It's inner type will indicate what it's an array of, and it's size / sizeof(inner type) indicates the num elements in the array
+		if (clang_getCursorType(fieldTypeCr).kind == CXType_ConstantArray)
+		{
+			SET_BIT(fieldMemberRefl.flags, meTypeDescriptorFlag_ConstantArray, true);
+		}
+
 		meReflectedType& parentReflType = GetReflectedType(parentCr, allocator, ctx);
 		for (DynArray_Foreach(parentReflType.children, childIdx))
 		{
@@ -438,18 +442,18 @@ void StoreReflectedTypeInfo(
 			}
 		}
 		DynArrayPush(parentReflType.children, &fieldMemberRefl);
-		fieldMemberRefl.innerType = &fieldTypeRefl;
+		fieldMemberRefl.innerType = &fieldInnerTypeRefl;
 		reflTypePtr = &fieldMemberRefl;
 		if (isBuiltin || isReflectedType)
 		{
 			// for non-primitive builtin types (I.E. String) we should include those
-			SET_BIT(reflTypePtr->flags, meTypeDescriptorFlag_INCLUDE_IN_GENERATED_HEADER, true);
+			SET_BIT(reflTypePtr->flags, meTypeDescriptorFlag_IncludeInGeneratedHeader, true);
 		}
 	}
 	else
 	{
 		reflTypePtr = &GetReflectedType(cr, allocator, ctx);
-		SET_BIT(reflTypePtr->flags, meTypeDescriptorFlag_INCLUDE_IN_GENERATED_HEADER, true);
+		SET_BIT(reflTypePtr->flags, meTypeDescriptorFlag_IncludeInGeneratedHeader, true);
 	}
 	ME_ASSERT(reflTypePtr);
 	meReflectedType& reflType = *reflTypePtr;
@@ -895,7 +899,7 @@ void GenerateForwardDecls(
 					if (childReflType.innerType && childReflType.innerType->name)
 					{
 						bool isPrimitive = !childReflType.innerType->children || DynArrayGetSize(childReflType.innerType->children) == 0;
-						if (isPrimitive || !TEST_BIT(childReflType.flags, meTypeDescriptorFlag_INCLUDE_IN_GENERATED_HEADER))
+						if (isPrimitive || !TEST_BIT(childReflType.flags, meTypeDescriptorFlag_IncludeInGeneratedHeader))
 						{
 							continue;
 						}
@@ -1050,7 +1054,9 @@ bool ProcessReflectedFile(
 						u32 paddedFieldSizeBits = paddedField.size * 8;
 						paddingVarName.AppendFormat(STRING_FMT "_padding", STRING_VAARGS(paddedField.name));
 						u32 paddingMemberOffsetBits = paddedField.offsetBits + paddedFieldSizeBits;
-						fieldsArrayContent.AppendFormat("\t{ .name = STRING_LIT(\"%.*s\"), .size = %i, .align = %i, .offsetBits = %i },\n", STRING_VAARGS(paddingVarName), childPadding, 1, paddingMemberOffsetBits);
+						fieldsArrayContent.AppendFormat(
+							"\t{ .name = STRING_LIT(\"%.*s\"), .flags = NTH_BIT(meTypeDescriptorFlag_PaddingMember), .size = %i, .align = %i, .offsetBits = %i },\n", 
+							STRING_VAARGS(paddingVarName), childPadding, 1, paddingMemberOffsetBits);
 						numPaddingMembers++;
 					}
 
@@ -1079,7 +1085,7 @@ bool ProcessReflectedFile(
 									fieldsArrayContent.Append(STRING_LIT(" | "));
 								}
 								StringView flagStr = meTypeDescriptorFlagToString(i);
-								fieldsArrayContent.AppendFormat(STRING_FMT, STRING_VAARGS(flagStr));
+								fieldsArrayContent.AppendFormat("NTH_BIT(" STRING_FMT ")", STRING_VAARGS(flagStr));
 							}
 						}
 						fieldsArrayContent.Append(STRING_LIT("), "));
@@ -1088,7 +1094,7 @@ bool ProcessReflectedFile(
 					fieldsArrayContent.AppendFormat(".size = %i, ", childReflType.size != 0 ? childReflType.size : (childReflType.innerType ? childReflType.innerType->size : 0));
 					fieldsArrayContent.AppendFormat(".align = %i, ", childReflType.align != 0 ? childReflType.align : (childReflType.innerType ? childReflType.innerType->align : 0));
 					fieldsArrayContent.AppendFormat(".offsetBits = %i, ", childReflType.offsetBits);
-					if (childReflType.innerType && childReflType.innerType->name && TEST_BIT(childReflType.flags, meTypeDescriptorFlag_INCLUDE_IN_GENERATED_HEADER))
+					if (childReflType.innerType && childReflType.innerType->name && TEST_BIT(childReflType.flags, meTypeDescriptorFlag_IncludeInGeneratedHeader))
 					{
 						String underlyingTD = String(childReflType.innerType->name, allocator);
 						ToUpper(underlyingTD);
@@ -1112,7 +1118,9 @@ bool ProcessReflectedFile(
 					u32 paddedFieldSizeBits = paddedField.size * 8;
 					paddingVarName.AppendFormat(STRING_FMT "_padding", STRING_VAARGS(paddedField.name));
 					u32 paddingMemberOffsetBits = paddedField.offsetBits + paddedFieldSizeBits;
-					fieldsArrayContent.AppendFormat("\n\t{ .name = STRING_LIT(\"%.*s\"), .size = %i, .align = %i, .offsetBits = %i }", STRING_VAARGS(paddingVarName), finalPadding, 1, paddingMemberOffsetBits);
+					fieldsArrayContent.AppendFormat(
+						"\n\t{ .name = STRING_LIT(\"%.*s\"), .flags = NTH_BIT(meTypeDescriptorFlag_PaddingMember), .size = %i, .align = %i, .offsetBits = %i }", 
+						STRING_VAARGS(paddingVarName), finalPadding, 1, paddingMemberOffsetBits);
 					numPaddingMembers++;
 				}
 

@@ -135,7 +135,7 @@ void LoadSceneRuntimeFromGLTF(meScene& outScene, meAllocator* sceneAllocator)
 			float nodeMatrix[16];
 			cgltf_node_transform_local(&node, nodeMatrix);
 			meTransform nodeTf = meTransform(glm::make_mat4(nodeMatrix));
-			EntityRef entityRef = Entity::CreateEntity(node.name, nodeTf);
+			EntityRef entityRef = Entity::CreateEntity(StringFromCString(node.name), nodeTf);
 			EntityData& entity = Entity::GetEntity(entityRef);
 			if (node.mesh)
 			{

@@ -43,11 +43,28 @@ StringView meTypeDescriptor::ToString(meAllocator* allocator, meSpan data) const
 	StringBuilder builder = StringBuilder(allocator);
     
     // Handle null/empty data
-    if (!data.data || data.size == 0) 
+    if (!data.data || data.size == 0 || 
+		TEST_BIT(flags, meTypeDescriptorFlag_PaddingMember)) 
 	{
 		return {};
     }
     
+	// append multiple of the inner types for arrays
+	if (TEST_BIT(flags, meTypeDescriptorFlag_ConstantArray))
+	{
+		builder.Append(STRING_LIT("{ "));
+		u32 numArrayElements = size / underlyingType->size;
+		for (u32 i = 0; i < numArrayElements; i++)
+		{
+			meSpan arrayElement = data.Subspan(underlyingType->size * i, underlyingType->size);
+			StringView arrayElementStr = underlyingType->ToString(allocator, arrayElement);
+			builder.Append(arrayElementStr);
+			builder.Append( (i == numArrayElements-1) ? STRING_LIT("") : STRING_LIT(", ") );
+		}
+		builder.Append(STRING_LIT("}"));
+		return builder;
+	}
+
     // If this is a primitive type with an underlying type, delegate to it
     if (underlyingType != nullptr && fields.size == 0) 
 	{
@@ -151,11 +168,23 @@ bool meTypeDescriptor::FromString(DeserializeContext& ctx) const
 	StringView str = StringView(ctx.inputData.data, ctx.inputData.size);
 
     // Handle null/empty string
-    if (!str.data || str.len == 0) 
+    if (!str.data || str.len == 0 || 
+		TEST_BIT(flags, meTypeDescriptorFlag_PaddingMember)) 
     {
         return false;
     }
     
+	// append multiple of the inner types for arrays
+	if (TEST_BIT(flags, meTypeDescriptorFlag_ConstantArray))
+	{
+		//u32 numArrayElements = size / underlyingType->size;
+		//for (u32 i = 0; i < numArrayElements; i++)
+		//{
+		//	meSpan arrayElement = str.OffsetView(underlyingType->size * i, underlyingType->size);
+		//}
+		UNIMPLEMENTED();
+	}
+
     // If this is a primitive type with an underlying type, delegate to it
     if (underlyingType != nullptr && fields.size == 0) 
     {

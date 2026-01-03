@@ -51,7 +51,7 @@ void InitializeEntitySystem(Arena* arena);
 void DeinitializeEntitySystem();
 
 MEAPI EntityRef CreateEntity(
-    const char* name, 
+    StringView name, 
     const meTransform& tf = {}, 
     u32 flags = 0);
 MEAPI bool DestroyEntity(EntityRef ent);

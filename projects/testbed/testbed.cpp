@@ -16,7 +16,7 @@ struct GameGlobals
 void testbed_onsceneload(EngineContext* engine)
 {
     GameGlobals& globals = *MENEW(&engine->gameArena, GameGlobals);
-	globals.testEntity = Entity::CreateEntity("bruh", meTransform());
+	globals.testEntity = Entity::CreateEntity(STRING_LIT("bruh"), meTransform());
 	DynArrayPush(engine->sceneSystem->CurrentScene().runtime.entities, globals.testEntity);
 	EntityData& entity = Entity::GetEntity(globals.testEntity);
 	// Entity::SetFlag(entity, EntityFlags_HIDDEN, true);
