@@ -38,6 +38,8 @@ meTypeDescriptor TD_SPAN = { .name = STRING_LIT("span"), .flags = meTypeDescript
 meTypeDescriptor TD_STRINGVIEW = { .name = STRING_LIT("StringView"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(StringView), .align = alignof(StringView), .strSerializer = sizedBufferSerializer, .strDeserializer = sizedBufferDeserializer };
 meTypeDescriptor TD_STRING = { .name = STRING_LIT("String"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(String), .align = alignof(String), .strSerializer = sizedBufferSerializer, .strDeserializer = stringDeserializer };
 
+meTypeDescriptor TD_DYNARRAY = { .name = STRING_LIT("DynArray"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(DynArray<int>), .align = alignof(DynArray<int>) };
+
 StringView meTypeDescriptor::ToString(meAllocator* allocator, meSpan data) const
 {
 	StringBuilder builder = StringBuilder(allocator);
@@ -49,15 +51,21 @@ StringView meTypeDescriptor::ToString(meAllocator* allocator, meSpan data) const
 		return {};
     }
     
+    // custom override
+	if (strSerializer)
+	{
+		return strSerializer(allocator, data);
+	}
+
 	// append multiple of the inner types for arrays
 	if (TEST_BIT(flags, meTypeDescriptorFlag_ConstantArray))
 	{
 		builder.Append(STRING_LIT("{ "));
-		u32 numArrayElements = size / underlyingType->size;
+		u32 numArrayElements = size / thisType->size;
 		for (u32 i = 0; i < numArrayElements; i++)
 		{
-			meSpan arrayElement = data.Subspan(underlyingType->size * i, underlyingType->size);
-			StringView arrayElementStr = underlyingType->ToString(allocator, arrayElement);
+			meSpan arrayElement = data.Subspan(thisType->size * i, thisType->size);
+			StringView arrayElementStr = thisType->ToString(allocator, arrayElement);
 			builder.Append(arrayElementStr);
 			builder.Append( (i == numArrayElements-1) ? STRING_LIT("") : STRING_LIT(", ") );
 		}
@@ -66,16 +74,10 @@ StringView meTypeDescriptor::ToString(meAllocator* allocator, meSpan data) const
 	}
 
     // If this is a primitive type with an underlying type, delegate to it
-    if (underlyingType != nullptr && fields.size == 0) 
+    if (thisType != nullptr && fields.size == 0) 
 	{
-        return underlyingType->ToString(allocator, data);
+        return thisType->ToString(allocator, data);
     }
-
-    // custom override
-	if (strSerializer)
-	{
-		return strSerializer(allocator, data);
-	}
 
     // Handle primitive types based on name and size
     if (fields.size == 0) 
@@ -174,6 +176,12 @@ bool meTypeDescriptor::FromString(DeserializeContext& ctx) const
         return false;
     }
     
+    // custom override
+	if (strDeserializer)
+	{
+		return strDeserializer(ctx);
+	}
+
 	// append multiple of the inner types for arrays
 	if (TEST_BIT(flags, meTypeDescriptorFlag_ConstantArray))
 	{
@@ -186,16 +194,10 @@ bool meTypeDescriptor::FromString(DeserializeContext& ctx) const
 	}
 
     // If this is a primitive type with an underlying type, delegate to it
-    if (underlyingType != nullptr && fields.size == 0) 
+    if (thisType != nullptr && fields.size == 0) 
     {
-        return underlyingType->FromString(ctx);
+        return thisType->FromString(ctx);
     }
-
-    // custom override
-	if (strDeserializer)
-	{
-		return strDeserializer(ctx);
-	}
 
     // Handle primitive types based on name and size
     if (fields.size == 0) 

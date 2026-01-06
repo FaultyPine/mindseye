@@ -51,9 +51,14 @@ struct StringBuilder
 	u64 len = 0;
 	u64 capacity = 0;
 	meAllocator* allocator = nullptr;
+	bool isScopedAlloc = false;
 
+	enum IsScopedAlloc : bool;
 	StringBuilder() = default;
-	StringBuilder(meAllocator* allocator, u32 initialSize = 1024);
+	StringBuilder(
+		meAllocator* allocator, 
+		u32 initialSize = 1024,
+		IsScopedAlloc isScopedAlloc = IsScopedAlloc(false));
 	~StringBuilder();
 
 	void SetAllocator(meAllocator* allocator) { this->allocator = allocator; }

@@ -10,8 +10,6 @@
 #include "render/me_mesh.h"
 #include "platform/me_os.h"
 
-#include "generatedtypes/me_scene.generated.cpp"
-
 void meSceneInitialize(EngineContext* ctx)
 {
 	ctx->sceneSystem = MENEW(&ctx->engineArena, meSceneManager);

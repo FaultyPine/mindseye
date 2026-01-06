@@ -7,6 +7,15 @@ Must be on windows.
 run `build.bat`
 
 ### Current focus
+// BOOKMARK: 
+// - ~~refactor DynArray to be a real struct, so I can mereflect it~~ done
+// ~~get a list of types for templated fields and write that list into the generated header as a .templatedTypes = {...} ~~
+// ~~autogenerate a file with all the source includes~~
+// - add capability for mereflected stuff to specify a serializer function in the macro.
+// - implement DynArray serializers with above ^
+// - move other types to use this ^ I.E. stringview, string, mespan?
+
+
 - render 2d squares and have em move around
 - flesh out custom serialization format, implement for all current assets, like meshes, shaders, textures, and have them load through that data
     - i.e. a meScene asset on disk refers to a collection of "serialized entities" which contain materials, meshes, transforms

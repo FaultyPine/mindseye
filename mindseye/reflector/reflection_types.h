@@ -1,7 +1,6 @@
 #pragma once
 
 #include "core/me_defines.h"
-#include "core/containers/dynarray.h"
 #include "core/me_memory.h"
 #include "core/me_string.h"
 
@@ -54,7 +53,8 @@ struct meTypeDescriptor
 	u32 align = 0;
 	s32 offsetBits = 0;
 
-	meTypeDescriptor* underlyingType = nullptr;
+	meTypeDescriptor* thisType = nullptr;
+	meSpanTyped<meTypeDescriptor> templatedTypes = {};
 
 	typedef StringView(*serializerToString)(meAllocator* allocator, meSpan data);
 	typedef bool(*deserializerFromString)(DeserializeContext& ctx);
@@ -74,7 +74,7 @@ struct meTypeDescriptor
 			offsetBits == other.offsetBits &&
 			align == other.align && 
 			flags == other.flags && 
-			*underlyingType == *other.underlyingType;
+			*thisType == *other.thisType;
 	}
 	void CopyFrom(const meTypeDescriptor& other)
 	{
@@ -93,7 +93,7 @@ struct meTypeDescriptor
 		align = other.align;
 		offsetBits = other.offsetBits;
 
-		underlyingType = other.underlyingType;
+		thisType = other.thisType;
 	}
 };
 

@@ -5,6 +5,7 @@
 #include "core/containers/me_span.h"
 #include "scene/me_entity.h"
 #include "render/me_camera.h"
+#include "core/containers/dynarray.h"
 #include "generatedtypes/me_scene.generated.h"
 
 typedef u32 meSceneID;
@@ -14,7 +15,7 @@ struct SceneRuntimeData
 {
 	String gltfResourcePath = {};
 	cgltf_data* gltfData = nullptr; // todo: don't cache the cgltf, parse it into my own structures
-	DynArray(EntityRef) entities = {};
+	DynArray<EntityRef> entities = {};
 };
 
 struct MEREFLECT(type, Description="Scene Description", Version=0)
@@ -27,7 +28,10 @@ meScene
 	// this stores the scene data necessary at runtime
 	MEREFLECT(exclude) 
 	SceneRuntimeData runtime = {};
-    
+
+	DynArray<EntityRef> entities = {};
+	DynArray<String> entityNamesOrSomething = {};
+
 	MEREFLECT(exclude) 
     String sceneAssetPath = {};
 

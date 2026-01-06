@@ -18,7 +18,7 @@
 #include "scene/me_entity.h"
 #include "core/me_serialize.h"
 
-#include "generatedtypes/me_app.generated.cpp"
+#include "generatedtypes/me_app.generated.h"
 
 static EngineContext g_eng;
 EngineContext* GetEngineCtx()

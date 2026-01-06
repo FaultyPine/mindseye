@@ -1,6 +1,5 @@
 #include "me_camera.h"
 #include "platform/me_input.h"
-#include "mindseye/generatedtypes/me_camera.generated.cpp"
 
 // TODO: once i have input
 const s32 TAB_OUT_OF_WINDOW_KEY = 0; //TINY_KEY_TAB;

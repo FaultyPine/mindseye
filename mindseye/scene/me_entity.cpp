@@ -3,7 +3,6 @@
 #include "me_entity.h"
 #include "core/me_core.h"
 #include "render/me_mesh.h"
-#include "generatedtypes/me_entity.generated.cpp"
 
 namespace Entity
 {

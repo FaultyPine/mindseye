@@ -161,6 +161,10 @@ void DynArrayClear(DynArray<T>& array)
 template<typename T>
 u32 DynArrayGetSize(const DynArray<T>& array)
 {
+	if (!array)
+	{
+		return 0;
+	}
     const DynArrayHeader* headerPtr = GetHeaderPointer(array);
     return headerPtr->size;
 }

@@ -70,6 +70,8 @@
 #include "core/me_app.cpp"
 #include "asset/me_asset.cpp"
 
+#include "generatedtypes/generatedtypes_unity_sources.generated.cpp"
+
 // SUBMODULES
 #include "render/renderer_unity.cpp"
 #include "scene/scene_unity.cpp"

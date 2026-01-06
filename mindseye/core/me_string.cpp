@@ -502,16 +502,24 @@ StringView ScanForBalancedChar(StringView str, char opening, char closing)
 	return result;
 }
 
-StringBuilder::StringBuilder(meAllocator* allocator, u32 initialSize)
+StringBuilder::StringBuilder(
+	meAllocator* allocator, 
+	u32 initialSize,
+	IsScopedAlloc isScopedAlloc)
 {
 	this->allocator = allocator;
 	this->data = MEALLOC(allocator, initialSize);
 	this->len = 0;
 	this->capacity = initialSize;
+	this->isScopedAlloc = isScopedAlloc;
 }
 
 StringBuilder::~StringBuilder()
 {
+	if (isScopedAlloc)
+	{
+		MEFREE(allocator, data);
+	}
 	len = 0;
 	data = 0;
 }
@@ -615,7 +623,9 @@ s32 StringFormatIntoBuf(meSpan backingBuffer, const char *text, ...)
 	return bytes;
 }
 
-StringView StringFormatNew(meAllocator* allocator, const char *text, ...)
+StringView StringFormatNew(
+	meAllocator* allocator, 
+	const char *text, ...)
 {
 	char backing[MAX_TEXT_BUFFER_LENGTH];
 

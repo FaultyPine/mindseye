@@ -16,7 +16,7 @@ meSerializeResult SerializeToTextBlocking(
 	for (u64 i = 0; i < typeDesc.fields.size; i++)
 	{
 		const meTypeDescriptor& field = typeDesc.fields[i];
-		if (field.underlyingType == nullptr)
+		if (field.thisType == nullptr)
 		{
 			continue;
 		}
@@ -95,7 +95,7 @@ meSerializeResult DeserializeFromTextBlocking(
 			bumper = bumper.Subspan(field.size);
 		});
 		StringView fieldStr = findFieldValueInText(field.name);
-		if (field.underlyingType == nullptr || !fieldStr)
+		if (field.thisType == nullptr || !fieldStr)
 		{
 			// for reflected fields that don't have entries in the ini,
 			// leave them as-is. This way, the caller can default-initialize the structure and
