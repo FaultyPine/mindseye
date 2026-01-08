@@ -47,6 +47,15 @@ struct DynArray
 	explicit operator s8*() { return (s8*)data; }
 };
 
+StringView DynArraySerializerToStringFn(
+	const meTypeDescriptor& typeDescriptor,
+	meAllocator* allocator, 
+	meSpan data);
+
+bool DynArrayDeserializerFromStringFn(
+	const meTypeDescriptor& typeDescriptor,
+	DeserializeContext& ctx);
+
 // Create an array with an optional initial capacity (number of elements)
 template<typename T>
 DynArray<T> DynArrayCreate(meAllocator* allocator, u32 initialCapacity = 10);

@@ -39,6 +39,15 @@ enum meTypeDescriptorFlag_
 
 StringView meTypeDescriptorFlagToString(meTypeDescriptorFlags flag);
 
+struct meTypeDescriptor;
+typedef StringView(*SerializerToStringFn)(
+	const meTypeDescriptor& typeDescriptor,
+	meAllocator* allocator, 
+	meSpan data);
+typedef bool(*DeserializerFromStringFn)(
+	const meTypeDescriptor& typeDescriptor,
+	DeserializeContext& ctx);
+
 struct meTypeDescriptor
 {
 	String name = {};
@@ -56,13 +65,10 @@ struct meTypeDescriptor
 	meTypeDescriptor* thisType = nullptr;
 	meSpanTyped<meTypeDescriptor> templatedTypes = {};
 
-	typedef StringView(*serializerToString)(meAllocator* allocator, meSpan data);
-	typedef bool(*deserializerFromString)(DeserializeContext& ctx);
-
 	// for non-pod types, these can be assigned and will
 	// be called instead of default primitive serialization funcs
-	serializerToString strSerializer = nullptr;
-	deserializerFromString strDeserializer = nullptr;
+	SerializerToStringFn strSerializer = nullptr;
+	DeserializerFromStringFn strDeserializer = nullptr;
 
 	StringView ToString(meAllocator* allocator, meSpan data) const;
 	bool FromString(DeserializeContext& ctx) const;

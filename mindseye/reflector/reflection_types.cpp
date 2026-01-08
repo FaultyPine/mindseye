@@ -34,11 +34,11 @@ bool stringDeserializer(DeserializeContext& ctx);
 
 // NOTE: We can reuse the sizedbufferserializer ONLY because meSpan, StringView, and String follow a similar pattern internally
 // where the first param is a data pointer and the second is the 64bit size.
-meTypeDescriptor TD_SPAN = { .name = STRING_LIT("span"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(meSpan), .align = alignof(meSpan), .strSerializer = sizedBufferSerializer, .strDeserializer = sizedBufferDeserializer };
-meTypeDescriptor TD_STRINGVIEW = { .name = STRING_LIT("StringView"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(StringView), .align = alignof(StringView), .strSerializer = sizedBufferSerializer, .strDeserializer = sizedBufferDeserializer };
-meTypeDescriptor TD_STRING = { .name = STRING_LIT("String"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(String), .align = alignof(String), .strSerializer = sizedBufferSerializer, .strDeserializer = stringDeserializer };
+meTypeDescriptor TD_SPAN = { .name = STRING_LIT("span"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(meSpan), .align = alignof(meSpan) };
+meTypeDescriptor TD_STRINGVIEW = { .name = STRING_LIT("StringView"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(StringView), .align = alignof(StringView) };
+meTypeDescriptor TD_STRING = { .name = STRING_LIT("String"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(String), .align = alignof(String) };
 
-meTypeDescriptor TD_DYNARRAY = { .name = STRING_LIT("DynArray"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(DynArray<int>), .align = alignof(DynArray<int>) };
+meTypeDescriptor TD_DYNARRAY = { .name = STRING_LIT("DynArray"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(DynArray<int>), .align = alignof(DynArray<int>), .strSerializer = DynArraySerializerToStringFn, .strDeserializer = DynArrayDeserializerFromStringFn };
 
 StringView meTypeDescriptor::ToString(meAllocator* allocator, meSpan data) const
 {
@@ -54,7 +54,7 @@ StringView meTypeDescriptor::ToString(meAllocator* allocator, meSpan data) const
     // custom override
 	if (strSerializer)
 	{
-		return strSerializer(allocator, data);
+		return strSerializer(*this, allocator, data);
 	}
 
 	// append multiple of the inner types for arrays
@@ -179,7 +179,7 @@ bool meTypeDescriptor::FromString(DeserializeContext& ctx) const
     // custom override
 	if (strDeserializer)
 	{
-		return strDeserializer(ctx);
+		return strDeserializer(*this, ctx);
 	}
 
 	// append multiple of the inner types for arrays

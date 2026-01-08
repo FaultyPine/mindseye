@@ -88,6 +88,9 @@ struct meReflectedType
 	u32 align = 0;
 	u32 version = 0;
 	meTypeDescriptorFlags flags = 0;
+	StringView strSerializerFnName = {};
+	StringView strDeserializerFnName = {};
+
 	void Print() const;
 	bool operator==(const meReflectedType& other) const
 	{
@@ -623,6 +626,12 @@ void StoreReflectedTypeInfo(
 		StringView versionParam = GetStringParam(STRING_LIT("Version"), macroContent);
 		if (versionParam) reflType.version = StringToUint(versionParam);
 
+		StringView serializerParam = GetStringParam(STRING_LIT("Serializer"), macroContent);
+		reflType.strSerializerFnName = serializerParam;
+
+		StringView deserializerParam = GetStringParam(STRING_LIT("Deserializer"), macroContent);
+		reflType.strDeserializerFnName = deserializerParam;
+
 		SET_BIT(reflType.flags, meTypeDescriptorFlag_Excluded, reflType.IsExcluded() || excluded);
 	}
 }
@@ -1048,6 +1057,21 @@ bool GenerateForwardDecls(
 				}				
 			}
 			builder.AppendFormat("extern meTypeDescriptor TD_%.*s;\n", STRING_VAARGS(uppercaseName));
+			if (typeRefl.strSerializerFnName.len > 0 != typeRefl.strDeserializerFnName.len > 0)
+			{
+				LOG_ERROR("Bad serializer setup: If we have a serializer, we should also have a deserializer " STRING_FMT, STRING_VAARGS(typeRefl.name));
+				ME_ASSERT(false);
+			}
+			if (typeRefl.strDeserializerFnName)
+			{
+				// matches signature of DeserializerFromStringFn
+				builder.AppendFormat("bool " STRING_FMT "(DeserializeContext& ctx);\n", STRING_VAARGS(typeRefl.strDeserializerFnName));
+			}
+			if (typeRefl.strSerializerFnName)
+			{
+				// matches signature of SerializerToStringFn
+				builder.AppendFormat("StringView " STRING_FMT "(meAllocator* allocator, meSpan data);\n", STRING_VAARGS(typeRefl.strSerializerFnName));
+			}
 			generatedAny = true;
 		}
 	}
@@ -1244,7 +1268,6 @@ bool ProcessReflectedFile(
 						fieldsArrayContent.AppendFormat(".thisType = &TD_%.*s, ", STRING_VAARGS(underlyingTD));
 						if (DynArrayGetSize(childReflType.templateTypes))
 						{
-							// BOOKMARK: output templated types array
 							StringView templateArgsListVarName = StringFormatNew(allocator, "g_templateArgs_" STRING_FMT, STRING_VAARGS(childReflType.name));
 							templateTypesContent.AppendFormat("meTypeDescriptor* " STRING_FMT "[] = {\n", STRING_VAARGS(templateArgsListVarName));
 							for (DynArray_Foreach(childReflType.templateTypes, templateArgIdx))
@@ -1292,7 +1315,10 @@ bool ProcessReflectedFile(
 			if (typeRefl.editorName) mainTypeDescriptorContent.AppendFormat("\t.editorName = STRING_LIT(\"%.*s\"),\n", STRING_VAARGS(typeRefl.editorName));
 			if (typeRefl.tooltip) mainTypeDescriptorContent.AppendFormat("\t.tooltip = STRING_LIT(\"%.*s\"),\n", STRING_VAARGS(typeRefl.tooltip));
 			
-			mainTypeDescriptorContent.AppendFormat("\t.fields = {g_%.*s_fields},\n", STRING_VAARGS(typeRefl.name));
+			if (DynArrayGetSize(typeRefl.children))
+			{
+				mainTypeDescriptorContent.AppendFormat("\t.fields = {g_%.*s_fields},\n", STRING_VAARGS(typeRefl.name));
+			}
 			mainTypeDescriptorContent.AppendFormat("\t.version = %i,\n", typeRefl.version);
 			mainTypeDescriptorContent.AppendFormat("\t.size = %i,\n", typeRefl.size);
 			mainTypeDescriptorContent.AppendFormat("\t.align = %i,", typeRefl.align);

@@ -7,6 +7,22 @@
 
 #define ARRAY_CHECKS (1)
 
+StringView DynArraySerializerToStringFn(
+	const meTypeDescriptor& typeDescriptor,
+	meAllocator* allocator, 
+	meSpan data)
+{
+	UNIMPLEMENTED();
+	return {};
+}
+
+bool DynArrayDeserializerFromStringFn(
+	const meTypeDescriptor& typeDescriptor,
+	DeserializeContext& ctx)
+{
+	UNIMPLEMENTED();
+	return true;
+}
 
 template<typename T>
 DynArrayHeader* GetHeaderPointer(const DynArray<T>& array)
