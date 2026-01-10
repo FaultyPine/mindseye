@@ -5,28 +5,47 @@
 #include "core/containers/me_map.h"
 #include "core/me_core.h"
 #include "asset/me_asset.h"
+#include "render/me_mesh.h"
 struct Arena;
 
 typedef u32 EntityFlags;
 enum EntityFlags_
 {
-    EntityFlags_DISABLED = 1,
+	EntityFlags_Invalid = 1,
+    EntityFlags_DISABLED,
 	EntityFlags_HIDDEN,
 
     EntityFlags_NUM_ENTITY_FLAGS,
 };
 STATIC_ASSERT(EntityFlags_NUM_ENTITY_FLAGS < 32);
 
-typedef u32 EntityRef;
-#define ENTITY_NAME_MAX_LENGTH 50
+struct MEREFLECT(type, Serializer=EntityRefSerializerToStringFn, Deserializer=EntityRefDeserializerFromStringFn) 
+EntityRef
+{
+	u32 ref = U32_INVALID_ID;
+	EntityRef(u32 r) : ref(r) {}
+	EntityRef() = default;
+	explicit operator u32() { return ref; }
+	bool operator==(const EntityRef& other) const
+	{
+		return ref == other.ref;
+	}
+};
+
+MEMAP_BEGIN_CUSTOM_HASHER(EntityRef, obj) 
+{
+    return HashBytesL((u8*)&obj.ref, sizeof(obj.ref));
+}
+MEMAP_END_CUSTOM_HASHER
+
 struct MEREFLECT(type) EntityData
 {
     meTransform transform = {};
-    MAID mesh = {};
+    meMeshID mesh = {};
 	// gameplay-focused bounds. Rendering bounds including anims may be different (stored on mesh)
     BoundingBox authoritativeBounds = {}; 
     u32 flags = 0;
-    s8 name[ENTITY_NAME_MAX_LENGTH];
+	String name = {};
     
     EntityData() = default;
 };
@@ -50,13 +69,22 @@ namespace Entity
 void InitializeEntitySystem(Arena* arena);
 void DeinitializeEntitySystem();
 
+
+StringView EntityRefSerializerToStringFn(
+	const meTypeDescriptor& typeDescriptor,
+	meAllocator* allocator, 
+	meSpan data);
+
+bool EntityRefDeserializerFromStringFn(
+	const meTypeDescriptor& typeDescriptor,
+	DeserializeContext& ctx);
+
 MEAPI EntityRef CreateEntity(
     StringView name, 
     const meTransform& tf = {}, 
     u32 flags = 0);
 MEAPI bool DestroyEntity(EntityRef ent);
 MEAPI EntityData& GetEntity(EntityRef ent);
-MEAPI EntityData& GetEntity(const char* name);
 
 MEAPI void SetFlag(EntityRef ent, EntityFlags flag, bool enabled);
 MEAPI void SetFlag(EntityData& ent, EntityFlags flag, bool enabled);

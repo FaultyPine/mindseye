@@ -6,7 +6,7 @@
 
 struct DeserializeContext
 {
-	// data to be deserialized
+	// data to be deserialized, I.E. a string like "0.1" or equivalent
 	meSpan inputData = {};
 
 	// POD, preallocated before deserialization functions are called

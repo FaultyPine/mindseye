@@ -4,6 +4,40 @@
 #include "core/me_core.h"
 #include "render/me_mesh.h"
 
+StringView EntityRefSerializerToStringFn(
+	const meTypeDescriptor& typeDescriptor,
+	meAllocator* allocator, 
+	meSpan data)
+{
+	EntityRef* ref = (EntityRef*)data.data;
+	EntityData& entity = Entity::GetEntity(*ref);
+	if (TEST_BIT(entity.flags, EntityFlags_Invalid))
+	{
+		return STRING_LIT("INVALID_ENTITY");
+	}
+	meSpan entitySpan = SPAN_FROM(entity);
+	return TD_ENTITYDATA.ToString(allocator, entitySpan);
+}
+
+bool EntityRefDeserializerFromStringFn(
+	const meTypeDescriptor& typeDescriptor,
+	DeserializeContext& ctx)
+{
+	// we serialize/deserialize EntityRef as if it were EntityData
+	DeserializeContext entityDataCtx = ctx;
+	EntityData entity = {};
+	entityDataCtx.outputData = SPAN_FROM(entity);
+	if (!TD_ENTITYDATA.FromString(entityDataCtx))
+	{
+		LOG_ERROR("Failed to deserialize entity");
+		return false;
+	}
+	EntityRef ref = Entity::CreateEntity(entity.name, entity.transform, entity.flags);
+	ME_ASSERT(ctx.outputData.size == sizeof(ref.ref));
+	ME_MEMCPY(ctx.outputData.data, &ref.ref, sizeof(ref.ref));
+	return true;
+}
+
 namespace Entity
 {
 
@@ -12,28 +46,13 @@ static EntityRegistry& GetRegistry()
     return *GetEngineCtx()->entityRegistry;
 }
 
-EntityRef GenerateEntityID(const char* name = nullptr)
-{
-    EntityRef result = 0;
-    if (!name)
-    {
-        EntityRegistry& registry = GetRegistry();
-        result = registry.entityCreationIndex;
-    }
-    else
-    {
-        result = HashBytes((u8*)name, strnlen(name, ENTITY_NAME_MAX_LENGTH));
-    }
-    ME_ASSERT(result != U32_INVALID_ID); // TODO: handle this gracefully
-    return result;
-}
-
 void InitializeEntitySystem(Arena* arena)
 {
     EntityRegistry* registryMem = MENEW(arena, EntityRegistry);
     GetEngineCtx()->entityRegistry = registryMem;
     // dummy entity with bad id so we can return it on failure from methods like GetEntity
     registryMem->entMap[U32_INVALID_ID] = {};
+    Entity::SetFlag(U32_INVALID_ID, EntityFlags_Invalid, true);
     Entity::SetFlag(U32_INVALID_ID, EntityFlags_DISABLED, true);
 }
 
@@ -82,14 +101,12 @@ EntityRef CreateEntity(
     if (name)
     {
         // if this entity has a name, use the name's hash as the id
-        // this is so we can lookup entities by name
-		StringCopy(StringView((const char*)&ent.name[0], ENTITY_NAME_MAX_LENGTH), name);
+		ent.name = name;
         entityID = HashBytes((u8*)name.data, name.len);
     }
     else
     {
         // if no name, the entity id is just a incrementally increasing num
-        ME_MEMCLEAR(ent.name, ENTITY_NAME_MAX_LENGTH);
         entityID = registry.entityCreationIndex;
     }
     // hash until we don't collide
@@ -128,17 +145,5 @@ EntityData& GetEntity(EntityRef ref)
     }
     return registry.entMap[U32_INVALID_ID]; // if doesn't exist, return our dummy
 }
-
-EntityData& GetEntity(const char* name)
-{
-    u32 namehash = HashBytes((u8*)name, strnlen(name, ENTITY_NAME_MAX_LENGTH));
-    EntityRegistry& registry = GetRegistry();
-    if (registry.entMap.count(namehash) > 0)
-    {
-        return registry.entMap[namehash];
-    }
-    return registry.entMap[U32_INVALID_ID]; // if doesn't exist, return our dummy
-}
-
 
 } // namespace Entity

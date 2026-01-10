@@ -979,7 +979,7 @@ void GeneratedReflectionHeaders(
 		bool didGenerate = ProcessReflectedFile(fileReflection, headerOutputFolder, &fileArena);
 		numProcessedFiles += didGenerate ? 1 : 0;
 		
-		if (!fileReflection.reflectedTypes.empty() && didGenerate)
+		if (!fileReflection.reflectedTypes.empty() /*&& didGenerate*/)
 		{
 			StringView parsedHeaderExistingPath = fileReflection.fileName;
 			if (!parsedHeaderExistingPath || FindInString(parsedHeaderExistingPath, StringFromCString(headerOutputFolder)) != -1)
@@ -1065,12 +1065,12 @@ bool GenerateForwardDecls(
 			if (typeRefl.strDeserializerFnName)
 			{
 				// matches signature of DeserializerFromStringFn
-				builder.AppendFormat("bool " STRING_FMT "(DeserializeContext& ctx);\n", STRING_VAARGS(typeRefl.strDeserializerFnName));
+				builder.AppendFormat("bool " STRING_FMT "(const meTypeDescriptor& typeDescriptor, DeserializeContext& ctx);\n", STRING_VAARGS(typeRefl.strDeserializerFnName));
 			}
 			if (typeRefl.strSerializerFnName)
 			{
 				// matches signature of SerializerToStringFn
-				builder.AppendFormat("StringView " STRING_FMT "(meAllocator* allocator, meSpan data);\n", STRING_VAARGS(typeRefl.strSerializerFnName));
+				builder.AppendFormat("StringView " STRING_FMT "(const meTypeDescriptor& typeDescriptor, meAllocator* allocator, meSpan data);\n", STRING_VAARGS(typeRefl.strSerializerFnName));
 			}
 			generatedAny = true;
 		}
@@ -1163,23 +1163,22 @@ bool ProcessReflectedFile(
 	headerContentBuilder.AppendFormat("STATIC_ASSERT(constexpr_strstr(std::string_view(__FILE__), \"%.*s\") != std::string_view::npos);\n", STRING_VAARGS(parsedHeaderFilenameNoExt));
 
 	bool generatedAny = false;
-	if (GenerateForwardDecls(headerContentBuilder, fileRefl.reflectedTypes, allocator))
+	bool generatedFwdDecls = GenerateForwardDecls(headerContentBuilder, fileRefl.reflectedTypes, allocator);
+	generatedAny |= generatedFwdDecls;
+	
+	StringView fileContent = headerContentBuilder;
+	if (fileContent)
 	{
-		StringView fileContent = headerContentBuilder;
-		if (fileContent)
-		{
-			OSFileReference headerFile = {};
+		OSFileReference headerFile = {};
 
-			if (!meOSOpenFile(headerFile, dstHeaderFilePath, OSFileFlags::StompExisting))
-			{
-				LOG_ERROR("Failed to open file %s while trying to generated reflected headers", dstHeaderFilePath);
-				return false;
-			}
-			// write to the file here
-			meOSWriteFileContent(headerFile, fileContent.data, fileContent.len);
-			meOSCloseFile(headerFile);
+		if (!meOSOpenFile(headerFile, dstHeaderFilePath, OSFileFlags::StompExisting))
+		{
+			LOG_ERROR("Failed to open file %s while trying to generated reflected headers", dstHeaderFilePath);
+			return false;
 		}
-		generatedAny = true;
+		// write to the file here
+		meOSWriteFileContent(headerFile, fileContent.data, fileContent.len);
+		meOSCloseFile(headerFile);
 	}
 
 	StringBuilder sourceContentBuilder = StringBuilder(allocator, MEGABYTES_BYTES(1), StringBuilder::IsScopedAlloc(true));
@@ -1321,14 +1320,22 @@ bool ProcessReflectedFile(
 			}
 			mainTypeDescriptorContent.AppendFormat("\t.version = %i,\n", typeRefl.version);
 			mainTypeDescriptorContent.AppendFormat("\t.size = %i,\n", typeRefl.size);
-			mainTypeDescriptorContent.AppendFormat("\t.align = %i,", typeRefl.align);
+			mainTypeDescriptorContent.AppendFormat("\t.align = %i,\n", typeRefl.align);
+			if (typeRefl.strSerializerFnName)
+			{
+				mainTypeDescriptorContent.AppendFormat("\t.strSerializer = " STRING_FMT ",\n", STRING_VAARGS(typeRefl.strSerializerFnName));
+			}
+			if (typeRefl.strDeserializerFnName)
+			{
+				mainTypeDescriptorContent.AppendFormat("\t.strDeserializer = " STRING_FMT ",\n", STRING_VAARGS(typeRefl.strDeserializerFnName));
+			}
 
-			sourceContentBuilder.AppendFormat("meTypeDescriptor TD_%.*s = {\n%.*s\n};\n", STRING_VAARGS(uppercaseName), STRING_VAARGS(mainTypeDescriptorContent));
+			sourceContentBuilder.AppendFormat("meTypeDescriptor TD_%.*s = {\n%.*s};\n", STRING_VAARGS(uppercaseName), STRING_VAARGS(mainTypeDescriptorContent));
 			generatedAny = true;
 		}
 	}
 
-	if (generatedAny)
+	//if (generatedAny)
 	{
 		OSFileReference sourceFile = {};
 		s32 extensionIdx = FindInStringRev(parsedHeaderFilename, STRING_LIT("."));

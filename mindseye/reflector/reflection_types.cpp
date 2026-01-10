@@ -28,16 +28,15 @@ meTypeDescriptor TD_CHAR = { .name = STRING_LIT("char"), .size = 1, .align = 1 }
 meTypeDescriptor TD_UNSIGNED_CHAR = {.name = STRING_LIT("unsigned char"), .size = 1, .align = 1 };
 meTypeDescriptor TD_WCHAR = { .name = STRING_LIT("wchar_t"), .size = 4, .align = 4 };
 
-StringView sizedBufferSerializer(meAllocator*, meSpan);
-bool sizedBufferDeserializer(DeserializeContext& ctx);
-bool stringDeserializer(DeserializeContext& ctx);
+StringView sizedBufferSerializer(const meTypeDescriptor&, meAllocator*, meSpan);
+bool sizedBufferDeserializer(const meTypeDescriptor&, DeserializeContext& ctx);
+bool stringDeserializer(const meTypeDescriptor&, DeserializeContext& ctx);
 
 // NOTE: We can reuse the sizedbufferserializer ONLY because meSpan, StringView, and String follow a similar pattern internally
 // where the first param is a data pointer and the second is the 64bit size.
-meTypeDescriptor TD_SPAN = { .name = STRING_LIT("span"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(meSpan), .align = alignof(meSpan) };
-meTypeDescriptor TD_STRINGVIEW = { .name = STRING_LIT("StringView"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(StringView), .align = alignof(StringView) };
-meTypeDescriptor TD_STRING = { .name = STRING_LIT("String"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(String), .align = alignof(String) };
-
+meTypeDescriptor TD_SPAN = { .name = STRING_LIT("span"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(meSpan), .align = alignof(meSpan), .strSerializer = sizedBufferSerializer, .strDeserializer = sizedBufferDeserializer };
+meTypeDescriptor TD_STRINGVIEW = { .name = STRING_LIT("StringView"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(StringView), .align = alignof(StringView), .strSerializer = sizedBufferSerializer, .strDeserializer = sizedBufferDeserializer };
+meTypeDescriptor TD_STRING = { .name = STRING_LIT("String"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(String), .align = alignof(String), .strSerializer = sizedBufferSerializer, .strDeserializer = stringDeserializer };
 meTypeDescriptor TD_DYNARRAY = { .name = STRING_LIT("DynArray"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(DynArray<int>), .align = alignof(DynArray<int>), .strSerializer = DynArraySerializerToStringFn, .strDeserializer = DynArrayDeserializerFromStringFn };
 
 StringView meTypeDescriptor::ToString(meAllocator* allocator, meSpan data) const
@@ -374,7 +373,10 @@ bool meTypeDescriptor::FromString(DeserializeContext& ctx) const
 
 
 
-StringView sizedBufferSerializer(meAllocator* allocator, meSpan fieldData)
+StringView sizedBufferSerializer(
+	const meTypeDescriptor& typedescriptor,
+	meAllocator* allocator, 
+	meSpan fieldData)
 {
 	// the fielddata is just a pointer to a mespan, which ITSELF has the actual data
 	meSpan dereferencedData = *(meSpan*)fieldData.data;
@@ -383,7 +385,9 @@ StringView sizedBufferSerializer(meAllocator* allocator, meSpan fieldData)
 	return StringView(mem);
 }
 
-bool sizedBufferDeserializer(DeserializeContext& ctx)
+bool sizedBufferDeserializer(
+	const meTypeDescriptor& typedescriptor,
+	DeserializeContext& ctx)
 {
 	meSpan* outputSpan = (meSpan*)ctx.outputData.data;
 	Allocation mem = MEALLOC(ctx.externalDataAllocator, ctx.inputData.size);
@@ -393,7 +397,9 @@ bool sizedBufferDeserializer(DeserializeContext& ctx)
 	return true;
 }
 
-bool stringDeserializer(DeserializeContext& ctx)
+bool stringDeserializer(
+	const meTypeDescriptor& typedescriptor,
+	DeserializeContext& ctx)
 {
 	String* ownedStr = (String*)ctx.outputData.data;
 	ownedStr->CopyOf(StringView::FromSpan(ctx.inputData), ctx.externalDataAllocator);
