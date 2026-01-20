@@ -795,7 +795,7 @@ DynArray<CompileCommand> CompileDatabaseToCommandsList(
 {
 	DynArray<CompileCommand> cmds = DynArrayCreate<CompileCommand>(allocator);
 	OSFileReference compileCmdsFile = {};
-	if (!meOSOpenFile(compileCmdsFile, compileDatabasePath, OnlyIfExists))
+	if (!meOSOpenFile(compileCmdsFile, compileDatabasePath, OSFileFlags_OnlyIfExists))
 	{
 		LOG_ERROR("Failed to open compile commands database file %s", compileDatabasePath.data);
 		return cmds;
@@ -989,7 +989,7 @@ void GeneratedReflectionHeaders(
 			StringView parsedHeaderFilename = meFsGetFileFromFullPath(parsedHeaderExistingPath);
 			s32 extensionIdx = FindInStringRev(parsedHeaderFilename, STRING_LIT("."));
 			StringView parsedHeaderFilenameNoExt = parsedHeaderFilename.OffsetView(0, extensionIdx);
-			StringView includeText = StringFormat("generatedtypes/%.*s.generated.cpp", STRING_VAARGS(parsedHeaderFilenameNoExt));
+			StringView includeText = StringFormatTmp("generatedtypes/%.*s.generated.cpp", STRING_VAARGS(parsedHeaderFilenameNoExt));
 			sb.AppendFormat("#include \"" STRING_FMT "\"\n", STRING_VAARGS(includeText));
 		}
 	}
@@ -997,8 +997,8 @@ void GeneratedReflectionHeaders(
 	if (numProcessedFiles > 0)
 	{
 		OSFileReference sourceFile = {};
-		StringView dstFilePath = StringFormat("%s/generatedtypes_unity_sources.generated.cpp", headerOutputFolder);
-		if (!meOSOpenFile(sourceFile, dstFilePath, OSFileFlags(StompExisting | ScopedFile)))
+		StringView dstFilePath = StringFormatTmp("%s/generatedtypes_unity_sources.generated.cpp", headerOutputFolder);
+		if (!meOSOpenFile(sourceFile, dstFilePath, (OSFileFlags_StompExisting | OSFileFlags_ScopedFile)))
 		{
 			LOG_ERROR("Failed to open file %s while trying to generated reflected headers", dstFilePath);
 		}
@@ -1146,7 +1146,7 @@ bool ProcessReflectedFile(
 	StringView parsedHeaderFilename = meFsGetFileFromFullPath(parsedHeaderExistingPath);
 	s32 extensionIdx = FindInStringRev(parsedHeaderFilename, STRING_LIT("."));
 	StringView parsedHeaderFilenameNoExt = parsedHeaderFilename.OffsetView(0, extensionIdx);
-	StringView dstHeaderFilePath = StringFormat("%s/%.*s.generated.h", headerOutputFolder, STRING_VAARGS(parsedHeaderFilenameNoExt));
+	StringView dstHeaderFilePath = StringFormatTmp("%s/%.*s.generated.h", headerOutputFolder, STRING_VAARGS(parsedHeaderFilenameNoExt));
 	const char* inputCheckFile = parsedHeaderExistingPath.cstr();
 	if (needsRebuild(dstHeaderFilePath.cstr(), &inputCheckFile, 1) == 0 && !AmIBeingDebugged()) // in a debugger, always rebuild
 	{
@@ -1171,7 +1171,7 @@ bool ProcessReflectedFile(
 	{
 		OSFileReference headerFile = {};
 
-		if (!meOSOpenFile(headerFile, dstHeaderFilePath, OSFileFlags::StompExisting))
+		if (!meOSOpenFile(headerFile, dstHeaderFilePath, OSFileFlags_StompExisting))
 		{
 			LOG_ERROR("Failed to open file %s while trying to generated reflected headers", dstHeaderFilePath);
 			return false;
@@ -1340,8 +1340,8 @@ bool ProcessReflectedFile(
 		OSFileReference sourceFile = {};
 		s32 extensionIdx = FindInStringRev(parsedHeaderFilename, STRING_LIT("."));
 		StringView parsedSourceFilenameNoExt = parsedHeaderFilename.OffsetView(0, extensionIdx);
-		StringView dstFilePath = StringFormat("%s/%.*s.generated.cpp", headerOutputFolder, STRING_VAARGS(parsedSourceFilenameNoExt));
-		if (!meOSOpenFile(sourceFile, dstFilePath, OSFileFlags::StompExisting))
+		StringView dstFilePath = StringFormatTmp("%s/%.*s.generated.cpp", headerOutputFolder, STRING_VAARGS(parsedSourceFilenameNoExt));
+		if (!meOSOpenFile(sourceFile, dstFilePath, OSFileFlags_StompExisting))
 		{
 			LOG_ERROR("Failed to open file %s while trying to generated reflected headers", dstFilePath);
 			return false;

@@ -3,6 +3,7 @@
 #include "mindseye/core/me_defines.h"
 #include "mindseye/core/me_arena.h"
 #include "mindseye/core/me_string.h"
+#include "mindseye/core/containers/dynarray.h"
 #include "platform/me_input.h"
 struct EngineContext;
 
@@ -47,12 +48,14 @@ extern OSStateView g_osData;
 #error unknown os-specific defines
 #endif
 
-enum OSFileFlags
+typedef u32 OSFileFlags;
+enum OSFileFlags_
 {
-	OnlyIfExists = NTH_BIT(0),
-	StompExisting = NTH_BIT(1),
-    ScopedFile = NTH_BIT(2),
-	DeleteOnFileClose = NTH_BIT(3),
+	OSFileFlags_OnlyIfExists = NTH_BIT(0),
+	OSFileFlags_StompExisting = NTH_BIT(1),
+    OSFileFlags_ScopedFile = NTH_BIT(2),
+	OSFileFlags_DeleteOnFileClose = NTH_BIT(3),
+	OSFileFlags_IsDirectory = NTH_BIT(4),
 };
 
 enum OSFileCursorMode
@@ -87,7 +90,8 @@ MEAPI void meOSFreeVirtualMemory(
 
 MEAPI StringView meOSFsDirectorySeperator();
 
-MEAPI bool meOSEnsureDirectoriesExist(const char* pathCstr);
+MEAPI bool meOSEnsureDirectoriesExist(
+	const char* pathCstr);
 
 #define ME_OS_OPENFILE(varname, path, flags) OSFileReference varname; meOSOpenFile(varname, path, flags);
 
@@ -126,6 +130,10 @@ MEAPI bool meOSFileExists(
 MEAPI bool meOSFileDelete(
 	const OSFileReference& file);
 
+MEAPI bool meOSReadDirectory(
+	const OSFileReference& folder,
+	DynArray<OSFileReference>& result);
+
 MEAPI StringView meOSGetExeFilepath();
 MEAPI StringView meOSGetExeFileFolder();
 MEAPI StringView meOSGetWorkingDir();
@@ -156,15 +164,17 @@ struct OSFileReference
 	// TODO: implement copy/assign/move 
 	// and take OSFileFlags::ScopedFile into account
 	OSFileReference() = default;
-	OSFileReference(StringView str)
+	OSFileReference(
+		StringView str, 
+		OSFileFlags flags = (OSFileFlags_ScopedFile | OSFileFlags_OnlyIfExists))
 	{
-		bool result = meOSOpenFile(*this, str, (OSFileFlags)(OSFileFlags::ScopedFile | OSFileFlags::OnlyIfExists));
+		bool result = meOSOpenFile(*this, str, flags);
 		ME_ASSERT(result);
 	}
 	void InitWithoutOpening(StringView str)
 	{
-		ME_MEMCLEAR((void*)path, PATH_MAX);
 		StringCopy({path, PATH_MAX}, str);
+		ME_ASSERT(path[str.len] == '\0');
 	}
 	bool HasOpenFile() const { return reinterpret_cast<s64>(fileHandle) != -1; }
 };

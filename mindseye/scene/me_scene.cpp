@@ -44,7 +44,7 @@ void LoadScene(
     bool success = false;
     {
         OSFileReference file;
-        meOSOpenFile(file, assetPath, OSFileFlags(OnlyIfExists | ScopedFile));
+        meOSOpenFile(file, assetPath, (OSFileFlags_OnlyIfExists | OSFileFlags_ScopedFile));
         ScopedAllocation tempFileContent(GetTLScratch(), meOSGetFileSize(file));
         meOSReadFileContents(file, tempFileContent.allocation, tempFileContent.allocation.size);
         success = DeserializeFromTextBlocking(TD_MESCENE, sceneAllocator, StringView(tempFileContent.allocation), SPAN_FROM(outScene));
@@ -67,7 +67,7 @@ void meSceneManager::WriteSceneToFileBlocking(meScene* scene, StringView filenam
 	meSerializeResult res = SerializeToTextBlocking(TD_MESCENE, scene, tempAllocator, sceneString);
     ME_ASSERT(res == SER_SUCCESS);
     OSFileReference file;
-    meOSOpenFile(file, filename, OSFileFlags(OnlyIfExists | ScopedFile));
+    meOSOpenFile(file, filename, (OSFileFlags_OnlyIfExists | OSFileFlags_ScopedFile));
     if (!meOSWriteFileContent(file, sceneString.data, sceneString.len))
     {
         LOG_ERROR("Failed to write scene to file. filename = " STRING_FMT "\nsceneString = " STRING_FMT, STRING_VAARGS(filename), STRING_VAARGS(sceneString));
@@ -172,7 +172,7 @@ void meScenePool::Load(
 {
 	StringView resourcePathAbs = meAssetResource(resourcePathRel);
 	OSFileReference file;
-    meOSOpenFile(file, resourcePathAbs, (OSFileFlags)(OSFileFlags::OnlyIfExists | OSFileFlags::ScopedFile));
+    meOSOpenFile(file, resourcePathAbs, (OSFileFlags_OnlyIfExists | OSFileFlags_ScopedFile));
 	u64 filesize = meOSGetFileSize(file);
 	Allocation gltfBuffer = MEALLOC(sceneAllocator, filesize);
 

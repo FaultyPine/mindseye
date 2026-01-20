@@ -195,12 +195,9 @@ size_t CStringLength(const char* str)
     return len;
 }
 
-StringView StringFromCString(const char* str, s32 strLen)
+StringView StringFromCString(const char* str, u32 strLen)
 {
-    if (strLen == -1)
-    {
-        strLen = CStringLength(str);
-    }
+	strLen = MEMIN(strLen, CStringLength(str));
     StringView result = {(char*)str, static_cast<size_t>(strLen)};
     return result;
 }
@@ -348,7 +345,10 @@ StringView StringTrim(StringView str, StringView chars)
 	return str;
 }
 
-bool StringCompare(StringView str1, StringView str2, StringOpFlags flags)
+bool StringCompare(
+	StringView str1, 
+	StringView str2, 
+	StringOpFlags flags)
 {
     if (str1.len != str2.len) return false;
     for (u64 i = 0; i < str1.len; i++)
@@ -602,7 +602,7 @@ void StringBuilder::Clear()
 	len = 0;
 }
 
-StringView StringFormat(const char *text, ...)
+StringView StringFormatTmp(const char *text, ...)
 {
     va_list args;
     va_start(args, text);

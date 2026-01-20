@@ -3,6 +3,7 @@
 
 #include "core/me_defines.h"
 #include "core/me_memory.h"
+#include "reflector/reflection_types.h"
 
 // "stretchy buffer" implementation
 // dynamic array that resizes itself when capacity is reached

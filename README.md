@@ -8,6 +8,9 @@ run `build.bat`
 
 ### Current focus
 // BOOKMARK: 
+- me_asset_indexer
+	- maps MAID to filesystem paths
+	- future: includes asset dependencies, asset metadata (timestamp, name, type, etc), indexes for all these things for fast lookup
 // - implement MAID serialization - allow assets to reference other assets in a serialization-friendly way
 	- I think what i'm settling on, or what i've just thought of to be the best way
 		is to group together an Eye and MAID structure in 1 structure, and have that in the EntityData or whatever

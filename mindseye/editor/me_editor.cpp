@@ -82,7 +82,7 @@ void meEditorTick(EngineContext* engine)
         {
             if (ImGui::MenuItem("Open", "CTRL+O"))
             {
-                auto openFileResult = pfd::open_file("Select a scene file", ".", { "Scene files", "*.scn" }).result();
+                auto openFileResult = pfd::open_file("Select a scene file", ".").result();
                 if (!openFileResult.empty())
                 {
                     ME_ASSERT(openFileResult.size() == 1);
@@ -100,7 +100,7 @@ void meEditorTick(EngineContext* engine)
             ImGui::EndMenu();
         }
 		
-		StringView rightAlignedText = StringFormat("Avg framerate: %6.2f | %.*s", ImGui::GetIO().Framerate, STRING_VAARGS(engine->appConfig.appName));
+		StringView rightAlignedText = StringFormatTmp("Avg framerate: %6.2f | %.*s", ImGui::GetIO().Framerate, STRING_VAARGS(engine->appConfig.appName));
 		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetColumnWidth() - ImGui::CalcTextSize(rightAlignedText.cstr()).x
 							 - ImGui::GetScrollX() - 2 * ImGui::GetStyle().ItemSpacing.x);
 		ImGui::TextEx(rightAlignedText.cstr());

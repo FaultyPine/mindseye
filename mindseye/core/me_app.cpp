@@ -8,6 +8,7 @@
 #include "platform/me_os.h"
 #include "render/renderer_frontend.h"
 #include "asset/me_asset.h"
+#include "asset/me_asset_index.h"
 #include "core/thread/me_thread.h"
 #include "editor/me_editor.h"
 
@@ -78,6 +79,7 @@ void InitializeEngineSystems(EngineContext* engine)
 	meMeshInitialize(engine);
 	meShaderInitialize(engine);
 	Entity::InitializeEntitySystem(&engine->engineSceneAllocator);
+	meAssetIndexInitialize(engine);
 }
 
 void InitializeEngine(s32 argc, char** argv)
@@ -114,7 +116,7 @@ void InitializeEngine(s32 argc, char** argv)
 	{
 		// couldn't find mindseye.ini from cwd, try from exe location
 		StringView exeFolder = meOSGetExeFileFolder();
-		StringView userConfigExeFolder = StringFormat("%.*s%.*s%.*s", STRING_VAARGS(exeFolder), STRING_VAARGS(meFsGetDirectorySeperator()), STRING_VAARGS(mindseyeIniFile));
+		StringView userConfigExeFolder = StringFormatTmp("%.*s%.*s%.*s", STRING_VAARGS(exeFolder), STRING_VAARGS(meFsGetDirectorySeperator()), STRING_VAARGS(mindseyeIniFile));
 		userProjectConfigPath = meFsScanOutForFile(userConfigExeFolder);
 	}
 	if (!userProjectConfigPath)
@@ -125,7 +127,7 @@ void InitializeEngine(s32 argc, char** argv)
 	{
         {
             OSFileReference file;
-            meOSOpenFile(file, userProjectConfigPath, OSFileFlags(OnlyIfExists | ScopedFile));
+            meOSOpenFile(file, userProjectConfigPath, (OSFileFlags_OnlyIfExists | OSFileFlags_ScopedFile));
             ScopedAllocation tmpFileContent(GetTLScratch(), meOSGetFileSize(file));
             meOSReadFileContents(file, tmpFileContent.allocation.data, tmpFileContent.allocation.size);
             DeserializeFromTextBlocking(TD_MEUSERCONFIG, &engine->engineArena, StringView(tmpFileContent.allocation), meSpan(&engine->userConfig, sizeof(engine->userConfig)));
@@ -135,7 +137,7 @@ void InitializeEngine(s32 argc, char** argv)
 		String userAppConfigPathAbs = meOSResolveRelativeToAbsPath(GetTLScratch(), userAppConfigFile);
         {
             OSFileReference file;
-            meOSOpenFile(file, userAppConfigPathAbs, OSFileFlags(OnlyIfExists | ScopedFile));
+            meOSOpenFile(file, userAppConfigPathAbs, (OSFileFlags_OnlyIfExists | OSFileFlags_ScopedFile));
             ScopedAllocation tmpFileContent(GetTLScratch(), meOSGetFileSize(file));
             meOSReadFileContents(file, tmpFileContent.allocation.data, tmpFileContent.allocation.size);
             DeserializeFromTextBlocking(TD_MEAPPCONFIG, &engine->engineArena, StringView(tmpFileContent.allocation), meSpan(&engine->appConfig, sizeof(engine->appConfig)));
@@ -143,7 +145,7 @@ void InitializeEngine(s32 argc, char** argv)
 		StringView userAppConfigDir = msFsGetDirFromPath(userAppConfigPathAbs);
 		meAssetSetResourceDir(userAppConfigDir);
 		
-		StringView userAppDllName = StringFormat("%.*s.dll", STRING_VAARGS(engine->appConfig.appName));
+		StringView userAppDllName = StringFormatTmp("%.*s.dll", STRING_VAARGS(engine->appConfig.appName));
 		void* gameLib = LoadDynamicLibrary(userAppDllName.cstr());
 		if (!gameLib)
 		{

@@ -69,6 +69,7 @@
 #include "core/me_cmdline.cpp"
 #include "core/me_app.cpp"
 #include "asset/me_asset.cpp"
+#include "asset/me_asset_index.cpp"
 
 #include "generatedtypes/generatedtypes_unity_sources.generated.cpp"
 

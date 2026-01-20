@@ -3,17 +3,6 @@
 #include "mindseye/platform/me_os.h"
 #include "mindseye/core/me_log.h"
 
-bool meReadFileContents(StringView filepath, meSpan backingBuffer)
-{
-    OSFileReference file;
-    if (!meOSOpenFile(file, filepath, (OSFileFlags)(OSFileFlags::ScopedFile | OSFileFlags::OnlyIfExists)))
-    {
-        LOG_ERROR("[meFS] failed to open file %.*s", STRING_VAARGS(filepath));
-        return false;
-    }
-    bool result = meOSReadFileContents(file, backingBuffer.data, backingBuffer.size);
-    return result;
-}
 
 StringView meFsGetDirectorySeperator()
 {
@@ -109,3 +98,33 @@ StringView meFsScanOutForFile(StringView fileStr)
 	}
 	return {};
 }
+
+
+bool meFsRecursiveDirectoryWalk(
+	const OSFileReference& directory,
+	DynArray<OSFileReference>& result)
+{
+	u32 currentNum = DynArrayGetSize(result);
+	bool success = meOSReadDirectory(directory, result);
+	if (success)
+	{
+		u32 newNumResults = DynArrayGetSize(result);
+		u32 numEntriesAdded = newNumResults - currentNum;
+		for (u32 i = 0; i < numEntriesAdded; i++)
+		{
+			u32 index = currentNum + i;
+			const OSFileReference& ref = result[index];
+			if (ref.flags & OSFileFlags_IsDirectory)
+			{
+				StringView fullPath = StringFormatTmp("%s" STRING_FMT "%s",
+								directory.path, STRING_VAARGS(meFsGetDirectorySeperator()), ref.path);
+				OSFileReference fullRef = {};
+				fullRef.InitWithoutOpening(fullPath);
+				success &= meFsRecursiveDirectoryWalk(fullRef, result);
+			}
+		}
+	}
+	return success;
+}
+
+

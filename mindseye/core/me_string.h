@@ -133,7 +133,9 @@ StringView STRING_LIT(const char (&strlit)[N]) { return StringView{(char*)strlit
 #define STRING_VAARGS(str) (s32)str.len, str.data
 #define STRING_FMT "%.*s"
 
-MEAPI bool StringCopy(StringView dst, StringView src);
+MEAPI bool StringCopy(
+	StringView dst, 
+	StringView src);
 
 // returns -1 when needle isn't in haystack.
 MEAPI s32 FindInString(
@@ -149,34 +151,62 @@ MEAPI s32 FindInStringRev(
 	StringOpFlags flags = StringOpFlags(0));
 
 // invert meaning this eats anything except the given char
-MEAPI StringView EatChars(StringView str, StringView chars, bool invert = false);
-StringView inline EatChars(StringView str, char c, bool invert = false)
+MEAPI StringView EatChars(
+	StringView str, 
+	StringView chars, 
+	bool invert = false);
+StringView inline EatChars(
+	StringView str, 
+	char c, 
+	bool invert = false)
 {
 	return EatChars(str, StringView(&c, 1), invert);
 }
 // invert meaning this eats anything except the given char
-MEAPI u32 EatCharsOffset(StringView str, StringView chars, bool invert = false);
-MEAPI inline u32 EatCharsOffset(StringView str, char c, bool invert = false)
+MEAPI u32 EatCharsOffset(
+	StringView str, 
+	StringView chars, 
+	bool invert = false);
+MEAPI inline u32 EatCharsOffset(
+	StringView str, 
+	char c, 
+	bool invert = false)
 {
 	return EatCharsOffset(str, StringView(&c, 1), invert);
 }
 
-MEAPI StringView StringTrim(StringView str, StringView chars);
+MEAPI StringView StringTrim(
+	StringView str, 
+	StringView chars);
 
 // flags = bitfield of StringCompareFlags
-MEAPI bool StringCompare(StringView str1, StringView str2, StringOpFlags flags = StringOpFlags(0));
+MEAPI bool StringCompare(
+	StringView str1, 
+	StringView str2, 
+	StringOpFlags flags = StringOpFlags(0));
 
-MEAPI u64 CStringLength(const char* str);
+MEAPI u64 CStringLength(
+	const char* str);
 
-MEAPI StringView StringFromCString(const char* str, s32 strLen = -1);
+MEAPI StringView StringFromCString(
+	const char* str, 
+	u32 strLen = (u32)-1);
 
-MEAPI const char* CStringFromString(StringView str, meAllocator* allocator);
+MEAPI const char* CStringFromString(
+	StringView str, 
+	meAllocator* allocator);
 
-MEAPI u64 wcharToNarrow(const wchar_t* src, char * dest, u64 destLen);
+MEAPI u64 wcharToNarrow(
+	const wchar_t* src, 
+	char * dest, 
+	u64 destLen);
 
 // I.E. start on (, scan until matching balanced ) appears
 // str[0] must be == opening
-MEAPI StringView ScanForBalancedChar(StringView str, char opening, char closing);
+MEAPI StringView ScanForBalancedChar(
+	StringView str, 
+	char opening, 
+	char closing);
 
 MEAPI char ToLower(char c);
 MEAPI void ToLower(StringView str);
@@ -191,7 +221,7 @@ MEAPI u32 StringToUint(StringView str);
 // formats a string. Returned string buffer is a temporary buffer
 // that will be evicted on the next couple calls to this function
 // note, the returned string will be null-terminated
-MEAPI StringView StringFormat(const char *text, ...);
+MEAPI StringView StringFormatTmp(const char *text, ...);
 // formats a string into an existing buffer, returns size of the string written to the buffer
 MEAPI s32 StringFormatIntoBuf(meSpan backingBuffer, const char *text, ...);
 // same as above, but allocates memory for the formatted string

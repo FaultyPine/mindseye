@@ -128,7 +128,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 }
 
 
-void meOSWinCreateWindow(WindowCreationParams creationParams, EngineContext* engine)
+void meOSCreateWindow(WindowCreationParams creationParams, EngineContext* engine)
 {
     const wchar_t* CLASS_NAME  = L"Mindseye";
     WNDCLASS wc = {};
@@ -198,7 +198,7 @@ void meOSWinCreateWindow(WindowCreationParams creationParams, EngineContext* eng
     engine->appName = creationParams.name;
 }
 
-void meOSWinTick(EngineContext* engine)
+void meOSTick(EngineContext* engine)
 {
     MSG msg;
 	OSStateView* osState = engine->osData;
@@ -252,7 +252,7 @@ s32 meOSMain(s32 argc, char** argv)
 
 // on windows, reserving memory just means reserving the address space
 // you will crash if you r/w out of an address that has only been reserved
-void* meOSWinReserveVirtualMemory(u64 size)
+void* meOSReserveVirtualMemory(u64 size)
 {
     void* result = VirtualAlloc(nullptr, size, MEM_RESERVE, PAGE_READWRITE);
 	if (result == nullptr) MEUNLIKELY
@@ -267,7 +267,7 @@ void* meOSWinReserveVirtualMemory(u64 size)
 // that has been reserved means allocating space for it in the page table
 // notably, this doesn't mean physical memory is allocated for the range
 // that only happens when you actually touch a reserved & "committed" page
-void* meOSWinCommitVirtualMemory(void* ptr, u64 size)
+void* meOSCommitVirtualMemory(void* ptr, u64 size)
 {
     void* result = VirtualAlloc(ptr, size, MEM_COMMIT, PAGE_READWRITE);
 	if (result == nullptr) MEUNLIKELY
@@ -278,7 +278,7 @@ void* meOSWinCommitVirtualMemory(void* ptr, u64 size)
 	return result;
 }
 
-void meOSWinFreeVirtualMemory(void* data)
+void meOSFreeVirtualMemory(void* data)
 {
 	VirtualFree(data, 0, MEM_RELEASE);
 }
@@ -295,7 +295,7 @@ void* GetFunctionPtr(void* module, StringView functionName)
 }
 
 
-bool meOSWinReadFileContents(const OSFileReference& file, void* backingBuffer, size_t backingBufferSize)
+bool meOSReadFileContents(const OSFileReference& file, void* backingBuffer, size_t backingBufferSize)
 {
     ME_ASSERT(file.fileHandle != nullptr && file.fileHandle != INVALID_HANDLE_VALUE);
     DWORD numBytesRead = 0;
@@ -318,7 +318,7 @@ bool meOSWriteFileContent(
 	return result;
 }
 
-u64 meOSWinGetFileSize(const OSFileReference& file)
+u64 meOSGetFileSize(const OSFileReference& file)
 {
     ME_ASSERT(file.fileHandle != nullptr && file.fileHandle != INVALID_HANDLE_VALUE);
     DWORD fileSizeHi = 0;
@@ -326,17 +326,20 @@ u64 meOSWinGetFileSize(const OSFileReference& file)
     return (u64)fileSizeLo | ((u64)fileSizeHi << 32);
 }
 
-bool meOSWinOpenFile(OSFileReference& file, StringView path, OSFileFlags flags)
+bool meOSOpenFile(
+	OSFileReference& file, 
+	StringView path, 
+	OSFileFlags flags)
 {
     ME_MEMCLEAR((void*)file.path, PATH_MAX);
     StringCopy({file.path, PATH_MAX}, path);
-    file.flags = (OSFileFlags)((u32)file.flags | (u32)flags);
+	flags |= file.flags;
 	u32 openMode = OPEN_ALWAYS;
-	if (flags & OnlyIfExists)
+	if (flags & OSFileFlags_OnlyIfExists)
 	{
-		openMode = flags & StompExisting ? TRUNCATE_EXISTING : OPEN_EXISTING;
+		openMode = flags & OSFileFlags_StompExisting ? TRUNCATE_EXISTING : OPEN_EXISTING;
 	}
-	else if (flags & StompExisting)
+	else if (flags & OSFileFlags_StompExisting)
 	{
 		openMode = CREATE_ALWAYS;
 	}
@@ -347,14 +350,15 @@ bool meOSWinOpenFile(OSFileReference& file, StringView path, OSFileFlags flags)
         LOG_INFO("[meOS] failed to open file %s err code = %u", file.path, result);
 		return false;
     }
+    file.flags = flags;
     return true;
 }
 
-bool meOSWinCloseFile(OSFileReference& file)
+bool meOSCloseFile(OSFileReference& file)
 {
     ME_ASSERT(file.fileHandle != nullptr && file.fileHandle != INVALID_HANDLE_VALUE);
 	bool result = CloseHandle(file.fileHandle);
-	if (file.flags & DeleteOnFileClose)
+	if (file.flags & OSFileFlags_DeleteOnFileClose)
 	{
 		meOSDeleteFile(file);
 	}
@@ -367,6 +371,44 @@ bool meOSDeleteFile(
 {
 	bool result = DeleteFileA(file.path);
 	return result;
+}
+
+bool meOSReadDirectory(
+	const OSFileReference& folder,
+	DynArray<OSFileReference>& result)
+{
+	WIN32_FIND_DATAA ffd;
+	StringView folderQuery = StringFormatTmp("%s\\*", folder.path);
+	HANDLE hFind = FindFirstFileA(folderQuery.data, &ffd);
+    if (hFind == INVALID_HANDLE_VALUE)
+	{
+        LOG_ERROR("ReadDirectory error %d | Invalid file handle: " STRING_FMT, 
+				  GetLastError(), STRING_VAARGS(folderQuery));
+		return false;
+    }
+    do
+	{
+		StringView filename = StringFromCString(ffd.cFileName, MAX_PATH);
+        if (!StringCompare(filename, STRING_LIT(".")) &&
+			!StringCompare(filename, STRING_LIT((".."))))
+		{
+			OSFileReference file = {};
+			file.InitWithoutOpening(filename);
+			bool isDirectory = ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY;
+			if (isDirectory) file.flags |= OSFileFlags_IsDirectory;
+			DynArrayPush(result, file);
+        }
+    } while (FindNextFileA(hFind, &ffd) != 0);
+
+    DWORD dwError = GetLastError();
+    if (dwError != ERROR_NO_MORE_FILES) 
+	{
+        LOG_ERROR("FindNextFile error. Error is %d\n", dwError);
+		return false;
+    }
+
+	FindClose(hFind);
+	return true;
 }
 
 StringView meOSGetExeFilepath()

@@ -19,6 +19,7 @@ struct meMeshPool;
 struct meShaderPool;
 struct meScenePool;
 struct EditorContext;
+struct meAssetIndex;
 
 struct MEREFLECT(type) meUserConfig
 {
@@ -61,6 +62,7 @@ struct EngineContext
     Arena engineSceneAllocator = {}; // persistent for a scene
     
     // systems
+	meAssetIndex* assetIndex = nullptr;
 	EditorContext* editor = nullptr;
     RendererFrontend* renderer = nullptr;
     EntityRegistry* entityRegistry = nullptr;
