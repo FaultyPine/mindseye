@@ -77,6 +77,7 @@ meGPUBuffer meTexturePool::Load(
 	{
 		StringView textureUri = StringView(gltfImage.uri, CStringLength(gltfImage.uri));
 		ME_ASSERT(FindInString(textureUri, STRING_LIT("data:")) == -1); // not supporting embedded texture data rn
+		gltfResPath = meAssetResource(gltfResPath);
 		StringView gltfResDir = msFsGetDirFromPath(gltfResPath);
 		StringView textureResourcePath = StringFormat("%.*s/%.*s", STRING_VAARGS(gltfResDir), STRING_VAARGS(textureUri));
 		// TODO: offer a loading fast-path if an equivalent .ktx file is next to the source file

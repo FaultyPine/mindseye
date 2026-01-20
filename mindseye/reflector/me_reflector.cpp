@@ -1230,7 +1230,7 @@ bool ProcessReflectedFile(
 						// excluded fields are still "there", but they have no underlying type
 						// think of it like "padding" bytes so the other field offsets make sense
 						fieldsArrayContent.AppendFormat(
-							"\t{ .name = STRING_LIT(\"%.*s\"), .flags = (meTypeDescriptorFlag_Excluded), .size = %i, .align = %i, .offsetBits = %i },\n", 
+							"\t{ .name = STRING_LIT(\"%.*s\"), .flags = (meTypeDescriptorFlag_Excluded), .size = %i, .align = %i, .offsetBits = %i },", 
 							STRING_VAARGS(childReflType.name), childReflType.size, childReflType.align, childReflType.offsetBits);
 						continue;
 					}

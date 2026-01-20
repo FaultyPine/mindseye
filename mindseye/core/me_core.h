@@ -4,7 +4,8 @@
 
 
 
-// The mindseye "handle" type
+// The mindseye runtime "handle" type
+// contains an index and generation
 struct Eye
 {
 	// currently 24 bits for index, 8 bits for generation
@@ -25,8 +26,9 @@ struct Eye
 	u8 GetGeneration() const { return (eye & GenerationBitsMask) >> IndexNumBits; }
 	explicit operator u32() const { return eye; }
 	explicit operator bool() const { return eye != U32_INVALID_ID; }
+	bool operator==(const Eye& other) const { return eye == other.eye; }
 };
-const Eye EYE_DEFAULT_INVALID = Eye();
+const Eye EYE_INVALID = Eye();
 
 // returns the current time since app launch
 MEAPI f64 GetTimeUsec();

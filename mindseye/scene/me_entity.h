@@ -41,7 +41,7 @@ MEMAP_END_CUSTOM_HASHER
 struct MEREFLECT(type) EntityData
 {
     meTransform transform = {};
-    meMeshID mesh = {};
+    meAsset mesh = {};
 	// gameplay-focused bounds. Rendering bounds including anims may be different (stored on mesh)
     BoundingBox authoritativeBounds = {}; 
     u32 flags = 0;

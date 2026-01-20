@@ -289,7 +289,6 @@ void renderScreenSpaceQuad(const glm::mat4& proj, uint8_t _view, bgfx::ProgramHa
 
 void* BgfxRendererBackend::RenderScene(RenderInput* input)
 {
-	const SceneRuntimeData& sceneRuntime = input->scene.runtime;
     bgfx::setViewClear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x443355FF, 1.0f, 0);
 	bgfx::touch(0);
 
@@ -307,20 +306,20 @@ void* BgfxRendererBackend::RenderScene(RenderInput* input)
 	const meTexturePool& texturePool = meTextureGetPool();
 	const meMaterialPool& materialPool = meMaterialGetPool();
 
-	for (DynArray_Foreach(sceneRuntime.entities, i))
+	for (DynArray_Foreach(input->scene.entities, i))
 	{
-		const EntityRef& entityRef = sceneRuntime.entities[i];
+		const EntityRef& entityRef = input->scene.entities[i];
 		const EntityData& entity = Entity::GetEntity(entityRef);
 		if (Entity::IsFlag(entity, EntityFlags_HIDDEN))
 		{
 			continue;
 		}
-		const MAID& meshHandle = entity.mesh;
+		meMeshID meshHandle = entity.mesh;
 		const meMesh& mesh = meMeshPoolGet().Get(meshHandle);
 		if (mesh.IsLoaded())
 		{
 			const meMaterial& material = materialPool.Get(mesh.materialHandle);
-			MAID diffuseTextureHdl = material.textureHandles[meMaterialTextureType::Diffuse];
+			meTextureID diffuseTextureHdl = material.textureHandles[meMaterialTextureType::Diffuse];
 			const meTexture& diffuseTex = texturePool.Get(diffuseTextureHdl);
 			bgfx::TextureHandle bgfxDiffuseTex = bgfx::TextureHandle { static_cast<u16>(diffuseTex.buffer.bufferHandle) };
 			meShader& shader = meShaderGetPool().Get(material.shaderHandle);

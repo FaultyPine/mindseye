@@ -135,18 +135,15 @@ void InitializeEngine(s32 argc, char** argv)
 			LOG_ERROR("Failed to load game library %.*s", STRING_VAARGS(userAppDllName));
 		}
 
-		if (!engine->sceneSystem->CurrentScene().IsValid())
+		// default scene load
+		meAssetIdent sceneIdent = meAssetIdent(engine->appConfig.defaultSceneName, meAssetType::MAScene);
+		auto onSceneLoad = +[](const meAsset& asset)
 		{
-			// if no scene already, and user config specifies a default scene, load it
-            meAssetIdent sceneIdent = meAssetIdent(engine->appConfig.defaultSceneName, meAssetType::MAScene);
-            auto onSceneLoad = +[](const meRTAsset& asset)
-            {
-                meScene* loadedSceneData = (meScene*)asset.loadedData.data;
-                meSceneManager::CurrentScene() = *loadedSceneData;
-                GetEngineCtx()->appCallbacks.onSceneLoadFn(GetEngineCtx());
-            };
-            meAssetRequestLoad(GetTLScratch(), &sceneIdent, 1, onSceneLoad);
-		}
+			meScene& loadedSceneData = meScenePoolGet().Get(asset.runtimeHandle);
+			meSceneManager::CurrentScene() = loadedSceneData;
+			GetEngineCtx()->appCallbacks.onSceneLoadFn(GetEngineCtx());
+		};
+		meAssetRequestLoad(GetTLScratch(), &sceneIdent, 1, onSceneLoad);
 	}
 
     engine->appCallbacks.initFn(engine);

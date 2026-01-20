@@ -24,41 +24,42 @@ ME_DECLARE_ASSET_TYPES
     NUM_ASSET_TYPES
 };
 STATIC_ASSERT(NUM_ASSET_TYPES < 255);
-
+constexpr static u32 MAID_ID_BITS = 48; // lower bits
+constexpr static u32 MAID_TYPE_BITS = 8; // top bits
 
 // Mindseye Asset ID
 struct MEREFLECT(type) MAID
 {
-	constexpr static u32 ID_BITS = 48; // lower bits
-	constexpr static u32 TYPE_BITS = 8; // top bits
     MAID() = default;
     MAID(u64 id, meAssetType type);
-	MAID(u64 idAndType)
+	template <meAssetType T>
+	MAID(u64 id)
 	{
-		this->idAndType = idAndType;
+		SetType(T);
+		SetID(id);
 	}
 	u64 idAndType = U32_INVALID_ID;
     bool isValid() const { return idAndType != U32_INVALID_ID; }
     bool operator==(const MAID& other) const { return idAndType == other.idAndType; }
 	inline u64 GetType() const
 	{
-		return idAndType >> ID_BITS;
+		return idAndType >> MAID_ID_BITS;
 	}
     inline void SetType(meAssetType type)
     {
         u64 typefull = (u64)type;
-        typefull = typefull << ID_BITS;
+        typefull = typefull << MAID_ID_BITS;
         idAndType |= typefull;
     }
 	inline u64 GetID() const
 	{
-		return idAndType & (~0 >> TYPE_BITS);
+		return idAndType & (~0 >> MAID_TYPE_BITS);
 	}
     inline void SetID(u64 id)
     {
         // make sure top type bits aren't set
-        ME_ASSERT(id == (id & ~(((u64)0xff) << ID_BITS)));
-		idAndType &= (~0ull << ID_BITS); // clear all id bits
+        ME_ASSERT(id == (id & ~(((u64)0xff) << MAID_ID_BITS)));
+		idAndType &= (~0ull << MAID_ID_BITS); // clear all id bits
         idAndType |= id; // set id bits
     }
     operator u64() const { return idAndType; }
@@ -72,7 +73,6 @@ MEMAP_BEGIN_CUSTOM_HASHER(MAID, obj)
 STATIC_ASSERT(sizeof(MAID) == sizeof(u64));
 constexpr MAID MAID_INVALID = {};
 
-
 enum meAssetLoadStage
 {
     Unloaded = 0, 
@@ -83,29 +83,15 @@ enum meAssetLoadStage
 	LoadStageCount
 };
 
-// "runtime" asset data
-struct meRTAsset
-{
-    MAID id = MAID_INVALID;
-    meOwningSpan loadedData = {};
-    meAssetType type = MABadData;
-    meAssetLoadStage loadStage = Unloaded;
-	bool isLoaded() const 
-	{
-		return id != MAID_INVALID && loadedData.isValid() && 
-			type != MABadData    && loadStage == Loaded; 
-	}
-};
-
 // identifies an asset "on disk".
 // these can map to filesystem paths, or something else if assets are being loaded/fetched from some other mechanism
-struct meAssetIdent
+struct MEREFLECT(type) meAssetIdent
 {
     MAID id = MAID_INVALID;
     // TODO: will be a hash of the "source" data that the asset is created from.
     // EX: shaders will be a hash of their source file. Images - hash of the .png or whatever
-    u32 assetSourceHash = 0;
     String diskIdent = {};
+    u32 assetSourceHash = 0;
     meAssetIdent() = default;
     meAssetIdent(StringView diskIdent, meAssetType type);
     bool operator==(const meAssetIdent& other) const 
@@ -121,10 +107,51 @@ MEMAP_BEGIN_CUSTOM_HASHER(meAssetIdent, ident)
 	return HashCombine(h1, h2);
 } MEMAP_END_CUSTOM_HASHER
 
+// storing both the "load-time" and "usage-time" information, this is meant to be
+// both serialized, and also used for loading at runtime. This is what will be in the fields
+// of asset definitions. I.E. when a "scene" asset references a "mesh" asset, use this structure
+struct MEREFLECT(type) meAsset
+{
+	meAssetIdent asset = {};
+	MEREFLECT(exclude)
+	Eye runtimeHandle = {};
+    meAssetLoadStage loadStage = Unloaded;
+	
+	meAsset(const meAssetIdent& ident, meAssetLoadStage stage) :
+		asset(ident), loadStage(stage)
+	{}
+	// initialized with both "load-time" and "usage-time" info
+	meAsset(Eye eye, const meAssetIdent& ident) : 
+		asset(ident), runtimeHandle(eye) 
+	{
+		if (runtimeHandle)
+		{
+			loadStage = Loaded;
+		}
+	}
+	// can be initialized as a usage-only concept. 
+	// I.E. Generating meshes/etc on-the-fly without an associated on-disk asset.
+	meAsset(Eye eye) : runtimeHandle(eye)
+	{
+		if (runtimeHandle)
+		{
+			loadStage = Loaded;
+		}
+	}
+	meAsset() = default;
+
+	bool isLoaded() const 
+	{
+		return runtimeHandle != EYE_INVALID && loadStage == Loaded; 
+	}
+	operator const Eye() const { return runtimeHandle; }
+	operator const MAID() const { return asset.id; }
+};
+
 struct meAssetLoader
 {
     // called on asset threads
-    virtual meRTAsset meAssetLoad(meAssetIdent) = 0;
+    virtual void meAssetLoad(meAssetIdent, meAsset&) = 0;
 	meAssetLoadStage meAssetWaitForLoad(meAssetIdent);
 };
 
@@ -133,7 +160,7 @@ struct meAssetSystem
 	// relative to working dir
 	String resourceDir = {};
 	RWLock assetRegistryLock = {};
-    meMap<meAssetIdent, meRTAsset> assetRegistry = {};
+    meMap<meAssetIdent, meAsset> assetRegistry = {};
     // meAssetType -> loader
     meAssetLoader* assetLoaders[NUM_ASSET_TYPES] = {};
 	meJobSystem assetCompilerJobs = {}; // TODO: replace this with a unified job system which should have multiple "queue" types
@@ -145,7 +172,7 @@ void meAssetInitialize(EngineContext* engine);
 void meAssetTeardown(EngineContext* engine);
 void meAssetRegisterLoader(meAssetLoader* loader, meAssetType type);
 
-typedef void(*meAssetOnAssetLoadCb)(const meRTAsset&);
+typedef void(*meAssetOnAssetLoadCb)(const meAsset&);
 
 meAssetLoadStage* meAssetRequestLoad(
 	meAllocator* allocator,
@@ -158,7 +185,7 @@ meAssetLoadStage* meAssetWaitForLoad(
 	meAssetIdent* assetIdents, 
 	u32 numAssets = 1);
 
-meRTAsset* meAssetTryGetLoaded(meAssetIdent asset);
+meAsset* meAssetTryGet(meAssetIdent asset);
 
 meAssetLoadStage* meAssetLoadSync(
 	meAllocator* allocator,

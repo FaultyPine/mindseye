@@ -100,6 +100,7 @@ void LogMessage(LogLevel level, const char* file, u32 line, u32 logCategory, con
     va_end(args);
     ME_ASSERT(bytesWritten < LOG_MSG_LIMIT);
 	StringView fileStr = StringFromCString(file);
+	fileStr = meFsGetFileFromFullPath(fileStr);
 	StringView outMsg = StringFormat("[%.*s:%i] %s%s", STRING_VAARGS(fileStr), line, msgBuffer, lineEnd);
 	ME_ASSERT(outMsg.cstr());
 

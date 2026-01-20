@@ -101,6 +101,11 @@ struct meTypeDescriptor
 
 		thisType = other.thisType;
 	}
+
+	bool ShouldSerializeText() const
+	{
+		return !(TEST_BIT(flags, meTypeDescriptorFlag_Excluded) || TEST_BIT(flags, meTypeDescriptorFlag_PaddingMember));
+	}
 };
 
 extern meTypeDescriptor TD_UNSIGNED_INT;

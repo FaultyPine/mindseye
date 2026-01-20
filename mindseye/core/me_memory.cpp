@@ -52,6 +52,7 @@ thread_local ArenaTLScratch scratchWork; // individual systems are in charge of 
 // lifetime of allocations here is high-level concept in that
 // it isn't controlled by allocat-er/allocatee, but by the engine main loop
 // TODO: implement scratch allocator "locking" I.E. someone wants to do some threadlocal scratch work across time, they can hold a lock which prevents that scratch allocator from freeing itself, then maybe have it get freed every X seconds or something
+// OR ^ don't use a thread_local. Use an array of arenas indexed by thread id/idx. Then each thread is responsible for having a "Sync point" every so often that clears it's scratch arena
 MEAPI meAllocator* GetTLScratch()
 {
 	if (!scratchWork.backing_mem)

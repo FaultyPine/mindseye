@@ -7,7 +7,7 @@
 
 struct cgltf_mesh;
 
-typedef MAID meMeshID;
+typedef Eye meMeshID;
 
 typedef u32 meMeshVertexLayoutType;
 enum meMeshVertexLayoutType_
@@ -48,12 +48,12 @@ struct meFatVertex
     u32 objectID = U32_INVALID_ID;
 };
 
-struct meMeshPool : public meResourcePool<meMesh, meMeshPool>
+struct meMeshPool : public meResourcePool<meMesh>
 {
 	meMeshPool(
 		meAllocator* resourceAllocator,
 		meAllocator* payloadAllocator) :
-	meResourcePool<meMesh, meMeshPool>(resourceAllocator, payloadAllocator) {}
+	meResourcePool<meMesh>(resourceAllocator, payloadAllocator) {}
 
 	meAssetType GetAssetType() const
 	{

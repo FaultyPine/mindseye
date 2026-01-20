@@ -8,30 +8,36 @@ run `build.bat`
 
 ### Current focus
 // BOOKMARK: 
-// - ~~refactor DynArray to be a real struct, so I can mereflect it~~ done
-// ~~get a list of types for templated fields and write that list into the generated header as a .templatedTypes = {...} ~~
-// ~~autogenerate a file with all the source includes~~
-// - add capability for mereflected stuff to specify a serializer function in the macro.
-// - implement DynArray serializers with above ^
-// - move other types to use this ^ I.E. stringview, string, mespan?
+// - implement MAID serialization - allow assets to reference other assets in a serialization-friendly way
+	- I think what i'm settling on, or what i've just thought of to be the best way
+		is to group together an Eye and MAID structure in 1 structure, and have that in the EntityData or whatever
+		that way, we can serialize out those structures with the MAID portion which can map to the asset on disk
+		but can also be used for runtime by loading whatever the MAID points to into the Eye
+	- I keep feeling uneasy about how i'm managing paths on disk to assets
+		Idea - and i should verify if Axe does this too, and maybe also how Esoterica does it
+		is to have a "data directory" where all the asset files live. Then scan that on startup and cache a mapping of path <-> asset ID. Each asset file (I.E. .scn) should have a guid in them
+// - implement DynArray serializers
 
 
 - render 2d squares and have em move around
 - flesh out custom serialization format, implement for all current assets, like meshes, shaders, textures, and have them load through that data
     - i.e. a meScene asset on disk refers to a collection of "serialized entities" which contain materials, meshes, transforms
     - for this, need to be able to serialize a reference to another asset. This is equivalent to axe's .type system having a sno in it
-        - for me, this is when a serialized struct has an MAID member
-		- difference between MAID and Eye is MAID is an asset identifier, whereas Eye is a runtime-only concept
-			- TODO: replace current "Eye" usage with MAID somehow
-				- i think the "core" mistake was using Eye in meResourcePool
-					replacing that with MAID i think is the right call
-        - i'd like to add something to the mereflect macro where you can add a function for serialize/deserialize from the macro itself
-		- TODO: to be able to have a serializable list of entities in the scene, we need to serialize DynArray, which feels weird
-			- might be time for that dynarray refactor i've wanted to do - turning it into a more official type rather than implicitly working on a pointer
-
-
     - after this, we will have the foundation to build a proper "asset compiler", so game just reads in compiled stuff
         - stretch idea: have compilation be a separate process (literally) that the game client asks for compiled stuff, I.E. bill + compilation server
+
+- engine-wide savestates
+	- user can only "request" a save, that gets serviced at a fixed point after the frame (can't save in middle of frame)
+	- stuff that needs to be saved/delt with:
+		- mem (arenas and such)
+		- engine ctx/systems 
+		- resource pools
+		- renderer
+			- first impl could be to clear everything out of bgfx and let "lazy/on-demand loading" handle it
+		- OS stuff
+			- how do i handle file handles and that kinda thing...?
+			- virtualize all these funcs with hooks?
+			- or just keep a mapping...
 
 - game/engine hot reloading
 - have engine systems register themselves through a static event the engine core dispatches. each engine system needs to define the other engine systems it will touch (rw/ro), and has a bitset for those. Then, all systems aren't allowed to use GetEngineCtx, they can only access the systems they explicitly define in their initialization. Reflection not required for this, but it would make it way cleaner

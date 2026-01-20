@@ -9,18 +9,19 @@
 struct GameGlobals
 {
 	bool initialized = false;
-	EntityRef testEntity;
+	//EntityRef testEntity;
 	bool IsValid() const { return initialized; }
 };
 
 void testbed_onsceneload(EngineContext* engine)
 {
-    GameGlobals& globals = *MENEW(&engine->gameArena, GameGlobals);
-	globals.testEntity = Entity::CreateEntity(STRING_LIT("bruh"), meTransform());
-	DynArrayPush(engine->sceneSystem->CurrentScene().runtime.entities, globals.testEntity);
-	EntityData& entity = Entity::GetEntity(globals.testEntity);
+    //GameGlobals& globals = *MENEW(&engine->gameArena, GameGlobals);
+	EntityRef& testEntity = engine->sceneSystem->CurrentScene().testEntity;
+	testEntity = Entity::CreateEntity(STRING_LIT("bruh"), meTransform());
+	DynArrayPush(engine->sceneSystem->CurrentScene().entities, testEntity);
+	EntityData& entity = Entity::GetEntity(testEntity);
 	// Entity::SetFlag(entity, EntityFlags_HIDDEN, true);
-	entity.mesh = GenPlaneMesh(2);
+	entity.mesh = meAsset(GenPlaneMesh(2));
 }
 
 void testbed_init(EngineContext* engine)
@@ -30,10 +31,10 @@ void testbed_init(EngineContext* engine)
 
 void testbed_update(EngineContext* engine)
 {
-	GameGlobals& globals = *((GameGlobals*)engine->gameArena.backing_mem);
-	ME_ASSERT(globals.IsValid());
-	EntityData& entity = Entity::GetEntity(globals.testEntity);
-	entity.transform.position.x += sin(GetTimeSec());
+	//GameGlobals& globals = *((GameGlobals*)engine->gameArena.backing_mem);
+	//ME_ASSERT(globals.IsValid());
+	//EntityData& entity = Entity::GetEntity(globals.testEntity);
+	//entity.transform.position.x += sin(GetTimeSec());
 }
 void testbed_shutdown(EngineContext* engine)
 {

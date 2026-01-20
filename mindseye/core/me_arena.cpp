@@ -61,16 +61,12 @@ void ArenaInit(
     a.backingAllocator = allocator;
     a.backing_mem = (unsigned char*)MEALLOC(allocator, arenaSize).data;
     a.backing_mem_size = arenaSize;
+	#if ME_MEM_DEBUG
+    ME_MEMCLEAR(a.backing_mem, a.backing_mem_size);
+	#endif
     a.offset = 0;
     a.prev_offset = 0;
-    if (name != nullptr)
-    {
-		u64 nameLen = MEMIN(CStringLength(name), ARENA_MAX_NAME_LEN);
-        char* name_mem = (char*)ArenaAlloc(&a, nameLen); 
-        ME_MEMCLEAR(name_mem, nameLen);
-        StringCopy(StringView(name_mem, nameLen), StringView(name, nameLen));
-		a.name = StringView(name_mem, nameLen);
-    }
+	a.name = StringFromCString(name);
 }
 
 const char* ArenaGetName(Arena* arena) 
@@ -101,6 +97,9 @@ void* ArenaAlloc(Arena* arena, size_t alloc_size)
     void* new_alloc = arena->backing_mem + offset;
     arena->prev_offset = offset;
     offset += alloc_size;
+	#if ME_MEM_DEBUG
+	ME_MEMCLEAR(new_alloc, alloc_size);
+	#endif
     return new_alloc;
 }
 
@@ -137,6 +136,9 @@ void ArenaClear(Arena* arena)
 {
     arena->offset = 0;
     arena->prev_offset = 0;
+	#if ME_MEM_DEBUG
+    ME_MEMCLEAR(arena->backing_mem, arena->backing_mem_size);
+	#endif
 }
 
 void ArenaClearNull(Arena* arena) 
@@ -152,6 +154,9 @@ void ArenaFreeAll(Arena* arena)
     ArenaClear(arena);
     arena->backing_mem_size = 0;
     MEFREE(arena->backingAllocator, arena->backing_mem);
+	#if ME_MEM_DEBUG
+    ME_MEMCLEAR(arena->backing_mem, arena->backing_mem_size);
+	#endif
 }
 
 ArenaTemp ArenaTempInit(Arena* arena) 

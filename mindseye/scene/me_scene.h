@@ -10,14 +10,6 @@
 
 typedef u32 meSceneID;
 
-struct cgltf_data;
-struct SceneRuntimeData
-{
-	String gltfResourcePath = {};
-	cgltf_data* gltfData = nullptr; // todo: don't cache the cgltf, parse it into my own structures
-	DynArray<EntityRef> entities = {};
-};
-
 struct MEREFLECT(type, Description="Scene Description", Version=0)
 meScene
 {
@@ -25,25 +17,20 @@ meScene
 	String externalScenePath = {};
 	meCamera mainCamera = {};
 
-	// this stores the scene data necessary at runtime
-	MEREFLECT(exclude) 
-	SceneRuntimeData runtime = {};
+	String sceneAssetPath = {};
 
 	DynArray<EntityRef> entities = {};
-	DynArray<String> entityNamesOrSomething = {};
-
-	MEREFLECT(exclude) 
-    String sceneAssetPath = {};
-
-	bool IsValid() const { return runtime.gltfData != nullptr; }
+	EntityRef testEntity = {};
 };
 
 struct meSceneManager
 {
 	// ------------- externally callable -----------------------------------------
-	MEAPI void LoadSceneFromFileBlocking(StringView filename, meAllocator* allocator, meScene* outScene);
-	MEAPI void WriteSceneToFileBlocking(meScene* scene, StringView filename);
-	MEAPI void ChangeCurrentSceneBlocking(StringView filename);
+	MEAPI void WriteSceneToFileBlocking(
+		meScene* scene, 
+		StringView filename);
+	MEAPI void ChangeCurrentSceneBlocking(
+		StringView filename);
 
 	// -------- engine internal --------------------------
 	void UnloadCurrentScene();
@@ -57,8 +44,28 @@ struct meSceneManager
 	static MEAPI meScene& CurrentScene();
 };
 
-void meSceneInitialize(EngineContext* ctx);
 
-// loads gltf scene from the filesystem
-MEAPI void meSceneLoadFromGLTF(meAllocator* allocator, StringView resourcePath, meScene& outScene);
+struct meScenePool : public meResourcePool<meScene>
+{
+	meScenePool(
+		meAllocator* resourceAllocator,
+		meAllocator* payloadAllocator) :
+		meResourcePool<meScene>(resourceAllocator, payloadAllocator) {}
+
+	meAssetType GetAssetType() const
+	{
+		return MAScene;
+	}
+
+	// loads gltf scene from the filesystem
+	void Load(
+		meAssetIdent ident,
+		meAllocator* allocator, 
+		StringView resourcePath, 
+		meScene& outScene);
+};
+
+meScenePool& meScenePoolGet();
+
+void meSceneInitialize(EngineContext* ctx);
 

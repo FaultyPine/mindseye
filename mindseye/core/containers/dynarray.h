@@ -25,7 +25,7 @@ struct DynArrayHeader
 template <typename T>
 struct DynArray
 {
-	T* data;
+	T* data = nullptr;
 
 	operator bool() const
 	{

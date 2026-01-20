@@ -17,6 +17,7 @@ struct meMaterialPool;
 struct meTexturePool;
 struct meMeshPool;
 struct meShaderPool;
+struct meScenePool;
 
 struct MEREFLECT(type) meUserConfig
 {
@@ -64,6 +65,7 @@ struct EngineContext
     meAssetSystem* assetSystem = nullptr;
     CommandLineArgs* cmdLine = nullptr;
 	meSceneManager* sceneSystem = nullptr;
+	meScenePool* scenePool = nullptr;
 	meMaterialPool* materialSystem = nullptr;
 	meTexturePool* textureSystem = nullptr;
 	meMeshPool* meshSystem = nullptr;
