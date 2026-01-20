@@ -18,6 +18,10 @@
 #include "core/me_event.h"
 #include "asset/me_asset.h"
 
+EditorContext& meEditorGetCtx()
+{
+	return *GetEngineCtx()->editor;
+}
 
 void meEditorOnAssetBeginLoading(meEventPayload payload)
 {
@@ -33,6 +37,8 @@ void meEditorOnAssetFinishedLoading(meEventPayload payload)
 
 void meEditorInitialize(EngineContext* engine)
 {
+	engine->editor = MENEW(&engine->engineArena, EditorContext);
+
 	meEventSubscribe(engine->assetSystem->assetBeginLoadingEvent, meEditorOnAssetBeginLoading);
 	meEventSubscribe(engine->assetSystem->assetFinishedLoadingEvent, meEditorOnAssetFinishedLoading);
 
@@ -49,8 +55,14 @@ void meEditorInitialize(EngineContext* engine)
 	ImGui::GetIO().Fonts->AddFontFromMemoryCompressedTTF(fa_solid_900_compressed_data, fa_solid_900_compressed_size, iconFontSize, &iconsConfig, iconsRanges);
 }
 
-void meEditorDisplayGui(EngineContext* engine)
-{				
+void meEditorTick(EngineContext* engine)
+{
+	EditorContext& editor = meEditorGetCtx();
+	editor.editorCamera.UpdateCameraWithUserInput(*engine->osData);
+
+	// TODO: debug draw main scene camera
+	// engine->sceneSystem->CurrentScene().mainCamera.cameraPos
+
 	// Notifications style setup
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.f); // Disable round borders
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.f); // Disable borders

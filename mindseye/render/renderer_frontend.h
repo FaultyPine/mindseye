@@ -3,6 +3,7 @@
 #include "scene/me_scene.h"
 #include "render/me_shader.h"
 #include "render/me_mesh.h"
+#include "editor/me_editor.h"
 struct EngineContext;
 
 enum RendererBackendType
@@ -17,6 +18,7 @@ enum RendererBackendType
 // of *everything* the renderer needs to render *any* frame.
 struct RenderInput
 {
+	EditorContext editorCtx;
 	OSStateView osData = {}; // window width/height, mouse state, etc
 	meScene scene = {};
 };

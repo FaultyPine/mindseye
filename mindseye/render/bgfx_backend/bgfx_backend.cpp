@@ -298,7 +298,11 @@ void* BgfxRendererBackend::RenderScene(RenderInput* input)
 	dde.drawGrid(Axis::Y, { 0.0f, 0.0f, 0.0f }, 50);
 	ME_ON_SCOPE_EXIT([&dde](){ dde.end(); });
 
-    const meCamera& cam = input->scene.mainCamera;
+	
+	// TODO: editor toggle?
+    //const meCamera& cam = input->scene.mainCamera;
+	const meCamera& cam = input->editorCtx.editorCamera;
+
     glm::mat4 proj = cam.GetProjectionMatrix();
     glm::mat4 view = cam.GetViewMatrix();
 	bgfx::setViewTransform(0, glm::value_ptr(view), glm::value_ptr(proj));

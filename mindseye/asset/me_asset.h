@@ -30,6 +30,8 @@ constexpr static u32 MAID_TYPE_BITS = 8; // top bits
 // Mindseye Asset ID
 struct MEREFLECT(type) MAID
 {
+	u64 idAndType = U32_INVALID_ID;
+
     MAID() = default;
     MAID(u64 id, meAssetType type);
 	template <meAssetType T>
@@ -38,7 +40,6 @@ struct MEREFLECT(type) MAID
 		SetType(T);
 		SetID(id);
 	}
-	u64 idAndType = U32_INVALID_ID;
     bool isValid() const { return idAndType != U32_INVALID_ID; }
     bool operator==(const MAID& other) const { return idAndType == other.idAndType; }
 	inline u64 GetType() const
@@ -88,10 +89,9 @@ enum meAssetLoadStage
 struct MEREFLECT(type) meAssetIdent
 {
     MAID id = MAID_INVALID;
-    // TODO: will be a hash of the "source" data that the asset is created from.
-    // EX: shaders will be a hash of their source file. Images - hash of the .png or whatever
-    String diskIdent = {};
-    u32 assetSourceHash = 0;
+	MEREFLECT(exclude) String diskIdent = {};
+	// TODO: hash the source when loading it from disk
+	MEREFLECT(exclude) u32 assetSourceHash = 0; // including the hash in the serialized asset itself would mean a change to asset A requires updating all assets that depend on it, which we don't want
     meAssetIdent() = default;
     meAssetIdent(StringView diskIdent, meAssetType type);
     bool operator==(const meAssetIdent& other) const 

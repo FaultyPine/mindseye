@@ -37,6 +37,15 @@ void InternalRegisterApp(MindseyeAppCallbacks appCallbacks)
     engine->appCallbacks = appCallbacks;
 }
 
+void CopyToRenderInput(
+	EngineContext* engine,
+	RenderInput& renderInput)
+{
+	renderInput.osData = *engine->osData;
+	engine->sceneSystem->CopyToRenderInput(renderInput.scene);
+	renderInput.editorCtx = *engine->editor;
+}
+
 void RunEngine(EngineContext* engine)
 {
     while (engine->isRunning)
@@ -47,10 +56,9 @@ void RunEngine(EngineContext* engine)
         meOSTick(engine);
 		engine->appCallbacks.updateFn(engine);
 		engine->sceneSystem->Tick(engine);
-		meEditorDisplayGui(engine);
+		meEditorTick(engine);
         RenderInput renderInput = {};
-        renderInput.osData = *engine->osData;
-		engine->sceneSystem->CopyToRenderInput(renderInput.scene);
+		CopyToRenderInput(engine, renderInput);
         void* renderedSceneHandle = engine->renderer->RenderScene(&renderInput);
         UNUSED(renderedSceneHandle);
 		engine->renderer->EndImguiContext();
@@ -88,7 +96,14 @@ void InitializeEngine(s32 argc, char** argv)
     meOSCreateWindow(windowCreationParams, engine);
 
 	InitializeEngineSystems(engine);
-	meEditorInitialize(engine);
+
+	// TODO: In the future, this'll be a proper toggle of some sort that gets compiled out of shipping builds
+	bool editorEnabled = true;
+	if (editorEnabled)
+	{
+		meEditorInitialize(engine);
+		meEditorGetCtx().editorCamera.isControlledByUserInput = true;
+	}
 
 	meOSSetCursorState(CAPTURED, *engine->osData);
 

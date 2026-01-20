@@ -69,6 +69,10 @@ glm::mat4 meCamera::GetViewMatrix() const
 
 void meCamera::UpdateCameraWithUserInput(OSStateView& osState) 
 {
+	if (!isControlledByUserInput)
+	{
+		return;
+	}
 	meMouseInput& mouseInput = osState.mouseState;
 	f32 xoffset = mouseInput.mouseDelta.x;
     f32 yoffset = -mouseInput.mouseDelta.y;

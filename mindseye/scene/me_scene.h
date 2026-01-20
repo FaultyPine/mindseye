@@ -13,7 +13,7 @@ typedef u32 meSceneID;
 struct MEREFLECT(type, Description="Scene Description", Version=0)
 meScene
 {
-	// meScene stores data about the structure of the scene
+	// an external file that represents the scene - i.e. gltf
 	String externalScenePath = {};
 	meCamera mainCamera = {};
 

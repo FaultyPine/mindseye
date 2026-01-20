@@ -20,6 +20,8 @@ struct MEREFLECT(type) meCamera
     f32 pitch = 0.0f;
     f32 sensitivity = 0.1f;
 
+	bool isControlledByUserInput = false;
+
     enum MEREFLECT(type) Projection 
 	{
         PERSPECTIVE,

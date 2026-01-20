@@ -39,17 +39,18 @@ run `build.bat`
 			- virtualize all these funcs with hooks?
 			- or just keep a mapping...
 
+
+### General Roadmap
 - game/engine hot reloading
-- have engine systems register themselves through a static event the engine core dispatches. each engine system needs to define the other engine systems it will touch (rw/ro), and has a bitset for those. Then, all systems aren't allowed to use GetEngineCtx, they can only access the systems they explicitly define in their initialization. Reflection not required for this, but it would make it way cleaner
-	 this needs more thought, because an actual "static" event has undefined initialization order.
 - general purpose allocators
 	- string allocator
 	- tcmalloc or rpmalloc as "default" allocator
-
-### General Roadmap
-- asset system
-	- ~~job system to support above loading~~
-- ~~load basic example scene (USD?)~~
+- Entity/Object model
+	- mostly ecs, but
+		- entities are objects with a transform, a list of entity components, and a list of entity systems that can act on those components
+			components themselves cannot interact with other components
+			systems cannot interact with other systems
+			there's also world systems that can act on all components in a scene 
 - Implement Relational mappers
 	- OneToMany, OneToOne (normal stdmap), ManyToOne, ManyToMany
 - render basic example scene
