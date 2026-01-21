@@ -19,6 +19,7 @@ me_build.exe
 *.rdc
 *.blend1
 *.old
+temp/
 
 mindseye/external/vulkan_lib/Lib
 mindseye/reflector/libclang.dll
