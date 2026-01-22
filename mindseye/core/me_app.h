@@ -91,6 +91,9 @@ struct EngineContext
 };
 MEAPI EngineContext* GetEngineCtx();
 MEAPI f32 GetDeltaTime();
+MEAPI s32 meGetRandom(s32 start, s32 end);
+MEAPI f32 meGetRandomf(f32 start, f32 end);
+
 
 // register a program
 MEAPI void InternalRegisterApp(MindseyeAppCallbacks callbacks);

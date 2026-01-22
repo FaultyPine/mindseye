@@ -12,7 +12,7 @@ MEEVENT_DECLARE_STATIC(registerAssetLoader);
 static bool MEASSET_DEBUG_SINGLETHREADED_LOAD = 0;
 constexpr u32 NUM_ASSET_COMPILER_THREADS = 1;
 
-static meAssetSystem& GetAssetSystem()
+meAssetSystem& meAssetSystemGet()
 {
 	return *GetEngineCtx()->assetSystem;
 }
@@ -36,9 +36,19 @@ void meAssetTeardown(EngineContext* engine)
 
 void meAssetRegisterLoader(meAssetLoader* loader, meAssetType type)
 {
-    meAssetSystem& assetSystem = GetAssetSystem();
+    meAssetSystem& assetSystem = meAssetSystemGet();
 	ME_ASSERT(assetSystem.assetLoaders[type] == nullptr && "Not allowed to overwrite existing asset loader type");
 	assetSystem.assetLoaders[type] = loader;
+}
+
+void meAssetCreateNew(
+	StringView filename,
+	meAssetType type)
+{
+    meAssetSystem& assetSystem = meAssetSystemGet();
+	meAssetLoader* loader = assetSystem.assetLoaders[type];
+	ME_ASSERT(loader);
+	loader->meAssetCreate(filename);
 }
 
 MAID::MAID(u64 id, meAssetType type)
@@ -51,16 +61,24 @@ meAssetIdent::meAssetIdent(StringView diskIdent, meAssetType type)
 {
     this->diskIdent = diskIdent;
     u32 identID = HashBytes((u8*)diskIdent.data, diskIdent.len);
-    // NOTE: maid takes a 48 bit identifier. Currently passing a 32 bit hash, so 16 of our id bits aren't used...
-    this->id = MAID(identID, type);
+	// NOTE: maid takes a 48 bit identifier. Currently passing a 32 bit hash, so 16 of our id bits aren't used...
+	this->id = diskIdent ? MAID(identID, type) : MAID{};
 }
 
-meAssetLoadStage meAssetLoader::meAssetWaitForLoad(meAssetIdent ident)
+meAssetIdent::meAssetIdent(StringView diskIdent, MAID maid)
+{
+	this->diskIdent = diskIdent;
+	this->id = maid;
+}
+
+meAssetLoadStage meAssetLoader::meAssetWaitForLoadstage(
+	const meAssetIdent& ident,
+	meAssetLoadStage loadStage)
 {
 	meAsset* asset = meAssetTryGet(ident);
 	constexpr u32 maxAttempts = 1000;
 	u32 attempts = 0;
-	while (asset->loadStage != Loaded && attempts++ < maxAttempts)
+	while (asset && asset->loadStage != loadStage && attempts++ < maxAttempts)
 	{
 		meThreadSleep(1); // TMP
 		//GetAssetSystem().assetCompilerJobs.WaitOnJob(assetJobId);
@@ -69,14 +87,12 @@ meAssetLoadStage meAssetLoader::meAssetWaitForLoad(meAssetIdent ident)
 	return asset ? asset->loadStage : Unloaded;
 }
 
-meAssetLoadStage* meAssetRequestLoad(
-	meAllocator* allocator, 
+meJobId meAssetRequestLoad(
 	meAssetIdent* assetIdents, 
 	u32 numAssets,
     meAssetOnAssetLoadCb cb)
 {
-	meAssetSystem& assetSystem = GetAssetSystem();
-	meAssetLoadStage* results = MEALLOC(allocator, sizeof(meAssetLoadStage) * numAssets);
+	meAssetSystem& assetSystem = meAssetSystemGet();
 	for (u32 i = 0; i < numAssets; i++)
 	{
 		const meAssetIdent& assetIdent = assetIdents[i];
@@ -86,20 +102,17 @@ meAssetLoadStage* meAssetRequestLoad(
 		if (!loader)
 		{
 			LOG_ERROR("Tried to load asset type that doesn't have an implemented loader");
-			return nullptr; // dev error, should never happen, unrecoverable
+			return {}; // dev error, should never happen, unrecoverable
 		}
-		{ // if it's already loaded, noop
-			RWLockRead(assetSystem.assetRegistryLock);
-			if (assetSystem.assetRegistry.find(assetIdent) != assetSystem.assetRegistry.end())
-			{
-				const meAsset& loadedAsset = assetSystem.assetRegistry.at(assetIdent);
-				stage = loadedAsset.loadStage;
-			}
+		meAsset* asset = meAssetTryGet(assetIdent);
+		// if it's already loaded, noop
+		if (asset)
+		{
+			stage = asset->loadStage;
 		}
-		// dispatch a request to load this asset!
 		if (stage == Unloaded)
 		{
-			{ // add the slot in immediately, and mark it as "loading"
+			{ // add the slot in, and mark it as "loading"
 				meAsset notYetLoadedData = meAsset(assetIdent, Loading);
 				RWLockWrite(assetSystem.assetRegistryLock);
 				assetSystem.assetRegistry[assetIdent] = notYetLoadedData;
@@ -115,14 +128,11 @@ meAssetLoadStage* meAssetRequestLoad(
 			jobData.ident = assetIdent;
 			jobData.loader = loader;
 			jobData.cb = cb;
-			auto loadFunc = [jobData, &assetSystem]() 
+			auto fn = [jobData, &assetSystem]() 
 			{
-				meAsset* asset = nullptr;
-				{
-					RWLockWrite(assetSystem.assetRegistryLock);
-					asset = &assetSystem.assetRegistry.at(jobData.ident);
-				}
-				jobData.loader->meAssetLoad(jobData.ident, *asset);
+				meAsset* asset = meAssetTryGet(jobData.ident);
+				ME_ASSERT(asset);
+				jobData.loader->meAssetLoad(*asset);
 				ME_ASSERT(asset->loadStage == Loaded && asset->runtimeHandle);
 				if (jobData.cb)
 				{
@@ -132,62 +142,104 @@ meAssetLoadStage* meAssetRequestLoad(
 			};
 			if (MEASSET_DEBUG_SINGLETHREADED_LOAD)
 			{
-				loadFunc();
+				fn();
 			}
 			else
 			{
-				meJobId compilerJobId = assetSystem.assetCompilerJobs.Execute(loadFunc);
-				UNUSED(compilerJobId);
+				meJobId compilerJobId = assetSystem.assetCompilerJobs.Execute(fn);
+				return compilerJobId;
 			}
 		}
-		if (meAsset* asset = meAssetTryGet(assetIdent))
-		{
-			stage = asset->loadStage;
-		}
-		results[i] = stage;
 	}
-    return results;
+	return {};
 }
 
-meAssetLoadStage* meAssetWaitForLoad(
-	meAllocator* allocator,
-	meAssetIdent* assetIdents,
-	u32 numAssets)
+bool meAssetWaitUntilLoadstage(
+	meSpanTyped<meAssetIdent> assetIdents, 
+	meAssetLoadStage loadStage)
 {
-	meAssetLoadStage* results = MEALLOC(allocator, sizeof(meAssetLoadStage) * numAssets);
-    for (u32 i = 0; i < numAssets; i++)
+    for (u32 i = 0; i < assetIdents.size; i++)
 	{
 		// dispatch to the loader for this asset type
 		const meAssetIdent& assetIdent = assetIdents[i];
 		meAssetType assetType = meAssetType(assetIdents[i].id.GetType());
-		const meAssetSystem& assetSystem = GetAssetSystem();
+		const meAssetSystem& assetSystem = meAssetSystemGet();
 		meAssetLoader* loader = assetSystem.assetLoaders[assetType];
-		meAssetLoadStage stage = Unloaded;
 		if (loader)
 		{
-			meAssetLoadStage loadedStage = loader->meAssetWaitForLoad(assetIdent);
-			// if it's already loaded, this will indicate that
-			stage = loadedStage;
+			meAssetLoadStage loadedStage = loader->meAssetWaitForLoadstage(assetIdent, loadStage);
+			if (loadedStage != loadStage)
+			{
+				return false;
+			}
 		}
-		results[i] = stage;
 	}
-	return results;
+	return true;
 }
 
-
-meAssetLoadStage* meAssetLoadSync(
-	meAllocator* allocator,
-	meAssetIdent* idents,
-	u32 numAssets)
+meJobId meAssetRequestWrite(
+	meSpanTyped<meAssetIdent> assetIdents,
+	meAssetOnAssetLoadCb onWriteCb)
 {
-	UNUSED_DECL meAssetLoadStage* unusedResults = meAssetRequestLoad(allocator, idents, numAssets);
-	meAssetLoadStage* results = meAssetWaitForLoad(allocator, idents, numAssets);
-	return results;
+	meAssetSystem& assetSystem = meAssetSystemGet();
+	for (u32 i = 0; i < assetIdents.size; i++)
+	{
+		const meAssetIdent& assetIdent = assetIdents[i];
+		meAssetType assetType = meAssetType(assetIdent.id.GetType());
+		meAssetLoader* loader = assetSystem.assetLoaders[assetType];
+		meAssetLoadStage stage = Unloaded;
+		if (!loader)
+		{
+			LOG_ERROR("Tried to write asset type that doesn't have an implemented loader");
+			return {}; // engine dev error, should never happen
+		}
+		meAsset* asset = meAssetTryGet(assetIdent);
+		// if it's already loaded, noop
+		if (asset)
+		{
+			stage = asset->loadStage;
+		}
+		if (stage == Loaded)
+		{
+			struct AssetCompilerJobData
+			{
+				meAssetIdent ident;
+				meAssetLoader* loader;
+				meAssetOnAssetLoadCb cb;
+			};
+			assetSystem.assetBeginLoadingEvent(meEventPayload((void*)&assetIdent));
+			AssetCompilerJobData jobData = {};
+			jobData.ident = assetIdent;
+			jobData.loader = loader;
+			jobData.cb = onWriteCb;
+			auto fn = [jobData, &assetSystem]() 
+			{
+				meAsset* asset = meAssetTryGet(jobData.ident);
+				ME_ASSERT(asset && asset->loadStage == Loaded && asset->runtimeHandle);
+				jobData.loader->meAssetWrite(*asset);
+				if (jobData.cb)
+				{
+					jobData.cb(*asset);
+				}
+				assetSystem.assetFinishedLoadingEvent(meEventPayload((void*)&jobData.ident));
+			};
+			if (MEASSET_DEBUG_SINGLETHREADED_LOAD)
+			{
+				fn();
+			}
+			else
+			{
+				meJobId compilerJobId = assetSystem.assetCompilerJobs.Execute(fn);
+				return compilerJobId;
+			}
+		}
+	}
+	return {};
 }
 
 meAsset* meAssetTryGet(meAssetIdent assetID)
 {
-	meAssetSystem& assetSystem = GetAssetSystem();
+	meAssetSystem& assetSystem = meAssetSystemGet();
 	RWLockRead(assetSystem.assetRegistryLock);
 	auto it = assetSystem.assetRegistry.find(assetID);
 	if (it == assetSystem.assetRegistry.end())

@@ -26,7 +26,10 @@ meSerializeResult SerializeToTextBlocking(
 		}
 		u32 offsetBytes = field.offsetBits / 8;
 		meSpan fieldData = meSpan(typeData + offsetBytes, field.size);
-		StringView fieldStr = field.ToString(GetTLScratch(), fieldData);
+		SerializeContext ctx = {};
+		ctx.allocator = GetTLScratch();
+		ctx.data = fieldData;
+		StringView fieldStr = field.ToString(ctx);
 		sb.AppendFormat("%s= %.*s\n", (const char*)field.name.cstr(), STRING_VAARGS(fieldStr));
 	}
 	// stringbuilders don't own their data, so it's safe to return the data pointer

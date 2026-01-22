@@ -66,7 +66,7 @@ struct EntityRegistry
 namespace Entity
 {
 
-void InitializeEntitySystem(Arena* arena);
+void InitializeEntitySystem(meAllocator* allocator);
 void DeinitializeEntitySystem();
 
 

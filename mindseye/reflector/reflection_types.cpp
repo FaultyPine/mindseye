@@ -28,7 +28,7 @@ meTypeDescriptor TD_CHAR = { .name = STRING_LIT("char"), .size = 1, .align = 1 }
 meTypeDescriptor TD_UNSIGNED_CHAR = {.name = STRING_LIT("unsigned char"), .size = 1, .align = 1 };
 meTypeDescriptor TD_WCHAR = { .name = STRING_LIT("wchar_t"), .size = 4, .align = 4 };
 
-StringView sizedBufferSerializer(const meTypeDescriptor&, meAllocator*, meSpan);
+StringView sizedBufferSerializer(const meTypeDescriptor&, SerializeContext& ctx);
 bool sizedBufferDeserializer(const meTypeDescriptor&, DeserializeContext& ctx);
 bool stringDeserializer(const meTypeDescriptor&, DeserializeContext& ctx);
 
@@ -39,13 +39,12 @@ meTypeDescriptor TD_STRINGVIEW = { .name = STRING_LIT("StringView"), .flags = me
 meTypeDescriptor TD_STRING = { .name = STRING_LIT("String"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(String), .align = alignof(String), .strSerializer = sizedBufferSerializer, .strDeserializer = stringDeserializer };
 meTypeDescriptor TD_DYNARRAY = { .name = STRING_LIT("DynArray"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(DynArray<int>), .align = alignof(DynArray<int>), .strSerializer = DynArraySerializerToStringFn, .strDeserializer = DynArrayDeserializerFromStringFn };
 
-StringView meTypeDescriptor::ToString(meAllocator* allocator, meSpan data) const
+StringView meTypeDescriptor::ToString(SerializeContext& ctx) const
 {
-	StringBuilder builder = StringBuilder(allocator);
-    
+	StringBuilder builder = StringBuilder(ctx.allocator);
+	meSpan data = ctx.data;
     // Handle null/empty data
-    if (!data.data || data.size == 0 || 
-		TEST_BIT(flags, meTypeDescriptorFlag_PaddingMember)) 
+    if (!data.data || data.size == 0 || !ShouldSerializeText()) 
 	{
 		return {};
     }
@@ -53,18 +52,20 @@ StringView meTypeDescriptor::ToString(meAllocator* allocator, meSpan data) const
     // custom override
 	if (strSerializer)
 	{
-		return strSerializer(*this, allocator, data);
+		return strSerializer(*this, ctx);
 	}
 
 	// append multiple of the inner types for arrays
-	if (TEST_BIT(flags, meTypeDescriptorFlag_ConstantArray))
+	if (thisType && TEST_BIT(flags, meTypeDescriptorFlag_ConstantArray))
 	{
 		builder.Append(STRING_LIT("{ "));
 		u32 numArrayElements = size / thisType->size;
 		for (u32 i = 0; i < numArrayElements; i++)
 		{
 			meSpan arrayElement = data.Subspan(thisType->size * i, thisType->size);
-			StringView arrayElementStr = thisType->ToString(allocator, arrayElement);
+			SerializeContext newCtx = ctx;
+			newCtx.data = arrayElement;
+			StringView arrayElementStr = thisType->ToString(newCtx);
 			builder.Append(arrayElementStr);
 			builder.Append( (i == numArrayElements-1) ? STRING_LIT("") : STRING_LIT(", ") );
 		}
@@ -73,9 +74,9 @@ StringView meTypeDescriptor::ToString(meAllocator* allocator, meSpan data) const
 	}
 
     // If this is a primitive type with an underlying type, delegate to it
-    if (thisType != nullptr && fields.size == 0) 
+    if (thisType && fields.size == 0) 
 	{
-        return thisType->ToString(allocator, data);
+        return thisType->ToString(ctx);
     }
 
     // Handle primitive types based on name and size
@@ -151,7 +152,10 @@ StringView meTypeDescriptor::ToString(meAllocator* allocator, meSpan data) const
         {
             const meTypeDescriptor& field = fields[i];
             ME_ASSERT(field.offsetBits % 8 == 0);
-            StringView stringedField = field.ToString(allocator, meSpan(data.data + (field.offsetBits / 8), field.size));
+			meSpan nextField = meSpan(data.data + (field.offsetBits / 8), field.size);
+			SerializeContext newCtx = ctx;
+			newCtx.data = nextField;
+            StringView stringedField = field.ToString(newCtx);
             builder.Append(stringedField);
             if (i != fields.size - 1)
             {
@@ -169,8 +173,7 @@ bool meTypeDescriptor::FromString(DeserializeContext& ctx) const
 	StringView str = StringView(ctx.inputData.data, ctx.inputData.size);
 
     // Handle null/empty string
-    if (!str.data || str.len == 0 || 
-		TEST_BIT(flags, meTypeDescriptorFlag_PaddingMember)) 
+    if (!str.data || str.len == 0 || !ShouldSerializeText()) 
     {
         return false;
     }
@@ -182,7 +185,7 @@ bool meTypeDescriptor::FromString(DeserializeContext& ctx) const
 	}
 
 	// append multiple of the inner types for arrays
-	if (TEST_BIT(flags, meTypeDescriptorFlag_ConstantArray))
+	if (thisType && TEST_BIT(flags, meTypeDescriptorFlag_ConstantArray))
 	{
 		//u32 numArrayElements = size / underlyingType->size;
 		//for (u32 i = 0; i < numArrayElements; i++)
@@ -193,7 +196,7 @@ bool meTypeDescriptor::FromString(DeserializeContext& ctx) const
 	}
 
     // If this is a primitive type with an underlying type, delegate to it
-    if (thisType != nullptr && fields.size == 0) 
+    if (thisType && fields.size == 0) 
     {
         return thisType->FromString(ctx);
     }
@@ -375,9 +378,10 @@ bool meTypeDescriptor::FromString(DeserializeContext& ctx) const
 
 StringView sizedBufferSerializer(
 	const meTypeDescriptor& typedescriptor,
-	meAllocator* allocator, 
-	meSpan fieldData)
+	SerializeContext& ctx)
 {
+	meSpan fieldData = ctx.data;
+	meAllocator* allocator = ctx.allocator;
 	// the fielddata is just a pointer to a mespan, which ITSELF has the actual data
 	meSpan dereferencedData = *(meSpan*)fieldData.data;
 	Allocation mem = MEALLOC(allocator, dereferencedData.size);

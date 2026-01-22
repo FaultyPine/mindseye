@@ -8,14 +8,17 @@ struct DeserializeContext
 {
 	// data to be deserialized, I.E. a string like "0.1" or equivalent
 	meSpan inputData = {};
-
 	// POD, preallocated before deserialization functions are called
 	meSpan outputData = {}; 
 	// external pointer buffer, allocated inside deserialization funcs with the following allocator
 	meSpan outputDataExternal = {}; 
 	meAllocator* externalDataAllocator = {};
 };
-
+struct SerializeContext
+{
+	meAllocator* allocator;
+	meSpan data;
+};
 
 // type flags bitfield
 typedef s32 meTypeDescriptorFlags;
@@ -42,8 +45,7 @@ StringView meTypeDescriptorFlagToString(meTypeDescriptorFlags flag);
 struct meTypeDescriptor;
 typedef StringView(*SerializerToStringFn)(
 	const meTypeDescriptor& typeDescriptor,
-	meAllocator* allocator, 
-	meSpan data);
+	SerializeContext& ctx);
 typedef bool(*DeserializerFromStringFn)(
 	const meTypeDescriptor& typeDescriptor,
 	DeserializeContext& ctx);
@@ -70,7 +72,7 @@ struct meTypeDescriptor
 	SerializerToStringFn strSerializer = nullptr;
 	DeserializerFromStringFn strDeserializer = nullptr;
 
-	StringView ToString(meAllocator* allocator, meSpan data) const;
+	StringView ToString(SerializeContext& ctx) const;
 	bool FromString(DeserializeContext& ctx) const;
 
 	bool operator==(const meTypeDescriptor& other) const

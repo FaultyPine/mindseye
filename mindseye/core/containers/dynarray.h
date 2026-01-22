@@ -50,8 +50,7 @@ struct DynArray
 
 StringView DynArraySerializerToStringFn(
 	const meTypeDescriptor& typeDescriptor,
-	meAllocator* allocator, 
-	meSpan data);
+	SerializeContext& ctx);
 
 bool DynArrayDeserializerFromStringFn(
 	const meTypeDescriptor& typeDescriptor,

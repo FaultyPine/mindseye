@@ -86,6 +86,11 @@ enum meAssetLoadStage
 	LoadStageCount
 };
 
+#define ME_ASSET_STRUCTURE(typeName) \
+meAssetIdent header = {}; \
+typeName(const meAssetIdent& ident) : typeName() { header = ident; } \
+typeName() = default;
+
 // identifies an asset "on disk".
 // these can map to filesystem paths, or something else if assets are being loaded/fetched from some other mechanism
 struct MEREFLECT(type) meAssetIdent
@@ -96,6 +101,7 @@ struct MEREFLECT(type) meAssetIdent
 	MEREFLECT(exclude) u32 assetSourceHash = 0; // including the hash in the serialized asset itself would mean a change to asset A requires updating all assets that depend on it, which we don't want
     meAssetIdent() = default;
     meAssetIdent(StringView diskIdent, meAssetType type);
+	meAssetIdent(StringView diskIdent, MAID maid);
     bool operator==(const meAssetIdent& other) const 
 	{ 
 		return id == other.id && assetSourceHash == other.assetSourceHash; 
@@ -114,17 +120,20 @@ MEMAP_BEGIN_CUSTOM_HASHER(meAssetIdent, ident)
 // of asset definitions. I.E. when a "scene" asset references a "mesh" asset, use this structure
 struct MEREFLECT(type) meAsset
 {
-	meAssetIdent asset = {};
+	meAssetIdent ident = {};
 	MEREFLECT(exclude)
 	Eye runtimeHandle = {};
     meAssetLoadStage loadStage = Unloaded;
 	
-	meAsset(const meAssetIdent& ident, meAssetLoadStage stage) :
-		asset(ident), loadStage(stage)
+	meAsset(const meAssetIdent& identifier) : 
+		ident(identifier)
+	{}
+	meAsset(const meAssetIdent& identifier, meAssetLoadStage stage) :
+		ident(identifier), loadStage(stage)
 	{}
 	// initialized with both "load-time" and "usage-time" info
-	meAsset(Eye eye, const meAssetIdent& ident) : 
-		asset(ident), runtimeHandle(eye) 
+	meAsset(Eye eye, const meAssetIdent& identifier) : 
+		ident(identifier), runtimeHandle(eye) 
 	{
 		if (runtimeHandle)
 		{
@@ -147,14 +156,25 @@ struct MEREFLECT(type) meAsset
 		return runtimeHandle != EYE_INVALID && loadStage == Loaded; 
 	}
 	operator const Eye() const { return runtimeHandle; }
-	operator const MAID() const { return asset.id; }
+	operator const MAID() const { return ident.id; }
 };
 
 struct meAssetLoader
 {
+	// TODO: these could have defaults that just 
+	// serializes/deserializes opaquely. Systems can then add their own custom stuff
+	// and call into this base functionality
+	// additionally in order to do the above, there should be a "generic" way to access
+	// each asset's resourcepool by just the meAssetType
+	// instead of bespoke pointers in the EngineContext, there should be a list NUM_ASSET_TYPES large of meResourcePool* base classes
+
     // called on asset threads
-    virtual void meAssetLoad(meAssetIdent, meAsset&) = 0;
-	meAssetLoadStage meAssetWaitForLoad(meAssetIdent);
+    virtual void meAssetLoad(meAsset&) = 0;
+	virtual void meAssetWrite(meAsset&) = 0;
+	virtual void meAssetCreate(StringView) = 0;
+	meAssetLoadStage meAssetWaitForLoadstage(
+		const meAssetIdent&, 
+		meAssetLoadStage);
 };
 
 struct meAssetSystem
@@ -168,31 +188,36 @@ struct meAssetSystem
 	meJobSystem assetCompilerJobs = {}; // TODO: replace this with a unified job system which should have multiple "queue" types
     meEvent assetBeginLoadingEvent = {};
     meEvent assetFinishedLoadingEvent = {};
+	meEvent assetBeganWritingEvent = {};
+	meEvent assetFinishedWritingEvent = {};
 };
 
+meAssetSystem& meAssetSystemGet();
 void meAssetInitialize(EngineContext* engine);
 void meAssetTeardown(EngineContext* engine);
 void meAssetRegisterLoader(meAssetLoader* loader, meAssetType type);
 
+// creates a default-constructed instance of an asset type on disk (and assigns it a proper guid and all that)
+void meAssetCreateNew(
+	StringView filename,
+	meAssetType type);
+
 typedef void(*meAssetOnAssetLoadCb)(const meAsset&);
 
-meAssetLoadStage* meAssetRequestLoad(
-	meAllocator* allocator,
+meJobId meAssetRequestLoad(
 	meAssetIdent* assetIdents, 
 	u32 numAssets = 1,
     meAssetOnAssetLoadCb cb = nullptr);
 
-meAssetLoadStage* meAssetWaitForLoad(
-	meAllocator* allocator,
-	meAssetIdent* assetIdents, 
-	u32 numAssets = 1);
+bool meAssetWaitUntilLoadstage(
+	meSpanTyped<meAssetIdent> assetIdents,
+	meAssetLoadStage loadStage);
+
+meJobId meAssetRequestWrite(
+	meSpanTyped<meAssetIdent> assetIdents,
+	meAssetOnAssetLoadCb onWriteCb = nullptr);
 
 meAsset* meAssetTryGet(meAssetIdent asset);
-
-meAssetLoadStage* meAssetLoadSync(
-	meAllocator* allocator,
-	meAssetIdent* idents,
-	u32 numAssets = 1);
 
 void meAssetSetResourceDir(StringView dir);
 

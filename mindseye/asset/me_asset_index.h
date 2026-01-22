@@ -13,4 +13,5 @@ StringView meAssetIndexGetFilesystemPath(
 	const MAID& maid);
 
 
+
 void meAssetIndexInitialize(EngineContext* engine);

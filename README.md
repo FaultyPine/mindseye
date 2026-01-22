@@ -10,6 +10,8 @@ run `build.bat`
 // BOOKMARK: 
 - me_asset_indexer
 	- maps MAID to filesystem paths
+	- asset loader needs to be able to create "blank/default" assets of a given type. (default-construct + write to disk) so we can insert the MAID into the definition file
+	- everything sorts out once the MAID is in the masset
 	- future: includes asset dependencies, asset metadata (timestamp, name, type, etc), indexes for all these things for fast lookup
 // - implement MAID serialization - allow assets to reference other assets in a serialization-friendly way
 	- I think what i'm settling on, or what i've just thought of to be the best way
@@ -29,6 +31,7 @@ run `build.bat`
     - after this, we will have the foundation to build a proper "asset compiler", so game just reads in compiled stuff
         - stretch idea: have compilation be a separate process (literally) that the game client asks for compiled stuff, I.E. bill + compilation server
 
+
 - engine-wide savestates
 	- user can only "request" a save, that gets serviced at a fixed point after the frame (can't save in middle of frame)
 	- stuff that needs to be saved/delt with:
@@ -42,6 +45,21 @@ run `build.bat`
 			- virtualize all these funcs with hooks?
 			- or just keep a mapping...
 
+=== Frame Architecture ===
+
+	- Create a "Frame" object that stores all data that is scoped per-frame
+		- there'll also be a "frame" arena.
+		- Set up an asset so the game & engine is forbidden to use the scene allocator *during* a frame
+		- This means all loading, and any operations that need to persist stuff across frames needs to happen at the end/beginning of the frame
+	- FrameSimInput structure that holds all inputs used for the simulation of 1 tick
+		- recorded
+	- FrameSimOutput structure that holds the "state" of a frame that has been ticked
+		- this structure, and the "frame arena" should hold all per-frame data.
+		- for savestates, this is all we'd need to save. The engine should be able to re-construct the rest (loaded assets)
+	- FrameSimOutput is the input to a Render frame, and the renderer should be able to arbitrarily render any FrameSimOutput
+	- 
+
+============================
 
 ### General Roadmap
 - game/engine hot reloading

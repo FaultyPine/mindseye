@@ -32,6 +32,16 @@ f32 GetDeltaTime()
 	return GetEngineCtx()->deltaTime;
 }
 
+s32 meGetRandom(s32 start, s32 end)
+{
+	UNIMPLEMENTED();
+}
+
+f32 meGetRandomf(f32 start, f32 end)
+{
+	UNIMPLEMENTED();
+}
+
 void InternalRegisterApp(MindseyeAppCallbacks appCallbacks)
 {
     EngineContext* engine = GetEngineCtx();
@@ -157,10 +167,10 @@ void InitializeEngine(s32 argc, char** argv)
 		auto onSceneLoad = +[](const meAsset& asset)
 		{
 			meScene& loadedSceneData = meScenePoolGet().Get(asset.runtimeHandle);
-			meSceneManager::CurrentScene() = loadedSceneData;
+			GetEngineCtx()->sceneSystem->CurrentScene() = loadedSceneData;
 			GetEngineCtx()->appCallbacks.onSceneLoadFn(GetEngineCtx());
 		};
-		meAssetRequestLoad(GetTLScratch(), &sceneIdent, 1, onSceneLoad);
+		meAssetRequestLoad(&sceneIdent, 1, onSceneLoad);
 	}
 
     engine->appCallbacks.initFn(engine);

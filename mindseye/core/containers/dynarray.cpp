@@ -9,9 +9,10 @@
 
 StringView DynArraySerializerToStringFn(
 	const meTypeDescriptor& typeDescriptor,
-	meAllocator* allocator, 
-	meSpan data)
+	SerializeContext& ctx)
 {
+	// BOOKMARK: do this
+
 	UNIMPLEMENTED();
 	return {};
 }

@@ -6,18 +6,19 @@
 #include "scene/me_entity.h"
 #include "render/me_camera.h"
 #include "core/containers/dynarray.h"
+#include "asset/me_asset.h"
 #include "generatedtypes/me_scene.generated.h"
 
 typedef u32 meSceneID;
 
-struct MEREFLECT(type, Description="Scene Description", Version=0)
+struct MEREFLECT(type, Description="Scene Description")
 meScene
 {
+	ME_ASSET_STRUCTURE(meScene)
+
 	// an external file that represents the scene - i.e. gltf
 	String externalScenePath = {};
 	meCamera mainCamera = {};
-
-	String sceneAssetPath = {};
 
 	DynArray<EntityRef> entities = {};
 	EntityRef testEntity = {};
@@ -25,11 +26,7 @@ meScene
 
 struct meSceneManager
 {
-	// ------------- externally callable -----------------------------------------
-	MEAPI void WriteSceneToFileBlocking(
-		meScene* scene, 
-		StringView filename);
-	MEAPI void ChangeCurrentSceneBlocking(
+	MEAPI void ChangeCurrentScene(
 		StringView filename);
 
 	// -------- engine internal --------------------------
@@ -37,11 +34,9 @@ struct meSceneManager
 	void Tick(EngineContext* ctx);
 	void CopyToRenderInput(meScene& outScene);
 
-	// TODO: store this somewhere better?
-	// maybe scenes should use a resourcepool too?
-	meScene rootScene = {};
+	Eye rootScene = {};
 
-	static MEAPI meScene& CurrentScene();
+	MEAPI meScene& CurrentScene();
 };
 
 

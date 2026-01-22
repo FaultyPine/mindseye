@@ -6,9 +6,9 @@
 
 StringView EntityRefSerializerToStringFn(
 	const meTypeDescriptor& typeDescriptor,
-	meAllocator* allocator, 
-	meSpan data)
+	SerializeContext& ctx)
 {
+	meSpan data = ctx.data;
 	EntityRef* ref = (EntityRef*)data.data;
 	EntityData& entity = Entity::GetEntity(*ref);
 	if (TEST_BIT(entity.flags, EntityFlags_Invalid))
@@ -16,7 +16,9 @@ StringView EntityRefSerializerToStringFn(
 		return STRING_LIT("INVALID_ENTITY");
 	}
 	meSpan entitySpan = SPAN_FROM(entity);
-	return TD_ENTITYDATA.ToString(allocator, entitySpan);
+	SerializeContext entityCtx = ctx;
+	entityCtx.data = entitySpan;
+	return TD_ENTITYDATA.ToString(entityCtx);
 }
 
 bool EntityRefDeserializerFromStringFn(
@@ -46,9 +48,9 @@ static EntityRegistry& GetRegistry()
     return *GetEngineCtx()->entityRegistry;
 }
 
-void InitializeEntitySystem(Arena* arena)
+void InitializeEntitySystem(meAllocator* allocator)
 {
-    EntityRegistry* registryMem = MENEW(arena, EntityRegistry);
+    EntityRegistry* registryMem = MENEW(allocator, EntityRegistry);
     GetEngineCtx()->entityRegistry = registryMem;
     // dummy entity with bad id so we can return it on failure from methods like GetEntity
     registryMem->entMap[U32_INVALID_ID] = {};

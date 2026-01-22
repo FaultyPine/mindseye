@@ -25,53 +25,7 @@ meScenePool& meScenePoolGet()
 
 void meSceneManager::Tick(EngineContext* ctx)
 {
-	rootScene.mainCamera.UpdateCameraWithUserInput(*ctx->osData);
-}
-
-void LoadScene(
-	meAssetIdent ident, 
-	meAllocator* sceneAllocator,
-	meAsset& asset)
-{
-	meScenePool& scenePool = meScenePoolGet();
-	asset.runtimeHandle = scenePool.CreateInternal();
-	meScene& outScene = scenePool.Get(asset.runtimeHandle);
-	if (!outScene.entities)
-	{
-		outScene.entities = DynArrayCreate<EntityRef>(sceneAllocator);
-	}
-	StringView assetPath = meAssetResource(ident.diskIdent);
-    bool success = false;
-    {
-        OSFileReference file;
-        meOSOpenFile(file, assetPath, (OSFileFlags_OnlyIfExists | OSFileFlags_ScopedFile));
-        ScopedAllocation tempFileContent(GetTLScratch(), meOSGetFileSize(file));
-        meOSReadFileContents(file, tempFileContent.allocation, tempFileContent.allocation.size);
-        success = DeserializeFromTextBlocking(TD_MESCENE, sceneAllocator, StringView(tempFileContent.allocation), SPAN_FROM(outScene));
-    }
-	if (success)
-	{
-		if (FindInString(outScene.externalScenePath, STRING_LIT(".gltf")) != -1 ||
-			FindInString(outScene.externalScenePath, STRING_LIT(".glb")) != -1)
-		{
-			meScenePoolGet().Load(ident, sceneAllocator, outScene.externalScenePath, outScene);
-		}
-	}
-    outScene.sceneAssetPath = ident.diskIdent;
-}
-
-void meSceneManager::WriteSceneToFileBlocking(meScene* scene, StringView filename)
-{
-    meAllocator* tempAllocator = GetTLScratch();
-    StringView sceneString = {};
-	meSerializeResult res = SerializeToTextBlocking(TD_MESCENE, scene, tempAllocator, sceneString);
-    ME_ASSERT(res == SER_SUCCESS);
-    OSFileReference file;
-    meOSOpenFile(file, filename, (OSFileFlags_OnlyIfExists | OSFileFlags_ScopedFile));
-    if (!meOSWriteFileContent(file, sceneString.data, sceneString.len))
-    {
-        LOG_ERROR("Failed to write scene to file. filename = " STRING_FMT "\nsceneString = " STRING_FMT, STRING_VAARGS(filename), STRING_VAARGS(sceneString));
-    }
+	CurrentScene().mainCamera.UpdateCameraWithUserInput(*ctx->osData);
 }
 
 void meSceneManager::UnloadCurrentScene()
@@ -83,7 +37,7 @@ void meSceneManager::UnloadCurrentScene()
 	Entity::ReinitializeEntitySystem();
 }
 
-void meSceneManager::ChangeCurrentSceneBlocking(StringView filename)
+void meSceneManager::ChangeCurrentScene(StringView filename)
 {
 	if (FindInString(filename, STRING_LIT(".scn")) == -1)
 	{
@@ -95,34 +49,103 @@ void meSceneManager::ChangeCurrentSceneBlocking(StringView filename)
 	auto onSceneLoad = +[](const meAsset& asset)
 	{
 		meScene& loadedSceneData = meScenePoolGet().Get(asset.runtimeHandle);
-		meSceneManager::CurrentScene() = loadedSceneData;
+		GetEngineCtx()->sceneSystem->CurrentScene() = loadedSceneData;
 		GetEngineCtx()->appCallbacks.onSceneLoadFn(GetEngineCtx());
 	};
-	meAssetRequestLoad(GetTLScratch(), &sceneIdent, 1, onSceneLoad);
-	meAssetWaitForLoad(GetTLScratch(), &sceneIdent, 1);
+	meAssetRequestLoad(&sceneIdent, 1, onSceneLoad);
+	//meAssetWaitUntilLoadstage(SPAN_FROM_TYPED(sceneIdent), Loaded);
 }
 
 void meSceneManager::CopyToRenderInput(meScene& outScene)
 {
 	// copy the "current"? scene to the given scene for the renderer to use as its readonly copy. This will become complex later...
-	outScene = rootScene;
+	outScene = CurrentScene();
 }
 
 meScene& meSceneManager::CurrentScene()
 {
-	return GetEngineCtx()->sceneSystem->rootScene;
+	meScenePool& scenePool = meScenePoolGet();
+	Eye currentSceneHandle = rootScene;
+	meScene& result = scenePool.Get(currentSceneHandle);
+	return result;
 }
 
 struct meSceneAssetLoader : public meAssetLoader
 {
-	virtual void meAssetLoad(meAssetIdent ident, meAsset& asset)
+	virtual void meAssetLoad(meAsset& asset) override
 	{
         EngineContext* engine = GetEngineCtx();
-		ME_ASSERT(ident.id.GetType() == MAScene);
+		ME_ASSERT(asset.ident.id.GetType() == MAScene);
+		meAllocator* sceneAllocator = &engine->engineSceneAllocator;
         // TODO: implement async scene loading, so this would return loadStage=Loading
         // and would itself enqueue more asset compiling jobs for the individual parts of the scene
-		LoadScene(ident, &engine->engineSceneAllocator, asset);
+		meScenePool& scenePool = meScenePoolGet();
+		asset.runtimeHandle = scenePool.CreateInternal();
+		meScene& outScene = scenePool.Get(asset.runtimeHandle);
+		if (!outScene.entities)
+		{
+			outScene.entities = DynArrayCreate<EntityRef>(sceneAllocator);
+		}
+		StringView assetPath = meAssetResource(asset.ident.diskIdent);
+		bool success = false;
+		{
+			OSFileReference file;
+			meOSOpenFile(file, assetPath, (OSFileFlags_OnlyIfExists | OSFileFlags_ScopedFile));
+			ScopedAllocation tempFileContent(GetTLScratch(), meOSGetFileSize(file));
+			meOSReadFileContents(file, tempFileContent.allocation, tempFileContent.allocation.size);
+			success = DeserializeFromTextBlocking(TD_MESCENE, sceneAllocator, StringView(tempFileContent.allocation), SPAN_FROM(outScene));
+		}
+		if (success)
+		{
+			if (FindInString(outScene.externalScenePath, STRING_LIT(".gltf")) != -1 ||
+				FindInString(outScene.externalScenePath, STRING_LIT(".glb")) != -1)
+			{
+				meScenePoolGet().Load(asset.ident, sceneAllocator, outScene.externalScenePath, outScene);
+			}
+		}
 		asset.loadStage = Loaded;
+	}
+
+	virtual void meAssetWrite(meAsset& asset) override
+	{
+		meScenePool& scenePool = meScenePoolGet();
+		if (!asset.runtimeHandle || asset.loadStage != Loaded)
+		{
+			LOG_WARN("Attempted to write an unloaded scene asset");
+			return;
+		}
+		meScene& scene = scenePool.Get(asset.runtimeHandle);
+		StringView assetPath = meAssetResource(asset.ident.diskIdent);
+		meAllocator* tempAllocator = GetTLScratch();
+		StringView sceneString = {};
+		meSerializeResult res = SerializeToTextBlocking(TD_MESCENE, &scene, tempAllocator, sceneString);
+		ME_ASSERT(res == SER_SUCCESS);
+		OSFileReference file;
+		meOSOpenFile(file, assetPath, (OSFileFlags_StompExisting | OSFileFlags_ScopedFile));
+		if (!meOSWriteFileContent(file, sceneString.data, sceneString.len))
+		{
+			LOG_ERROR("Failed to write scene to file. filename = " STRING_FMT "\nsceneString = " STRING_FMT, STRING_VAARGS(assetPath), STRING_VAARGS(sceneString));
+		}
+	}
+
+	virtual void meAssetCreate(StringView filename) override
+	{
+		// this guid should be ACTUALLY random, don't need to respect any replay type stuff
+		f64 time = GetTimeUsec();
+		u32 randomNumber = HashBytes((u8*)&time, sizeof(time));
+		MAID newMaid = MAID(randomNumber, MAScene);
+		meScene scene = meScene(meAssetIdent(filename, newMaid));
+		StringView assetPath = meAssetResource(filename);
+		meAllocator* tempAllocator = GetTLScratch();
+		StringView sceneString = {};
+		meSerializeResult res = SerializeToTextBlocking(TD_MESCENE, &scene, tempAllocator, sceneString);
+		ME_ASSERT(res == SER_SUCCESS);
+		OSFileReference file;
+		meOSOpenFile(file, assetPath, (OSFileFlags_StompExisting | OSFileFlags_ScopedFile));
+		if (!meOSWriteFileContent(file, sceneString.data, sceneString.len))
+		{
+			LOG_ERROR("Failed to write scene to file. filename = " STRING_FMT "\nsceneString = " STRING_FMT, STRING_VAARGS(assetPath), STRING_VAARGS(sceneString));
+		}
 	}
 
 	static void RegisterAssetLoader(meEventPayload payload)
@@ -134,15 +157,47 @@ struct meSceneAssetLoader : public meAssetLoader
 
 MEEVENT_REGISTER_STATIC(registerAssetLoader, meSceneAssetLoader::RegisterAssetLoader);
 
-void LoadSceneRuntimeFromGLTF(
-	cgltf_data* gltfData,
-	meAssetIdent sceneIdent,
-	meScene& outScene, 
-	meAllocator* sceneAllocator)
+void meScenePool::Load(
+	meAssetIdent ident,
+	meAllocator* sceneAllocator,
+	StringView resourcePathRel,
+	meScene& outScene)
 {
+	StringView resourcePathAbs = meAssetResource(resourcePathRel);
+	OSFileReference file;
+    meOSOpenFile(file, resourcePathAbs, (OSFileFlags_OnlyIfExists | OSFileFlags_ScopedFile));
+	u64 filesize = meOSGetFileSize(file);
+	Allocation gltfBuffer = MEALLOC(sceneAllocator, filesize);
+
+    if (!meOSReadFileContents(file, gltfBuffer.data, gltfBuffer.size))
+    {
+        LOG_ERROR("[meScene] failed to load gltf scene %.*s", STRING_VAARGS(resourcePathAbs));
+    }
+    cgltf_options options = {};
+    cgltf_data* gltfData = nullptr;
+
+    ME_ON_SCOPE_EXIT([gltfData]()
+	{
+		cgltf_free(gltfData);
+	});
+	// parses the gltf json metadata
+    cgltf_result parseResult = cgltf_parse(&options, gltfBuffer.data, gltfBuffer.size, &gltfData);
+    if (parseResult == cgltf_result_success)
+    {
+		// loads the external buffers (actual geo, textures, etc)
+        parseResult = cgltf_load_buffers(&options, gltfData, resourcePathAbs.cstr());
+		if (parseResult != cgltf_result_success)
+		{
+			LOG_WARN("Failed to load gltf buffers from %.*s", STRING_VAARGS(resourcePathAbs));
+		}
+    }
+	else
+	{
+		LOG_WARN("Failed to parse gltf from %.*s", STRING_VAARGS(resourcePathAbs));
+	}
 	const cgltf_scene& scene = *gltfData->scene;
 	DynArray<EntityRef>& entities = outScene.entities;
-	StringView gltfResPath = msFsGetDirFromPath(outScene.sceneAssetPath);
+	StringView gltfResPath = msFsGetDirFromPath(resourcePathAbs);
 	meMeshPool& meshPool = meMeshPoolGet();
 	for (u64 nodeIdx = 0; nodeIdx < scene.nodes_count; nodeIdx++)
 	{
@@ -162,46 +217,4 @@ void LoadSceneRuntimeFromGLTF(
 		}
 		DynArrayPush(entities, entityRef);
 	}
-}
-
-void meScenePool::Load(
-	meAssetIdent ident,
-	meAllocator* sceneAllocator,
-	StringView resourcePathRel,
-	meScene& outScene)
-{
-	StringView resourcePathAbs = meAssetResource(resourcePathRel);
-	OSFileReference file;
-    meOSOpenFile(file, resourcePathAbs, (OSFileFlags_OnlyIfExists | OSFileFlags_ScopedFile));
-	u64 filesize = meOSGetFileSize(file);
-	Allocation gltfBuffer = MEALLOC(sceneAllocator, filesize);
-
-    if (!meOSReadFileContents(file, gltfBuffer.data, gltfBuffer.size))
-    {
-        LOG_ERROR("[meScene] failed to load gltf scene %.*s", STRING_VAARGS(resourcePathAbs));
-    }
-    cgltf_options options = {};
-    cgltf_data* data = nullptr;
-
-    ME_ON_SCOPE_EXIT([data]()
-	{
-		cgltf_free(data);
-	});
-	// parses the gltf json metadata
-    cgltf_result parseResult = cgltf_parse(&options, gltfBuffer.data, gltfBuffer.size, &data);
-    if (parseResult == cgltf_result_success)
-    {
-		// loads the external buffers (actual geo, textures, etc)
-        parseResult = cgltf_load_buffers(&options, data, resourcePathAbs.cstr());
-		if (parseResult != cgltf_result_success)
-		{
-			LOG_WARN("Failed to load gltf buffers from %.*s", STRING_VAARGS(resourcePathAbs));
-		}
-    }
-	else
-	{
-		LOG_WARN("Failed to parse gltf from %.*s", STRING_VAARGS(resourcePathAbs));
-	}
-	outScene.sceneAssetPath = String(resourcePathRel, sceneAllocator);
-	LoadSceneRuntimeFromGLTF(data, ident, outScene, sceneAllocator);
 }

@@ -78,24 +78,34 @@ void meEditorTick(EngineContext* engine)
 	ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 5.0f);
 	if (ImGui::BeginMainMenuBar())
 	{
-        if (ImGui::BeginMenu("File"))
-        {
-            if (ImGui::MenuItem("Open", "CTRL+O"))
+		if (ImGui::BeginMenu("Scene"))
+		{
+			if (ImGui::MenuItem("New"))
+			{
+				auto openFileResult = pfd::save_file("Creating new scene file", ".").result();
+                if (!openFileResult.empty())
+                {
+					const char* fileCstr = openFileResult.c_str();
+					StringView openFilename = StringFromCString(fileCstr);
+					meAssetCreateNew(openFilename, MAScene);
+                }
+			}
+            if (ImGui::MenuItem("Open"))
             {
                 auto openFileResult = pfd::open_file("Select a scene file", ".").result();
                 if (!openFileResult.empty())
                 {
                     ME_ASSERT(openFileResult.size() == 1);
-                    StringView sceneFile = StringFromCString(openFileResult[0].c_str());
+					const char* fileCstr = openFileResult[0].c_str();
+                    StringView sceneFile = StringFromCString(fileCstr);
                     meFsNormalizePathSeperators(sceneFile);
-                    engine->sceneSystem->ChangeCurrentSceneBlocking(sceneFile);
+                    engine->sceneSystem->ChangeCurrentScene(sceneFile);
                 }
             }
-            if (ImGui::MenuItem("Save", "CTRL+S"))
+            if (ImGui::MenuItem("Save Current"))
             {
                 meScene* currentScene = &engine->sceneSystem->CurrentScene();
-                StringView fullpath = meAssetResource(currentScene->sceneAssetPath);
-                engine->sceneSystem->WriteSceneToFileBlocking(currentScene, fullpath);
+				meAssetRequestWrite(SPAN_FROM_TYPED(currentScene->header));
             }
             ImGui::EndMenu();
         }

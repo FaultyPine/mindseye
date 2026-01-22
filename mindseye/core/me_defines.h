@@ -217,4 +217,18 @@ static inline int __bsr_ctz32(uint32_t x)
 #define CTZ32(x) ((x) == 0 ? 32 : __bsr_ctz32(x))
 #endif
 
+// from limits.h
+#define ME_SHRT_MIN    (-32768)
+#define ME_SHRT_MAX      32767
+#define ME_USHRT_MAX     0xffff
+#define ME_INT_MIN     (-2147483647 - 1)
+#define ME_INT_MAX       2147483647
+#define ME_UINT_MAX      0xffffffff
+#define ME_LONG_MIN    (-2147483647L - 1)
+#define ME_LONG_MAX      2147483647L
+#define ME_ULONG_MAX     0xffffffffUL
+#define ME_LLONG_MAX     9223372036854775807i64
+#define ME_LLONG_MIN   (-9223372036854775807i64 - 1)
+#define ME_ULLONG_MAX    0xffffffffffffffffui64
+
 #endif

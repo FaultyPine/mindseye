@@ -3,6 +3,7 @@
 #include "mindseye/core/me_defines.h"
 
 #define SPAN_FROM(var) meSpan(&var, sizeof(var))
+#define SPAN_FROM_TYPED(var) meSpanTyped<decltype(var)>(&var, sizeof(var))
 
 struct meSpan
 {
@@ -46,6 +47,7 @@ typedef meSpan meNoOwnSpan;
 template <typename T>
 struct meSpanTyped : public meSpan
 {
+	using meSpan::meSpan;
     T& operator[](size_t idx) 
 	{
 		ME_ASSERT(idx < size);
