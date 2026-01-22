@@ -44,13 +44,12 @@ struct DynArray
 	{
 		return data;
 	}
-	explicit operator u8*() { return (u8*)data; }
-	explicit operator s8*() { return (s8*)data; }
 };
+typedef DynArray<u8> DynArrayAny;
 
 StringView DynArraySerializerToStringFn(
 	const meTypeDescriptor& typeDescriptor,
-	SerializeContext& ctx);
+	SerializeContext ctx);
 
 bool DynArrayDeserializerFromStringFn(
 	const meTypeDescriptor& typeDescriptor,

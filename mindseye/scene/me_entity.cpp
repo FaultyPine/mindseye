@@ -6,7 +6,7 @@
 
 StringView EntityRefSerializerToStringFn(
 	const meTypeDescriptor& typeDescriptor,
-	SerializeContext& ctx)
+	SerializeContext ctx)
 {
 	meSpan data = ctx.data;
 	EntityRef* ref = (EntityRef*)data.data;

@@ -304,7 +304,7 @@ StringView EatChars(StringView str, StringView chars, bool invert)
 u32 EatCharsOffset(StringView str, StringView chars, bool invert)
 {
 	u32 result = 0;
-	while (bool(str))
+	while (str)
 	{
         StringView thisChar = StringView(&str.data[0], 1);
         bool matched = (invert ? FindInString(chars, thisChar) == -1 : FindInString(chars, thisChar) != -1);

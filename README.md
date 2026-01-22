@@ -7,13 +7,13 @@ Must be on windows.
 run `build.bat`
 
 ### Current focus
-// BOOKMARK: 
+- implement DynArray serializers
 - me_asset_indexer
 	- maps MAID to filesystem paths
 	- asset loader needs to be able to create "blank/default" assets of a given type. (default-construct + write to disk) so we can insert the MAID into the definition file
 	- everything sorts out once the MAID is in the masset
 	- future: includes asset dependencies, asset metadata (timestamp, name, type, etc), indexes for all these things for fast lookup
-// - implement MAID serialization - allow assets to reference other assets in a serialization-friendly way
+ - implement MAID serialization - allow assets to reference other assets in a serialization-friendly way
 	- I think what i'm settling on, or what i've just thought of to be the best way
 		is to group together an Eye and MAID structure in 1 structure, and have that in the EntityData or whatever
 		that way, we can serialize out those structures with the MAID portion which can map to the asset on disk
@@ -21,8 +21,8 @@ run `build.bat`
 	- I keep feeling uneasy about how i'm managing paths on disk to assets
 		Idea - and i should verify if Axe does this too, and maybe also how Esoterica does it
 		is to have a "data directory" where all the asset files live. Then scan that on startup and cache a mapping of path <-> asset ID. Each asset file (I.E. .scn) should have a guid in them
-// - implement DynArray serializers
-
+- refactor so instead of straight loading gltf, we "import" gltf and turn it into massets, then load(/compile) those
+	- meAssetCreate would do the check for .gltf in the filename, and do it there
 
 - render 2d squares and have em move around
 - flesh out custom serialization format, implement for all current assets, like meshes, shaders, textures, and have them load through that data

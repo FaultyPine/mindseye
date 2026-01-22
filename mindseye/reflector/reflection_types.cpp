@@ -28,7 +28,7 @@ meTypeDescriptor TD_CHAR = { .name = STRING_LIT("char"), .size = 1, .align = 1 }
 meTypeDescriptor TD_UNSIGNED_CHAR = {.name = STRING_LIT("unsigned char"), .size = 1, .align = 1 };
 meTypeDescriptor TD_WCHAR = { .name = STRING_LIT("wchar_t"), .size = 4, .align = 4 };
 
-StringView sizedBufferSerializer(const meTypeDescriptor&, SerializeContext& ctx);
+StringView sizedBufferSerializer(const meTypeDescriptor&, SerializeContext ctx);
 bool sizedBufferDeserializer(const meTypeDescriptor&, DeserializeContext& ctx);
 bool stringDeserializer(const meTypeDescriptor&, DeserializeContext& ctx);
 
@@ -39,7 +39,21 @@ meTypeDescriptor TD_STRINGVIEW = { .name = STRING_LIT("StringView"), .flags = me
 meTypeDescriptor TD_STRING = { .name = STRING_LIT("String"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(String), .align = alignof(String), .strSerializer = sizedBufferSerializer, .strDeserializer = stringDeserializer };
 meTypeDescriptor TD_DYNARRAY = { .name = STRING_LIT("DynArray"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(DynArray<int>), .align = alignof(DynArray<int>), .strSerializer = DynArraySerializerToStringFn, .strDeserializer = DynArrayDeserializerFromStringFn };
 
-StringView meTypeDescriptor::ToString(SerializeContext& ctx) const
+// str might look like
+// [ 4, "hello", [0, {val=4.5, name="s"}], 0 ]
+StringView meDeserializeEatUntilNextElement(
+	StringView& str,
+	char openDelim,
+	char closeDelim,
+	char separator)
+{
+	// BOOKMARK:
+	u32 stack = 1;
+	UNIMPLEMENTED();
+	return {};
+}
+
+StringView meTypeDescriptor::ToString(SerializeContext ctx) const
 {
 	StringBuilder builder = StringBuilder(ctx.allocator);
 	meSpan data = ctx.data;
@@ -54,6 +68,7 @@ StringView meTypeDescriptor::ToString(SerializeContext& ctx) const
 	{
 		return strSerializer(*this, ctx);
 	}
+	ctx.parentType = this;
 
 	// append multiple of the inner types for arrays
 	if (thisType && TEST_BIT(flags, meTypeDescriptorFlag_ConstantArray))
@@ -183,6 +198,7 @@ bool meTypeDescriptor::FromString(DeserializeContext& ctx) const
 	{
 		return strDeserializer(*this, ctx);
 	}
+	ctx.parentType = this;
 
 	// append multiple of the inner types for arrays
 	if (thisType && TEST_BIT(flags, meTypeDescriptorFlag_ConstantArray))
@@ -347,11 +363,12 @@ bool meTypeDescriptor::FromString(DeserializeContext& ctx) const
 	{
         str = EatChars(str, '{');
         str = EatChars(str, ' ');
+		// Known number of elements in this input string
 		for (u64 i = 0; i < fields.size; i++)
         {
             const meTypeDescriptor& field = fields[i];
             ME_ASSERT(field.offsetBits % 8 == 0);
-            s32 len = EatCharsOffset(str, STRING_LIT(", "), true);
+            s32 len = EatCharsOffset(str, STRING_LIT(","), true);
             if (len == -1)
             {
                 LOG_ERROR("Failed to find delimiter for field %.*s", STRING_VAARGS(field.name));
@@ -371,14 +388,14 @@ bool meTypeDescriptor::FromString(DeserializeContext& ctx) const
         str = EatChars(str, ' ');
         str = EatChars(str, '}');
 	}
-	return false;
+	return true;
 }
 
 
 
 StringView sizedBufferSerializer(
 	const meTypeDescriptor& typedescriptor,
-	SerializeContext& ctx)
+	SerializeContext ctx)
 {
 	meSpan fieldData = ctx.data;
 	meAllocator* allocator = ctx.allocator;

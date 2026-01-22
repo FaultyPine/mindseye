@@ -7,21 +7,67 @@
 
 #define ARRAY_CHECKS (1)
 
+// dynarray size shouldn't change with different types
+STATIC_ASSERT(sizeof(DynArray<int>) == sizeof(DynArrayAny));
+STATIC_ASSERT(sizeof(DynArrayAny) == sizeof(DynArray<u64>));
+
 StringView DynArraySerializerToStringFn(
 	const meTypeDescriptor& typeDescriptor,
-	SerializeContext& ctx)
+	SerializeContext ctx)
 {
-	// BOOKMARK: do this
-
-	UNIMPLEMENTED();
-	return {};
+	const meTypeDescriptor* parentType = ctx.parentType;
+	// DynArray is templated, and so requires the parent type to understand the template args, see comment in meTypeDescriptor struct
+	ME_ASSERT(parentType);
+	meSpanTyped<meTypeDescriptor> templatedTypes = parentType->templatedTypes;
+	ME_ASSERT(templatedTypes);
+	ME_ASSERT(templatedTypes.size == 1);
+	const meTypeDescriptor& templateArg = templatedTypes[0];
+	const meSpan& dynArrayData = ctx.data;
+	DynArrayAny& arr = *(DynArrayAny*)dynArrayData.data;
+	u32 size = DynArrayGetSize(arr);
+	if (!size)
+	{
+		return {};
+	}
+	u32 stride = DynArrayGetStride(arr);
+	StringBuilder builder(ctx.allocator);
+	builder.Append(STRING_LIT("["));
+	for (u32 i = 0; i < size; i++)
+	{
+		meSpan elementSpan = meSpan(&arr[i * stride], templateArg.size);
+		SerializeContext elementCtx = ctx;
+		elementCtx.data = elementSpan;
+		StringView elementStr = templateArg.ToString(elementCtx);
+		builder.Append(elementStr);
+		if (i < (size - 1))
+		{
+			builder.Append(STRING_LIT(", "));
+		}
+	}
+	builder.Append(STRING_LIT("]"));
+	return builder;
 }
 
 bool DynArrayDeserializerFromStringFn(
 	const meTypeDescriptor& typeDescriptor,
 	DeserializeContext& ctx)
 {
-	UNIMPLEMENTED();
+	const meTypeDescriptor* parentType = ctx.parentType;
+	// DynArray is templated, and so requires the parent type to understand the template args, see comment in meTypeDescriptor struct
+	ME_ASSERT(parentType);
+	meSpanTyped<meTypeDescriptor> templatedTypes = parentType->templatedTypes;
+	ME_ASSERT(templatedTypes);
+	ME_ASSERT(templatedTypes.size == 1);
+	const meTypeDescriptor& templateArg = templatedTypes[0];
+
+	StringView str = StringView(ctx.inputData.data, ctx.inputData.size);
+	while (StringView element = meDeserializeEatUntilNextElement(str, '[', ']', ','))
+	{
+		DeserializeContext elementCtx = ctx;
+		elementCtx.inputData = element.ToSpan();
+		templateArg.FromString(elementCtx);
+	}
+	
 	return true;
 }
 
@@ -116,7 +162,7 @@ bool DynArrayPushAt(DynArray<T>& array, void* objs, u32 numObjs, u32 index)
     }
     u32 arrSize = header->size;
     u32 stride = header->stride;
-    u8* arrayMem = (u8*)array;
+    u8* arrayMem = (u8*)array.data;
 	u8* destination = arrayMem + (index * stride);
     // if inserting at a populated index, copy all elements to the right
     if (index < arrSize)
@@ -144,7 +190,7 @@ void __DynArrayPopAt(DynArray<T>& array, u32 index, void* out)
         return;
     }
 #endif
-    u8* arrayMem = (u8*)array;
+    u8* arrayMem = (u8*)array.data;
     if (out)
     {
         ME_MEMCPY(out, arrayMem + (index * stride), stride);

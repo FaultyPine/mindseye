@@ -216,8 +216,8 @@ meMeshID GenPlaneMesh(
         DynArrayPush(indices, i + 1);
     }
 
-	meSpan vertexBufferSpan = meSpan((s8*)planeverts, DynArrayGetSize(planeverts) * sizeof(glm::vec3));
-	meSpan indexBufferSpan = meSpan((s8*)indices, DynArrayGetSize(indices) * sizeof(u32));
+	meSpan vertexBufferSpan = meSpan((s8*)planeverts.data, DynArrayGetSize(planeverts) * sizeof(glm::vec3));
+	meSpan indexBufferSpan = meSpan((s8*)indices.data, DynArrayGetSize(indices) * sizeof(u32));
 	meMeshID meshHandle = meshPool.Load(vertexBufferSpan, indexBufferSpan, {}, {}, materialID, STRING_LIT("GeneratedPlaneMesh"));
 	return meshHandle;
 }
@@ -305,8 +305,8 @@ meMeshID GenSphereMesh(
     }
     //vertices.shrink_to_fit();
     //indices.shrink_to_fit();
-	meSpan vertexSpan = meSpan((s8*)vertices, DynArrayGetSize(vertices) * sizeof(*vertices));
-	meSpan indexSpan = meSpan((s8*)indices, DynArrayGetSize(indices) * sizeof(*indices));
+	meSpan vertexSpan = meSpan((s8*)vertices.data, DynArrayGetSize(vertices) * sizeof(*vertices));
+	meSpan indexSpan = meSpan((s8*)indices.data, DynArrayGetSize(indices) * sizeof(*indices));
     meMeshID result = meshPool.Load(vertexSpan, indexSpan, {}, {}, materialID, STRING_LIT("GeneratedSphereMesh"));
 	return result;
 }

@@ -56,17 +56,17 @@ struct StringBuilder
 	bool isScopedAlloc = false;
 
 	enum IsScopedAlloc : bool;
-	StringBuilder() = default;
-	StringBuilder(
+	MEAPI StringBuilder() = default;
+	MEAPI StringBuilder(
 		meAllocator* allocator, 
 		u32 initialSize = 1024,
 		IsScopedAlloc isScopedAlloc = IsScopedAlloc(false));
-	~StringBuilder();
+	MEAPI ~StringBuilder();
 
-	void SetAllocator(meAllocator* allocator) { this->allocator = allocator; }
-	void Append(StringView str);
-	s32 AppendFormat(const char* fmt, ...);
-	void Clear();
+	MEAPI void SetAllocator(meAllocator* allocator) { this->allocator = allocator; }
+	MEAPI void Append(StringView str);
+	MEAPI s32 AppendFormat(const char* fmt, ...);
+	MEAPI void Clear();
 };
 
 struct StringView

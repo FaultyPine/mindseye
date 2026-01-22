@@ -3,6 +3,7 @@
 #include "core/me_defines.h"
 #include "core/me_memory.h"
 #include "core/me_string.h"
+struct meTypeDescriptor;
 
 struct DeserializeContext
 {
@@ -13,11 +14,13 @@ struct DeserializeContext
 	// external pointer buffer, allocated inside deserialization funcs with the following allocator
 	meSpan outputDataExternal = {}; 
 	meAllocator* externalDataAllocator = {};
+	const meTypeDescriptor* parentType = {};
 };
 struct SerializeContext
 {
-	meAllocator* allocator;
-	meSpan data;
+	meAllocator* allocator = {};
+	meSpan data = {};
+	const meTypeDescriptor* parentType = {};
 };
 
 // type flags bitfield
@@ -42,13 +45,25 @@ enum meTypeDescriptorFlag_
 
 StringView meTypeDescriptorFlagToString(meTypeDescriptorFlags flag);
 
-struct meTypeDescriptor;
 typedef StringView(*SerializerToStringFn)(
 	const meTypeDescriptor& typeDescriptor,
-	SerializeContext& ctx);
+	SerializeContext ctx);
 typedef bool(*DeserializerFromStringFn)(
 	const meTypeDescriptor& typeDescriptor,
 	DeserializeContext& ctx);
+
+// each invocation of this func on a given string
+// returns one "element" of a "list" of elements
+// all elements are surrounded by an openDelim on the left 
+// and a closeDelim on the right and separated by separator
+// It returns each element and modifies the input string like an iterator,
+// keeping track of where in the list of elements we are
+// Useful when there is an unknown number of elements in a "string list"
+MEAPI StringView meDeserializeEatUntilNextElement(
+	StringView& str,
+	char openDelim,
+	char closeDelim,
+	char separator);
 
 struct meTypeDescriptor
 {
@@ -65,6 +80,17 @@ struct meTypeDescriptor
 	s32 offsetBits = 0;
 
 	meTypeDescriptor* thisType = nullptr;
+	// it's a bit funky, because if thisType is a templated type
+	// thisType *alone* is not enough to determine that is it templated
+	// What this means is if you have a field like
+	// DynArray<int> someInts;
+	// the type descriptor will look like
+	// g_templatedStuff = { DT_INT }
+	// {name = someInts, thisType = DT_DYNARRAY, templatedTypes = g_templatedStuff };
+	// so to get the full context of the "type of someInts"
+	// you can't just look at thisType
+	// The reason for this is that a meTypeDescriptor* isn't really an "instance" of a type descriptor
+	// it's a pointer to some static definition of one. So we (could, but) don't instantiate multiple DYNARRAY type descriptors per template args permutation
 	meSpanTyped<meTypeDescriptor> templatedTypes = {};
 
 	// for non-pod types, these can be assigned and will
@@ -72,8 +98,8 @@ struct meTypeDescriptor
 	SerializerToStringFn strSerializer = nullptr;
 	DeserializerFromStringFn strDeserializer = nullptr;
 
-	StringView ToString(SerializeContext& ctx) const;
-	bool FromString(DeserializeContext& ctx) const;
+	MEAPI StringView ToString(SerializeContext ctx) const;
+	MEAPI bool FromString(DeserializeContext& ctx) const;
 
 	bool operator==(const meTypeDescriptor& other) const
 	{

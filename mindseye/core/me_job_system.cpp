@@ -20,11 +20,15 @@ void meJobSystem::Initialize(meAllocator* allocator, u32 numThreads)
 			// allows us to shut down all threads when program exits by just setting numthreads to 0
             while (this->numThreads > 0) 
 			{ 
-                if (jobPool.try_dequeue(job)) 
+                while (jobPool.try_dequeue(job)) 
 				{
                     job.func();
                 }
-				// put thread to sleep here
+				// the threadlocal scratch mem is meant to be cleared when any thread isn't doing "work"
+				// for the main thread, that might be at the end of the frame. For workers, that's when there's no jobs
+				GetTLScratch()->meClear();
+				// TODO: yield or semaphore or atomic spin or something better
+				meThreadSleep(1);
             }
 
         });
