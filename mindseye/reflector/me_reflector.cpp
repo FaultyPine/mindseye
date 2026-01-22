@@ -1070,7 +1070,7 @@ bool GenerateForwardDecls(
 			if (typeRefl.strSerializerFnName)
 			{
 				// matches signature of SerializerToStringFn
-				builder.AppendFormat("StringView " STRING_FMT "(const meTypeDescriptor& typeDescriptor, meAllocator* allocator, meSpan data);\n", STRING_VAARGS(typeRefl.strSerializerFnName));
+				builder.AppendFormat("StringView " STRING_FMT "(const meTypeDescriptor& typeDescriptor, SerializeContext ctx);\n", STRING_VAARGS(typeRefl.strSerializerFnName));
 			}
 			generatedAny = true;
 		}
