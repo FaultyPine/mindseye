@@ -9,18 +9,18 @@
 #include "generatedtypes/me_asset.generated.h"
 
 #define ME_DECLARE_ASSET_TYPES \
-X(MABadData)\
-X(MAScene)\
-X(MAShader)\
-X(MAMaterial)\
-X(MAMesh)\
-X(MATexture)
+X(MABadData, "")\
+X(MAScene, "scn")\
+X(MAShader, "shd")\
+X(MAMaterial, "mat")\
+X(MAMesh, "mesh")\
+X(MATexture, "tex")
 
 #define ME_ASSET_EXTENSION ".masset"
 
-enum meAssetType : u8
+enum meAssetType
 {
-#define X(name) name,
+#define X(name, ext) name,
 ME_DECLARE_ASSET_TYPES
 #undef X
     NUM_ASSET_TYPES
@@ -30,10 +30,14 @@ constexpr static u32 MAID_ID_BITS = 48; // lower bits
 constexpr static u32 MAID_TYPE_BITS = 8; // top bits
 
 // Mindseye Asset ID
-struct MEREFLECT(type) MAID
+struct MEREFLECT(type, Serializer=MAIDSerializerToStringFn) 
+MAID
 {
-	u64 idAndType = U32_INVALID_ID;
-
+	// TODO: for shipping builds, we can pack things, or give more bits to the id
+	// for debugging, it's nice to have two separate things
+	u32 id = U32_INVALID_ID;
+	u32 type = U32_INVALID_ID;
+	
     MAID() = default;
     MAID(u64 id, meAssetType type);
 	template <meAssetType T>
@@ -42,36 +46,64 @@ struct MEREFLECT(type) MAID
 		SetType(T);
 		SetID(id);
 	}
-    bool isValid() const { return idAndType != U32_INVALID_ID; }
-    bool operator==(const MAID& other) const { return idAndType == other.idAndType; }
+    operator bool() const 
+	{
+		meAssetType type = (meAssetType)GetType();
+		return GetID() != U32_INVALID_ID && type < NUM_ASSET_TYPES && type > MABadData; 
+	}
+    bool operator==(const MAID& other) const { return GetType() == other.GetType() && GetID() == other.GetID(); }
 	inline u64 GetType() const
 	{
-		return idAndType >> MAID_ID_BITS;
+		return type;
 	}
     inline void SetType(meAssetType type)
     {
-        u64 typefull = (u64)type;
-        typefull = typefull << MAID_ID_BITS;
-        idAndType |= typefull;
+		this->type = type;
     }
 	inline u64 GetID() const
 	{
-		return idAndType & (~0 >> MAID_TYPE_BITS);
+		return id;
 	}
     inline void SetID(u64 id)
     {
-        // make sure top type bits aren't set
-        ME_ASSERT(id == (id & ~(((u64)0xff) << MAID_ID_BITS)));
-		idAndType &= (~0ull << MAID_ID_BITS); // clear all id bits
-        idAndType |= id; // set id bits
+		ME_ASSERT(id <= ME_UINT_MAX);
+		this->id = id;
     }
-    operator u64() const { return idAndType; }
+
+
+	//inline u64 GetType() const
+	//{
+	//	return idAndType >> MAID_ID_BITS;
+	//}
+ //   inline void SetType(meAssetType type)
+ //   {
+ //       u64 typefull = (u64)type;
+ //       typefull = typefull << MAID_ID_BITS;
+	//	idAndType &= (~0ull >> MAID_TYPE_BITS); // clear type bits
+ //       idAndType |= typefull;
+ //   }
+	//inline u64 GetID() const
+	//{
+	//	return idAndType & (~0ull >> MAID_TYPE_BITS);
+	//}
+ //   inline void SetID(u64 id)
+ //   {
+ //       // make sure top type bits aren't set
+ //       ME_ASSERT(id == (id & ~(((u64)0xff) << MAID_ID_BITS)));
+	//	idAndType &= (~0ull << MAID_ID_BITS); // clear all id bits
+ //       idAndType |= id; // set id bits
+ //   }
 };
 MEMAP_BEGIN_CUSTOM_HASHER(MAID, obj) 
 {
-    size_t h1 = std::hash<int>{}(obj.idAndType);
-	return h1;
+    size_t h1 = std::hash<u64>{}(obj.GetType());
+	size_t h2 = std::hash<u64>{}(obj.GetID());
+	return HashCombine(h1, h2);
 } MEMAP_END_CUSTOM_HASHER
+
+StringView MAIDSerializerToStringFn(
+	const meTypeDescriptor& typeDescriptor,
+	SerializeContext ctx);
 
 STATIC_ASSERT(sizeof(MAID) == sizeof(u64));
 constexpr MAID MAID_INVALID = {};
@@ -104,7 +136,12 @@ struct MEREFLECT(type) meAssetIdent
 	meAssetIdent(StringView diskIdent, MAID maid);
     bool operator==(const meAssetIdent& other) const 
 	{ 
-		return id == other.id && assetSourceHash == other.assetSourceHash; 
+		return id == other.id && assetSourceHash == other.assetSourceHash &&
+			((other.diskIdent.len == 0 || diskIdent.len == 0) || other.diskIdent == diskIdent);
+	}
+	operator bool() const 
+	{
+		return id;
 	}
 };
 

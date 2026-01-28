@@ -79,8 +79,54 @@ void RunEngine(EngineContext* engine)
     engine->renderer->Teardown(engine);
 }
 
+static void InitializeEngineConfig(EngineContext* engine)
+{
+	// start doing a scan from cwd
+	StringView mindseyeIniFile = STRING_LIT("mindseye.ini");
+	StringView userProjectConfigPath = meFsScanOutForFile(mindseyeIniFile);
+	if (!userProjectConfigPath)
+	{
+		// couldn't find mindseye.ini from cwd, try from exe location
+		StringView exeFolder = meOSGetExeFileFolder();
+		StringView userConfigExeFolder = StringFormatTmp("%.*s%.*s%.*s", STRING_VAARGS(exeFolder), STRING_VAARGS(meFsGetDirectorySeperator()), STRING_VAARGS(mindseyeIniFile));
+		userProjectConfigPath = meFsScanOutForFile(userConfigExeFolder);
+	}
+	if (!userProjectConfigPath)
+	{
+		LOG_ERROR("Couldn't find mindseye.ini.");
+	}
+	else
+	{
+        {
+            OSFileReference file;
+            meOSOpenFile(file, userProjectConfigPath, (OSFileFlags_OnlyIfExists | OSFileFlags_ScopedFile));
+            ScopedAllocation tmpFileContent(GetTLScratch(), meOSGetFileSize(file));
+            meOSReadFileContents(file, tmpFileContent.allocation.data, tmpFileContent.allocation.size);
+            DeserializeFromTextBlocking(TD_MEUSERCONFIG, &engine->engineArena, StringView(tmpFileContent.allocation), meSpan(&engine->userConfig, sizeof(engine->userConfig)));
+        }
+		// "userApp" referring to a program that uses the mindseye engine
+		StringView userAppConfigFile = engine->userConfig.projectRootConfigFile;
+		String userAppConfigPathAbs = meOSResolveRelativeToAbsPath(GetTLScratch(), userAppConfigFile);
+        {
+            OSFileReference file;
+            meOSOpenFile(file, userAppConfigPathAbs, (OSFileFlags_OnlyIfExists | OSFileFlags_ScopedFile));
+            ScopedAllocation tmpFileContent(GetTLScratch(), meOSGetFileSize(file));
+            meOSReadFileContents(file, tmpFileContent.allocation.data, tmpFileContent.allocation.size);
+            DeserializeFromTextBlocking(TD_MEAPPCONFIG, &engine->engineArena, StringView(tmpFileContent.allocation), meSpan(&engine->appConfig, sizeof(engine->appConfig)));
+        }
+		
+		StringView userAppDllName = StringFormatTmp("%.*s.dll", STRING_VAARGS(engine->appConfig.appName));
+		void* gameLib = LoadDynamicLibrary(userAppDllName.cstr());
+		if (!gameLib)
+		{
+			LOG_ERROR("Failed to load game library %.*s", STRING_VAARGS(userAppDllName));
+		}
+	}
+}
+
 void InitializeEngineSystems(EngineContext* engine)
 {
+	InitializeEngineConfig(engine);
 	RendererInitialize(engine);
 	meAssetInitialize(engine);
 	meSceneInitialize(engine);
@@ -119,51 +165,10 @@ void InitializeEngine(s32 argc, char** argv)
 
 	meOSSetCursorState(CAPTURED, *engine->osData);
 
-	// start doing a scan from cwd
-	StringView mindseyeIniFile = STRING_LIT("mindseye.ini");
-	StringView userProjectConfigPath = meFsScanOutForFile(mindseyeIniFile);
-	if (!userProjectConfigPath)
+	// default scene load
+	meAssetIdent sceneIdent = meAssetIdent(engine->appConfig.defaultSceneName, meAssetType::MAScene);
+	if (sceneIdent)
 	{
-		// couldn't find mindseye.ini from cwd, try from exe location
-		StringView exeFolder = meOSGetExeFileFolder();
-		StringView userConfigExeFolder = StringFormatTmp("%.*s%.*s%.*s", STRING_VAARGS(exeFolder), STRING_VAARGS(meFsGetDirectorySeperator()), STRING_VAARGS(mindseyeIniFile));
-		userProjectConfigPath = meFsScanOutForFile(userConfigExeFolder);
-	}
-	if (!userProjectConfigPath)
-	{
-		LOG_ERROR("Couldn't find mindseye.ini.");
-	}
-	else
-	{
-        {
-            OSFileReference file;
-            meOSOpenFile(file, userProjectConfigPath, (OSFileFlags_OnlyIfExists | OSFileFlags_ScopedFile));
-            ScopedAllocation tmpFileContent(GetTLScratch(), meOSGetFileSize(file));
-            meOSReadFileContents(file, tmpFileContent.allocation.data, tmpFileContent.allocation.size);
-            DeserializeFromTextBlocking(TD_MEUSERCONFIG, &engine->engineArena, StringView(tmpFileContent.allocation), meSpan(&engine->userConfig, sizeof(engine->userConfig)));
-        }
-		// "userApp" referring to a program that uses the mindseye engine
-		StringView userAppConfigFile = engine->userConfig.projectRootConfigFile;
-		String userAppConfigPathAbs = meOSResolveRelativeToAbsPath(GetTLScratch(), userAppConfigFile);
-        {
-            OSFileReference file;
-            meOSOpenFile(file, userAppConfigPathAbs, (OSFileFlags_OnlyIfExists | OSFileFlags_ScopedFile));
-            ScopedAllocation tmpFileContent(GetTLScratch(), meOSGetFileSize(file));
-            meOSReadFileContents(file, tmpFileContent.allocation.data, tmpFileContent.allocation.size);
-            DeserializeFromTextBlocking(TD_MEAPPCONFIG, &engine->engineArena, StringView(tmpFileContent.allocation), meSpan(&engine->appConfig, sizeof(engine->appConfig)));
-        }
-		StringView userAppConfigDir = msFsGetDirFromPath(userAppConfigPathAbs);
-		meAssetSetResourceDir(userAppConfigDir);
-		
-		StringView userAppDllName = StringFormatTmp("%.*s.dll", STRING_VAARGS(engine->appConfig.appName));
-		void* gameLib = LoadDynamicLibrary(userAppDllName.cstr());
-		if (!gameLib)
-		{
-			LOG_ERROR("Failed to load game library %.*s", STRING_VAARGS(userAppDllName));
-		}
-
-		// default scene load
-		meAssetIdent sceneIdent = meAssetIdent(engine->appConfig.defaultSceneName, meAssetType::MAScene);
 		auto onSceneLoad = +[](const meAsset& asset)
 		{
 			meScene& loadedSceneData = meScenePoolGet().Get(asset.runtimeHandle);
@@ -172,7 +177,7 @@ void InitializeEngine(s32 argc, char** argv)
 		};
 		meAssetRequestLoad(&sceneIdent, 1, onSceneLoad);
 	}
-
+	
     engine->appCallbacks.initFn(engine);
     RunEngine(engine);
 	engine->appCallbacks.shutdownFn(engine);

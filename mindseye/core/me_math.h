@@ -98,6 +98,12 @@ T PercentOf(T x, u32 percentOutOf100)
     return (x * percentOutOf100) / 100;
 }
 
+template<typename T>
+T Abs(T n)
+{
+	return (n < 0) ? -n : n;
+}
+
 }
 
 

@@ -21,7 +21,6 @@ meScene
 	meCamera mainCamera = {};
 
 	DynArray<EntityRef> entities = {};
-	EntityRef testEntity = {};
 };
 
 struct meSceneManager

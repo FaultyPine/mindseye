@@ -133,6 +133,9 @@ StringView STRING_LIT(const char (&strlit)[N]) { return StringView{(char*)strlit
 #define STRING_VAARGS(str) (s32)str.len, str.data
 #define STRING_FMT "%.*s"
 
+bool IsWhitespace(char c);
+bool IsDigit(char c);
+
 MEAPI bool StringCopy(
 	StringView dst, 
 	StringView src);

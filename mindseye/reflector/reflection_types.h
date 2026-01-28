@@ -14,12 +14,17 @@ struct DeserializeContext
 	// external pointer buffer, allocated inside deserialization funcs with the following allocator
 	meSpan outputDataExternal = {}; 
 	meAllocator* externalDataAllocator = {};
+	// for templated types, this is can be used to get the template params
 	const meTypeDescriptor* parentType = {};
 };
+
 struct SerializeContext
 {
+	// serializing funcs should allocate the string/extra data using this
 	meAllocator* allocator = {};
+	// buffer that should be serialized
 	meSpan data = {};
+	// for templated types, this is can be used to get the template params
 	const meTypeDescriptor* parentType = {};
 };
 

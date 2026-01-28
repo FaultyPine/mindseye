@@ -1057,11 +1057,6 @@ bool GenerateForwardDecls(
 				}				
 			}
 			builder.AppendFormat("extern meTypeDescriptor TD_%.*s;\n", STRING_VAARGS(uppercaseName));
-			if (typeRefl.strSerializerFnName.len > 0 != typeRefl.strDeserializerFnName.len > 0)
-			{
-				LOG_ERROR("Bad serializer setup: If we have a serializer, we should also have a deserializer " STRING_FMT, STRING_VAARGS(typeRefl.name));
-				ME_ASSERT(false);
-			}
 			if (typeRefl.strDeserializerFnName)
 			{
 				// matches signature of DeserializerFromStringFn

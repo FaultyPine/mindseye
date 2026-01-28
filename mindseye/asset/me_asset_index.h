@@ -6,12 +6,14 @@
 
 struct meAssetIndex
 {
-	meMap<MAID, StringView> filesystemPaths = {};
+	meMap<MAID, StringView> assetToPathMap = {};
+	meMap<StringView, MAID> pathToAssetsMap = {};
 };
 
 StringView meAssetIndexGetFilesystemPath(
 	const MAID& maid);
 
-
+MAID meAssetIndexGetMAIDFromPath(
+	const StringView& path);
 
 void meAssetIndexInitialize(EngineContext* engine);

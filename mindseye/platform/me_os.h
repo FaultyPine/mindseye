@@ -177,4 +177,5 @@ struct OSFileReference
 		ME_ASSERT(path[str.len] == '\0');
 	}
 	bool HasOpenFile() const { return reinterpret_cast<s64>(fileHandle) != -1; }
+	StringView GetPath() const { return StringFromCString(path); }
 };

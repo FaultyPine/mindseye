@@ -10,8 +10,8 @@ meSerializeResult SerializeToTextBlocking(
     StringView& outResult)
 {
 	StringBuilder sb(allocator);
-	sb.AppendFormat("version= %d\n", typeDesc.version);
-	sb.AppendFormat("type= %s\n", (const char*)typeDesc.name.data);
+	sb.AppendFormat("version = %d\n", typeDesc.version);
+	sb.AppendFormat("type = %s\n", (const char*)typeDesc.name.data);
 	char* typeData = (char*)data;
 	for (u64 i = 0; i < typeDesc.fields.size; i++)
 	{
@@ -30,7 +30,7 @@ meSerializeResult SerializeToTextBlocking(
 		ctx.allocator = GetTLScratch();
 		ctx.data = fieldData;
 		StringView fieldStr = field.ToString(ctx);
-		sb.AppendFormat("%s= %.*s\n", (const char*)field.name.cstr(), STRING_VAARGS(fieldStr));
+		sb.AppendFormat("%s = %.*s\n", (const char*)field.name.cstr(), STRING_VAARGS(fieldStr));
 	}
 	// stringbuilders don't own their data, so it's safe to return the data pointer
 	outResult = sb;

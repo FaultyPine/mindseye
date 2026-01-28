@@ -14,6 +14,7 @@ enum EntityFlags_
 	EntityFlags_Invalid = 1,
     EntityFlags_DISABLED,
 	EntityFlags_HIDDEN,
+	EntityFlags_NoSer, // runtime-only entity
 
     EntityFlags_NUM_ENTITY_FLAGS,
 };

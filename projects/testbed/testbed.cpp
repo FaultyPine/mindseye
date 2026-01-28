@@ -6,21 +6,13 @@
 #include "mindseye/render/me_mesh.h"
 #include "mindseye/scene/me_transform.h"
 
-struct GameGlobals
-{
-	bool initialized = false;
-	//EntityRef testEntity;
-	bool IsValid() const { return initialized; }
-};
-
 void testbed_onsceneload(EngineContext* engine)
 {
     //GameGlobals& globals = *MENEW(&engine->gameArena, GameGlobals);
-	EntityRef& testEntity = engine->sceneSystem->CurrentScene().testEntity;
-	testEntity = Entity::CreateEntity(STRING_LIT("bruh"), meTransform());
+	EntityRef testEntity = Entity::CreateEntity(STRING_LIT("bruh"), meTransform());
 	DynArrayPush(engine->sceneSystem->CurrentScene().entities, testEntity);
 	EntityData& entity = Entity::GetEntity(testEntity);
-	// Entity::SetFlag(entity, EntityFlags_HIDDEN, true);
+	//Entity::SetFlag(entity, EntityFlags_NoSer, true);
 	entity.mesh = meAsset(GenPlaneMesh(2));
 }
 

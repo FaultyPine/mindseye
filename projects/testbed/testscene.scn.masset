@@ -1,6 +1,0 @@
-type=meScene
-version=0
-
-
-[meScene]
-externalScenePath=gltf-samples/Models/BarramundiFish/glTF/BarramundiFish.gltf

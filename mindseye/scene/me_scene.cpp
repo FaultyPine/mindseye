@@ -97,13 +97,19 @@ struct meSceneAssetLoader : public meAssetLoader
 		}
 		if (success)
 		{
+			// TODO: individual loaders need to set the id after deserializing, but this should be generic for all loaders
+			asset.ident.id.SetID(outScene.header.id.GetID());
 			if (FindInString(outScene.externalScenePath, STRING_LIT(".gltf")) != -1 ||
 				FindInString(outScene.externalScenePath, STRING_LIT(".glb")) != -1)
 			{
 				meScenePoolGet().Load(asset.ident, sceneAllocator, outScene.externalScenePath, outScene);
 			}
 		}
-		asset.loadStage = Loaded;
+		else
+		{
+			LOG_WARN("Failed to load scene " STRING_FMT, STRING_VAARGS(asset.ident.diskIdent));
+		}
+		asset.loadStage = success ? Loaded : Unloaded;
 	}
 
 	virtual void meAssetWrite(meAsset& asset) override

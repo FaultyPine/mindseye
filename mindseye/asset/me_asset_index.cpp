@@ -12,19 +12,77 @@ StringView meAssetIndexGetFilesystemPath(
 	const MAID& maid)
 {
 	meAssetIndex& assetIndex = meAssetIndexGet();
-	auto it = assetIndex.filesystemPaths.find(maid);
-	if (it != assetIndex.filesystemPaths.end())
+	auto it = assetIndex.assetToPathMap.find(maid);
+	if (it != assetIndex.assetToPathMap.end())
 	{
 		return it->second;
 	}
 	return {};
 }
 
+MAID meAssetIndexGetMAIDFromPath(
+	const StringView& path)
+{
+	meAssetIndex& assetIndex = meAssetIndexGet();
+	auto it = assetIndex.pathToAssetsMap.find(path);
+	if (it != assetIndex.pathToAssetsMap.end())
+	{
+		return it->second;
+	}
+	return {};
+}
+
+StringView assetTypeFileExtensions[] =
+{
+	#define X(name, ext) STRING_LIT(ext),
+	ME_DECLARE_ASSET_TYPES
+	#undef X
+};
+
+meAssetType MapFileOrPathToAssetType(StringView path)
+{
+	StringView filename = meFsGetFileFromFullPath(path);
+	s32 commonExt = FindInStringRev(filename, STRING_LIT(ME_ASSET_EXTENSION));
+	s32 idx = FindInStringRev(filename, STRING_LIT("."), 
+							  commonExt != -1 ? (filename.len - commonExt) : 0, StringOpFlags_IdxAfterNeedle);
+	if (idx != -1)
+	{
+		StringView extension = filename.OffsetView(idx, commonExt != -1 ? Math::Abs(commonExt - idx) : ME_INT_MAX);
+		for (u32 type = MABadData; type < NUM_ASSET_TYPES; type++)
+		{
+			StringView typeExt = assetTypeFileExtensions[type];
+			if (StringCompare(extension, typeExt))
+			{
+				return meAssetType(type);
+			}
+		}
+	}
+	return MABadData;
+}
+
+// TODO: async process & join at end
 void OnFoundAssetFile(
 	meAssetIndex& assetIndex,
 	const OSFileReference& file)
 {
-
+	StringView filepath = file.GetPath();
+	meAssetType type = MapFileOrPathToAssetType(filepath);
+	meAssetIdent fileIdent = meAssetIdent(filepath, type);
+	// TODO: we don't need to fully load here
+	// it would make more sense to only deserialize here, and leave
+	// the "next" phases of loading for later
+	meAssetRequestLoad(&fileIdent); 
+	meAssetWaitUntilLoadstage(meSpanTyped<meAssetIdent>(&fileIdent, 1), Loaded);
+	if (meAsset* asset = meAssetTryGet(fileIdent))
+	{
+		const meAssetIdent& loadedIdent = asset->ident;
+		assetIndex.assetToPathMap[loadedIdent.id] = loadedIdent.diskIdent;
+		assetIndex.pathToAssetsMap[loadedIdent.diskIdent] = loadedIdent.id;
+	}
+	else
+	{
+		LOG_WARN("Tried to load " STRING_FMT " for asset index but failed", filepath);
+	}
 }
 
 
@@ -41,9 +99,11 @@ void meAssetIndexInitialize(EngineContext* engine)
 	OSFileReference assetIndexFile = {};
 	assetIndexFile.InitWithoutOpening(assetIndexFilePath);
 	bool didExist = meOSFileExists(assetIndexFile);
+	// TODO: load asset index from cache
+	didExist = false; // TMP
 	if (didExist)
 	{
-		// TODO: load asset index from cache
+		UNIMPLEMENTED();
 	}
 	else
 	{
@@ -57,7 +117,7 @@ void meAssetIndexInitialize(EngineContext* engine)
 		{
 			LOG_ERROR("Failed to discover all data files from data dir " STRING_FMT, STRING_VAARGS(dataDir));
 		}
-
+		u32 numAssetsDiscovered = 0;
 		// discover asset files
 		for (DynArray_Foreach(dataFiles, i))
 		{
@@ -70,8 +130,10 @@ void meAssetIndexInitialize(EngineContext* engine)
 			if (FindInString(filename, STRING_LIT(ME_ASSET_EXTENSION)) != -1)
 			{
 				OnFoundAssetFile(assetIndex, file);
+				numAssetsDiscovered++;
 			}
 		}
+		LOG_INFO("[AssetIndex] Discovered %d assets", numAssetsDiscovered);
 	}
 }
 

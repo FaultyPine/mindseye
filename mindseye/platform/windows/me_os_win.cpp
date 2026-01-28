@@ -455,8 +455,12 @@ StringView meOSGetWorkingDir()
 			// path is too long for the buffer
 			ME_ASSERT(false && "working dir is more than PATH_MAX characters");
 		}
+		StringView result = StringFromCString(workingDirBuffer, PATH_MAX);
+		meFsNormalizePathSeperators(result);
+		return result;
 	}
-	return StringView(workingDirBuffer, CStringLength(workingDirBuffer));
+	StringView result = StringFromCString(workingDirBuffer, PATH_MAX);
+	return result;
 }
 
 BOOL DirectoryExists(const char* dirPath) {

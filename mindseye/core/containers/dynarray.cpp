@@ -25,10 +25,6 @@ StringView DynArraySerializerToStringFn(
 	const meSpan& dynArrayData = ctx.data;
 	DynArrayAny& arr = *(DynArrayAny*)dynArrayData.data;
 	u32 size = DynArrayGetSize(arr);
-	if (!size)
-	{
-		return {};
-	}
 	u32 stride = DynArrayGetStride(arr);
 	StringBuilder builder(ctx.allocator);
 	builder.Append(STRING_LIT("["));
@@ -215,8 +211,11 @@ void __DynArrayPop(DynArray<T>& array, void* out)
 template<typename T>
 void DynArrayClear(DynArray<T>& array)
 {
-    DynArrayHeader* header = GetHeaderPointer(array);
-    header->size = 0;
+	if (array)
+	{
+		DynArrayHeader* header = GetHeaderPointer(array);
+		header->size = 0;
+	}
 }
 
 // ===== Get header info ======
@@ -235,6 +234,10 @@ u32 DynArrayGetSize(const DynArray<T>& array)
 template<typename T>
 u32 DynArrayGetCapacity(const DynArray<T>& array)
 {
+	if (!array)
+	{
+		return 0;
+	}
     DynArrayHeader* headerPtr = GetHeaderPointer(array);
     return headerPtr->capacity;
 }
@@ -242,6 +245,10 @@ u32 DynArrayGetCapacity(const DynArray<T>& array)
 template<typename T>
 u32 DynArrayGetStride(const DynArray<T>& array)
 {
+	if (!array)
+	{
+		return 0;
+	}
     DynArrayHeader* headerPtr = GetHeaderPointer(array);
     return headerPtr->stride;
 }
@@ -249,6 +256,10 @@ u32 DynArrayGetStride(const DynArray<T>& array)
 template<typename T>
 meAllocator* DynArrayGetAllocator(const DynArray<T>& array)
 {
+	if (!array)
+	{
+		return nullptr;
+	}
     DynArrayHeader* headerPtr = GetHeaderPointer(array);
     return headerPtr->allocator;
 }

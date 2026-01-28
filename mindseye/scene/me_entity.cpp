@@ -15,6 +15,10 @@ StringView EntityRefSerializerToStringFn(
 	{
 		return STRING_LIT("INVALID_ENTITY");
 	}
+	if (TEST_BIT(entity.flags, EntityFlags_NoSer))
+	{
+		return {};
+	}
 	meSpan entitySpan = SPAN_FROM(entity);
 	SerializeContext entityCtx = ctx;
 	entityCtx.data = entitySpan;

@@ -47,10 +47,75 @@ StringView meDeserializeEatUntilNextElement(
 	char closeDelim,
 	char separator)
 {
-	// BOOKMARK:
-	u32 stack = 1;
-	UNIMPLEMENTED();
-	return {};
+	// Skip leading whitespace
+	while (str.len > 0 && IsWhitespace(str.data[0]))
+	{
+		str = str.OffsetView(1);
+	}
+	// If we're at the opening delimiter, skip it
+	if (str.len > 0 && str.data[0] == openDelim)
+	{
+		str = str.OffsetView(1);
+		while (str.len > 0 && IsWhitespace(str.data[0]))
+		{
+			str = str.OffsetView(1);
+		}
+	}
+	// If empty or at closing delimiter
+	if (str.len == 0 || str.data[0] == closeDelim)
+	{
+		return {};
+	}
+	// Find the end of this element
+	u32 depth = 0;
+	u32 elementEnd = 0;
+	bool foundEnd = false;
+	for (u32 i = 0; i < str.len; i++)
+	{
+		char c = str.data[i];
+		if (c == openDelim)
+		{
+			depth++;
+		}
+		else if (c == closeDelim)
+		{
+			if (depth == 0)
+			{
+				// We've reached the end of the entire list
+				elementEnd = i;
+				foundEnd = true;
+				break;
+			}
+			depth--;
+		}
+		else if (c == separator && depth == 0)
+		{
+			// Found separator at top level - this is the end of the current element
+			elementEnd = i;
+			foundEnd = true;
+			break;
+		}
+	}
+	// no delimiter found, take rest of string
+	if (!foundEnd)
+	{
+		elementEnd = str.len;
+	}
+	// Extract the element
+	u32 trimmedEnd = elementEnd;
+	while (trimmedEnd > 0 && IsWhitespace(str.data[trimmedEnd-1]))
+	{
+		trimmedEnd--;
+	}
+	StringView element = str.OffsetView(0, trimmedEnd);
+	// Update str to point past the element and separator
+	str = str.OffsetView(elementEnd);
+	// Skip the separator if present
+	if (str.len > 0 && str.data[0] == separator)
+	{
+		str = str.OffsetView(1);
+	}
+	return element;
 }
 
 StringView meTypeDescriptor::ToString(SerializeContext ctx) const
@@ -171,11 +236,14 @@ StringView meTypeDescriptor::ToString(SerializeContext ctx) const
 			SerializeContext newCtx = ctx;
 			newCtx.data = nextField;
             StringView stringedField = field.ToString(newCtx);
-            builder.Append(stringedField);
-            if (i != fields.size - 1)
-            {
-                builder.Append(STRING_LIT(", "));
-            }
+			if (stringedField)
+			{
+				builder.Append(stringedField);
+				if (i != fields.size - 1)
+				{
+					builder.Append(STRING_LIT(", "));
+				}
+			}
         }
         builder.Append(STRING_LIT(" }"));
 	}
@@ -379,8 +447,8 @@ bool meTypeDescriptor::FromString(DeserializeContext& ctx) const
             fieldCtx.outputData = meSpan(ctx.outputData.data + (field.offsetBits / 8), field.size);
             if (!field.FromString(fieldCtx))
             {
-                LOG_ERROR("Failed to deserialize field %.*s", STRING_VAARGS(field.name));
-                return false;
+				// TODO: differentiating errors from non-error situations would be good...
+                continue;
             }
             str = StringView(fieldCtx.inputData);
             str = EatChars(str, STRING_LIT(", "));

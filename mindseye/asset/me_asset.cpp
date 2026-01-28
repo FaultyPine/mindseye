@@ -9,7 +9,7 @@
 
 MEEVENT_DECLARE_STATIC(registerAssetLoader);
 
-static bool MEASSET_DEBUG_SINGLETHREADED_LOAD = 0;
+static bool MEASSET_DEBUG_SINGLETHREADED_LOAD = 1;
 constexpr u32 NUM_ASSET_COMPILER_THREADS = 1;
 
 meAssetSystem& meAssetSystemGet()
@@ -17,13 +17,44 @@ meAssetSystem& meAssetSystemGet()
 	return *GetEngineCtx()->assetSystem;
 }
 
+StringView MAIDSerializerToStringFn(
+	const meTypeDescriptor& typeDescriptor,
+	SerializeContext ctx)
+{
+	MAID* maid = (MAID*)ctx.data;
+	StringBuilder builder = StringBuilder(ctx.allocator);
+	// we don't serialize the asset type because it's implicit
+	builder.AppendFormat("%llu", maid->GetID());
+	return builder;
+}
+
+StringView meAssetGetProjectRootResourceDir(EngineContext* engine)
+{
+	StringView userAppConfigFile = engine->userConfig.projectRootConfigFile;
+	if (userAppConfigFile)
+	{
+		String userAppConfigPathAbs = meOSResolveRelativeToAbsPath(GetTLScratch(), userAppConfigFile);
+		StringView userAppConfigDir = msFsGetDirFromPath(userAppConfigPathAbs);
+		return userAppConfigDir;
+	}
+	return {};
+}
+
 void meAssetInitialize(EngineContext* engine)
 {
     engine->assetSystem = MENEW(&engine->engineArena, meAssetSystem);
 	engine->assetSystem->assetRegistry.reserve(500);
     const CommandLineArgs& cmdline = GetCommandLineArgs();
-	StringView cmdlineResDir = StringView(cmdline.ResourceDir, CStringLength(cmdline.ResourceDir));
-    meAssetSetResourceDir(cmdline.hasResourceDir ? cmdlineResDir : meOSGetWorkingDir());
+	if (cmdline.hasResourceDir)
+	{
+		StringView cmdlineResDir = StringView(cmdline.ResourceDir, CStringLength(cmdline.ResourceDir));
+		meAssetSetResourceDir(cmdlineResDir);
+	}
+	else
+	{
+		StringView rootResDir = meAssetGetProjectRootResourceDir(engine);
+		meAssetSetResourceDir(rootResDir ? rootResDir : meOSGetWorkingDir());
+	}
 	engine->assetSystem->assetCompilerJobs.Initialize(&engine->engineArena, NUM_ASSET_COMPILER_THREADS);
 	registerAssetLoader( meEventPayload{ &engine->engineArena });
 }
@@ -59,15 +90,13 @@ MAID::MAID(u64 id, meAssetType type)
 
 meAssetIdent::meAssetIdent(StringView diskIdent, meAssetType type)
 {
-    this->diskIdent = diskIdent;
-    u32 identID = HashBytes((u8*)diskIdent.data, diskIdent.len);
-	// NOTE: maid takes a 48 bit identifier. Currently passing a 32 bit hash, so 16 of our id bits aren't used...
-	this->id = diskIdent ? MAID(identID, type) : MAID{};
+    this->diskIdent = meAssetResource(diskIdent);
+	id.SetType(type);
 }
 
 meAssetIdent::meAssetIdent(StringView diskIdent, MAID maid)
 {
-	this->diskIdent = diskIdent;
+	this->diskIdent = meAssetResource(diskIdent);
 	this->id = maid;
 }
 
@@ -133,6 +162,7 @@ meJobId meAssetRequestLoad(
 				meAsset* asset = meAssetTryGet(jobData.ident);
 				ME_ASSERT(asset);
 				jobData.loader->meAssetLoad(*asset);
+				ME_ASSERT(asset->ident);
 				ME_ASSERT(asset->loadStage == Loaded && asset->runtimeHandle);
 				if (jobData.cb)
 				{
@@ -262,6 +292,10 @@ StringView meAssetGetResourceDir()
 
 StringView meAssetResource(StringView resourcePath)
 {
+	if (!resourcePath)
+	{
+		return {};
+	}
 	meFsNormalizePathSeperators(resourcePath);
 	StringView result = resourcePath;
 	if (FindInString(resourcePath, meAssetGetResourceDir()) == -1)
