@@ -97,24 +97,12 @@ static void InitializeEngineConfig(EngineContext* engine)
 	}
 	else
 	{
-        {
-            OSFileReference file;
-            meOSOpenFile(file, userProjectConfigPath, (OSFileFlags_OnlyIfExists | OSFileFlags_ScopedFile));
-            ScopedAllocation tmpFileContent(GetTLScratch(), meOSGetFileSize(file));
-            meOSReadFileContents(file, tmpFileContent.allocation.data, tmpFileContent.allocation.size);
-            DeserializeFromTextBlocking(TD_MEUSERCONFIG, &engine->engineArena, StringView(tmpFileContent.allocation), meSpan(&engine->userConfig, sizeof(engine->userConfig)));
-        }
+		SerializeFromFile(userProjectConfigPath, &engine->engineArena, TD_MEUSERCONFIG, meSpan(&engine->userConfig, sizeof(engine->userConfig)));
 		// "userApp" referring to a program that uses the mindseye engine
 		StringView userAppConfigFile = engine->userConfig.projectRootConfigFile;
 		String userAppConfigPathAbs = meOSResolveRelativeToAbsPath(GetTLScratch(), userAppConfigFile);
-        {
-            OSFileReference file;
-            meOSOpenFile(file, userAppConfigPathAbs, (OSFileFlags_OnlyIfExists | OSFileFlags_ScopedFile));
-            ScopedAllocation tmpFileContent(GetTLScratch(), meOSGetFileSize(file));
-            meOSReadFileContents(file, tmpFileContent.allocation.data, tmpFileContent.allocation.size);
-            DeserializeFromTextBlocking(TD_MEAPPCONFIG, &engine->engineArena, StringView(tmpFileContent.allocation), meSpan(&engine->appConfig, sizeof(engine->appConfig)));
-        }
-		
+		SerializeFromFile(userAppConfigPathAbs, &engine->engineArena, TD_MEAPPCONFIG, meSpan(&engine->appConfig, sizeof(engine->appConfig)));
+
 		StringView userAppDllName = StringFormatTmp("%.*s.dll", STRING_VAARGS(engine->appConfig.appName));
 		void* gameLib = LoadDynamicLibrary(userAppDllName.cstr());
 		if (!gameLib)
@@ -166,7 +154,7 @@ void InitializeEngine(s32 argc, char** argv)
 	meOSSetCursorState(CAPTURED, *engine->osData);
 
 	// default scene load
-	meAssetIdent sceneIdent = meAssetIdent(engine->appConfig.defaultSceneName, meAssetType::MAScene);
+	meAssetIdent sceneIdent = meAssetGetIdentFromPath(engine->appConfig.defaultSceneName);
 	if (sceneIdent)
 	{
 		auto onSceneLoad = +[](const meAsset& asset)

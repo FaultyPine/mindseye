@@ -23,6 +23,10 @@ StringView meAssetIndexGetFilesystemPath(
 MAID meAssetIndexGetMAIDFromPath(
 	const StringView& path)
 {
+	if (!path)
+	{
+		return {};
+	}
 	meAssetIndex& assetIndex = meAssetIndexGet();
 	auto it = assetIndex.pathToAssetsMap.find(path);
 	if (it != assetIndex.pathToAssetsMap.end())
@@ -67,17 +71,20 @@ void OnFoundAssetFile(
 {
 	StringView filepath = file.GetPath();
 	meAssetType type = MapFileOrPathToAssetType(filepath);
-	meAssetIdent fileIdent = meAssetIdent(filepath, type);
-	// TODO: we don't need to fully load here
-	// it would make more sense to only deserialize here, and leave
-	// the "next" phases of loading for later
-	meAssetRequestLoad(&fileIdent); 
-	meAssetWaitUntilLoadstage(meSpanTyped<meAssetIdent>(&fileIdent, 1), Loaded);
-	if (meAsset* asset = meAssetTryGet(fileIdent))
+	meAssetIdent fileIdent = {};
+	fileIdent.diskIdent = filepath;
+	fileIdent.id.SetType(type);
+	StringView assetPath = meAssetGetAbsPathForResource(filepath);
+	// BOOKMARK: i just need the MAID id out of this... how to get it
+	// Should i bite the bullet and implement "arbitrary asset type serialize"
+	// I.E. a mapping between meAssetType and the typedescriptor?
+	// or just find a way to get the id out of it?
+	meSerializeResult result = SerializeFromFile(assetPath, GetTLScratch(), TD_MESCENE, SPAN_FROM(fileIdent.id));
+	if (result == meSerializeResult::SER_SUCCESS)
 	{
-		const meAssetIdent& loadedIdent = asset->ident;
-		assetIndex.assetToPathMap[loadedIdent.id] = loadedIdent.diskIdent;
-		assetIndex.pathToAssetsMap[loadedIdent.diskIdent] = loadedIdent.id;
+		fileIdent.assetUniqueIdentifier = result.serializedUniqueIdentifier;
+		assetIndex.assetToPathMap[fileIdent.id] = filepath;
+		assetIndex.pathToAssetsMap[filepath] = fileIdent.id;
 	}
 	else
 	{

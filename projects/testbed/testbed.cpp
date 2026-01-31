@@ -9,10 +9,10 @@
 void testbed_onsceneload(EngineContext* engine)
 {
     //GameGlobals& globals = *MENEW(&engine->gameArena, GameGlobals);
-	EntityRef testEntity = Entity::CreateEntity(STRING_LIT("bruh"), meTransform());
+	EntityRef testEntity = Entity::CreateEntity(STRING_LIT("bruh"), meTransform(glm::vec3(5.0, 0.0, 0.0)));
 	DynArrayPush(engine->sceneSystem->CurrentScene().entities, testEntity);
 	EntityData& entity = Entity::GetEntity(testEntity);
-	//Entity::SetFlag(entity, EntityFlags_NoSer, true);
+	Entity::SetFlag(entity, EntityFlags_NoSer, true);
 	entity.mesh = meAsset(GenPlaneMesh(2));
 }
 

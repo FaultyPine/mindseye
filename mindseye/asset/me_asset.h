@@ -5,6 +5,7 @@
 #include "core/thread/me_rw_lock.h"
 #include "core/me_job_system.h"
 #include "core/me_event.h"
+#include "core/containers/me_array.h"
 
 #include "generatedtypes/me_asset.generated.h"
 
@@ -52,9 +53,10 @@ MAID
 		return GetID() != U32_INVALID_ID && type < NUM_ASSET_TYPES && type > MABadData; 
 	}
     bool operator==(const MAID& other) const { return GetType() == other.GetType() && GetID() == other.GetID(); }
-	inline u64 GetType() const
+	inline meAssetType GetType() const
 	{
-		return type;
+		ME_ASSERT(type < NUM_ASSET_TYPES);
+		return (meAssetType)type;
 	}
     inline void SetType(meAssetType type)
     {
@@ -129,14 +131,13 @@ struct MEREFLECT(type) meAssetIdent
 {
     MAID id = MAID_INVALID;
 	MEREFLECT(exclude) String diskIdent = {};
-	// TODO: hash the source when loading it from disk
-	MEREFLECT(exclude) u32 assetSourceHash = 0; // including the hash in the serialized asset itself would mean a change to asset A requires updating all assets that depend on it, which we don't want
+	// treated opaquely as a identifier for a single verion of a single asset
+	// could be a hash, timestamp, or something else
+	MEREFLECT(exclude) u32 assetUniqueIdentifier = 0;
     meAssetIdent() = default;
-    meAssetIdent(StringView diskIdent, meAssetType type);
-	meAssetIdent(StringView diskIdent, MAID maid);
     bool operator==(const meAssetIdent& other) const 
 	{ 
-		return id == other.id && assetSourceHash == other.assetSourceHash &&
+		return id == other.id && assetUniqueIdentifier == other.assetUniqueIdentifier &&
 			((other.diskIdent.len == 0 || diskIdent.len == 0) || other.diskIdent == diskIdent);
 	}
 	operator bool() const 
@@ -148,7 +149,7 @@ struct MEREFLECT(type) meAssetIdent
 MEMAP_BEGIN_CUSTOM_HASHER(meAssetIdent, ident) 
 {
     size_t h1 = std::hash<MAID>{}(ident.id);
-    size_t h2 = std::hash<u32>{}(ident.assetSourceHash);
+    size_t h2 = std::hash<u32>{}(ident.assetUniqueIdentifier);
 	return HashCombine(h1, h2);
 } MEMAP_END_CUSTOM_HASHER
 
@@ -204,6 +205,7 @@ struct meAssetLoader
 	// additionally in order to do the above, there should be a "generic" way to access
 	// each asset's resourcepool by just the meAssetType
 	// instead of bespoke pointers in the EngineContext, there should be a list NUM_ASSET_TYPES large of meResourcePool* base classes
+	// TODO: put the resourcepool in this struct!
 
     // called on asset threads
     virtual void meAssetLoad(meAsset&) = 0;
@@ -221,7 +223,7 @@ struct meAssetSystem
 	RWLock assetRegistryLock = {};
     meMap<meAssetIdent, meAsset> assetRegistry = {};
     // meAssetType -> loader
-    meAssetLoader* assetLoaders[NUM_ASSET_TYPES] = {};
+    meArray<meAssetLoader*, NUM_ASSET_TYPES> assetLoaders = {};
 	meJobSystem assetCompilerJobs = {}; // TODO: replace this with a unified job system which should have multiple "queue" types
     meEvent assetBeginLoadingEvent = {};
     meEvent assetFinishedLoadingEvent = {};
@@ -238,6 +240,9 @@ void meAssetRegisterLoader(meAssetLoader* loader, meAssetType type);
 void meAssetCreateNew(
 	StringView filename,
 	meAssetType type);
+
+meAssetIdent meAssetGetIdentFromPath(
+	StringView path);
 
 typedef void(*meAssetOnAssetLoadCb)(const meAsset&);
 
@@ -264,4 +269,8 @@ StringView meAssetGetResourceDir();
 // returns a short-lived string. This should only be used for "scratch" operations. If you need to store this string long-term,
 // copy it, or use something else
 // NOTE: allocates a temporary buffer
-StringView meAssetResource(StringView resourcePath);
+StringView meAssetGetAbsPathForResource(StringView resourcePath);
+// does the opposite of the above func
+// takes an abs path on disk and converts it to be relative to the "data directory"
+// NOTE: allocates and returns a temporary buffer
+StringView meAssetGetRelPathForResource(StringView resourcePath);

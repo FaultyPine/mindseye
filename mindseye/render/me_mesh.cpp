@@ -10,7 +10,9 @@ void meMeshInitialize(EngineContext* engine)
 	meMesh defaultBadDataMesh = {};
 	defaultBadDataMesh.name = StringFromCString("BadDataMesh");
 	// TODO: cube?
-	engine->meshSystem->badData = defaultBadDataMesh;
+	meMeshID defaultMesh = GenPlaneMesh(2);
+	// we technically are "leaking" the default mesh id here.
+	engine->meshSystem->badData = meMeshPoolGet().Get(defaultMesh);
 }
 
 meMeshPool& meMeshPoolGet()

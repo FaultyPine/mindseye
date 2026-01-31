@@ -65,8 +65,8 @@ struct BgfxCallback : public bgfx::CallbackI
 		BX_UNUSED(_filePath, _line);
 
 		// Something unexpected happened, inform user and bail out.
-		bx::debugPrintf("Fatal error: 0x%08x: %s", _code, _str);
-
+		bx::debugPrintf("Fatal error: 0x%08x: %s\n", _code, _str);
+		ME_ASSERT(false);
 		// Must terminate, continuing will cause crash anyway.
 		abort();
 	}
@@ -146,7 +146,7 @@ void BgfxRendererBackend::Initialize(EngineContext* engine)
     bgfx::setDebug(BGFX_DEBUG_TEXT);
     bgfx::setViewClear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x443355FF, 1.0f, 0);
     bgfx::setViewRect(0, 0, 0, init.resolution.width, init.resolution.height);
-	ddInit(); // uses malloc/free for debugdraw
+	ddInit(); // TODO: uses malloc/free for debugdraw, override with my own stuff
     imguiCreate();
 	bgfx::touch(0);
 	bgfx::frame();

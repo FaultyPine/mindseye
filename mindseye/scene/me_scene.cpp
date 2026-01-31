@@ -15,7 +15,8 @@ void meSceneInitialize(EngineContext* engine)
 	engine->sceneSystem = MENEW(&engine->engineArena, meSceneManager);
 
 	engine->scenePool = MENEW(&engine->engineArena, meScenePool, &engine->engineArena, &engine->engineArena);
-	engine->scenePool->badData = {}; // TODO
+	meScene& badScene = engine->scenePool->badData;
+	badScene.entities = DynArrayCreate<EntityRef>(&engine->engineArena); // normally scene stuff is allocated in the scene allocator, this is an exception because it's BadData
 }
 
 meScenePool& meScenePoolGet()
@@ -45,7 +46,7 @@ void meSceneManager::ChangeCurrentScene(StringView filename)
 		return;
 	}
 	UnloadCurrentScene();
-	meAssetIdent sceneIdent = meAssetIdent(filename, meAssetType::MAScene);
+	meAssetIdent sceneIdent = meAssetGetIdentFromPath(filename);
 	auto onSceneLoad = +[](const meAsset& asset)
 	{
 		meScene& loadedSceneData = meScenePoolGet().Get(asset.runtimeHandle);
@@ -86,19 +87,13 @@ struct meSceneAssetLoader : public meAssetLoader
 		{
 			outScene.entities = DynArrayCreate<EntityRef>(sceneAllocator);
 		}
-		StringView assetPath = meAssetResource(asset.ident.diskIdent);
-		bool success = false;
+		StringView assetPath = meAssetGetAbsPathForResource(asset.ident.diskIdent);
+		meSerializeResult result = SerializeFromFile(assetPath, sceneAllocator, TD_MESCENE, SPAN_FROM(outScene));
+		if (result)
 		{
-			OSFileReference file;
-			meOSOpenFile(file, assetPath, (OSFileFlags_OnlyIfExists | OSFileFlags_ScopedFile));
-			ScopedAllocation tempFileContent(GetTLScratch(), meOSGetFileSize(file));
-			meOSReadFileContents(file, tempFileContent.allocation, tempFileContent.allocation.size);
-			success = DeserializeFromTextBlocking(TD_MESCENE, sceneAllocator, StringView(tempFileContent.allocation), SPAN_FROM(outScene));
-		}
-		if (success)
-		{
-			// TODO: individual loaders need to set the id after deserializing, but this should be generic for all loaders
-			asset.ident.id.SetID(outScene.header.id.GetID());
+			// TODO: individual loaders need to set this stuff after deserializing, but this should be generic for all loaders
+			ME_ASSERT(outScene.header.id.GetID() == asset.ident.id.GetID());
+			outScene.header.id.SetType(asset.ident.id.GetType()); // this should be automatic for all asset types
 			if (FindInString(outScene.externalScenePath, STRING_LIT(".gltf")) != -1 ||
 				FindInString(outScene.externalScenePath, STRING_LIT(".glb")) != -1)
 			{
@@ -109,7 +104,7 @@ struct meSceneAssetLoader : public meAssetLoader
 		{
 			LOG_WARN("Failed to load scene " STRING_FMT, STRING_VAARGS(asset.ident.diskIdent));
 		}
-		asset.loadStage = success ? Loaded : Unloaded;
+		asset.loadStage = result ? Loaded : Unloaded;
 	}
 
 	virtual void meAssetWrite(meAsset& asset) override
@@ -121,11 +116,11 @@ struct meSceneAssetLoader : public meAssetLoader
 			return;
 		}
 		meScene& scene = scenePool.Get(asset.runtimeHandle);
-		StringView assetPath = meAssetResource(asset.ident.diskIdent);
+		StringView assetPath = meAssetGetAbsPathForResource(asset.ident.diskIdent);
 		meAllocator* tempAllocator = GetTLScratch();
 		StringView sceneString = {};
 		meSerializeResult res = SerializeToTextBlocking(TD_MESCENE, &scene, tempAllocator, sceneString);
-		ME_ASSERT(res == SER_SUCCESS);
+		ME_ASSERT(res == meSerializeResult::SER_SUCCESS);
 		OSFileReference file;
 		meOSOpenFile(file, assetPath, (OSFileFlags_StompExisting | OSFileFlags_ScopedFile));
 		if (!meOSWriteFileContent(file, sceneString.data, sceneString.len))
@@ -140,12 +135,16 @@ struct meSceneAssetLoader : public meAssetLoader
 		f64 time = GetTimeUsec();
 		u32 randomNumber = HashBytes((u8*)&time, sizeof(time));
 		MAID newMaid = MAID(randomNumber, MAScene);
-		meScene scene = meScene(meAssetIdent(filename, newMaid));
-		StringView assetPath = meAssetResource(filename);
+		meAssetIdent newIdent = {};
+		newIdent.diskIdent = filename;
+		newIdent.id = newMaid;
+		newIdent.assetUniqueIdentifier = 0; // ?
+		meScene scene = meScene();
+		StringView assetPath = meAssetGetAbsPathForResource(filename);
 		meAllocator* tempAllocator = GetTLScratch();
 		StringView sceneString = {};
 		meSerializeResult res = SerializeToTextBlocking(TD_MESCENE, &scene, tempAllocator, sceneString);
-		ME_ASSERT(res == SER_SUCCESS);
+		ME_ASSERT(res == meSerializeResult::SER_SUCCESS);
 		OSFileReference file;
 		meOSOpenFile(file, assetPath, (OSFileFlags_StompExisting | OSFileFlags_ScopedFile));
 		if (!meOSWriteFileContent(file, sceneString.data, sceneString.len))
@@ -169,7 +168,7 @@ void meScenePool::Load(
 	StringView resourcePathRel,
 	meScene& outScene)
 {
-	StringView resourcePathAbs = meAssetResource(resourcePathRel);
+	StringView resourcePathAbs = meAssetGetAbsPathForResource(resourcePathRel);
 	OSFileReference file;
     meOSOpenFile(file, resourcePathAbs, (OSFileFlags_OnlyIfExists | OSFileFlags_ScopedFile));
 	u64 filesize = meOSGetFileSize(file);

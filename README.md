@@ -24,6 +24,24 @@ run `build.bat`
 - refactor so instead of straight loading gltf, we "import" gltf and turn it into massets, then load(/compile) those
 	- meAssetCreate would do the check for .gltf in the filename, and do it there
 
+=== Frame Architecture ===
+
+	- Create a "Frame" object that stores all data that is scoped per-frame
+		- there'll also be a "frame" arena.
+		- Set up an asset so the game & engine is forbidden to use the scene allocator *during* a frame
+		- This means all loading, and any operations that need to persist stuff across frames needs to happen at the end/beginning of the frame
+	- FrameSimInput structure that holds all inputs used for the simulation of 1 tick
+		- recorded
+	- FrameSimOutput structure that holds the "state" of a frame that has been ticked
+		- this structure, and the "frame arena" should hold all per-frame data.
+		- for savestates, this is all we'd need to save. The engine should be able to re-construct the rest (loaded assets)
+	- FrameSimOutput is the input to a Render frame, and the renderer should be able to arbitrarily render any FrameSimOutput
+	- 
+
+============================
+
+### General Roadmap
+- PCH
 - render 2d squares and have em move around
 - flesh out custom serialization format, implement for all current assets, like meshes, shaders, textures, and have them load through that data
     - i.e. a meScene asset on disk refers to a collection of "serialized entities" which contain materials, meshes, transforms
@@ -45,23 +63,6 @@ run `build.bat`
 			- virtualize all these funcs with hooks?
 			- or just keep a mapping...
 
-=== Frame Architecture ===
-
-	- Create a "Frame" object that stores all data that is scoped per-frame
-		- there'll also be a "frame" arena.
-		- Set up an asset so the game & engine is forbidden to use the scene allocator *during* a frame
-		- This means all loading, and any operations that need to persist stuff across frames needs to happen at the end/beginning of the frame
-	- FrameSimInput structure that holds all inputs used for the simulation of 1 tick
-		- recorded
-	- FrameSimOutput structure that holds the "state" of a frame that has been ticked
-		- this structure, and the "frame arena" should hold all per-frame data.
-		- for savestates, this is all we'd need to save. The engine should be able to re-construct the rest (loaded assets)
-	- FrameSimOutput is the input to a Render frame, and the renderer should be able to arbitrarily render any FrameSimOutput
-	- 
-
-============================
-
-### General Roadmap
 - game/engine hot reloading
 - general purpose allocators
 	- string allocator
@@ -99,6 +100,11 @@ A required feature of a renderer in this engine is to be *stateless*.
 Meaning it can take in any arbitrary gamestate and render it. Cannot rely on previous frames and any
 initialization of things like gpu memory and whatnot must be done lazily, and with proper consideration
 to support, for instance, rendering frame X, then rendering frame X+20, then frame X-20.
+- "closed form" particle system: Particles are "stateless". can all be computed by a random seed & time value
+	- I.E. instead of pos + velocity = ^pos      pos = start_pos + abs(sin(seed + time)) or similar. 
+		doesn't have to be "simple", these can become complex physics equations that respect gravity and collisions and all that
+		point is the particle state is recalculated *from scratch* every frame
+		this way, particles don't need to be recorded at all. Braid does this.
 
 *Game Simulation*:
 A purposely single-threaded simulation to ensure determinism. 

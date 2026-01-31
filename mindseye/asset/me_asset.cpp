@@ -72,6 +72,18 @@ void meAssetRegisterLoader(meAssetLoader* loader, meAssetType type)
 	assetSystem.assetLoaders[type] = loader;
 }
 
+meAssetIdent meAssetGetIdentFromPath(
+	StringView path)
+{
+	StringView assetPath = meAssetGetRelPathForResource(path);
+	MAID maid = meAssetIndexGetMAIDFromPath(assetPath);
+	meAssetIdent result = {};
+	result.diskIdent = assetPath;
+	result.id = maid;
+	result.assetUniqueIdentifier = 0; // ?
+	return meMove(result);
+}
+
 void meAssetCreateNew(
 	StringView filename,
 	meAssetType type)
@@ -86,18 +98,6 @@ MAID::MAID(u64 id, meAssetType type)
 {
     SetID(id);
     SetType(type);
-}
-
-meAssetIdent::meAssetIdent(StringView diskIdent, meAssetType type)
-{
-    this->diskIdent = meAssetResource(diskIdent);
-	id.SetType(type);
-}
-
-meAssetIdent::meAssetIdent(StringView diskIdent, MAID maid)
-{
-	this->diskIdent = meAssetResource(diskIdent);
-	this->id = maid;
 }
 
 meAssetLoadStage meAssetLoader::meAssetWaitForLoadstage(
@@ -125,6 +125,7 @@ meJobId meAssetRequestLoad(
 	for (u32 i = 0; i < numAssets; i++)
 	{
 		const meAssetIdent& assetIdent = assetIdents[i];
+		ME_ASSERT(assetIdent);
 		meAssetType assetType = meAssetType(assetIdent.id.GetType());
 		meAssetLoader* loader = assetSystem.assetLoaders[assetType];
 		meAssetLoadStage stage = Unloaded;
@@ -290,7 +291,7 @@ StringView meAssetGetResourceDir()
     return GetEngineCtx()->assetSystem->resourceDir;
 }
 
-StringView meAssetResource(StringView resourcePath)
+StringView meAssetGetAbsPathForResource(StringView resourcePath)
 {
 	if (!resourcePath)
 	{
@@ -304,4 +305,17 @@ StringView meAssetResource(StringView resourcePath)
 		result = StringFormatTmp("%.*s%.*s%.*s", STRING_VAARGS(resDir), STRING_VAARGS(meFsGetDirectorySeperator()), STRING_VAARGS(resourcePath));
 	}
 	return result;
+}
+
+StringView meAssetGetRelPathForResource(StringView resourcePath)
+{
+	StringView resDir = meAssetGetResourceDir();
+	s32 idx = FindInString(resourcePath, resDir);
+	if (idx != -1)
+	{
+		StringView cropped = resourcePath.OffsetView(resDir.len);
+		cropped = EatChars(cropped, meFsGetDirectorySeperator());
+		return cropped;
+	}
+	return resourcePath;
 }

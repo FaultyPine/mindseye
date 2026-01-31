@@ -130,7 +130,7 @@ String::String(const StringView& str, meAllocator* allocator)
 {
 	if (!allocator)
 	{
-		allocator = GetSystemAllocator();
+		allocator = GetSystemAllocator(); // TOOD: string-specific allocator/pool
 	}
 	InitFromBuf(this, str.data, str.len, allocator);
 }

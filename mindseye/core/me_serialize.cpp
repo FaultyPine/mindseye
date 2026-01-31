@@ -3,12 +3,29 @@
 #include "reflector/reflection_types.h"
 #include "platform/me_os.h"
 
+meSerializeResult SerializeFromFile(
+	StringView filepath,
+	meAllocator* allocator,
+	const meTypeDescriptor& typeDescriptor,
+	meSpan outBuffer)
+{
+	OSFileReference file;
+	meOSOpenFile(file, filepath, (OSFileFlags_OnlyIfExists | OSFileFlags_ScopedFile)); // TODO: memmap the file instead
+	ScopedAllocation tempFileContent(GetTLScratch(), meOSGetFileSize(file));
+	meOSReadFileContents(file, tempFileContent.allocation, tempFileContent.allocation.size);
+	meSerializeResult res = DeserializeFromTextBlocking(typeDescriptor, allocator, StringView(tempFileContent.allocation), outBuffer);
+	// TODO: could/should be replaced with timestamp
+	res.serializedUniqueIdentifier = HashBytesL((u8*)tempFileContent.allocation.data, tempFileContent.allocation.size); 
+	return res;
+}
+
 meSerializeResult SerializeToTextBlocking(
 	const meTypeDescriptor& typeDesc, 
 	void* data,
 	meAllocator* allocator,
     StringView& outResult)
 {
+	// TODO: also fill in the hash of the result
 	StringBuilder sb(allocator);
 	sb.AppendFormat("version = %d\n", typeDesc.version);
 	sb.AppendFormat("type = %s\n", (const char*)typeDesc.name.data);
@@ -34,7 +51,7 @@ meSerializeResult SerializeToTextBlocking(
 	}
 	// stringbuilders don't own their data, so it's safe to return the data pointer
 	outResult = sb;
-    return SER_SUCCESS;
+    return meSerializeResult::SER_SUCCESS;
 }
 
 meSerializeResult DeserializeFromTextBlocking(
@@ -43,6 +60,7 @@ meSerializeResult DeserializeFromTextBlocking(
 	StringView inText,
 	meSpan outBuffer)
 {
+	// TODO: also fill in the hash of the result
 	Allocation bumper = outBuffer;
 	// searches through the text for "fieldName: value" and returns the value portion
 	auto findFieldValueInText = [&](StringView fieldName) -> StringView
@@ -77,7 +95,7 @@ meSerializeResult DeserializeFromTextBlocking(
 		LOG_ERROR("Type mismatch deserializing from text. Expected %.*s but got %.*s", 
 			STRING_VAARGS(typeDesc.name), 
 			STRING_VAARGS(typeStr));
-        return SER_FAILURE;
+        return meSerializeResult::SER_FAILURE;
 	}
 	StringView versionStr = findFieldValueInText(STRING_LIT("version"));
 	s32 version = StringParseInt32(versionStr);
@@ -87,7 +105,7 @@ meSerializeResult DeserializeFromTextBlocking(
 			STRING_VAARGS(typeDesc.name), 
 			typeDesc.version,
 			version);
-        return SER_VERSION_MISMATCH;
+        return meSerializeResult::SER_VERSION_MISMATCH;
 	}
 
 	for (u64 i = 0; i < typeDesc.fields.size; i++)
@@ -114,6 +132,6 @@ meSerializeResult DeserializeFromTextBlocking(
 	}
 	// NOTE: padding is relevant here...
 	ME_ASSERT(outBuffer.size == typeDesc.size);
-	return SER_SUCCESS;
+	return meSerializeResult::SER_SUCCESS;
 }
 

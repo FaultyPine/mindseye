@@ -45,7 +45,7 @@ struct MEREFLECT(type) EntityData
     meAsset mesh = {};
 	// gameplay-focused bounds. Rendering bounds including anims may be different (stored on mesh)
     BoundingBox authoritativeBounds = {}; 
-    u32 flags = 0;
+    EntityFlags flags = 0;
 	String name = {};
     
     EntityData() = default;

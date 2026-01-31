@@ -107,8 +107,19 @@ void meEditorTick(EngineContext* engine)
                 meScene* currentScene = &engine->sceneSystem->CurrentScene();
 				meAssetRequestWrite(SPAN_FROM_TYPED(currentScene->header));
             }
+			if (ImGui::BeginMenu("Entity"))
+			{
+				if (ImGui::MenuItem("New"))
+				{
+					meScene* currentScene = &engine->sceneSystem->CurrentScene();
+					EntityRef newEnt = Entity::CreateEntity(STRING_LIT("UnnamedEntity"));
+					DynArrayPush(currentScene->entities, newEnt);
+				}
+				ImGui::EndMenu();
+			}
             ImGui::EndMenu();
         }
+
 		
 		StringView rightAlignedText = StringFormatTmp("Avg framerate: %6.2f | %.*s", ImGui::GetIO().Framerate, STRING_VAARGS(engine->appConfig.appName));
 		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetColumnWidth() - ImGui::CalcTextSize(rightAlignedText.cstr()).x
