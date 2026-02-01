@@ -170,7 +170,6 @@ int main(int argc, char** argv)
 	normalizePathSeperators(g_compilerExe);
 	meBuildMode mode = DEBUG;
 	bool forceBuildLibs = false;
-	Nob_Procs procs = {};
 	for (int i = 1; i < argc; i++)
 	{
 		Nob_String_View argvSv = nob_sv_from_cstr(argv[i]);
@@ -550,6 +549,8 @@ int main(int argc, char** argv)
 
 	
 	// ======================== Invoke Build ==============================================
+	Nob_Procs procs = {};
+
 	#define CHECK_BUILD_RESULT(buildResult) \
 		if (buildResult == BUILD_FAILED) \
 		{ \
@@ -583,34 +584,37 @@ int main(int argc, char** argv)
 
 	// Build object files in parallel
 	externalLibsObj.options.async = &procs;
-	externalLibsObj.options.max_procs = 0;
 	BuildResult externalLibsBuildRes = externalLibsObj.build(forceBuildLibs);
 	CHECK_BUILD_RESULT(externalLibsBuildRes);
 	bool builtExternalLibs = externalLibsBuildRes == BUILD_SUCCEEDED;
 	
 	mindseyeEngineObj.options.async = &procs;
-	mindseyeEngineObj.options.max_procs = 0;
-	BuildResult builtMindseyeObjRes = mindseyeEngineObj.build();
+	BuildResult builtMindseyeObjRes = mindseyeEngineObj.build(builtExternalLibs);
 	bool builtMindseyeObj = builtMindseyeObjRes == BUILD_SUCCEEDED;
 	CHECK_BUILD_RESULT(builtMindseyeObjRes);
 	
-	// Wait for object builds to finish before linking
-	if (!nob_procs_flush(&procs))
-	{
-		nob_log(NOB_ERROR, "Tragedy struck while waiting for object build processes");
-		return 1;
-	}
-	
-	// Link the object files into mindseye.dll
-	BuildResult builtMindseye = mindseyeDll.build(builtMindseyeObj || builtExternalLibs || forceBuildLibs);
-	CHECK_BUILD_RESULT(builtMindseye);
-	
-	CHECK_BUILD_RESULT(testbedBuild.build(builtMindseye == BUILD_SUCCEEDED));
+	driver.options.async = &procs;
+	driver.options.max_procs = 0;
+
+	testbedBuild.options.async = &procs;
+	testbedBuild.options.max_procs = 0;
+
 	CHECK_BUILD_RESULT(driver.build());
+	BuildResult testbedResult = testbedBuild.build();
 	if (!nob_procs_flush(&procs))
 	{
 		nob_log(NOB_ERROR, "Tragedy struck while waiting for build processes");
 		return 1;
 	}
+
+	if (testbedResult == DID_NOT_BUILD && builtMindseyeObj)
+	{
+		testbedBuild.build(true);
+	}
+	
+	// the link needs ext libs and the mindseye objs, so is dependent on the above stuff
+	BuildResult builtMindseye = mindseyeDll.build(builtMindseyeObj);
+	CHECK_BUILD_RESULT(builtMindseye);
+	
 	return 0;
 }
