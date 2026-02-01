@@ -6,8 +6,8 @@
 
 struct meAssetIndex
 {
-	meMap<MAID, StringView> assetToPathMap = {};
-	meMap<StringView, MAID> pathToAssetsMap = {};
+	meMap<MAID, String> assetToPathMap = {};
+	meMap<String, MAID> pathToAssetsMap = {};
 };
 
 StringView meAssetIndexGetFilesystemPath(

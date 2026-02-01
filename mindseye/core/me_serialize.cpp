@@ -9,13 +9,18 @@ meSerializeResult SerializeFromFile(
 	const meTypeDescriptor& typeDescriptor,
 	meSpan outBuffer)
 {
-	OSFileReference file;
-	meOSOpenFile(file, filepath, (OSFileFlags_OnlyIfExists | OSFileFlags_ScopedFile)); // TODO: memmap the file instead
-	ScopedAllocation tempFileContent(GetTLScratch(), meOSGetFileSize(file));
-	meOSReadFileContents(file, tempFileContent.allocation, tempFileContent.allocation.size);
-	meSerializeResult res = DeserializeFromTextBlocking(typeDescriptor, allocator, StringView(tempFileContent.allocation), outBuffer);
+	// when debugging serialization, we might want to open the file being worked with, so we close the file handle before doing the Deserialize call 
+	Allocation tempFileContent = {};
+	{
+		OSFileReference file;
+		meOSOpenFile(file, filepath, (OSFileFlags_OnlyIfExists | OSFileFlags_ScopedFile)); // TODO: memmap the file instead
+		tempFileContent = MEALLOC(GetTLScratch(), meOSGetFileSize(file));
+		meOSReadFileContents(file, tempFileContent, tempFileContent.size);
+	}
+	
+	meSerializeResult res = DeserializeFromTextBlocking(typeDescriptor, allocator, StringView(tempFileContent), outBuffer);
 	// TODO: could/should be replaced with timestamp
-	res.serializedUniqueIdentifier = HashBytesL((u8*)tempFileContent.allocation.data, tempFileContent.allocation.size); 
+	res.serializedUniqueIdentifier = HashBytesL((u8*)tempFileContent.data, tempFileContent.size); 
 	return res;
 }
 

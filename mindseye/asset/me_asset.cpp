@@ -17,6 +17,17 @@ meAssetSystem& meAssetSystemGet()
 	return *GetEngineCtx()->assetSystem;
 }
 
+StringView meAssetTypeToString(meAssetType type)
+{
+	switch (type)
+	{
+		#define X(type, ext) case type: return STRING_LIT(#type);
+		ME_DECLARE_ASSET_TYPES
+		#undef X
+		default: return STRING_LIT("UnknownAssetType");
+	}
+}
+
 StringView MAIDSerializerToStringFn(
 	const meTypeDescriptor& typeDescriptor,
 	SerializeContext ctx)
@@ -165,10 +176,14 @@ meJobId meAssetRequestLoad(
 				jobData.loader->meAssetLoad(*asset);
 				ME_ASSERT(asset->ident);
 				ME_ASSERT(asset->loadStage == Loaded && asset->runtimeHandle);
+				// each asset type can respond to loaded events
+				jobData.loader->meAssetOnLoad(*asset);
+				// individual callsites can also respond
 				if (jobData.cb)
 				{
 					jobData.cb(*asset);
 				}
+				// globally, systems can also respond
 				assetSystem.assetFinishedLoadingEvent(meEventPayload((void*)&jobData.ident));
 			};
 			if (MEASSET_DEBUG_SINGLETHREADED_LOAD)
@@ -318,4 +333,21 @@ StringView meAssetGetRelPathForResource(StringView resourcePath)
 		return cropped;
 	}
 	return resourcePath;
+}
+
+meSpan meSerializeTryGetAssetIdentHeader(
+	const meTypeDescriptor& typeDesc,
+	meSpan serializedBuffer)
+{
+	for (u32 i = 0; i < typeDesc.fields.size; i++)
+	{
+		// search top-level fields for asset ident type
+		const meTypeDescriptor& field = typeDesc.fields[i];
+		if (field.thisType == &TD_MEASSETIDENT)
+		{
+			meSpan result = serializedBuffer.Subspan(field.offsetBits * 8, field.size);
+			return result;
+		}
+	}
+	return {};
 }

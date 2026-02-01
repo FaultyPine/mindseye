@@ -69,12 +69,14 @@ void RunEngine(EngineContext* engine)
 		engine->sceneSystem->Tick(engine);
 		meEditorTick(engine);
         RenderInput renderInput = {};
+		// each frame, "snapshot" all the data the renderer will need to render a given frame
 		CopyToRenderInput(engine, renderInput);
         void* renderedSceneHandle = engine->renderer->RenderScene(&renderInput);
         UNUSED(renderedSceneHandle);
 		engine->renderer->EndImguiContext();
 		GetTLScratch()->meClear(); // clear the main engine thread's scratch buffer every frame
 		engine->lastFrameTime = time;
+		engine->frameCount++;
     }
     engine->renderer->Teardown(engine);
 }
@@ -157,13 +159,7 @@ void InitializeEngine(s32 argc, char** argv)
 	meAssetIdent sceneIdent = meAssetGetIdentFromPath(engine->appConfig.defaultSceneName);
 	if (sceneIdent)
 	{
-		auto onSceneLoad = +[](const meAsset& asset)
-		{
-			meScene& loadedSceneData = meScenePoolGet().Get(asset.runtimeHandle);
-			GetEngineCtx()->sceneSystem->CurrentScene() = loadedSceneData;
-			GetEngineCtx()->appCallbacks.onSceneLoadFn(GetEngineCtx());
-		};
-		meAssetRequestLoad(&sceneIdent, 1, onSceneLoad);
+		meAssetRequestLoad(&sceneIdent, 1);
 	}
 	
     engine->appCallbacks.initFn(engine);

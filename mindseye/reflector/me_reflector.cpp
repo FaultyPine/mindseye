@@ -1272,7 +1272,7 @@ bool ProcessReflectedFile(
 							}
 							templateTypesContent.Append(STRING_LIT("};\n"));
 							fieldsArrayContent.AppendFormat(
-								".templatedTypes = meSpanTyped<meTypeDescriptor>(" STRING_FMT "), ", 
+								".templatedTypes = meSpanTyped<meTypeDescriptor*>(" STRING_FMT "), ", 
 								STRING_VAARGS(templateArgsListVarName));
 						}
 					}

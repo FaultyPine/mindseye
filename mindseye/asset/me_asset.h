@@ -27,6 +27,9 @@ ME_DECLARE_ASSET_TYPES
     NUM_ASSET_TYPES
 };
 STATIC_ASSERT(NUM_ASSET_TYPES < 255);
+
+StringView meAssetTypeToString(meAssetType type);
+
 constexpr static u32 MAID_ID_BITS = 48; // lower bits
 constexpr static u32 MAID_TYPE_BITS = 8; // top bits
 
@@ -55,7 +58,6 @@ MAID
     bool operator==(const MAID& other) const { return GetType() == other.GetType() && GetID() == other.GetID(); }
 	inline meAssetType GetType() const
 	{
-		ME_ASSERT(type < NUM_ASSET_TYPES);
 		return (meAssetType)type;
 	}
     inline void SetType(meAssetType type)
@@ -161,6 +163,7 @@ struct MEREFLECT(type) meAsset
 	meAssetIdent ident = {};
 	MEREFLECT(exclude)
 	Eye runtimeHandle = {};
+	MEREFLECT(exclude)
     meAssetLoadStage loadStage = Unloaded;
 	
 	meAsset(const meAssetIdent& identifier) : 
@@ -211,6 +214,8 @@ struct meAssetLoader
     virtual void meAssetLoad(meAsset&) = 0;
 	virtual void meAssetWrite(meAsset&) = 0;
 	virtual void meAssetCreate(StringView) = 0;
+	virtual const meTypeDescriptor& meAssetGetTypeDescriptor() = 0;
+	virtual void meAssetOnLoad(meAsset&) {}
 	meAssetLoadStage meAssetWaitForLoadstage(
 		const meAssetIdent&, 
 		meAssetLoadStage);
@@ -274,3 +279,12 @@ StringView meAssetGetAbsPathForResource(StringView resourcePath);
 // takes an abs path on disk and converts it to be relative to the "data directory"
 // NOTE: allocates and returns a temporary buffer
 StringView meAssetGetRelPathForResource(StringView resourcePath);
+
+
+// takes a buffer that has been deserialized from an asset (I.E. SerializeFromFile)
+// and attempts to find a member field that matches what is declared by
+// ME_ASSET_STRUCTURE. Use this to get the asset ident out of any asset type's deserialized buffer
+// returns a buffer pointing to the asset ident field data if present, otherwise an invalid mespan 
+meSpan meSerializeTryGetAssetIdentHeader(
+	const meTypeDescriptor& typeDesc,
+	meSpan serializedBuffer);

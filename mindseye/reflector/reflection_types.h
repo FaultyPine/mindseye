@@ -96,7 +96,7 @@ struct meTypeDescriptor
 	// you can't just look at thisType
 	// The reason for this is that a meTypeDescriptor* isn't really an "instance" of a type descriptor
 	// it's a pointer to some static definition of one. So we (could, but) don't instantiate multiple DYNARRAY type descriptors per template args permutation
-	meSpanTyped<meTypeDescriptor> templatedTypes = {};
+	meSpanTyped<meTypeDescriptor*> templatedTypes = {};
 
 	// for non-pod types, these can be assigned and will
 	// be called instead of default primitive serialization funcs
@@ -140,6 +140,7 @@ struct meTypeDescriptor
 		return !(TEST_BIT(flags, meTypeDescriptorFlag_Excluded) || TEST_BIT(flags, meTypeDescriptorFlag_PaddingMember));
 	}
 };
+
 
 extern meTypeDescriptor TD_UNSIGNED_INT;
 extern meTypeDescriptor TD_INT;

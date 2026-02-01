@@ -47,14 +47,7 @@ void meSceneManager::ChangeCurrentScene(StringView filename)
 	}
 	UnloadCurrentScene();
 	meAssetIdent sceneIdent = meAssetGetIdentFromPath(filename);
-	auto onSceneLoad = +[](const meAsset& asset)
-	{
-		meScene& loadedSceneData = meScenePoolGet().Get(asset.runtimeHandle);
-		GetEngineCtx()->sceneSystem->CurrentScene() = loadedSceneData;
-		GetEngineCtx()->appCallbacks.onSceneLoadFn(GetEngineCtx());
-	};
-	meAssetRequestLoad(&sceneIdent, 1, onSceneLoad);
-	//meAssetWaitUntilLoadstage(SPAN_FROM_TYPED(sceneIdent), Loaded);
+	meAssetRequestLoad(&sceneIdent, 1);
 }
 
 void meSceneManager::CopyToRenderInput(meScene& outScene)
@@ -151,6 +144,15 @@ struct meSceneAssetLoader : public meAssetLoader
 		{
 			LOG_ERROR("Failed to write scene to file. filename = " STRING_FMT "\nsceneString = " STRING_FMT, STRING_VAARGS(assetPath), STRING_VAARGS(sceneString));
 		}
+	}
+	virtual const meTypeDescriptor& meAssetGetTypeDescriptor() override
+	{
+		return TD_MESCENE;
+	}
+	virtual void meAssetOnLoad(meAsset& asset) override
+	{
+		GetEngineCtx()->sceneSystem->rootScene = asset.runtimeHandle;
+		GetEngineCtx()->appCallbacks.onSceneLoadFn(GetEngineCtx());
 	}
 
 	static void RegisterAssetLoader(meEventPayload payload)

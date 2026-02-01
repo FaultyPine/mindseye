@@ -18,10 +18,10 @@ StringView DynArraySerializerToStringFn(
 	const meTypeDescriptor* parentType = ctx.parentType;
 	// DynArray is templated, and so requires the parent type to understand the template args, see comment in meTypeDescriptor struct
 	ME_ASSERT(parentType);
-	meSpanTyped<meTypeDescriptor> templatedTypes = parentType->templatedTypes;
+	meSpanTyped<meTypeDescriptor*> templatedTypes = parentType->templatedTypes;
 	ME_ASSERT(templatedTypes);
 	ME_ASSERT(templatedTypes.size == 1);
-	const meTypeDescriptor& templateArg = templatedTypes[0];
+	const meTypeDescriptor* templateArg = templatedTypes[0];
 	const meSpan& dynArrayData = ctx.data;
 	DynArrayAny& arr = *(DynArrayAny*)dynArrayData.data;
 	u32 size = DynArrayGetSize(arr);
@@ -30,10 +30,10 @@ StringView DynArraySerializerToStringFn(
 	builder.Append(STRING_LIT("["));
 	for (u32 i = 0; i < size; i++)
 	{
-		meSpan elementSpan = meSpan(&arr[i * stride], templateArg.size);
+		meSpan elementSpan = meSpan(&arr[i * stride], templateArg->size);
 		SerializeContext elementCtx = ctx;
 		elementCtx.data = elementSpan;
-		StringView elementStr = templateArg.ToString(elementCtx);
+		StringView elementStr = templateArg->ToString(elementCtx);
 		builder.Append(elementStr);
 		if (i < (size - 1))
 		{
@@ -51,17 +51,18 @@ bool DynArrayDeserializerFromStringFn(
 	const meTypeDescriptor* parentType = ctx.parentType;
 	// DynArray is templated, and so requires the parent type to understand the template args, see comment in meTypeDescriptor struct
 	ME_ASSERT(parentType);
-	meSpanTyped<meTypeDescriptor> templatedTypes = parentType->templatedTypes;
+	meSpanTyped<meTypeDescriptor*> templatedTypes = parentType->templatedTypes;
 	ME_ASSERT(templatedTypes);
 	ME_ASSERT(templatedTypes.size == 1);
-	const meTypeDescriptor& templateArg = templatedTypes[0];
+	const meTypeDescriptor* templateArg = templatedTypes[0];
 
+	// BOOKMARK: this is borked
 	StringView str = StringView(ctx.inputData.data, ctx.inputData.size);
 	while (StringView element = meDeserializeEatUntilNextElement(str, '[', ']', ','))
 	{
 		DeserializeContext elementCtx = ctx;
 		elementCtx.inputData = element.ToSpan();
-		templateArg.FromString(elementCtx);
+		templateArg->FromString(elementCtx);
 	}
 	
 	return true;

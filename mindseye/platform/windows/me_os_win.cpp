@@ -27,7 +27,7 @@ void OnResize(HWND hwnd, UINT flag, int width, int height)
 	}
 	ctx->osData->windowWidth = width;
 	ctx->osData->windowHeight = height;
-    LOG_INFO("OnWindowResize OS %ix%i", width, height);
+	LOG_INFO("OnWindowResize OS %ix%i", width, height);
 }
 
 //WndProc function

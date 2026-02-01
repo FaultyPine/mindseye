@@ -1,6 +1,7 @@
 
 #include "me_asset_index.h"
 
+#include "asset/me_asset.h"
 
 meAssetIndex& meAssetIndexGet()
 {
@@ -71,20 +72,28 @@ void OnFoundAssetFile(
 {
 	StringView filepath = file.GetPath();
 	meAssetType type = MapFileOrPathToAssetType(filepath);
-	meAssetIdent fileIdent = {};
-	fileIdent.diskIdent = filepath;
-	fileIdent.id.SetType(type);
 	StringView assetPath = meAssetGetAbsPathForResource(filepath);
-	// BOOKMARK: i just need the MAID id out of this... how to get it
-	// Should i bite the bullet and implement "arbitrary asset type serialize"
-	// I.E. a mapping between meAssetType and the typedescriptor?
-	// or just find a way to get the id out of it?
-	meSerializeResult result = SerializeFromFile(assetPath, GetTLScratch(), TD_MESCENE, SPAN_FROM(fileIdent.id));
+	meAssetLoader* loader = meAssetSystemGet().assetLoaders[type];
+	const meTypeDescriptor& typeDesc = loader->meAssetGetTypeDescriptor();
+	u32 size = typeDesc.size;
+	Allocation outSerialized = MEALLOC(GetTLScratch(), size);
+	meSerializeResult result = SerializeFromFile(assetPath, GetTLScratch(), typeDesc, outSerialized);
 	if (result == meSerializeResult::SER_SUCCESS)
 	{
-		fileIdent.assetUniqueIdentifier = result.serializedUniqueIdentifier;
-		assetIndex.assetToPathMap[fileIdent.id] = filepath;
-		assetIndex.pathToAssetsMap[filepath] = fileIdent.id;
+		meSpan assetIdentData = meSerializeTryGetAssetIdentHeader(typeDesc, outSerialized);
+		if (assetIdentData)
+		{
+			meAssetIdent* ident = (meAssetIdent*)assetIdentData.data;
+			ident->id.SetType(type);
+			// TODO: instead of storing MAID, store meAssetIdent so we can store the unique identifier too
+			//result.serializedUniqueIdentifier;
+			assetIndex.assetToPathMap[ident->id] = filepath;
+			assetIndex.pathToAssetsMap[filepath] = ident->id;
+		}
+		else
+		{
+			LOG_ERROR("Tried to serialize " STRING_FMT " from disk, but couldn't find a meAssetIdent field", STRING_VAARGS(meAssetTypeToString(type)));
+		}
 	}
 	else
 	{

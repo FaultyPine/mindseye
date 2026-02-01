@@ -105,7 +105,11 @@ void meEditorTick(EngineContext* engine)
             if (ImGui::MenuItem("Save Current"))
             {
                 meScene* currentScene = &engine->sceneSystem->CurrentScene();
-				meAssetRequestWrite(SPAN_FROM_TYPED(currentScene->header));
+				// a scene with an invalid header might mean a "blank" scene
+				if (currentScene->header)
+				{
+					meAssetRequestWrite(meSpanTyped<meAssetIdent>(&currentScene->header, 1));
+				}
             }
 			if (ImGui::BeginMenu("Entity"))
 			{

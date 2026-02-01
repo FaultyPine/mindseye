@@ -15,12 +15,3 @@ namespace std { template <> struct hash<type> { size_t operator()(const type& va
 
 #define MEMAP_END_CUSTOM_HASHER };}
 
-
-
-MEMAP_BEGIN_CUSTOM_HASHER(StringView, obj) 
-{
-    size_t h1 = HashBytesL((u8*)obj.data, obj.len);
-    size_t h2 = HashBytes((u8*)&obj.len, sizeof(obj.len));
-    return h1 ^ (h2 << 1);
-}
-MEMAP_END_CUSTOM_HASHER
