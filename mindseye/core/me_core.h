@@ -39,12 +39,27 @@ u64 GetRandomSeed();
 s32 GetRandom(s32 start, s32 end);
 f32 GetRandomf(f32 start, f32 end);
 
-#include <type_traits> // For std::remove_reference
+
+// We need a basic 'remove_reference' trait since we cannot use std::remove_reference
+template<typename T>
+struct remove_reference {
+    using type = T;
+};
+
+template<typename T>
+struct remove_reference<T&> {
+    using type = T;
+};
+
+template<typename T>
+struct remove_reference<T&&> {
+    using type = T;
+};
 
 template <typename T>
-typename std::remove_reference<T>::type&& meMove(T&& arg) noexcept 
+typename remove_reference<T>::type&& meMove(T&& arg) noexcept 
 {
-    return static_cast<typename std::remove_reference<T>::type&&>(arg);
+    return static_cast<typename remove_reference<T>::type&&>(arg);
 }
 
 // Hashing

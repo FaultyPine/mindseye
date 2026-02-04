@@ -227,7 +227,7 @@ int main(int argc, char** argv)
 	{ 
 		"-luser32", "-lgdi32", "-fuse-ld=lld-link", (mode == DEBUG ? "-lmsvcrtd" : "-lmsvcrt"),
 		nob_temp_sprintf("-L%s/build", root),
-		nob_temp_sprintf("-L%s/tools/clang/lib/clang/18/lib/windows", root),
+		nob_temp_sprintf("-L%s/tools/clang/lib/clang/21/lib/windows", root),
 		"-lclang_rt.builtins-x86_64",
 	};
 	
@@ -255,6 +255,7 @@ int main(int argc, char** argv)
 		nob_temp_sprintf("-I%s/mindseye/external/bgfx/bx/include", root),
 		nob_temp_sprintf("-I%s/mindseye/external/bgfx/bimg/include", root),
 		nob_temp_sprintf("-I%s/mindseye/external/ktx", root),
+		nob_temp_sprintf("-I%s/mindseye/external/cereal/include", root),
 	};
 
 
@@ -467,10 +468,10 @@ int main(int argc, char** argv)
 	nob_cmd_append(&mindseyeReflectorCompileCmd,
 				   nob_temp_sprintf("-I%s/mindseye", root), "-DMEEXPORT", "-DBUILD_DEBUG=1");
 	nob_cmd_append(&mindseyeReflectorCompileCmd,
-				   "-Wall", "-std=c++20", "-g", nob_temp_sprintf("-I%s", root));
+				   "-Wall", "-std=c++20", "-g", nob_temp_sprintf("-I%s", root), "-lntdll");
 	const char* clangPath = nob_temp_sprintf("%s/tools/clang", root);
 	nob_cmd_append(&mindseyeReflectorCompileCmd,
-				   nob_temp_sprintf("-I%s/include", clangPath), nob_temp_sprintf("-L%s/lib", clangPath), "-llibclang");
+				   nob_temp_sprintf("-I%s/include", clangPath), nob_temp_sprintf("-L%s/lib", clangPath), "-llibclang", "-lLLVMSupport");
 	const char* mindseyeReflectorInputs = "mindseye/reflector/me_reflector.cpp";
 	mindseyeReflectorCompile.addInputs(&mindseyeReflectorInputs, 1);
 	mindseyeReflectorCompile.addOutput("mindseye/reflector/me_reflector.exe");
@@ -593,28 +594,26 @@ int main(int argc, char** argv)
 	bool builtMindseyeObj = builtMindseyeObjRes == BUILD_SUCCEEDED;
 	CHECK_BUILD_RESULT(builtMindseyeObjRes);
 	
-	driver.options.async = &procs;
-	driver.options.max_procs = 0;
-
 	testbedBuild.options.async = &procs;
 	testbedBuild.options.max_procs = 0;
 
-	CHECK_BUILD_RESULT(driver.build());
 	BuildResult testbedResult = testbedBuild.build();
+	
+	if (testbedResult == DID_NOT_BUILD && builtMindseyeObj)
+	{
+		testbedBuild.build(true);
+	}
 	if (!nob_procs_flush(&procs))
 	{
 		nob_log(NOB_ERROR, "Tragedy struck while waiting for build processes");
 		return 1;
 	}
 
-	if (testbedResult == DID_NOT_BUILD && builtMindseyeObj)
-	{
-		testbedBuild.build(true);
-	}
 	
 	// the link needs ext libs and the mindseye objs, so is dependent on the above stuff
 	BuildResult builtMindseye = mindseyeDll.build(builtMindseyeObj);
 	CHECK_BUILD_RESULT(builtMindseye);
-	
+	CHECK_BUILD_RESULT(driver.build());
+
 	return 0;
 }

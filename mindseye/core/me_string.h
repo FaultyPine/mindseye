@@ -77,7 +77,7 @@ struct StringView
     MEAPI StringView(const String&& s) { data = (char*)s.data; len = s.len; }
     MEAPI StringView(const String& s) { data = (char*)s.data; len = s.len; }
     MEAPI StringView(const StringBuilder& s) { data = (char*)s.data; len = s.len; }
-	MEAPI StringView(const char* data, u64 len) { this->data = (char*)data; this->len = len; };
+	MEAPI constexpr StringView(const char* data, u64 len) { this->data = (char*)data; this->len = len; };
 	MEAPI explicit StringView(const meSpan& span) { this->data = (char*)span.data; this->len = span.size; }
 	MEAPI bool operator == (const StringView& sv) const;
 	MEAPI bool operator != (const StringView& sv) const;
@@ -128,7 +128,7 @@ enum StringOpFlags_Enum
 };
 
 template <u64 N> 
-StringView STRING_LIT(const char (&strlit)[N]) { return StringView{(char*)strlit, N-1}; }
+constexpr StringView STRING_LIT(const char (&strlit)[N]) { return StringView{(char*)strlit, N-1}; }
 
 #define STRING_VAARGS(str) (s32)str.len, str.data
 #define STRING_FMT "%.*s"
@@ -146,6 +146,35 @@ MEAPI s32 FindInString(
 	StringView needle,
 	u32 offset = 0,
 	StringOpFlags flags = StringOpFlags(0));
+
+constexpr s32 ConstexprStrstr(StringView haystack, StringView needle)
+{
+	if (!needle.data || !needle.len || *needle.data == '\0') 
+	{
+		return -1;
+	}
+	u64 maxLen = haystack.len - needle.len;
+	for (u64 haystackIdx = 0; haystackIdx <= maxLen; haystackIdx++)
+	{
+		if (haystack.data[haystackIdx] == *needle.data) 
+		{
+			u64 h_idx = haystackIdx;
+			u64 n_idx = 0;
+			
+			while (h_idx < haystack.len && n_idx < needle.len && haystack.data[h_idx] == needle.data[n_idx]) 
+			{
+				h_idx++;
+				n_idx++;
+			}
+			// If we reached end of needle, it's a match
+			if (n_idx == needle.len)
+			{
+				return (s32)haystackIdx;
+			}
+		}
+	}
+	return -1;
+}
 
 MEAPI s32 FindInStringRev(
 	StringView haystack,
@@ -245,24 +274,3 @@ MEAPI u64 StringParseUInt64(StringView& str);
 MEAPI float StringParseFloat(StringView& str);
 // (supports scientific notation)
 MEAPI double StringParseDouble(StringView& str);
-
-
-
-#include <string_view> // C++17 for std::string_view
-
-constexpr std::string_view::size_type constexpr_strstr(
-	std::string_view haystack, 
-	std::string_view needle) noexcept 
-{
-	if (needle.empty()) 
-	{
-		return 0; 
-	}
-	for (std::string_view::size_type i = 0; i + needle.length() <= haystack.length(); ++i) 
-	{
-		if (haystack.substr(i, needle.length()) == needle) {
-			return i;
-		}
-	}
-	return std::string_view::npos;
-}
