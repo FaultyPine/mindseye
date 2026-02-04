@@ -147,7 +147,7 @@ StringView meTypeDescriptor::ToString(SerializeContext ctx) const
 			newCtx.data = arrayElement;
 			StringView arrayElementStr = thisType->ToString(newCtx);
 			builder.Append(arrayElementStr);
-			builder.Append( (i == numArrayElements-1) ? STRING_LIT("") : STRING_LIT(", ") );
+			(i == numArrayElements - 1) ? void() : builder.Append(STRING_LIT(", "));
 		}
 		builder.Append(STRING_LIT("}"));
 		return builder;

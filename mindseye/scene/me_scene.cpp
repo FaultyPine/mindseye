@@ -40,11 +40,6 @@ void meSceneManager::UnloadCurrentScene()
 
 void meSceneManager::ChangeCurrentScene(StringView filename)
 {
-	if (FindInString(filename, STRING_LIT(".scn")) == -1)
-	{
-		LOG_ERROR("Can't load %.*s as a mindseye scene. Mindseye scene files have a .scn extension", STRING_VAARGS(filename));
-		return;
-	}
 	UnloadCurrentScene();
 	meAssetIdent sceneIdent = meAssetGetIdentFromPath(filename);
 	meAssetRequestLoad(&sceneIdent, 1);

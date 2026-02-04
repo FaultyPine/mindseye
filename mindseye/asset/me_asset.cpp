@@ -178,13 +178,13 @@ meJobId meAssetRequestLoad(
 				ME_ASSERT(asset->loadStage == Loaded && asset->runtimeHandle);
 				// each asset type can respond to loaded events
 				jobData.loader->meAssetOnLoad(*asset);
+				// globally, systems can also respond
+				assetSystem.assetFinishedLoadingEvent(meEventPayload((void*)&jobData.ident));
 				// individual callsites can also respond
 				if (jobData.cb)
 				{
 					jobData.cb(*asset);
 				}
-				// globally, systems can also respond
-				assetSystem.assetFinishedLoadingEvent(meEventPayload((void*)&jobData.ident));
 			};
 			if (MEASSET_DEBUG_SINGLETHREADED_LOAD)
 			{

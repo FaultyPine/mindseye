@@ -99,11 +99,11 @@ static void InitializeEngineConfig(EngineContext* engine)
 	}
 	else
 	{
-		SerializeFromFile(userProjectConfigPath, &engine->engineArena, TD_MEUSERCONFIG, meSpan(&engine->userConfig, sizeof(engine->userConfig)));
+		SerializeFromFile(userProjectConfigPath, &engine->engineArena, TD_MEUSERCONFIG, SPAN_FROM(engine->userConfig)));
 		// "userApp" referring to a program that uses the mindseye engine
 		StringView userAppConfigFile = engine->userConfig.projectRootConfigFile;
 		String userAppConfigPathAbs = meOSResolveRelativeToAbsPath(GetTLScratch(), userAppConfigFile);
-		SerializeFromFile(userAppConfigPathAbs, &engine->engineArena, TD_MEAPPCONFIG, meSpan(&engine->appConfig, sizeof(engine->appConfig)));
+		SerializeFromFile(userAppConfigPathAbs, &engine->engineArena, TD_MEAPPCONFIG, SPAN_FROM(engine->appConfig));
 
 		StringView userAppDllName = StringFormatTmp("%.*s.dll", STRING_VAARGS(engine->appConfig.appName));
 		void* gameLib = LoadDynamicLibrary(userAppDllName.cstr());
