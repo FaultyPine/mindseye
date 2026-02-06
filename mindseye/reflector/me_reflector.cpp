@@ -508,7 +508,7 @@ void StoreReflectedTypeInfo(
 		if (numTemplateArgs != -1) 
 		{
 			// The type is a template specialization (e.g., std::vector<int>)
-			for (u32 i = 0; i < numTemplateArgs; i++)
+			for (s32 i = 0; i < numTemplateArgs; i++)
 			{
 				CXType templateType = clang_Type_getTemplateArgumentAsType(crType, i);
 				if (templateType.kind == CXType_Invalid)
@@ -872,7 +872,7 @@ int main(int argc, char* argv[])
 	u32 numCompileCommands = DynArrayGetSize(compileCommands);
 	for (u32 i = 0; i < numCompileCommands; i++)
 	{
-		s32 stridx = 0; 
+		u32 stridx = 0; 
 		StringView args = compileCommands[i].arguments;
 		while (stridx < args.len && stridx >= 0)
 		{
@@ -1041,7 +1041,7 @@ bool GenerateForwardDecls(
 			u32 numChildren = DynArrayGetSize(typeRefl.children);
 			if (numChildren > 0)
 			{
-				for (s32 i = 0; i < numChildren; i++)
+				for (u32 i = 0; i < numChildren; i++)
 				{
 					meReflectedType& childReflType = *typeRefl.children[i];
 					if (childReflType.innerType && childReflType.innerType->name)
@@ -1193,7 +1193,7 @@ bool ProcessReflectedFile(
 				StringBuilder templateTypesContent = StringBuilder(allocator);
 				u32 numPaddingMembers = 0;
 				u32 currentOffsetBytes = 0;
-				for (s32 i = 0; i < numChildren; i++)
+				for (u32 i = 0; i < numChildren; i++)
 				{
 					meReflectedType& childReflType = *typeRefl.children[i];
 

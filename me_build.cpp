@@ -574,6 +574,7 @@ int main(int argc, char** argv)
 		// if we rebuilt the reflector program, we should force a full re-reflect of everything by deleting the output folder
 		nob_delete_dir(nob_temp_sprintf("%s/mindseye/generatedtypes", root));
 	}
+	CHECK_BUILD_RESULT(reflectorBuildResult);
 	CHECK_BUILD_RESULT(mindseyeReflectorRun.build(true));
 	
 	if (!nob_procs_flush(&procs))
@@ -606,6 +607,5 @@ int main(int argc, char** argv)
 	CHECK_BUILD_RESULT(builtMindseye);
 	CHECK_BUILD_RESULT(testbedBuild.build(builtMindseye == BUILD_SUCCEEDED));
 	CHECK_BUILD_RESULT(driver.build());
-
 	return 0;
 }

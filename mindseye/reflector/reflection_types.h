@@ -57,19 +57,6 @@ typedef bool(*DeserializerFromStringFn)(
 	const meTypeDescriptor& typeDescriptor,
 	DeserializeContext& ctx);
 
-// each invocation of this func on a given string
-// returns one "element" of a "list" of elements
-// all elements are surrounded by an openDelim on the left 
-// and a closeDelim on the right and separated by separator
-// It returns each element and modifies the input string like an iterator,
-// keeping track of where in the list of elements we are
-// Useful when there is an unknown number of elements in a "string list"
-MEAPI StringView meDeserializeEatUntilNextElement(
-	StringView& str,
-	char openDelim,
-	char closeDelim,
-	char separator);
-
 struct meTypeDescriptor
 {
 	String name = {};
@@ -165,5 +152,4 @@ extern meTypeDescriptor TD_STRING;
 // NOTE: there are static maps mapping between reflected types and their type descriptors
 // in me_reflector.cpp
 // I.E. "String" -> TD_STRING or "glm::vec3<3, float>" -> TD_VEC3
-
 

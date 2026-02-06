@@ -122,10 +122,11 @@ enum meAssetLoadStage
 	LoadStageCount
 };
 
-#define ME_ASSET_STRUCTURE(typeName) \
+#define ME_ASSET_STRUCTURE(typeName, typeDesc) \
 meAssetIdent header = {}; \
 typeName(const meAssetIdent& ident) : typeName() { header = ident; } \
 typeName() = default;
+
 
 // identifies an asset "on disk".
 // these can map to filesystem paths, or something else if assets are being loaded/fetched from some other mechanism
