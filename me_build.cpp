@@ -594,25 +594,17 @@ int main(int argc, char** argv)
 	bool builtMindseyeObj = builtMindseyeObjRes == BUILD_SUCCEEDED;
 	CHECK_BUILD_RESULT(builtMindseyeObjRes);
 	
-	testbedBuild.options.async = &procs;
-	testbedBuild.options.max_procs = 0;
-
-	BuildResult testbedResult = testbedBuild.build();
-	
-	if (testbedResult == DID_NOT_BUILD && builtMindseyeObj)
-	{
-		testbedBuild.build(true);
-	}
 	if (!nob_procs_flush(&procs))
 	{
 		nob_log(NOB_ERROR, "Tragedy struck while waiting for build processes");
 		return 1;
 	}
 
-	
+
 	// the link needs ext libs and the mindseye objs, so is dependent on the above stuff
 	BuildResult builtMindseye = mindseyeDll.build(builtMindseyeObj);
 	CHECK_BUILD_RESULT(builtMindseye);
+	CHECK_BUILD_RESULT(testbedBuild.build(builtMindseye == BUILD_SUCCEEDED));
 	CHECK_BUILD_RESULT(driver.build());
 
 	return 0;
