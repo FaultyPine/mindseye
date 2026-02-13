@@ -2,6 +2,240 @@
 
 #include "reflector/reflection_types.h"
 #include "platform/me_os.h"
+#include "core/me_math.h"
+#include "core/containers/dynarray.h"
+
+#include <external/json.hpp>
+using json = nlohmann::json;
+
+// =========================================================
+// JSON Serialization Helpers
+// =========================================================
+
+// Forward declarations
+static json JsonSerializeWithTypeDescriptor(
+	const meTypeDescriptor& td, 
+	void* data, 
+	const meTypeDescriptor* parentType = nullptr);
+static bool JsonDeserializeWithTypeDescriptor(
+	const json& j, 
+	const meTypeDescriptor& td, 
+	void* outData, 
+	meAllocator* allocator, 
+	const meTypeDescriptor* parentType = nullptr);
+
+// Convert a meTypeDescriptor + data pointer to a JSON value
+static json JsonSerializeWithTypeDescriptor(
+	const meTypeDescriptor& td, 
+	void* data, 
+	const meTypeDescriptor* parentType)
+{
+	if (!data || !td.ShouldSerializeText())
+	{
+		return json();
+	}
+
+	// Custom serializer override - use it and store as string
+	if (td.strSerializer)
+	{
+		SerializeContext ctx = {};
+		ctx.allocator = GetTLScratch();
+		ctx.data = meSpan(data, td.size);
+		ctx.parentType = parentType ? parentType : &td;
+		StringView str = td.strSerializer(td, ctx);
+		return std::string(str.data, str.len);
+	}
+
+	// Constant array
+	if (td.thisType && TEST_BIT(td.flags, meTypeDescriptorFlag_ConstantArray))
+	{
+		json arr = json::array();
+		u32 numElements = td.size / td.thisType->size;
+		for (u32 i = 0; i < numElements; i++)
+		{
+			void* elementData = (u8*)data + (td.thisType->size * i);
+			arr.push_back(JsonSerializeWithTypeDescriptor(*td.thisType, elementData, &td));
+		}
+		return arr;
+	}
+
+	// Typedef/alias with underlying type but no fields
+	if (td.thisType && td.fields.size == 0)
+	{
+		return JsonSerializeWithTypeDescriptor(*td.thisType, data, &td);
+	}
+
+	// Primitive types
+	if (td.fields.size == 0)
+	{
+		if (&td == &TD_INT)                  return *((s32*)data);
+		if (&td == &TD_UNSIGNED_INT)         return *((u32*)data);
+		if (&td == &TD_LONGLONG)             return *((s64*)data);
+		if (&td == &TD_UNSIGNED_LONG_LONG)   return *((u64*)data);
+		if (&td == &TD_SHORT)                return *((s16*)data);
+		if (&td == &TD_UNSIGNED_SHORT)       return *((u16*)data);
+		if (&td == &TD_CHAR)                 return *((s8*)data);
+		if (&td == &TD_UNSIGNED_CHAR)        return *((u8*)data);
+		if (&td == &TD_FLOAT)                return *((float*)data);
+		if (&td == &TD_DOUBLE)               return *((double*)data);
+		if (&td == &TD_BOOL)                 return *((bool*)data);
+		if (&td == &TD_VEC3)
+		{
+			float* v = (float*)data;
+			return json::array({v[0], v[1], v[2]});
+		}
+		if (&td == &TD_QUAT)
+		{
+			float* v = (float*)data;
+			return json::array({v[0], v[1], v[2], v[3]});
+		}
+		if (&td == &TD_STRINGVIEW)
+		{
+			StringView* sv = (StringView*)data;
+			return std::string(sv->data, sv->len);
+		}
+		// Unknown primitive
+		return json();
+	}
+
+	// Struct with fields
+	json obj = json::object();
+	for (u64 i = 0; i < td.fields.size; i++)
+	{
+		const meTypeDescriptor& field = td.fields[i];
+		if (!field.ShouldSerializeText() || field.thisType == nullptr)
+		{
+			continue;
+		}
+		ME_ASSERT(field.offsetBits % 8 == 0);
+		void* fieldData = (u8*)data + (field.offsetBits / 8);
+		std::string fieldName(field.name.data, field.name.len);
+		obj[fieldName] = JsonSerializeWithTypeDescriptor(field, fieldData, &td);
+	}
+	return obj;
+}
+
+// Deserialize JSON into a data buffer using meTypeDescriptor
+static bool JsonDeserializeWithTypeDescriptor(const json& j, const meTypeDescriptor& td, void* outData, meAllocator* allocator, const meTypeDescriptor* parentType)
+{
+	if (j.is_null() || !td.ShouldSerializeText())
+	{
+		return false;
+	}
+
+	// Custom deserializer override
+	if (td.strDeserializer)
+	{
+		std::string str;
+		if (j.is_string())
+		{
+			str = j.get<std::string>();
+		}
+		else
+		{
+			str = j.dump();
+		}
+		DeserializeContext ctx = {};
+		ctx.inputData = meSpan((char*)str.data(), str.size());
+		ctx.outputData = meSpan(outData, td.size);
+		ctx.externalDataAllocator = allocator;
+		ctx.parentType = parentType ? parentType : &td;
+		return td.strDeserializer(td, ctx);
+	}
+
+	// Constant array
+	if (td.thisType && TEST_BIT(td.flags, meTypeDescriptorFlag_ConstantArray))
+	{
+		if (!j.is_array()) return false;
+		u32 numElements = td.size / td.thisType->size;
+		u32 jsonSize = (u32)j.size();
+		u32 count = (numElements < jsonSize) ? numElements : jsonSize;
+		for (u32 i = 0; i < count; i++)
+		{
+			void* elementData = (u8*)outData + (td.thisType->size * i);
+			JsonDeserializeWithTypeDescriptor(j[i], *td.thisType, elementData, allocator, &td);
+		}
+		return true;
+	}
+
+	// Typedef/alias with underlying type but no fields
+	if (td.thisType && td.fields.size == 0)
+	{
+		return JsonDeserializeWithTypeDescriptor(j, *td.thisType, outData, allocator, &td);
+	}
+
+	// Primitive types
+	if (td.fields.size == 0)
+	{
+		if (&td == &TD_INT)                  { *((s32*)outData) = j.get<s32>(); return true; }
+		if (&td == &TD_UNSIGNED_INT)         { *((u32*)outData) = j.get<u32>(); return true; }
+		if (&td == &TD_LONGLONG)             { *((s64*)outData) = j.get<s64>(); return true; }
+		if (&td == &TD_UNSIGNED_LONG_LONG)   { *((u64*)outData) = j.get<u64>(); return true; }
+		if (&td == &TD_SHORT)                { *((s16*)outData) = j.get<s16>(); return true; }
+		if (&td == &TD_UNSIGNED_SHORT)       { *((u16*)outData) = j.get<u16>(); return true; }
+		if (&td == &TD_CHAR)                 { *((s8*)outData) = j.get<s8>(); return true; }
+		if (&td == &TD_UNSIGNED_CHAR)        { *((u8*)outData) = j.get<u8>(); return true; }
+		if (&td == &TD_FLOAT)                { *((float*)outData) = j.get<float>(); return true; }
+		if (&td == &TD_DOUBLE)               { *((double*)outData) = j.get<double>(); return true; }
+		if (&td == &TD_BOOL)                 { *((bool*)outData) = j.get<bool>(); return true; }
+		if (&td == &TD_VEC3)
+		{
+			if (!j.is_array() || j.size() < 3) return false;
+			float* v = (float*)outData;
+			v[0] = j[0].get<float>();
+			v[1] = j[1].get<float>();
+			v[2] = j[2].get<float>();
+			return true;
+		}
+		if (&td == &TD_QUAT)
+		{
+			if (!j.is_array() || j.size() < 4) return false;
+			float* v = (float*)outData;
+			v[0] = j[0].get<float>();
+			v[1] = j[1].get<float>();
+			v[2] = j[2].get<float>();
+			v[3] = j[3].get<float>();
+			return true;
+		}
+		if (&td == &TD_STRINGVIEW)
+		{
+			// StringView deserialization needs external allocation
+			std::string str = j.get<std::string>();
+			Allocation mem = MEALLOC(allocator, str.size());
+			memcpy(mem.data, str.data(), str.size());
+			StringView* sv = (StringView*)outData;
+			sv->data = (char*)mem.data;
+			sv->len = (u32)str.size();
+			return true;
+		}
+		return false;
+	}
+
+	// Struct with fields
+	if (!j.is_object()) return false;
+	for (u64 i = 0; i < td.fields.size; i++)
+	{
+		const meTypeDescriptor& field = td.fields[i];
+		if (!field.ShouldSerializeText() || field.thisType == nullptr)
+		{
+			continue;
+		}
+		ME_ASSERT(field.offsetBits % 8 == 0);
+		std::string fieldName(field.name.data, field.name.len);
+		if (!j.contains(fieldName))
+		{
+			// Field not in JSON - leave as default
+			continue;
+		}
+		void* fieldData = (u8*)outData + (field.offsetBits / 8);
+		JsonDeserializeWithTypeDescriptor(j[fieldName], field, fieldData, allocator, &td);
+	}
+	return true;
+}
+
+// =========================================================
+// Public API
+// =========================================================
 
 meSerializeResult SerializeFromFile(
 	StringView filepath,
@@ -30,33 +264,44 @@ meSerializeResult SerializeToTextBlocking(
 	meAllocator* allocator,
     StringView& outResult)
 {
-	// TODO: also fill in the hash of the result
-	StringBuilder sb(allocator);
-	sb.AppendFormat("version = %d\n", typeDesc.version);
-	sb.AppendFormat("type = %s\n", (const char*)typeDesc.name.data);
-	char* typeData = (char*)data;
+	json root = json::object();
+	root["version"] = typeDesc.version;
+	root["type"] = std::string(typeDesc.name.data, typeDesc.name.len);
+	
+	// Serialize all fields into the root object
 	for (u64 i = 0; i < typeDesc.fields.size; i++)
 	{
 		const meTypeDescriptor& field = typeDesc.fields[i];
-		if (field.thisType == nullptr || !field.ShouldSerializeText())
+		if (!field.ShouldSerializeText() || field.thisType == nullptr)
 		{
 			continue;
 		}
-		if (field.offsetBits % 8 != 0)
-		{
-			UNIMPLEMENTED(); // TODO
-		}
-		u32 offsetBytes = field.offsetBits / 8;
-		meSpan fieldData = meSpan(typeData + offsetBytes, field.size);
-		SerializeContext ctx = {};
-		ctx.allocator = GetTLScratch();
-		ctx.data = fieldData;
-		StringView fieldStr = field.ToString(ctx);
-		sb.AppendFormat("%s = %.*s\n", (const char*)field.name.cstr(), STRING_VAARGS(fieldStr));
+		ME_ASSERT(field.offsetBits % 8 == 0);
+		void* fieldData = (u8*)data + (field.offsetBits / 8);
+		std::string fieldName(field.name.data, field.name.len);
+		// BOOKMARK: crash here on save
+		root[fieldName] = JsonSerializeWithTypeDescriptor(field, fieldData, &typeDesc);
 	}
-	// stringbuilders don't own their data, so it's safe to return the data pointer
-	outResult = sb;
-    return meSerializeResult::SER_SUCCESS;
+
+	// Convert to string with pretty printing
+	std::string jsonStr = {};
+	try
+	{
+		jsonStr = root.dump(4);
+	}
+	catch (const json::type_error& e)
+	{
+		LOG_ERROR("JSON dump error: %s", e.what());
+		return meSerializeResult::SER_FAILURE;
+	}
+	
+	// Allocate and copy to output
+	Allocation mem = MEALLOC(allocator, jsonStr.size() + 1);
+	memcpy(mem.data, jsonStr.data(), jsonStr.size());
+	((char*)mem.data)[jsonStr.size()] = '\0';
+	outResult = StringView((const char*)mem.data, (u32)jsonStr.size());
+	
+	return meSerializeResult::SER_SUCCESS;
 }
 
 meSerializeResult DeserializeFromTextBlocking(
@@ -65,78 +310,65 @@ meSerializeResult DeserializeFromTextBlocking(
 	StringView inText,
 	meSpan outBuffer)
 {
-	// TODO: also fill in the hash of the result
-	Allocation bumper = outBuffer;
-	// searches through the text for "fieldName: value" and returns the value portion
-	auto findFieldValueInText = [&](StringView fieldName) -> StringView
+	// Parse JSON
+	json root;
+	try
 	{
-		s32 fieldPos = FindInString(inText, fieldName);
-		if (fieldPos == -1)
-		{
-			return {};
-		}
-		StringView fieldView = inText.OffsetView(fieldPos);
-		s32 colonPos = EatCharsOffset(fieldView, STRING_LIT("="), true); // relative to fieldPos, either ":" or "="
-		if (colonPos == -1)
-		{
-			return {};
-		}
-		colonPos += fieldPos;
-		s32 valueStart = colonPos + 1;
-		StringView valueView = inText.OffsetView(valueStart);
-        s32 lineEnd = EatCharsOffset(valueView, STRING_LIT("\r\n"), true); // relative to valueStart, finding either \r or \n, whichever comes first
-		if (lineEnd == -1)
-		{
-			lineEnd = inText.len;
-		}
-		lineEnd += valueStart;
-		StringView result = inText.OffsetView(valueStart, lineEnd - valueStart);
-		result = EatChars(result, ' ');
-		return result;
-	};
-	StringView typeStr = findFieldValueInText(STRING_LIT("type"));
-	if (typeStr != StringView(typeDesc.name))
-	{
-		LOG_ERROR("Type mismatch deserializing from text. Expected %.*s but got %.*s", 
-			STRING_VAARGS(typeDesc.name), 
-			STRING_VAARGS(typeStr));
-        return meSerializeResult::SER_FAILURE;
+		root = json::parse(inText.data, inText.data + inText.len);
 	}
-	StringView versionStr = findFieldValueInText(STRING_LIT("version"));
-	s32 version = StringParseInt32(versionStr);
-	if (version != typeDesc.version)
+	catch (const json::parse_error& e)
 	{
-		LOG_ERROR("Version mismatch deserializing from text for type %.*s. Expected version %d but got version %d", 
-			STRING_VAARGS(typeDesc.name), 
-			typeDesc.version,
-			version);
-        return meSerializeResult::SER_VERSION_MISMATCH;
+		LOG_ERROR("JSON parse error: %s", e.what());
+		return meSerializeResult::SER_FAILURE;
+	}
+	// Check type
+	if (root.contains("type"))
+	{
+		std::string typeStr = root["type"].get<std::string>();
+		StringView expectedType = typeDesc.name;
+		if (typeStr != std::string(expectedType.data, expectedType.len))
+		{
+			LOG_ERROR("Type mismatch deserializing from JSON. Expected %.*s but got %s", 
+				STRING_VAARGS(typeDesc.name), 
+				typeStr.c_str());
+			return meSerializeResult::SER_FAILURE;
+		}
 	}
 
+	// Check version
+	if (root.contains("version"))
+	{
+		s32 version = root["version"].get<s32>();
+		if (version != typeDesc.version)
+		{
+			LOG_ERROR("Version mismatch deserializing from JSON for type %.*s. Expected version %d but got version %d", 
+				STRING_VAARGS(typeDesc.name), 
+				typeDesc.version,
+				version);
+			return meSerializeResult::SER_VERSION_MISMATCH;
+		}
+	}
+
+	// Deserialize fields
+	ME_ASSERT(outBuffer.size == typeDesc.size);
 	for (u64 i = 0; i < typeDesc.fields.size; i++)
 	{
 		const meTypeDescriptor& field = typeDesc.fields[i];
-		ME_ON_SCOPE_EXIT([&bumper, &field]() 
+		if (!field.ShouldSerializeText() || field.thisType == nullptr)
 		{
-			bumper = bumper.Subspan(field.size);
-		});
-		StringView fieldStr = findFieldValueInText(field.name);
-		if (field.thisType == nullptr || !fieldStr || !field.ShouldSerializeText())
-		{
-			// for reflected fields that don't have entries in the ini,
-			// leave them as-is. This way, the caller can default-initialize the structure and
-			// fields not in the ini will stay as their defaults.
 			continue;
 		}
-		fieldStr = StringTrim(fieldStr, STRING_LIT("\""));
-		DeserializeContext ctx = {};
-		ctx.inputData = fieldStr.ToSpan();
-		ctx.outputData = bumper;
-		ctx.externalDataAllocator = allocator;
-		field.FromString(ctx);
+		ME_ASSERT(field.offsetBits % 8 == 0);
+		std::string fieldName(field.name.data, field.name.len);
+		if (!root.contains(fieldName))
+		{
+			// Field not in JSON - leave as default
+			continue;
+		}
+		void* fieldData = (u8*)outBuffer.data + (field.offsetBits / 8);
+		JsonDeserializeWithTypeDescriptor(root[fieldName], field, fieldData, allocator, &typeDesc);
 	}
-	// NOTE: padding is relevant here...
-	ME_ASSERT(outBuffer.size == typeDesc.size);
+
 	return meSerializeResult::SER_SUCCESS;
 }
 
@@ -239,383 +471,3 @@ StringView meDeserializeEatUntilNextElement(
 	}
 	return element;
 }
-#include <sstream>
-StringView meTypeDescriptor::ToString(SerializeContext ctx) const
-{
-	StringBuilder builder = StringBuilder(ctx.allocator);
-	meSpan data = ctx.data;
-    // Handle null/empty data
-    if (!data.data || data.size == 0 || !ShouldSerializeText()) 
-	{
-		return {};
-    }
-    
-    // custom override
-	if (strSerializer)
-	{
-		return strSerializer(*this, ctx);
-	}
-	ctx.parentType = this;
-
-	// append multiple of the inner types for arrays
-	if (thisType && TEST_BIT(flags, meTypeDescriptorFlag_ConstantArray))
-	{
-		builder.Append(STRING_LIT("{ "));
-		u32 numArrayElements = size / thisType->size;
-		for (u32 i = 0; i < numArrayElements; i++)
-		{
-			meSpan arrayElement = data.Subspan(thisType->size * i, thisType->size);
-			SerializeContext newCtx = ctx;
-			newCtx.data = arrayElement;
-			StringView arrayElementStr = thisType->ToString(newCtx);
-			builder.Append(arrayElementStr);
-			(i == numArrayElements - 1) ? void() : builder.Append(STRING_LIT(", "));
-		}
-		builder.Append(STRING_LIT("}"));
-		return builder;
-	}
-
-    // If this is a primitive type with an underlying type, delegate to it
-    if (thisType && fields.size == 0) 
-	{
-        return thisType->ToString(ctx);
-    }
-
-    // Handle primitive types based on name and size
-    if (fields.size == 0) 
-	{
-        if (this == &TD_INT) 
-		{
-			builder.AppendFormat("%d", *((s32*)data.data));
-        }
-        else if (this == &TD_UNSIGNED_INT) 
-		{
-            builder.AppendFormat("%u", *((u32*)data.data));
-        }
-        else if (this == &TD_LONGLONG) 
-		{
-            builder.AppendFormat("%lld", *((s64*)data.data));
-        }
-        else if (this == &TD_UNSIGNED_LONG_LONG) 
-		{
-            builder.AppendFormat("%llu", *((u64*)data.data));
-        }
-        else if (this == &TD_SHORT) 
-		{
-            builder.AppendFormat("%d", (s32)*((s16*)data.data));
-        }
-        else if (this == &TD_UNSIGNED_SHORT) 
-		{
-            builder.AppendFormat("%u", (u32)*((u16*)data.data));
-        }
-        else if (this == &TD_CHAR) 
-		{
-            builder.AppendFormat("%d", (s32)*((s8*)data.data));
-        }
-        else if (this == &TD_UNSIGNED_CHAR) 
-		{
-            builder.AppendFormat("%u", (u32)*((u8*)data.data));
-        }
-        else if (this == &TD_FLOAT) 
-		{
-            builder.AppendFormat("%.6f", *((float*)data.data));
-        }
-        else if (this == &TD_DOUBLE) 
-		{
-            builder.AppendFormat("%.15f", *((double*)data.data));
-        }
-        else if (this == &TD_BOOL) 
-		{
-            builder.AppendFormat("%s", *((bool*)data.data) ? "true" : "false");
-        }
-		else if (this == &TD_STRINGVIEW)
-		{
-			builder.Append(StringView((const char*)data.data, data.size));
-		}
-        else if (this == &TD_VEC3)
-        {
-            float* vecData = (float*)data.data;
-            builder.AppendFormat("(%.6f %.6f %.6f)", vecData[0], vecData[1], vecData[2]);
-        }
-		else if (this == &TD_QUAT) // 4 component vector & quat are the same
-		{
-            float* vecData = (float*)data.data;
-			builder.AppendFormat("(%.6f %.6f %.6f %.6f)", vecData[0], vecData[1], vecData[2], vecData[3]);
-		}
-        else 
-		{
-			UNIMPLEMENTED();
-        }
-    }
-	else
-	{
-        builder.Append(STRING_LIT("{ "));
-		for (u64 i = 0; i < fields.size; i++)
-        {
-            const meTypeDescriptor& field = fields[i];
-            ME_ASSERT(field.offsetBits % 8 == 0);
-			meSpan nextField = meSpan(data.data + (field.offsetBits / 8), field.size);
-			SerializeContext newCtx = ctx;
-			newCtx.data = nextField;
-            StringView stringedField = field.ToString(newCtx);
-			if (stringedField)
-			{
-				builder.Append(stringedField);
-				if (i != fields.size - 1)
-				{
-					builder.Append(STRING_LIT(", "));
-				}
-			}
-        }
-        builder.Append(STRING_LIT(" }"));
-	}
-	return builder;
-}
-
-bool meTypeDescriptor::FromString(DeserializeContext& ctx) const
-{
-	// what we are deserializing from
-	StringView str = StringView(ctx.inputData.data, ctx.inputData.size);
-
-    // Handle null/empty string
-    if (!str.data || str.len == 0 || !ShouldSerializeText()) 
-    {
-        return false;
-    }
-    
-    // custom override
-	if (strDeserializer)
-	{
-		return strDeserializer(*this, ctx);
-	}
-	ctx.parentType = this;
-
-	// append multiple of the inner types for arrays
-	if (thisType && TEST_BIT(flags, meTypeDescriptorFlag_ConstantArray))
-	{
-		//u32 numArrayElements = size / underlyingType->size;
-		//for (u32 i = 0; i < numArrayElements; i++)
-		//{
-		//	meSpan arrayElement = str.OffsetView(underlyingType->size * i, underlyingType->size);
-		//}
-		UNIMPLEMENTED();
-	}
-
-    // If this is a primitive type with an underlying type, delegate to it
-    if (thisType && fields.size == 0) 
-    {
-        return thisType->FromString(ctx);
-    }
-
-    // Handle primitive types based on name and size
-    if (fields.size == 0) 
-    {
-        // Allocate memory for the primitive value
-        meSpan result = ctx.outputData;
-		ME_ASSERT(result);
-        ME_MEMCLEAR(result, size);
-        
-        if (this == &TD_INT) 
-        {
-            s32 value = StringParseInt32(str);
-            *((s32*)result.data) = value;
-        }
-        else if (this == &TD_UNSIGNED_INT) 
-        {
-            u32 value = StringParseUInt32(str);
-            *((u32*)result.data) = value;
-        }
-        else if (this == &TD_LONGLONG) 
-        {
-            s64 value = StringParseInt64(str);
-            *((s64*)result.data) = value;
-        }
-        else if (this == &TD_UNSIGNED_LONG_LONG) 
-        {
-            u64 value = StringParseUInt64(str);
-            *((u64*)result.data) = value;
-        }
-        else if (this == &TD_SHORT) 
-        {
-            s16 value = (s16)StringParseInt32(str);
-            *((s16*)result.data) = value;
-        }
-        else if (this == &TD_UNSIGNED_SHORT) 
-        {
-            u16 value = (u16)StringParseUInt32(str);
-            *((u16*)result.data) = value;
-        }
-        else if (this == &TD_CHAR) 
-        {
-            s8 value = (s8)StringParseInt32(str);
-            *((s8*)result.data) = value;
-        }
-        else if (this == &TD_UNSIGNED_CHAR) 
-        {
-            u8 value = (u8)StringParseUInt32(str);
-            *((u8*)result.data) = value;
-        }
-        else if (this == &TD_FLOAT) 
-        {
-            float value = StringParseFloat(str);
-            *((float*)result.data) = value;
-        }
-        else if (this == &TD_DOUBLE) 
-        {
-            double value = StringParseDouble(str);
-            *((double*)result.data) = value;
-        }
-        else if (this == &TD_BOOL) 
-        {
-            bool value = false;
-            if (StringCompare(str, STRING_LIT("true")) || StringCompare(str, STRING_LIT("True")) || 
-                StringCompare(str, STRING_LIT("TRUE")) || StringCompare(str, STRING_LIT("1")))
-            {
-                value = true;
-            }
-            *((bool*)result.data) = value;
-        }
-        else if (this == &TD_VEC3)
-        {
-            glm::vec3 value = {};
-            // Expecting format (x, y, z)
-            str = EatChars(str, STRING_LIT("( "));
-
-            StringView xStr = str;
-            u32 offset = EatCharsOffset(xStr, ' ', true);
-            xStr = xStr.OffsetView(0, offset);
-            value.x = StringParseFloat(xStr);
-            str = str.OffsetView(offset);
-            str = EatChars(str, STRING_LIT(" "));
-
-            StringView yStr = str;
-            offset = EatCharsOffset(yStr, ' ', true);
-            yStr = yStr.OffsetView(0, offset);
-            value.y = StringParseFloat(yStr);
-            str = str.OffsetView(offset);
-            str = EatChars(str, STRING_LIT(" "));
-
-            StringView zStr = str;
-            offset = EatCharsOffset(zStr, ')');
-            zStr = zStr.OffsetView(0, offset);
-            value.z = StringParseFloat(zStr);
-            str = EatChars(str, STRING_LIT(")"), true);
-            str = EatChars(str, STRING_LIT("), "));
-
-            *((glm::vec3*)result.data) = value;
-        }
-		else if (this == &TD_QUAT) // quat and vec4 are the same
-		{
-			glm::vec4 value = {};
-			// Expecting format (x, y, z, w)
-            str = EatChars(str, STRING_LIT("( "));
-
-            StringView xStr = str;
-            u32 offset = EatCharsOffset(xStr, ' ', true);
-            xStr = xStr.OffsetView(0, offset);
-            value.x = StringParseFloat(xStr);
-            str = str.OffsetView(offset);
-            str = EatChars(str, STRING_LIT(" "));
-
-            StringView yStr = str;
-            offset = EatCharsOffset(yStr, ' ', true);
-            yStr = yStr.OffsetView(0, offset);
-            value.y = StringParseFloat(yStr);
-            str = str.OffsetView(offset);
-            str = EatChars(str, STRING_LIT(" "));
-
-			StringView zStr = str;
-            offset = EatCharsOffset(yStr, ' ', true);
-            zStr = zStr.OffsetView(0, offset);
-            value.z = StringParseFloat(zStr);
-            str = str.OffsetView(offset);
-            str = EatChars(str, STRING_LIT(" "));
-
-            StringView wStr = str;
-            offset = EatCharsOffset(wStr, ')');
-            wStr = wStr.OffsetView(0, offset);
-            value.w = StringParseFloat(wStr);
-            str = EatChars(str, STRING_LIT(")"), true);
-            str = EatChars(str, STRING_LIT("), "));
-
-            *((glm::vec4*)result.data) = value;
-		}
-        else 
-        {
-            UNIMPLEMENTED();
-        }
-        // changes to str are reflected back to the caller in this way
-        // I.E. when we deserialize something, we "consume" it from the input data
-        ctx.inputData = ctx.inputData.Subspan((u64)(str.data - ctx.inputData.data));
-		return true;
-    }
-    else
-	{
-        str = EatChars(str, '{');
-        str = EatChars(str, ' ');
-		// Known number of elements in this input string
-		for (u64 i = 0; i < fields.size; i++)
-        {
-            const meTypeDescriptor& field = fields[i];
-            ME_ASSERT(field.offsetBits % 8 == 0);
-            s32 len = EatCharsOffset(str, STRING_LIT(","), true);
-            if (len == -1)
-            {
-                LOG_ERROR("Failed to find delimiter for field %.*s", STRING_VAARGS(field.name));
-            }
-            // Need to copy data from inputdata stringview into field outputdata
-            DeserializeContext fieldCtx = ctx;
-            fieldCtx.inputData = meSpan(str.data, str.len);
-            fieldCtx.outputData = meSpan(ctx.outputData.data + (field.offsetBits / 8), field.size);
-            if (!field.FromString(fieldCtx))
-            {
-				// TODO: differentiating errors from non-error situations would be good...
-                continue;
-            }
-            str = StringView(fieldCtx.inputData);
-            str = EatChars(str, STRING_LIT(", "));
-        }
-        str = EatChars(str, ' ');
-        str = EatChars(str, '}');
-	}
-	return true;
-}
-
-
-
-StringView sizedBufferSerializer(
-	const meTypeDescriptor& typedescriptor,
-	SerializeContext ctx)
-{
-	meSpan fieldData = ctx.data;
-	meAllocator* allocator = ctx.allocator;
-	// the fielddata is just a pointer to a mespan, which ITSELF has the actual data
-	meSpan dereferencedData = *(meSpan*)fieldData.data;
-	Allocation mem = MEALLOC(allocator, dereferencedData.size);
-	BufferCopy(mem, dereferencedData);
-	return StringView(mem);
-}
-
-bool sizedBufferDeserializer(
-	const meTypeDescriptor& typedescriptor,
-	DeserializeContext& ctx)
-{
-	meSpan* outputSpan = (meSpan*)ctx.outputData.data;
-	Allocation mem = MEALLOC(ctx.externalDataAllocator, ctx.inputData.size);
-	BufferCopy(mem, ctx.inputData);
-	ctx.outputDataExternal = mem;
-	*outputSpan = mem;
-	return true;
-}
-
-bool stringDeserializer(
-	const meTypeDescriptor& typedescriptor,
-	DeserializeContext& ctx)
-{
-	String* ownedStr = (String*)ctx.outputData.data;
-	ownedStr->CopyOf(StringView::FromSpan(ctx.inputData), ctx.externalDataAllocator);
-	ctx.outputDataExternal = meSpan(ownedStr->data, ownedStr->len);
-	ctx.outputData = meSpan(ownedStr, sizeof(String));
-	return true;
-}
-

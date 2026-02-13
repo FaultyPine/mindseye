@@ -95,14 +95,36 @@ meAssetIdent meAssetGetIdentFromPath(
 	return meMove(result);
 }
 
-void meAssetCreateNew(
-	StringView filename,
-	meAssetType type)
+MAID meAssetCreateNewAssetID(meAssetType type)
+{
+	// this guid should be ACTUALLY random, don't need to respect any replay type stuff
+	f64 time = GetTimeUsec();
+	u32 randomNumber = HashBytes((u8*)&time, sizeof(time));
+	MAID newMaid = MAID(randomNumber, type);
+	return newMaid;
+}
+
+meAsset meAssetCreateNew(
+	meAssetType type,
+	StringView filename)
 {
     meAssetSystem& assetSystem = meAssetSystemGet();
 	meAssetLoader* loader = assetSystem.assetLoaders[type];
 	ME_ASSERT(loader);
-	loader->meAssetCreate(filename);
+	MAID newMaid = meAssetCreateNewAssetID(type);
+	meAssetIdent newIdent = {};
+	newIdent.diskIdent = filename;
+	newIdent.id = newMaid;
+	newIdent.assetUniqueIdentifier = 0; // ?
+	meResourcePoolBase* resourcePool = loader->meAssetGetResourcePool();
+	Eye newRuntimeResource = resourcePool->Load();
+	void* opaqueAssetData = resourcePool->GetOpaque(newRuntimeResource);
+	MAID* assetHeader = (MAID*)opaqueAssetData;
+	*assetHeader = newMaid;
+	meAsset newAsset = meAsset(newRuntimeResource, newIdent);
+	RWLockWrite(assetSystem.assetRegistryLock);
+	assetSystem.assetRegistry[newMaid] = newAsset; // copy
+	return meMove(newAsset);
 }
 
 MAID::MAID(u64 id, meAssetType type)
@@ -115,14 +137,14 @@ meAssetLoadStage meAssetLoader::meAssetWaitForLoadstage(
 	const meAssetIdent& ident,
 	meAssetLoadStage loadStage)
 {
-	meAsset* asset = meAssetTryGet(ident);
+	meAsset* asset = meAssetTryGet(ident.id);
 	constexpr u32 maxAttempts = 1000;
 	u32 attempts = 0;
 	while (asset && asset->loadStage != loadStage && attempts++ < maxAttempts)
 	{
 		meThreadSleep(1); // TMP
 		//GetAssetSystem().assetCompilerJobs.WaitOnJob(assetJobId);
-		asset = meAssetTryGet(ident);
+		asset = meAssetTryGet(ident.id);
 	}
 	return asset ? asset->loadStage : Unloaded;
 }
@@ -145,7 +167,7 @@ meJobId meAssetRequestLoad(
 			LOG_ERROR("Tried to load asset type that doesn't have an implemented loader");
 			return {}; // dev error, should never happen, unrecoverable
 		}
-		meAsset* asset = meAssetTryGet(assetIdent);
+		meAsset* asset = meAssetTryGet(assetIdent.id);
 		// if it's already loaded, noop
 		if (asset)
 		{
@@ -156,7 +178,7 @@ meJobId meAssetRequestLoad(
 			{ // add the slot in, and mark it as "loading"
 				meAsset notYetLoadedData = meAsset(assetIdent, Loading);
 				RWLockWrite(assetSystem.assetRegistryLock);
-				assetSystem.assetRegistry[assetIdent] = notYetLoadedData;
+				assetSystem.assetRegistry[assetIdent.id] = notYetLoadedData;
 			}
 			struct AssetCompilerJobData
 			{
@@ -171,7 +193,7 @@ meJobId meAssetRequestLoad(
 			jobData.cb = cb;
 			auto fn = [jobData, &assetSystem]() 
 			{
-				meAsset* asset = meAssetTryGet(jobData.ident);
+				meAsset* asset = meAssetTryGet(jobData.ident.id);
 				ME_ASSERT(asset);
 				jobData.loader->meAssetLoad(*asset);
 				ME_ASSERT(asset->ident);
@@ -239,7 +261,7 @@ meJobId meAssetRequestWrite(
 			LOG_ERROR("Tried to write asset type that doesn't have an implemented loader");
 			return {}; // engine dev error, should never happen
 		}
-		meAsset* asset = meAssetTryGet(assetIdent);
+		meAsset* asset = meAssetTryGet(assetIdent.id);
 		// if it's already loaded, noop
 		if (asset)
 		{
@@ -260,9 +282,10 @@ meJobId meAssetRequestWrite(
 			jobData.cb = onWriteCb;
 			auto fn = [jobData, &assetSystem]() 
 			{
-				meAsset* asset = meAssetTryGet(jobData.ident);
-				ME_ASSERT(asset && asset->loadStage == Loaded && asset->runtimeHandle);
+				meAsset* asset = meAssetTryGet(jobData.ident.id);
+				ME_ASSERT(asset && asset->loadStage == Loaded && asset->runtimeHandle && asset->ident.id);
 				jobData.loader->meAssetWrite(*asset);
+				meAssetIndexRegisterRelation(asset->ident.diskIdent, asset->ident.id);
 				if (jobData.cb)
 				{
 					jobData.cb(*asset);
@@ -283,7 +306,7 @@ meJobId meAssetRequestWrite(
 	return {};
 }
 
-meAsset* meAssetTryGet(meAssetIdent assetID)
+meAsset* meAssetTryGet(MAID assetID)
 {
 	meAssetSystem& assetSystem = meAssetSystemGet();
 	RWLockRead(assetSystem.assetRegistryLock);

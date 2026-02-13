@@ -37,6 +37,15 @@ MAID meAssetIndexGetMAIDFromPath(
 	return {};
 }
 
+void meAssetIndexRegisterRelation(
+	const StringView& path,
+	const MAID& maid)
+{
+	meAssetIndex& assetIndex = meAssetIndexGet();
+	assetIndex.assetToPathMap[maid] = path;
+	assetIndex.pathToAssetsMap[path] = maid;
+}
+
 StringView assetTypeFileExtensions[] =
 {
 	#define X(name, ext) STRING_LIT(ext),
@@ -111,7 +120,7 @@ void meAssetIndexInitialize(EngineContext* engine)
 	// TODO: async job this whole func
 	StringView dataDir = meAssetGetResourceDir();
 	StringView assetIndexFilePath = StringFormatTmp(STRING_FMT STRING_FMT STRING_FMT, 
-					dataDir, meFsGetDirectorySeperator(), STRING_LIT(ME_ASSET_INDEX_FILE));
+		STRING_VAARGS(dataDir), STRING_VAARGS(meFsGetDirectorySeperator()), STRING_VAARGS(STRING_LIT(ME_ASSET_INDEX_FILE)));
 	OSFileReference assetIndexFile = {};
 	assetIndexFile.InitWithoutOpening(assetIndexFilePath);
 	bool didExist = meOSFileExists(assetIndexFile);

@@ -22,7 +22,7 @@ void meTextureInitialize(EngineContext* ctx)
 	meMaterialTextureType texType = meMaterialTextureType::Diffuse;
 	StringView diffuseTexUniformName = meMaterialGetTextureTypeName(texType);
 	badDataTexture.sampler = ctx->renderer->CreateShaderUniform(diffuseTexUniformName, meUniformDataType::UNIFORM_SAMPLER);
-	ctx->textureSystem->badData = badDataTexture;
+	ctx->textureSystem->GetBadData() = badDataTexture;
 }
 
 meTexturePool& meTextureGetPool()

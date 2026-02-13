@@ -51,9 +51,3 @@ MEAPI StringView meDeserializeEatUntilNextElement(
 	char openDelim,
 	char closeDelim,
 	char separator);
-
-
-StringView sizedBufferSerializer(const meTypeDescriptor&, SerializeContext ctx);
-bool sizedBufferDeserializer(const meTypeDescriptor&, DeserializeContext& ctx);
-bool stringDeserializer(const meTypeDescriptor&, DeserializeContext& ctx);
-

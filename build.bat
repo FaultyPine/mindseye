@@ -14,6 +14,11 @@ set root=%root:~0,-1%
 :: working dir should be project root (same dir as this script)
 pushd %root%
 
+@REM Set up x64 build environment to avoid x86/x64 library conflicts
+for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath`) do (
+    if not defined VSCMD_VER call "%%i\VC\Auxiliary\Build\vcvarsall.bat" x64 >nul 2>&1
+)
+
 if not exist "build" mkdir "build"
 if not exist "tools\clang\bin\clang.exe" (
     echo [First time setup] downloading clang binaries...

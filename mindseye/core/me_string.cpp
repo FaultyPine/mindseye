@@ -80,6 +80,14 @@ String::String(const String& other)
 
 String& String::operator=(const String& other)
 {
+	if (this == &other) return *this; // self-assignment check
+
+	// Free existing data
+	if (allocator && data)
+	{
+		MEFREE(allocator, data);
+	}
+
 	if (!allocator)
 	{
 		allocator = other.allocator;
@@ -101,6 +109,14 @@ String::String(String&& other) noexcept
 
 String& String::operator=(String&& other)
 {
+	if (this == &other) return *this; // self-assignment check
+
+	// Free existing data
+	if (allocator && data)
+	{
+		MEFREE(allocator, data);
+	}
+
 	data = other.data;
 	len = other.len;
 	allocator = other.allocator;
@@ -110,12 +126,50 @@ String& String::operator=(String&& other)
 	return *this;
 }
 
+static meAllocator* GetStringAllocator()
+{
+	// TODO
+	return GetSystemAllocator();
+}
+
+String& String::operator=(const StringView& other)
+{
+	// Free existing data
+	if (allocator && data)
+	{
+		MEFREE(allocator, data);
+	}
+
+	if (!allocator)
+	{
+		allocator = GetStringAllocator();
+	}
+	CopyOf(other, allocator);
+	return *this;
+}
+
+String& String::operator=(const StringBuilder& other)
+{
+	// Free existing data
+	if (allocator && data)
+	{
+		MEFREE(allocator, data);
+	}
+
+	if (!allocator)
+	{
+		allocator = other.allocator ? other.allocator : GetStringAllocator();
+	}
+	CopyOf(StringView(other.data, other.len), allocator);
+	return *this;
+}
+
 
 static void InitFromBuf(String* str, const char* data, size_t len, meAllocator* allocator)
 {
 	if (len == 0)
 	{
-		*str = {};
+		*str = String();
 		return;
 	}
 	str->data = MEALLOC(allocator, len + 1);
@@ -147,7 +201,7 @@ String::String(const StringView& str, meAllocator* allocator)
 {
 	if (!allocator)
 	{
-		allocator = GetSystemAllocator(); // TOOD: string-specific allocator/pool
+		allocator = GetStringAllocator();
 	}
 	InitFromBuf(this, str.data, str.len, allocator);
 }
@@ -163,7 +217,7 @@ void String::CopyOfCStr(const char* cstr, meAllocator* allocator)
 
 void String::CopyOf(const String& str)
 {
-	if (!str) { *this = {}; return; }
+	if (!str) { data = nullptr; len = 0; allocator = nullptr; return; }
 	this->len = str.len;
 	this->allocator = str.allocator;
 	this->data = (char*)MEALLOC(str.allocator, len+1);
@@ -173,7 +227,7 @@ void String::CopyOf(const String& str)
 
 void String::CopyOf(const StringView& str, meAllocator* allocator)
 {
-	if (!str) { *this = {}; return; }
+	if (!str) { data = nullptr; len = 0; this->allocator = nullptr; return; }
 	len = str.len;
 	this->allocator = allocator;
 	data = (char*)MEALLOC(this->allocator, len+1);
@@ -232,7 +286,7 @@ const char* CStringFromString(
 bool StringCopy(StringView dst, StringView src)
 {
 	bool result = BufferCopy(dst.ToSpan(), src.ToSpan());
-	dst.data[dst.len] = '\0';
+	dst.data[src.len] = '\0';
 	return result;
 }
 

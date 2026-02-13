@@ -84,7 +84,7 @@ void RunEngine(EngineContext* engine)
 static void InitializeEngineConfig(EngineContext* engine)
 {
 	// start doing a scan from cwd
-	StringView mindseyeIniFile = STRING_LIT("mindseye.ini");
+	StringView mindseyeIniFile = STRING_LIT("mindseye.json");
 	StringView userProjectConfigPath = meFsScanOutForFile(mindseyeIniFile);
 	if (!userProjectConfigPath)
 	{

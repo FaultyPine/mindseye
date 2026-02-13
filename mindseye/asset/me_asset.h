@@ -6,6 +6,7 @@
 #include "core/me_job_system.h"
 #include "core/me_event.h"
 #include "core/containers/me_array.h"
+#include "core/me_resourcepool.h"
 
 #include "generatedtypes/me_asset.generated.h"
 
@@ -123,8 +124,8 @@ enum meAssetLoadStage
 };
 
 #define ME_ASSET_STRUCTURE(typeName, typeDesc) \
-meAssetIdent header = {}; \
-typeName(const meAssetIdent& ident) : typeName() { header = ident; } \
+MAID header = {}; \
+typeName(const MAID& ident) : typeName() { header = ident; } \
 typeName() = default;
 
 
@@ -140,8 +141,7 @@ struct MEREFLECT(type) meAssetIdent
     meAssetIdent() = default;
     bool operator==(const meAssetIdent& other) const 
 	{ 
-		return id == other.id && assetUniqueIdentifier == other.assetUniqueIdentifier &&
-			((other.diskIdent.len == 0 || diskIdent.len == 0) || other.diskIdent == diskIdent);
+		return id == other.id && assetUniqueIdentifier == other.assetUniqueIdentifier;
 	}
 	operator bool() const 
 	{
@@ -214,8 +214,8 @@ struct meAssetLoader
     // called on asset threads
     virtual void meAssetLoad(meAsset&) = 0;
 	virtual void meAssetWrite(meAsset&) = 0;
-	virtual void meAssetCreate(StringView) = 0;
 	virtual const meTypeDescriptor& meAssetGetTypeDescriptor() = 0;
+	virtual meResourcePoolBase* meAssetGetResourcePool() = 0;
 	virtual void meAssetOnLoad(meAsset&) {}
 	meAssetLoadStage meAssetWaitForLoadstage(
 		const meAssetIdent&, 
@@ -227,7 +227,7 @@ struct meAssetSystem
 	// relative to working dir
 	String resourceDir = {};
 	RWLock assetRegistryLock = {};
-    meMap<meAssetIdent, meAsset> assetRegistry = {};
+    meMap<MAID, meAsset> assetRegistry = {};
     // meAssetType -> loader
     meArray<meAssetLoader*, NUM_ASSET_TYPES> assetLoaders = {};
 	meJobSystem assetCompilerJobs = {}; // TODO: replace this with a unified job system which should have multiple "queue" types
@@ -242,10 +242,12 @@ void meAssetInitialize(EngineContext* engine);
 void meAssetTeardown(EngineContext* engine);
 void meAssetRegisterLoader(meAssetLoader* loader, meAssetType type);
 
+MAID meAssetCreateNewAssetID(meAssetType type);
+
 // creates a default-constructed instance of an asset type on disk (and assigns it a proper guid and all that)
-void meAssetCreateNew(
-	StringView filename,
-	meAssetType type);
+meAsset meAssetCreateNew(
+	meAssetType type,
+	StringView filename = {});
 
 meAssetIdent meAssetGetIdentFromPath(
 	StringView path);
@@ -265,7 +267,7 @@ meJobId meAssetRequestWrite(
 	meSpanTyped<meAssetIdent> assetIdents,
 	meAssetOnAssetLoadCb onWriteCb = nullptr);
 
-meAsset* meAssetTryGet(meAssetIdent asset);
+meAsset* meAssetTryGet(MAID assetID);
 
 void meAssetSetResourceDir(StringView dir);
 

@@ -28,7 +28,6 @@
 #include "core/thread/me_thread.h"
 #include "core/me_job_system.h"
 #include "core/me_scope_exit.h"
-#include "core/me_serialize.h"
 
 #include "core/containers/dynarray.h"
 #include "core/containers/me_hybrid_array.h"
@@ -36,6 +35,7 @@
 #include "core/containers/me_map.h"
 
 #ifndef ME_CORE_ONLY
+#include "core/me_serialize.h"
 #include "core/me_cmdline.h"
 #include "core/me_app.h"
 #include "asset/me_asset.h"
@@ -56,7 +56,6 @@
 #include "core/me_filesystem.cpp"
 #include "core/thread/me_thread.cpp"
 #include "core/me_job_system.cpp"
-#include "core/me_serialize.cpp"
 
 #include "core/containers/dynarray.cpp"
 #include "core/containers/me_hybrid_array.cpp"
@@ -66,6 +65,7 @@
 #include "reflector/reflection_types.cpp"
 
 #ifndef ME_CORE_ONLY
+#include "core/me_serialize.cpp"
 #include "core/me_cmdline.cpp"
 #include "core/me_app.cpp"
 #include "asset/me_asset.cpp"

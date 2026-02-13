@@ -35,6 +35,8 @@ struct meTextureLoadParams
 
 struct meTexturePool : public meResourcePool<meTexture>
 {
+	using meResourcePool<meTexture>::Load;
+
 	meTexturePool(
 		meAllocator* resourceAllocator,
 		meAllocator* payloadAllocator) :

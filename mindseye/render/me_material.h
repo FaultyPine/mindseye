@@ -44,6 +44,7 @@ struct meMaterial
 
 struct meMaterialPool : public meResourcePool<meMaterial>
 {
+	using meResourcePool<meMaterial>::Load;
 	meMaterialPool(
 		meAllocator* resourceAllocator,
 		meAllocator* payloadAllocator) :

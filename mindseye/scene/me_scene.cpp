@@ -15,8 +15,9 @@ void meSceneInitialize(EngineContext* engine)
 	engine->sceneSystem = MENEW(&engine->engineArena, meSceneManager);
 
 	engine->scenePool = MENEW(&engine->engineArena, meScenePool, &engine->engineArena, &engine->engineArena);
-	meScene& badScene = engine->scenePool->badData;
-	badScene.entities = DynArrayCreate<EntityRef>(&engine->engineArena); // normally scene stuff is allocated in the scene allocator, this is an exception because it's BadData
+	// start with a "blank" new scene
+	engine->sceneSystem->rootScene = meAssetCreateNew(MAScene).runtimeHandle;
+	// CLEANUP: we're "leaking" this first blank scene, but who cares
 }
 
 meScenePool& meScenePoolGet()
@@ -80,8 +81,8 @@ struct meSceneAssetLoader : public meAssetLoader
 		if (result)
 		{
 			// TODO: individual loaders need to set this stuff after deserializing, but this should be generic for all loaders
-			ME_ASSERT(outScene.header.id.GetID() == asset.ident.id.GetID());
-			outScene.header.id.SetType(asset.ident.id.GetType()); // this should be automatic for all asset types
+			ME_ASSERT(outScene.header.GetID() == asset.ident.id.GetID());
+			outScene.header.SetType(asset.ident.id.GetType()); // this should be automatic for all asset types
 			if (FindInString(outScene.externalScenePath, STRING_LIT(".gltf")) != -1 ||
 				FindInString(outScene.externalScenePath, STRING_LIT(".glb")) != -1)
 			{
@@ -117,32 +118,13 @@ struct meSceneAssetLoader : public meAssetLoader
 		}
 	}
 
-	virtual void meAssetCreate(StringView filename) override
-	{
-		// this guid should be ACTUALLY random, don't need to respect any replay type stuff
-		f64 time = GetTimeUsec();
-		u32 randomNumber = HashBytes((u8*)&time, sizeof(time));
-		MAID newMaid = MAID(randomNumber, MAScene);
-		meAssetIdent newIdent = {};
-		newIdent.diskIdent = filename;
-		newIdent.id = newMaid;
-		newIdent.assetUniqueIdentifier = 0; // ?
-		meScene scene = meScene();
-		StringView assetPath = meAssetGetAbsPathForResource(filename);
-		meAllocator* tempAllocator = GetTLScratch();
-		StringView sceneString = {};
-		meSerializeResult res = SerializeToTextBlocking(TD_MESCENE, &scene, tempAllocator, sceneString);
-		ME_ASSERT(res == meSerializeResult::SER_SUCCESS);
-		OSFileReference file;
-		meOSOpenFile(file, assetPath, (OSFileFlags_StompExisting | OSFileFlags_ScopedFile));
-		if (!meOSWriteFileContent(file, sceneString.data, sceneString.len))
-		{
-			LOG_ERROR("Failed to write scene to file. filename = " STRING_FMT "\nsceneString = " STRING_FMT, STRING_VAARGS(assetPath), STRING_VAARGS(sceneString));
-		}
-	}
 	virtual const meTypeDescriptor& meAssetGetTypeDescriptor() override
 	{
 		return TD_MESCENE;
+	}
+	virtual meResourcePoolBase* meAssetGetResourcePool() override
+	{
+		return &meScenePoolGet();
 	}
 	virtual void meAssetOnLoad(meAsset& asset) override
 	{

@@ -12,13 +12,21 @@ struct meResourceSlot
 
 	operator T&() { return obj; }
 };
+
+struct meResourcePoolBase
+{
+	// purposely left "unimplemented"
+	virtual Eye Load() { UNIMPLEMENTED(); return {}; }
+	virtual void* GetOpaque(Eye handle) const { return nullptr; };
+};
+
 // TODO: each resource should have some kind of meResourceUniqueIdentifier
 // that uniquely identifies *that* resource apart from the others. I.E. a hash of it's content
 // each resource type should implement their own, so when someone requests 
 // "i need a new resource for [this] content", we can somehow dedeuplicate, and give back
 // an existing resource handle and increment its ref count
 template <typename ResourceType>
-struct meResourcePool
+struct meResourcePool : public meResourcePoolBase
 {
 	// NOTE: meResourcePool should be assumed to have pointer stability to its resources
 	// There's no hard dependence on that rn, since everything uses handles to reference these, but it's still a nice thing
@@ -34,10 +42,15 @@ struct meResourcePool
 	// derived resource pools will overload this Load function with
 	// their own signature. Those derived functions should use CreateInternal
 	// to return & write to the handle
-	Eye Load() { return CreateInternal(); }
+	virtual Eye Load() override { return CreateInternal(); }
 	void Destroy(Eye handle) { DestroyInternal(handle); }
 	ResourceType& Get(Eye handle);
 	const ResourceType& Get(Eye handle) const;
+	virtual void* GetOpaque(Eye handle) const override
+	{
+		return (void*)&Get(handle);
+	}
+
 	meAllocator* GetPayloadAllocator() const { return resourcePayloadAllocator; }
 
 	// each resource pool should assign a default "no data" object

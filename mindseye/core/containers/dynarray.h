@@ -77,13 +77,13 @@ void DynArrayPushAt(DynArray<T>& array, T obj, u32 index)
 template <typename T>
 void DynArrayPush(DynArray<T>& array, T obj)
 {
-    DynArrayPushAt(array, (void*)&obj, 1, DynArrayGetSize(array));
+    DynArrayPushAt(array, &obj, 1, DynArrayGetSize(array));
 }
 
 template<typename T>
 void DynArrayPush(DynArray<T>& array, T* objs, u64 numObjs)
 {
-	DynArrayPushAt(array, (void*)objs, numObjs, DynArrayGetSize(array));
+	DynArrayPushAt(array, objs, numObjs, DynArrayGetSize(array));
 }
 
 // remove (and optionally return element) at specified index

@@ -149,6 +149,11 @@ extern meTypeDescriptor TD_SPAN;
 extern meTypeDescriptor TD_STRINGVIEW; // basically the same as span
 extern meTypeDescriptor TD_STRING;
 
+// Serializer/Deserializer functions for sized buffer types
+StringView sizedBufferSerializer(const meTypeDescriptor&, SerializeContext ctx);
+bool sizedBufferDeserializer(const meTypeDescriptor&, DeserializeContext& ctx);
+bool stringDeserializer(const meTypeDescriptor&, DeserializeContext& ctx);
+
 // NOTE: there are static maps mapping between reflected types and their type descriptors
 // in me_reflector.cpp
 // I.E. "String" -> TD_STRING or "glm::vec3<3, float>" -> TD_VEC3

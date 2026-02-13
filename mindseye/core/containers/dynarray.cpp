@@ -48,6 +48,8 @@ bool DynArrayDeserializerFromStringFn(
 	const meTypeDescriptor& typeDescriptor,
 	DeserializeContext& ctx)
 {
+	UNIMPLEMENTED();
+	#if 0
 	const meTypeDescriptor* parentType = ctx.parentType;
 	// DynArray is templated, and so requires the parent type to understand the template args, see comment in meTypeDescriptor struct
 	ME_ASSERT(parentType);
@@ -56,7 +58,8 @@ bool DynArrayDeserializerFromStringFn(
 	ME_ASSERT(templatedTypes.size == 1);
 	const meTypeDescriptor* templateArg = templatedTypes[0];
 
-	// BOOKMARK: this is borked
+	// BOOKMARK: this is borked: just implemented nohlmann json for serialization
+	// use that here maybe?
 	StringView str = StringView(ctx.inputData.data, ctx.inputData.size);
 	while (StringView element = meDeserializeEatUntilNextElement(str, '[', ']', ','))
 	{
@@ -64,7 +67,8 @@ bool DynArrayDeserializerFromStringFn(
 		elementCtx.inputData = element.ToSpan();
 		templateArg->FromString(elementCtx);
 	}
-	
+	#endif
+
 	return true;
 }
 
@@ -139,7 +143,7 @@ DynArray<T> DynArrayResize(DynArray<T> array, u32 newCapacity)
 // ===== Modify array ======
 
 template <typename T>
-bool DynArrayPushAt(DynArray<T>& array, void* objs, u32 numObjs, u32 index)
+bool DynArrayPushAt(DynArray<T>& array, T* objs, u32 numObjs, u32 index)
 {
     DynArrayHeader* header = GetHeaderPointer(array);
 #if ARRAY_CHECKS

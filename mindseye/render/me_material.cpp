@@ -9,7 +9,7 @@ void meMaterialInitialize(EngineContext* ctx)
 
 	meMaterial badMaterial = {};
 	StringCopy(StringView(badMaterial.name, meMaterial::MEMATERIAL_MAX_NAME_LEN), STRING_LIT("BadDataMaterial"));
-	ctx->materialSystem->badData = badMaterial;
+	ctx->materialSystem->GetBadData() = badMaterial;
 }
 
 meMaterialPool& meMaterialGetPool()
@@ -76,7 +76,7 @@ meMaterialID meMaterialPool::Load(
 		// TODO: deduplicate, see comment in me_resourcepool.h
 		u64 litProgram = renderer->CreateShaderProgram(meSpan(main_lit_fs), meSpan(main_lit_vs));
 		meShaderPool& shaderPool = meShaderGetPool();
-		meShaderID shaderHandle = shaderPool.Load();
+		meShaderID shaderHandle = shaderPool.CreateInternal();
 		meShader& shader = shaderPool.Get(shaderHandle);
 		shader.uniformHandles = DynArrayCreate<meShaderUniform>(shaderPool.resourcePayloadAllocator);
 		meShaderUniform timeU = meShaderUniform();

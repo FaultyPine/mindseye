@@ -27,6 +27,8 @@ struct String
 	MEAPI String& operator=(const String& other); // copy assignment
 	MEAPI String(String&& other) noexcept; // move
 	MEAPI String& operator=(String&& other); // move assignment
+	MEAPI String& operator=(const StringView& other);
+	MEAPI String& operator=(const StringBuilder& other);
 
 	MEAPI void CopyOfCStr(const char* cstr, meAllocator* allocator);
 	MEAPI void CopyOf(const String& str);
@@ -36,6 +38,7 @@ struct String
 	MEAPI bool operator == (const StringView& sv) const;
     MEAPI explicit operator char*() { return data; }
 	MEAPI explicit operator bool() const { return data && len; }
+	MEAPI char operator[](u32 idx) const { return data[idx]; }
 
 	const char* cstr() const 
 	{

@@ -50,6 +50,8 @@ struct meFatVertex
 
 struct meMeshPool : public meResourcePool<meMesh>
 {
+	using meResourcePool<meMesh>::Load;
+
 	meMeshPool(
 		meAllocator* resourceAllocator,
 		meAllocator* payloadAllocator) :
