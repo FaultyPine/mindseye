@@ -22,7 +22,10 @@ StringView EntityRefSerializerToStringFn(
 	meSpan entitySpan = SPAN_FROM(entity);
 	SerializeContext entityCtx = ctx;
 	entityCtx.data = entitySpan;
-	return TD_ENTITYDATA.ToString(entityCtx);
+	// BOOKMARK: implement with new serialization lib
+	UNIMPLEMENTED();
+	//return TD_ENTITYDATA.ToString(entityCtx);
+	return {};
 }
 
 bool EntityRefDeserializerFromStringFn(
@@ -33,12 +36,17 @@ bool EntityRefDeserializerFromStringFn(
 	DeserializeContext entityDataCtx = ctx;
 	EntityData entity = {};
 	entityDataCtx.outputData = SPAN_FROM(entity);
-	if (!TD_ENTITYDATA.FromString(entityDataCtx))
+	// BOOKMARK: implement with new serialization lib
+	UNIMPLEMENTED();
+	if (!DeserializeFromTextBlocking(
+		TD_ENTITYDATA, ctx.externalDataAllocator, 
+		StringView(ctx.inputData, ctx.inputData.size), ctx.outputData))
 	{
 		LOG_ERROR("Failed to deserialize entity");
 		return false;
 	}
-	EntityRef ref = Entity::CreateEntity(entity.name, entity.transform, entity.flags);
+	EntityRef ref = Entity::CreateBlankEntity();
+	Entity::GetEntity(ref) = entity;
 	ME_ASSERT(ctx.outputData.size == sizeof(ref.ref));
 	ME_MEMCPY(ctx.outputData.data, &ref.ref, sizeof(ref.ref));
 	return true;
@@ -94,15 +102,11 @@ bool IsFlag(EntityRef ent, EntityFlags flag)
     return IsFlag(registry.entMap[ent], flag);
 }
 
-EntityRef CreateEntity(
-    StringView name, 
-    const meTransform& tf, 
-    u32 flags)
+EntityRef CreateBlankEntity(
+	StringView name)
 {
     EntityRegistry& registry = GetRegistry();
     EntityData ent = {};
-    ent.transform = tf;
-    ent.flags = flags;
     u32 entityID = 0;
     if (name)
     {
@@ -114,6 +118,7 @@ EntityRef CreateEntity(
     {
         // if no name, the entity id is just a incrementally increasing num
         entityID = registry.entityCreationIndex;
+		ent.name = StringFormatTmp("UnnamedEntity%i", entityID);
     }
     // hash until we don't collide
     while (registry.entMap.count(entityID))

@@ -86,7 +86,7 @@ void OnFoundAssetFile(
 	const meTypeDescriptor& typeDesc = loader->meAssetGetTypeDescriptor();
 	u32 size = typeDesc.size;
 	Allocation outSerialized = MEALLOC(GetTLScratch(), size);
-	meSerializeResult result = SerializeFromFile(assetPath, GetTLScratch(), typeDesc, outSerialized);
+	meSerializeResult result = DeserializeFromFileBlocking(assetPath, GetTLScratch(), typeDesc, outSerialized);
 	if (result == meSerializeResult::SER_SUCCESS)
 	{
 		meSpan assetIdentData = meSerializeTryGetAssetIdentHeader(typeDesc, outSerialized);

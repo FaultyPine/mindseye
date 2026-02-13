@@ -18,17 +18,18 @@ struct meSerializeResult
 	operator bool() const { return result == SER_SUCCESS; }
 };
 
-meSerializeResult SerializeFromFile(
-	StringView file,
-	meAllocator* allocator,
-	const meTypeDescriptor& typeDescriptor,
-	meSpan outBuffer);
 
 meSerializeResult SerializeToTextBlocking(
 	const meTypeDescriptor& typeDesc, 
 	void* data,
 	meAllocator* allocator,
     StringView& outResult);
+
+meSerializeResult DeserializeFromFileBlocking(
+	StringView file,
+	meAllocator* allocator,
+	const meTypeDescriptor& typeDescriptor,
+	meSpan outBuffer);
 
 // allocator - for dynamic allocations needed during deserialization (I.E. strings)
 // outBuffer - preallocated buffer to deserialize into for POD data of the structure
@@ -38,16 +39,3 @@ meSerializeResult DeserializeFromTextBlocking(
 	StringView inText,
 	meSpan outBuffer);
 
-
-// each invocation of this func on a given string
-// returns one "element" of a "list" of elements
-// all elements are surrounded by an openDelim on the left 
-// and a closeDelim on the right and separated by separator
-// It returns each element and modifies the input string like an iterator,
-// keeping track of where in the list of elements we are
-// Useful when there is an unknown number of elements in a "string list"
-MEAPI StringView meDeserializeEatUntilNextElement(
-	StringView& str,
-	char openDelim,
-	char closeDelim,
-	char separator);

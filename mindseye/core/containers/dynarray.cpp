@@ -11,67 +11,6 @@
 STATIC_ASSERT(sizeof(DynArray<int>) == sizeof(DynArrayAny));
 STATIC_ASSERT(sizeof(DynArrayAny) == sizeof(DynArray<u64>));
 
-StringView DynArraySerializerToStringFn(
-	const meTypeDescriptor& typeDescriptor,
-	SerializeContext ctx)
-{
-	const meTypeDescriptor* parentType = ctx.parentType;
-	// DynArray is templated, and so requires the parent type to understand the template args, see comment in meTypeDescriptor struct
-	ME_ASSERT(parentType);
-	meSpanTyped<meTypeDescriptor*> templatedTypes = parentType->templatedTypes;
-	ME_ASSERT(templatedTypes);
-	ME_ASSERT(templatedTypes.size == 1);
-	const meTypeDescriptor* templateArg = templatedTypes[0];
-	const meSpan& dynArrayData = ctx.data;
-	DynArrayAny& arr = *(DynArrayAny*)dynArrayData.data;
-	u32 size = DynArrayGetSize(arr);
-	u32 stride = DynArrayGetStride(arr);
-	StringBuilder builder(ctx.allocator);
-	builder.Append(STRING_LIT("["));
-	for (u32 i = 0; i < size; i++)
-	{
-		meSpan elementSpan = meSpan(&arr[i * stride], templateArg->size);
-		SerializeContext elementCtx = ctx;
-		elementCtx.data = elementSpan;
-		StringView elementStr = templateArg->ToString(elementCtx);
-		builder.Append(elementStr);
-		if (i < (size - 1))
-		{
-			builder.Append(STRING_LIT(", "));
-		}
-	}
-	builder.Append(STRING_LIT("]"));
-	return builder;
-}
-
-bool DynArrayDeserializerFromStringFn(
-	const meTypeDescriptor& typeDescriptor,
-	DeserializeContext& ctx)
-{
-	UNIMPLEMENTED();
-	#if 0
-	const meTypeDescriptor* parentType = ctx.parentType;
-	// DynArray is templated, and so requires the parent type to understand the template args, see comment in meTypeDescriptor struct
-	ME_ASSERT(parentType);
-	meSpanTyped<meTypeDescriptor*> templatedTypes = parentType->templatedTypes;
-	ME_ASSERT(templatedTypes);
-	ME_ASSERT(templatedTypes.size == 1);
-	const meTypeDescriptor* templateArg = templatedTypes[0];
-
-	// BOOKMARK: this is borked: just implemented nohlmann json for serialization
-	// use that here maybe?
-	StringView str = StringView(ctx.inputData.data, ctx.inputData.size);
-	while (StringView element = meDeserializeEatUntilNextElement(str, '[', ']', ','))
-	{
-		DeserializeContext elementCtx = ctx;
-		elementCtx.inputData = element.ToSpan();
-		templateArg->FromString(elementCtx);
-	}
-	#endif
-
-	return true;
-}
-
 template<typename T>
 DynArrayHeader* GetHeaderPointer(const DynArray<T>& array)
 {
@@ -162,18 +101,26 @@ bool DynArrayPushAt(DynArray<T>& array, T* objs, u32 numObjs, u32 index)
         header = GetHeaderPointer(array);
     }
     u32 arrSize = header->size;
-    u32 stride = header->stride;
-    u8* arrayMem = (u8*)array.data;
-	u8* destination = arrayMem + (index * stride);
+    ME_ASSERT(header->stride == sizeof(T));
+	T* destination = array.data + index;
     // if inserting at a populated index, copy all elements to the right
     if (index < arrSize)
     {
-        u32 moveSize = (arrSize - index) * stride;
-        u8* moveTo = arrayMem + ((index + numObjs) * stride);
-        ME_MEMMOVE(moveTo, destination, moveSize);
+		u32 moveCount = arrSize - index;
+        //u32 moveSize = moveCount * stride;
+        T* moveTo = array.data + (index + numObjs);
+		for (u32 i = moveCount; i >= 0; i--)
+		{
+			moveTo[i-1] = destination[i-1];
+		}
+        //ME_MEMMOVE(moveTo, destination, moveSize);
     }
     // copy object(s) to the index
-    ME_MEMCPY(destination, objs, numObjs * stride);
+	for (u32 i = 0; i < numObjs; i++)
+	{
+		destination[i] = objs[i];
+	}
+    //ME_MEMCPY(destination, objs, numObjs * stride);
     header->size += numObjs;
     return true;
 }

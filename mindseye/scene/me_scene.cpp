@@ -77,7 +77,7 @@ struct meSceneAssetLoader : public meAssetLoader
 			outScene.entities = DynArrayCreate<EntityRef>(sceneAllocator);
 		}
 		StringView assetPath = meAssetGetAbsPathForResource(asset.ident.diskIdent);
-		meSerializeResult result = SerializeFromFile(assetPath, sceneAllocator, TD_MESCENE, SPAN_FROM(outScene));
+		meSerializeResult result = DeserializeFromFileBlocking(assetPath, sceneAllocator, TD_MESCENE, SPAN_FROM(outScene));
 		if (result)
 		{
 			// TODO: individual loaders need to set this stuff after deserializing, but this should be generic for all loaders
@@ -189,8 +189,9 @@ void meScenePool::Load(
 		float nodeMatrix[16];
 		cgltf_node_transform_local(&node, nodeMatrix);
 		meTransform nodeTf = meTransform(glm::make_mat4(nodeMatrix));
-		EntityRef entityRef = Entity::CreateEntity(StringFromCString(node.name), nodeTf);
+		EntityRef entityRef = Entity::CreateBlankEntity(StringFromCString(node.name));
 		EntityData& entity = Entity::GetEntity(entityRef);
+		entity.transform = nodeTf;
 		if (node.mesh)
 		{
 			const cgltf_mesh& gltfmesh = *node.mesh;

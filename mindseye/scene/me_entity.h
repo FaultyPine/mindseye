@@ -80,10 +80,8 @@ bool EntityRefDeserializerFromStringFn(
 	const meTypeDescriptor& typeDescriptor,
 	DeserializeContext& ctx);
 
-MEAPI EntityRef CreateEntity(
-    StringView name, 
-    const meTransform& tf = {}, 
-    u32 flags = 0);
+MEAPI EntityRef CreateBlankEntity(
+	StringView name = {});
 MEAPI bool DestroyEntity(EntityRef ent);
 MEAPI EntityData& GetEntity(EntityRef ent);
 

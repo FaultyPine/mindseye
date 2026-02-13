@@ -128,7 +128,7 @@ void meEditorTick(EngineContext* engine)
 				if (ImGui::MenuItem("New"))
 				{
 					meScene* currentScene = &engine->sceneSystem->CurrentScene();
-					EntityRef newEnt = Entity::CreateEntity(STRING_LIT("UnnamedEntity"));
+					EntityRef newEnt = Entity::CreateBlankEntity();
 					DynArrayPush(currentScene->entities, newEnt);
 				}
 				ImGui::EndMenu();

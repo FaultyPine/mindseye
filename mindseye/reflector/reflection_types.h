@@ -67,8 +67,10 @@ struct meTypeDescriptor
 	meTypeDescriptorFlags flags = 0;
 	s32 version = 0;
 	
+	// in bytes
 	u32 size = 0;
 	u32 align = 0;
+	// in bits! to account for possible bitfield members
 	s32 offsetBits = 0;
 
 	meTypeDescriptor* thisType = nullptr;
@@ -89,9 +91,6 @@ struct meTypeDescriptor
 	// be called instead of default primitive serialization funcs
 	SerializerToStringFn strSerializer = nullptr;
 	DeserializerFromStringFn strDeserializer = nullptr;
-
-	MEAPI StringView ToString(SerializeContext ctx) const;
-	MEAPI bool FromString(DeserializeContext& ctx) const;
 
 	bool operator==(const meTypeDescriptor& other) const
 	{

@@ -116,7 +116,12 @@ static json JsonSerializeWithTypeDescriptor(
 }
 
 // Deserialize JSON into a data buffer using meTypeDescriptor
-static bool JsonDeserializeWithTypeDescriptor(const json& j, const meTypeDescriptor& td, void* outData, meAllocator* allocator, const meTypeDescriptor* parentType)
+static bool JsonDeserializeWithTypeDescriptor(
+	const json& j, 
+	const meTypeDescriptor& td, 
+	void* outData, 
+	meAllocator* allocator, 
+	const meTypeDescriptor* parentType)
 {
 	if (j.is_null() || !td.ShouldSerializeText())
 	{
@@ -233,11 +238,8 @@ static bool JsonDeserializeWithTypeDescriptor(const json& j, const meTypeDescrip
 	return true;
 }
 
-// =========================================================
-// Public API
-// =========================================================
 
-meSerializeResult SerializeFromFile(
+meSerializeResult DeserializeFromFileBlocking(
 	StringView filepath,
 	meAllocator* allocator,
 	const meTypeDescriptor& typeDescriptor,
@@ -279,7 +281,6 @@ meSerializeResult SerializeToTextBlocking(
 		ME_ASSERT(field.offsetBits % 8 == 0);
 		void* fieldData = (u8*)data + (field.offsetBits / 8);
 		std::string fieldName(field.name.data, field.name.len);
-		// BOOKMARK: crash here on save
 		root[fieldName] = JsonSerializeWithTypeDescriptor(field, fieldData, &typeDesc);
 	}
 
@@ -297,7 +298,7 @@ meSerializeResult SerializeToTextBlocking(
 	
 	// Allocate and copy to output
 	Allocation mem = MEALLOC(allocator, jsonStr.size() + 1);
-	memcpy(mem.data, jsonStr.data(), jsonStr.size());
+	ME_MEMCPY(mem.data, jsonStr.data(), jsonStr.size());
 	((char*)mem.data)[jsonStr.size()] = '\0';
 	outResult = StringView((const char*)mem.data, (u32)jsonStr.size());
 	
@@ -377,97 +378,80 @@ meSerializeResult DeserializeFromTextBlocking(
 // =========================================================
 
 
-// Delimiter pairs for nested structure tracking during deserialization
-// Add new pairs here as needed (e.g., '<', '>' for angle brackets)
-struct DelimiterPair { char open; char close; };
-static constexpr DelimiterPair g_nestedDelimiters[] = {
-	{ '(', ')' },
-	{ '[', ']' },
-	{ '{', '}' },
-};
-static constexpr u32 g_nestedDelimiterCount = sizeof(g_nestedDelimiters) / sizeof(g_nestedDelimiters[0]);
 
-// str might look like
-// [ 4, "hello", [0, {val=4.5, name="s"}], 0 ]
-StringView meDeserializeEatUntilNextElement(
-	StringView& str,
-	char openDelim,
-	char closeDelim,
-	char separator)
+StringView DynArraySerializerToStringFn(
+	const meTypeDescriptor& typeDescriptor,
+	SerializeContext ctx)
 {
-	// Skip leading whitespace
-	while (str.len > 0 && IsWhitespace(str.data[0]))
+	const meTypeDescriptor* parentType = ctx.parentType;
+	// DynArray is templated, and so requires the parent type to understand the template args, see comment in meTypeDescriptor struct
+	ME_ASSERT(parentType);
+	meSpanTyped<meTypeDescriptor*> templatedTypes = parentType->templatedTypes;
+	ME_ASSERT(templatedTypes);
+	ME_ASSERT(templatedTypes.size == 1);
+	const meTypeDescriptor* templateArg = templatedTypes[0];
+	const meSpan& dynArrayData = ctx.data;
+	DynArrayAny& arr = *(DynArrayAny*)dynArrayData.data;
+	u32 size = DynArrayGetSize(arr);
+	u32 stride = DynArrayGetStride(arr);
+	StringBuilder builder(ctx.allocator);
+	builder.Append(STRING_LIT("["));
+	for (u32 i = 0; i < size; i++)
 	{
-		str = str.OffsetView(1);
-	}
-	// If we're at the opening delimiter, skip it
-	if (str.len > 0 && str.data[0] == openDelim)
-	{
-		str = str.OffsetView(1);
-		while (str.len > 0 && IsWhitespace(str.data[0]))
+		meSpan elementSpan = meSpan(&arr[i * stride], templateArg->size);
+		SerializeContext elementCtx = ctx;
+		elementCtx.data = elementSpan;
+		// BOOKMARK: implement with new serialization lib
+		UNIMPLEMENTED();
+		//StringView elementStr = templateArg->ToString(elementCtx);
+		//builder.Append(elementStr);
+		if (i < (size - 1))
 		{
-			str = str.OffsetView(1);
+			builder.Append(STRING_LIT(", "));
 		}
 	}
-	// If empty or at closing delimiter
-	if (str.len == 0 || str.data[0] == closeDelim)
-	{
-		return {};
-	}
-	// Find the end of this element
-	// Track depth for all delimiter types to handle nested structures
-	u32 depths[g_nestedDelimiterCount] = {};
-	u32 elementEnd = 0;
-	bool foundEnd = false;
-	for (u32 i = 0; i < str.len; i++)
-	{
-		char c = str.data[i];
-		// Track all delimiter types
-		for (u32 d = 0; d < g_nestedDelimiterCount; d++)
-		{
-			if (c == g_nestedDelimiters[d].open) depths[d]++;
-			else if (c == g_nestedDelimiters[d].close) { if (depths[d] > 0) depths[d]--; }
-		}
-
-		bool isOutside = true;
-		for (u32 d = 0; d < g_nestedDelimiterCount; d++)
-		{
-			if (depths[d] > 0) { isOutside = false; break; }
-		}
-
-		if (c == closeDelim && isOutside)
-		{
-			// We've reached the end of the entire list
-			elementEnd = i;
-			foundEnd = true;
-			break;
-		}
-		else if (c == separator && isOutside)
-		{
-			// Found separator at top level - this is the end of the current element
-			elementEnd = i;
-			foundEnd = true;
-			break;
-		}
-	}
-	// no delimiter found, take rest of string
-	if (!foundEnd)
-	{
-		elementEnd = str.len;
-	}
-	// Extract the element
-	u32 trimmedEnd = elementEnd;
-	while (trimmedEnd > 0 && IsWhitespace(str.data[trimmedEnd-1]))
-	{
-		trimmedEnd--;
-	}
-	StringView element = str.OffsetView(0, trimmedEnd);
-	// Update str to point past the element and separator
-	str = str.OffsetView(elementEnd);
-	// Skip the separator if present
-	if (str.len > 0 && str.data[0] == separator)
-	{
-		str = str.OffsetView(1);
-	}
-	return element;
+	builder.Append(STRING_LIT("]"));
+	return builder;
 }
+
+bool DynArrayDeserializerFromStringFn(
+	const meTypeDescriptor& typeDescriptor,
+	DeserializeContext& ctx)
+{
+	const meTypeDescriptor* parentType = ctx.parentType;
+	// DynArray is templated, and so requires the parent type to understand the template args, see comment in meTypeDescriptor struct
+	ME_ASSERT(parentType);
+	meSpanTyped<meTypeDescriptor*> templatedTypes = parentType->templatedTypes;
+	ME_ASSERT(templatedTypes);
+	ME_ASSERT(templatedTypes.size == 1);
+	const meTypeDescriptor& templateArg = *templatedTypes[0];
+
+	StringView str = StringView(ctx.inputData.data, ctx.inputData.size);
+	json root;
+	try
+	{
+		root = json::parse(str.data, str.data + str.len);
+	}
+	catch (const json::parse_error& e)
+	{
+		LOG_ERROR("JSON dynarray parse error: %s", e.what());
+		return false;
+	}
+	bool result = false;
+	u32 idx = 0;
+	for (auto& element : root)
+	{
+		// BOOKMARK: i think this is totally wrong
+		// outputdata likely is a DynArray*, so i could DynArrayCreate with externalAllocator and push stuff into that
+		void* fieldData = (u8*)ctx.outputData.data + (templateArg.size * idx);
+		std::string tmp = element.dump(4);
+		DeserializeContext elementCtx = ctx;
+		elementCtx.inputData = meSpan(tmp.data(), tmp.size());
+		elementCtx.outputData = meSpan(fieldData, templateArg.size);
+		result &= JsonDeserializeWithTypeDescriptor(element, templateArg, ctx.outputData, ctx.externalDataAllocator, parentType);
+		idx++;
+	}
+	return result;
+}
+
+
