@@ -337,7 +337,8 @@ s32 FindInStringRev(
     {
 		return -1;
     }
-	for (s32 hayStackIdx = ((s64)haystack.len) - 1 - (s32)offsetFromBack; hayStackIdx - static_cast<s64>(needle.len) >= 0; hayStackIdx--)
+    s32 hayStackIdx = 0;
+	for (hayStackIdx = ((s64)haystack.len) - needle.len - (s32)offsetFromBack; hayStackIdx >= 0; hayStackIdx--)
 	{
 		const char* haystackPtr = &haystack.data[hayStackIdx];
 		u32 i = 0;
