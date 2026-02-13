@@ -9,9 +9,10 @@
 void testbed_onsceneload(EngineContext* engine)
 {
     //GameGlobals& globals = *MENEW(&engine->gameArena, GameGlobals);
-	EntityRef testEntity = Entity::CreateEntity(STRING_LIT("bruh"), meTransform(glm::vec3(sin(GetTimeUsec()) * 5.0, cos(GetTimeUsec()) * 5.0, 0.0)));
+	EntityRef testEntity = Entity::CreateBlankEntity(STRING_LIT("bruh"));
 	DynArrayPush(engine->sceneSystem->CurrentScene().entities, testEntity);
 	EntityData& entity = Entity::GetEntity(testEntity);
+	entity.transform = meTransform(glm::vec3(sin(GetTimeUsec()) * 5.0, cos(GetTimeUsec()) * 5.0, 0.0));
 	//Entity::SetFlag(entity, EntityFlags_NoSer, true);
 	entity.mesh = meAsset(GenPlaneMesh(2));
 }
