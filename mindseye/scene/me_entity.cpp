@@ -22,13 +22,10 @@ StringView EntityRefSerializerToStringFn(
 	meSpan entitySpan = SPAN_FROM(entity);
 	SerializeContext entityCtx = ctx;
 	entityCtx.data = entitySpan;
-	// BOOKMARK: implement with new serialization lib
-	//UNIMPLEMENTED();
 	json j = JsonSerializeWithTypeDescriptor(TD_ENTITYDATA, entitySpan.data, ctx.parentType);
 	std::string bruh = j.dump(4);
 	StringView result = StringView(MEALLOC(ctx.allocator, bruh.size()), bruh.size());
 	ME_MEMCPY(result.data, bruh.data(), bruh.size());
-	//return TD_ENTITYDATA.ToString(entityCtx);
 	return result;
 }
 

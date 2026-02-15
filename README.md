@@ -7,22 +7,31 @@ Must be on windows.
 run `build.bat`
 
 ### Current focus
-- implement DynArray serializers
-- me_asset_indexer
-	- maps MAID to filesystem paths
-	- asset loader needs to be able to create "blank/default" assets of a given type. (default-construct + write to disk) so we can insert the MAID into the definition file
-	- everything sorts out once the MAID is in the masset
-	- future: includes asset dependencies, asset metadata (timestamp, name, type, etc), indexes for all these things for fast lookup
- - implement MAID serialization - allow assets to reference other assets in a serialization-friendly way
-	- I think what i'm settling on, or what i've just thought of to be the best way
-		is to group together an Eye and MAID structure in 1 structure, and have that in the EntityData or whatever
-		that way, we can serialize out those structures with the MAID portion which can map to the asset on disk
-		but can also be used for runtime by loading whatever the MAID points to into the Eye
-	- I keep feeling uneasy about how i'm managing paths on disk to assets
-		Idea - and i should verify if Axe does this too, and maybe also how Esoterica does it
-		is to have a "data directory" where all the asset files live. Then scan that on startup and cache a mapping of path <-> asset ID. Each asset file (I.E. .scn) should have a guid in them
+
+Thought experiment:
+I'd like *everything* in the engine to be serializable, so we can write the entire state of the engine to disk and load it back up again
+Relative data structures:
+	- use {((s64)&this) - (s64)this } pointer trick
+	- https://jorenjoestar.github.io/post/serialization_for_games/
+	- taking this concept further: 
+		instead of an arbitrary offset in all of the program's memory, a relative ptr/data structure can be
+		relative to itself, but ALSO relative to some other pre-defined "allocator root" or something
+		So like, you could have a RelPtr<SomeType>(myPointer) which by default is relative to itself, see trick above
+		But one could specialize RelPtr<SomeType> if we know SomeType should always be allocated from a dedicated pool,
+		and in that case the "offset" would be relative to the start of that pool.
+
+
+
+- bugs in serialization code. It's annoying to parse all the { } [ ] , 
+	- maybe i should just use a library
+	- or maybe just use binary, who needs version control?  :)
+	- reflector generates kaitai struct specs?
+		- investigated this, kaitai struct can't WRITE... only reads. That sucks.
+	- https://gafferongames.com/post/serialization_strategies/    tho this is for binary, it has a really nice concept in it for unifying serialization/deserialization funcs
+	- SWITCHING TO A SERIALIZATION LIBRARY
 - refactor so instead of straight loading gltf, we "import" gltf and turn it into massets, then load(/compile) those
 	- meAssetCreate would do the check for .gltf in the filename, and do it there
+	- actually... on second thought do I really want this? maybe it's kinda nice that we can just load the raw gltf. Might facilitate blender-as-a-level-editor workflows better
 
 === Frame Architecture ===
 

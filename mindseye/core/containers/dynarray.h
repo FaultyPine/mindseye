@@ -10,6 +10,7 @@
 // stores capacity/size in a header section stored *before* the actual array pointer
 
 #define DynArray_Foreach(array, iteratorVarName) u32 iteratorVarName = 0; !!(array) && iteratorVarName < DynArrayGetSize(array); iteratorVarName++
+#define DynArrayDefaultCapacity (10)
 
 // TODO: maybe some magic at the beginning would be a good idea
 struct DynArrayHeader
@@ -56,8 +57,12 @@ bool DynArrayDeserializerFromStringFn(
 	DeserializeContext& ctx);
 
 // Create an array with an optional initial capacity (number of elements)
+// optionally, can override the array stride to not use sizeof(T) - useful for type erasure I.E. during deserialization
 template<typename T>
-DynArray<T> DynArrayCreate(meAllocator* allocator, u32 initialCapacity = 10);
+DynArray<T> DynArrayCreate(
+	meAllocator* allocator, 
+	u32 initialCapacity = DynArrayDefaultCapacity,
+	u32 strideOverride = sizeof(T));
 
 // Frees backing memory
 template <typename T>
@@ -68,11 +73,7 @@ void DynArrayDestroy(DynArray<T>& array);
 // Copies an object to a specified index (and moves all other elements over)
 // passing reference as this could potentially reallocate if backing mem is full
 // pushing to an index outside the range [0,length] returns nullptr, logs an error, and does nothing
-template <typename T>
-void DynArrayPushAt(DynArray<T>& array, T obj, u32 index)
-{
-    DynArrayPushAt(array, &obj, 1, index);
-}
+
 // Copies an object to the end of the array
 template <typename T>
 void DynArrayPush(DynArray<T>& array, T obj)

@@ -411,10 +411,6 @@ bool meOSReadDirectory(
 			file.InitWithoutOpening(filename);
 			bool isDirectory = ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY;
 			if (isDirectory) file.flags |= OSFileFlags_IsDirectory;
-			// BOOKMARK: bug here. 
-			// problem is DynArrayPush memcpys the object in, without doing any ctor stuff
-			// so we can memcpying a structure in, then it goes out of scope and frees internal members
-			// then we use that stale stuff. Instead, this should use the template param to properly "copy" into the dynarray mem
 			DynArrayPush(result, file);
         }
     } while (FindNextFileA(hFind, &ffd) != 0);

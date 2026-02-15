@@ -33,9 +33,12 @@ void DynArrayInternalFree(meAllocator* allocator, Allocation data)
 }
 
 template<typename T>
-DynArray<T> DynArrayCreate(meAllocator* allocator, u32 initialCapacity)
+DynArray<T> DynArrayCreate(
+	meAllocator* allocator, 
+	u32 initialCapacity,
+	u32 strideOverride)
 {
-	u32 stride = sizeof(T);
+	u32 stride = strideOverride;
     u32 headerSize = sizeof(DynArrayHeader);
     u32 arraySize = initialCapacity * stride;
     u32 allocSize = headerSize + arraySize;
@@ -82,7 +85,11 @@ DynArray<T> DynArrayResize(DynArray<T> array, u32 newCapacity)
 // ===== Modify array ======
 
 template <typename T>
-bool DynArrayPushAt(DynArray<T>& array, T* objs, u32 numObjs, u32 index)
+bool DynArrayPushAt(
+	DynArray<T>& array, 
+	T* objs, 
+	u32 numObjs, 
+	u32 index)
 {
     DynArrayHeader* header = GetHeaderPointer(array);
 #if ARRAY_CHECKS
@@ -101,26 +108,39 @@ bool DynArrayPushAt(DynArray<T>& array, T* objs, u32 numObjs, u32 index)
         header = GetHeaderPointer(array);
     }
     u32 arrSize = header->size;
-    ME_ASSERT(header->stride == sizeof(T));
+	u32 stride = header->stride;
+	UNUSED(stride);
 	T* destination = array.data + index;
     // if inserting at a populated index, copy all elements to the right
     if (index < arrSize)
     {
 		u32 moveCount = arrSize - index;
-        //u32 moveSize = moveCount * stride;
         T* moveTo = array.data + (index + numObjs);
-		for (u32 i = moveCount; i >= 0; i--)
+		if constexpr (std::is_trivially_copyable_v<T>)
 		{
-			moveTo[i-1] = destination[i-1];
+			u32 moveSize = moveCount * stride;
+			ME_MEMMOVE(moveTo, destination, moveSize);
 		}
-        //ME_MEMMOVE(moveTo, destination, moveSize);
+		else
+		{
+			for (u32 i = moveCount; i >= 0; i--)
+			{
+				moveTo[i-1] = destination[i-1];
+			}
+		}
     }
-    // copy object(s) to the index
-	for (u32 i = 0; i < numObjs; i++)
+	// copy object(s) to the index
+	if constexpr (std::is_trivially_copyable_v<T>)
 	{
-		destination[i] = objs[i];
+		ME_MEMCPY(destination, objs, numObjs * stride);
 	}
-    //ME_MEMCPY(destination, objs, numObjs * stride);
+	else
+	{
+		for (u32 i = 0; i < numObjs; i++)
+		{
+			destination[i] = objs[i];
+		}
+	}
     header->size += numObjs;
     return true;
 }
@@ -233,7 +253,8 @@ void DynArrayTests()
     {
         ME_ASSERT(expected[i] == arr[i]);
     }
-    DynArrayPushAt(arr, 90, 1);
+	s32 p = 90;
+    DynArrayPushAt(arr, &p, 1, 1);
     s32 expected_2[4] = {1,90,-1,2};
     for (int i = 0; i < 4; i++)
     {

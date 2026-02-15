@@ -409,6 +409,9 @@ StringView DynArraySerializerToStringFn(
 		json serializedElement = JsonSerializeWithTypeDescriptor(templateArg, elementSpan.data, ctx.parentType);
 		j.push_back(serializedElement);
 	}
+	// BOOKMARK: this is icky. Instead of returning & appending to a String for
+	// all serialization funcs, should add some state to the serialization context
+	// which is the "output serialization object" which could be a String or json or something else
 	std::string bruh = j.dump(4);
 	StringView result = StringView(MEALLOC(ctx.allocator, bruh.size()), bruh.size());
 	ME_MEMCPY(result.data, bruh.data(), bruh.size());
@@ -440,16 +443,15 @@ bool DynArrayDeserializerFromStringFn(
 	}
 	bool result = false;
 	u32 idx = 0;
+	DynArray<u8>* array = (DynArray<u8>*)ctx.outputData.data;
+	// a byte array which is our "type erasure". Later becomes the actual typed array in the deserialized struct
+	*array = DynArrayCreate<u8>(ctx.externalDataAllocator, DynArrayDefaultCapacity, templateArg.size);
+	// BOOKMARK: idk why we end up asserting this array has 0 capacity
 	for (auto& element : root)
 	{
-		// BOOKMARK: i think this is totally wrong
-		// outputdata likely is a DynArray*, so i could DynArrayCreate with externalAllocator and push stuff into that
 		void* fieldData = (u8*)ctx.outputData.data + (templateArg.size * idx);
-		std::string tmp = element.dump(4);
-		DeserializeContext elementCtx = ctx;
-		elementCtx.inputData = meSpan(tmp.data(), tmp.size());
-		elementCtx.outputData = meSpan(fieldData, templateArg.size);
-		result &= JsonDeserializeWithTypeDescriptor(element, templateArg, ctx.outputData, ctx.externalDataAllocator, parentType);
+		result &= JsonDeserializeWithTypeDescriptor(element, templateArg, fieldData, ctx.externalDataAllocator, parentType);
+		DynArrayPush(*array, (u8*)fieldData, templateArg.size);
 		idx++;
 	}
 	return result;
