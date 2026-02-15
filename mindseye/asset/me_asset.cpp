@@ -358,15 +358,15 @@ StringView meAssetGetRelPathForResource(StringView resourcePath)
 	return resourcePath;
 }
 
-meSpan meSerializeTryGetAssetIdentHeader(
+meSpan meSerializeTryGetAssetHeader(
 	const meTypeDescriptor& typeDesc,
 	meSpan serializedBuffer)
 {
 	for (u32 i = 0; i < typeDesc.fields.size; i++)
 	{
-		// search top-level fields for asset ident type
+		// search top-level fields for asset header type
 		const meTypeDescriptor& field = typeDesc.fields[i];
-		if (field.thisType == &TD_MEASSETIDENT)
+		if (field.thisType == &TD_MAID)
 		{
 			meSpan result = serializedBuffer.Subspan(field.offsetBits * 8, field.size);
 			return result;

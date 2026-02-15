@@ -124,6 +124,16 @@ MEAPI bool meOSSetFileCursor(
 MEAPI size_t meOSGetFileSize(
 	const OSFileReference& file);
 
+struct FileTimestamps
+{
+	u64 lastWrite = 0;
+	u64 lastRead = 0;
+	u64 created = 0;
+};
+
+MEAPI FileTimestamps meOSGetFileTimestamps(
+	const OSFileReference& file);
+
 MEAPI bool meOSFileExists(
 	const OSFileReference& file);
 

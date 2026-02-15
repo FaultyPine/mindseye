@@ -5,6 +5,10 @@
 #include "core/me_string.h"
 struct meTypeDescriptor;
 
+// TODO: instead of a "to string serialization" and equiv deserialization
+// function, just have 1 serialize and 1 deserialize per type
+// and in the ctxs, have an enum like "SERIALIZE_KIND_TEXT" "SERIALIZE_KIND_BINARY"
+
 struct DeserializeContext
 {
 	// data to be deserialized, I.E. a string like "0.1" or equivalent

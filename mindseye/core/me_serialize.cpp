@@ -217,7 +217,13 @@ static bool JsonDeserializeWithTypeDescriptor(
 	}
 
 	// Struct with fields
-	if (!j.is_object()) return false;
+	if (!j.is_object())
+	{
+		LOG_WARN("Tried to deserialize an object but the parsed json isn't an object?");
+		std::string repr = j.dump(4);
+		LOG_WARN("%s", repr.c_str());
+		//return false;
+	}
 	for (u64 i = 0; i < td.fields.size; i++)
 	{
 		const meTypeDescriptor& field = td.fields[i];
@@ -230,7 +236,7 @@ static bool JsonDeserializeWithTypeDescriptor(
 		if (!j.contains(fieldName))
 		{
 			// Field not in JSON - leave as default
-			continue;
+			//continue;
 		}
 		void* fieldData = (u8*)outData + (field.offsetBits / 8);
 		JsonDeserializeWithTypeDescriptor(j[fieldName], field, fieldData, allocator, &td);
@@ -389,29 +395,24 @@ StringView DynArraySerializerToStringFn(
 	meSpanTyped<meTypeDescriptor*> templatedTypes = parentType->templatedTypes;
 	ME_ASSERT(templatedTypes);
 	ME_ASSERT(templatedTypes.size == 1);
-	const meTypeDescriptor* templateArg = templatedTypes[0];
+	const meTypeDescriptor& templateArg = *templatedTypes[0];
 	const meSpan& dynArrayData = ctx.data;
 	DynArrayAny& arr = *(DynArrayAny*)dynArrayData.data;
 	u32 size = DynArrayGetSize(arr);
 	u32 stride = DynArrayGetStride(arr);
-	StringBuilder builder(ctx.allocator);
-	builder.Append(STRING_LIT("["));
+	json j = json::array();
 	for (u32 i = 0; i < size; i++)
 	{
-		meSpan elementSpan = meSpan(&arr[i * stride], templateArg->size);
+		meSpan elementSpan = meSpan(&arr[i * stride], templateArg.size);
 		SerializeContext elementCtx = ctx;
 		elementCtx.data = elementSpan;
-		// BOOKMARK: implement with new serialization lib
-		UNIMPLEMENTED();
-		//StringView elementStr = templateArg->ToString(elementCtx);
-		//builder.Append(elementStr);
-		if (i < (size - 1))
-		{
-			builder.Append(STRING_LIT(", "));
-		}
+		json serializedElement = JsonSerializeWithTypeDescriptor(templateArg, elementSpan.data, ctx.parentType);
+		j.push_back(serializedElement);
 	}
-	builder.Append(STRING_LIT("]"));
-	return builder;
+	std::string bruh = j.dump(4);
+	StringView result = StringView(MEALLOC(ctx.allocator, bruh.size()), bruh.size());
+	ME_MEMCPY(result.data, bruh.data(), bruh.size());
+	return result;
 }
 
 bool DynArrayDeserializerFromStringFn(

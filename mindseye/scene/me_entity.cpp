@@ -23,9 +23,13 @@ StringView EntityRefSerializerToStringFn(
 	SerializeContext entityCtx = ctx;
 	entityCtx.data = entitySpan;
 	// BOOKMARK: implement with new serialization lib
-	UNIMPLEMENTED();
+	//UNIMPLEMENTED();
+	json j = JsonSerializeWithTypeDescriptor(TD_ENTITYDATA, entitySpan.data, ctx.parentType);
+	std::string bruh = j.dump(4);
+	StringView result = StringView(MEALLOC(ctx.allocator, bruh.size()), bruh.size());
+	ME_MEMCPY(result.data, bruh.data(), bruh.size());
 	//return TD_ENTITYDATA.ToString(entityCtx);
-	return {};
+	return result;
 }
 
 bool EntityRefDeserializerFromStringFn(
@@ -33,14 +37,10 @@ bool EntityRefDeserializerFromStringFn(
 	DeserializeContext& ctx)
 {
 	// we serialize/deserialize EntityRef as if it were EntityData
-	DeserializeContext entityDataCtx = ctx;
 	EntityData entity = {};
-	entityDataCtx.outputData = SPAN_FROM(entity);
-	// BOOKMARK: implement with new serialization lib
-	UNIMPLEMENTED();
 	if (!DeserializeFromTextBlocking(
 		TD_ENTITYDATA, ctx.externalDataAllocator, 
-		StringView(ctx.inputData, ctx.inputData.size), ctx.outputData))
+		StringView(ctx.inputData, ctx.inputData.size), SPAN_FROM(entity)))
 	{
 		LOG_ERROR("Failed to deserialize entity");
 		return false;

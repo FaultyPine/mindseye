@@ -89,15 +89,20 @@ void OnFoundAssetFile(
 	meSerializeResult result = DeserializeFromFileBlocking(assetPath, GetTLScratch(), typeDesc, outSerialized);
 	if (result == meSerializeResult::SER_SUCCESS)
 	{
-		meSpan assetIdentData = meSerializeTryGetAssetIdentHeader(typeDesc, outSerialized);
-		if (assetIdentData)
+		meSpan assetHeaderData = meSerializeTryGetAssetHeader(typeDesc, outSerialized);
+		if (assetHeaderData)
 		{
-			meAssetIdent* ident = (meAssetIdent*)assetIdentData.data;
-			ident->id.SetType(type);
-			// TODO: instead of storing MAID, store meAssetIdent so we can store the unique identifier too
-			//result.serializedUniqueIdentifier;
-			assetIndex.assetToPathMap[ident->id] = filepath;
-			assetIndex.pathToAssetsMap[filepath] = ident->id;
+			const MAID& header = *(MAID*)assetHeaderData.data;
+			if (header)
+			{
+				assetIndex.assetToPathMap[header] = filepath;
+				assetIndex.pathToAssetsMap[filepath] = header;
+				assetIndex.serializedUniqueIdentifiers[header] = result.serializedUniqueIdentifier;
+			}
+			else
+			{
+				LOG_ERROR("Failed to read asset header from " STRING_FMT, STRING_VAARGS(filepath));
+			}
 		}
 		else
 		{

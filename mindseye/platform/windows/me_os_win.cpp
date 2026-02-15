@@ -326,6 +326,21 @@ u64 meOSGetFileSize(const OSFileReference& file)
     return (u64)fileSizeLo | ((u64)fileSizeHi << 32);
 }
 
+
+MEAPI FileTimestamps meOSGetFileTimestamps(
+	const OSFileReference& file)
+{
+	FileTimestamps timestamps = {};
+    ME_ASSERT(file.fileHandle != nullptr && file.fileHandle != INVALID_HANDLE_VALUE);
+	FILETIME lastCreate, lastRead, lastWrite;
+	bool result = GetFileTime(file.fileHandle, &lastCreate, &lastRead, &lastWrite);
+	ME_ASSERT(result);
+	timestamps.created = ((size_t)lastCreate.dwHighDateTime << 32) | (size_t)lastCreate.dwLowDateTime;
+	timestamps.lastRead = ((size_t)lastRead.dwHighDateTime << 32) | (size_t)lastRead.dwLowDateTime;
+	timestamps.lastWrite = ((size_t)lastWrite.dwHighDateTime << 32) | (size_t)lastWrite.dwLowDateTime;
+	return timestamps;
+}
+
 bool meOSOpenFile(
 	OSFileReference& file, 
 	StringView path, 

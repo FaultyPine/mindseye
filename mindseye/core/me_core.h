@@ -1,8 +1,7 @@
 #pragma once
 
 #include "mindseye/core/me_defines.h"
-
-
+#include "mindseye/core/me_string.h"
 
 // The mindseye runtime "handle" type
 // contains an index and generation

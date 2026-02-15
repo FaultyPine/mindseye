@@ -35,7 +35,7 @@ constexpr static u32 MAID_ID_BITS = 48; // lower bits
 constexpr static u32 MAID_TYPE_BITS = 8; // top bits
 
 // Mindseye Asset ID
-struct MEREFLECT(type, Serializer=MAIDSerializerToStringFn) 
+struct MEREFLECT(type) 
 MAID
 {
 	// TODO: for shipping builds, we can pack things, or give more bits to the id
@@ -74,30 +74,6 @@ MAID
 		ME_ASSERT(id <= ME_UINT_MAX);
 		this->id = id;
     }
-
-
-	//inline u64 GetType() const
-	//{
-	//	return idAndType >> MAID_ID_BITS;
-	//}
- //   inline void SetType(meAssetType type)
- //   {
- //       u64 typefull = (u64)type;
- //       typefull = typefull << MAID_ID_BITS;
-	//	idAndType &= (~0ull >> MAID_TYPE_BITS); // clear type bits
- //       idAndType |= typefull;
- //   }
-	//inline u64 GetID() const
-	//{
-	//	return idAndType & (~0ull >> MAID_TYPE_BITS);
-	//}
- //   inline void SetID(u64 id)
- //   {
- //       // make sure top type bits aren't set
- //       ME_ASSERT(id == (id & ~(((u64)0xff) << MAID_ID_BITS)));
-	//	idAndType &= (~0ull << MAID_ID_BITS); // clear all id bits
- //       idAndType |= id; // set id bits
- //   }
 };
 MEMAP_BEGIN_CUSTOM_HASHER(MAID, obj) 
 {
@@ -288,6 +264,6 @@ StringView meAssetGetRelPathForResource(StringView resourcePath);
 // and attempts to find a member field that matches what is declared by
 // ME_ASSET_STRUCTURE. Use this to get the asset ident out of any asset type's deserialized buffer
 // returns a buffer pointing to the asset ident field data if present, otherwise an invalid mespan 
-meSpan meSerializeTryGetAssetIdentHeader(
+meSpan meSerializeTryGetAssetHeader(
 	const meTypeDescriptor& typeDesc,
 	meSpan serializedBuffer);
