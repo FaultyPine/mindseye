@@ -8,7 +8,7 @@ struct meAssetIndex
 {
 	meMap<MAID, String> assetToPathMap = {};
 	meMap<String, MAID> pathToAssetsMap = {};
-	meMap < MAID, u32 > serializedUniqueIdentifiers = {};
+	meMap<MAID, u32> serializedUniqueIdentifiers = {};
 };
 
 StringView meAssetIndexGetFilesystemPath(

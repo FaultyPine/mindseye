@@ -61,19 +61,22 @@ struct EngineContext
     Arena engineFrameAllocator = {}; // cleared at the end of each frame
     Arena engineSceneAllocator = {}; // persistent for a scene
     
-    // systems
-	meAssetIndex* assetIndex = nullptr;
-	EditorContext* editor = nullptr;
     RendererFrontend* renderer = nullptr;
-    EntityRegistry* entityRegistry = nullptr;
+	EditorContext* editor = nullptr;
+	meAssetIndex* assetIndex = nullptr;
     meAssetSystem* assetSystem = nullptr;
     CommandLineArgs* cmdLine = nullptr;
-	meSceneManager* sceneSystem = nullptr;
+	
 	meScenePool* scenePool = nullptr;
 	meMaterialPool* materialSystem = nullptr;
 	meTexturePool* textureSystem = nullptr;
 	meMeshPool* meshSystem = nullptr;
 	meShaderPool* shaderSystem = nullptr;
+	
+	// these hold actual "game state"
+    EntityRegistry* entityRegistry = nullptr;
+	meSceneManager* sceneSystem = nullptr;
+	
 
     // engine state
     f32 deltaTime = 0.0f;

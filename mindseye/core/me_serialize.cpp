@@ -442,17 +442,14 @@ bool DynArrayDeserializerFromStringFn(
 		return false;
 	}
 	bool result = false;
-	u32 idx = 0;
 	DynArray<u8>* array = (DynArray<u8>*)ctx.outputData.data;
 	// a byte array which is our "type erasure". Later becomes the actual typed array in the deserialized struct
 	*array = DynArrayCreate<u8>(ctx.externalDataAllocator, DynArrayDefaultCapacity, templateArg.size);
-	// BOOKMARK: idk why we end up asserting this array has 0 capacity
 	for (auto& element : root)
 	{
-		void* fieldData = (u8*)ctx.outputData.data + (templateArg.size * idx);
-		result &= JsonDeserializeWithTypeDescriptor(element, templateArg, fieldData, ctx.externalDataAllocator, parentType);
-		DynArrayPush(*array, (u8*)fieldData, templateArg.size);
-		idx++;
+		Allocation elementData = MEALLOC(ctx.externalDataAllocator, templateArg.size);
+		result &= JsonDeserializeWithTypeDescriptor(element, templateArg, elementData, ctx.externalDataAllocator, parentType);
+		DynArrayPush(*array, (u8*)elementData, elementData.size);
 	}
 	return result;
 }
