@@ -154,6 +154,8 @@ void InitializeEngine(s32 argc, char** argv)
 	}
 
 	meOSSetCursorState(CAPTURED, *engine->osData);
+	
+    engine->appCallbacks.initFn(engine);
 
 	// default scene load
 	meAssetIdent sceneIdent = meAssetGetIdentFromPath(engine->appConfig.defaultSceneName);
@@ -161,8 +163,7 @@ void InitializeEngine(s32 argc, char** argv)
 	{
 		meAssetRequestLoad(&sceneIdent, 1);
 	}
-	
-    engine->appCallbacks.initFn(engine);
+
     RunEngine(engine);
 	engine->appCallbacks.shutdownFn(engine);
 }
