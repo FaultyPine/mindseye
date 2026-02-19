@@ -3,6 +3,13 @@
 #include "render/me_material.h"
 #include "core/containers/dynarray.h"
 #include "render/renderer_frontend.h"
+#include "core/me_math.h"
+#include "core/me_scope_exit.h"
+
+#define PAR_SHAPES_IMPLEMENTATION
+#include "external/par_shapes.h"
+
+#define USE_PAR_SHAPES
 
 void meMeshInitialize(EngineContext* engine)
 {
@@ -38,8 +45,11 @@ meMeshID meMeshPool::Load(
 	outMesh.vertBuffer.cpuData = vertBuffer;
 	outMesh.vertBuffer.bufferHandle = renderer.CreateVertexBuffer(outMesh.vertBuffer.cpuData, NTH_BIT(meMeshVertexLayoutType_Position));
 	
-	outMesh.idxBuffer.cpuData = idx16Buffer;
-	outMesh.idxBuffer.bufferHandle = renderer.CreateVertexBuffer(outMesh.idxBuffer.cpuData, NTH_BIT(meMeshVertexLayoutType_Index16));
+	if (idx16Buffer)
+	{
+		outMesh.idxBuffer.cpuData = idx16Buffer;
+		outMesh.idxBuffer.bufferHandle = renderer.CreateVertexBuffer(outMesh.idxBuffer.cpuData, NTH_BIT(meMeshVertexLayoutType_Index16));
+	}
 	
 	if (normBufferOpt)
 	{
@@ -187,41 +197,82 @@ meMeshID GenPlaneMesh(
     u32 resolution,
     meMaterialID materialID) 
 {
-    resolution++; // resolution of 1 should really be 2
 	meMeshPool& meshPool = meMeshPoolGet();
-    DynArray<glm::vec3> planeverts = DynArrayCreate<glm::vec3>(meshPool.GetPayloadAllocator());
+
+#ifdef USE_PAR_SHAPES
+	s32 resX = resolution;
+	s32 resZ = resolution;
+	float length = 1.0f;
+	float width = 1.0f;
+	par_shapes_mesh* plane = par_shapes_create_plane(resX, resZ);   // No normals/texcoords generated!!!
+    par_shapes_scale(plane, width, length, 1.0f);
+    par_shapes_translate(plane, -width/2, 0.0f, length/2);
+
+	ME_ON_SCOPE_EXIT([plane](){
+		par_shapes_free_mesh(plane);
+	});
+	meAllocator* allocator = meshPool.GetPayloadAllocator();
+	Allocation verticesData = MEALLOC(allocator, plane->ntriangles * 3 * 3 * sizeof(float));
+	Allocation texcoordData = MEALLOC(allocator, plane->ntriangles * 3 * 2 * sizeof(float));
+	Allocation normalsData = MEALLOC(allocator, plane->ntriangles * 3 * 3 * sizeof(float));
+	s32 vertexCount = plane->ntriangles * 3;
+
+	for (int k = 0; k < vertexCount; k++)
+    {
+        ((float*)verticesData)[k*3] = plane->points[plane->triangles[k]*3];
+        ((float*)verticesData)[k*3 + 1] = plane->points[plane->triangles[k]*3 + 1];
+        ((float*)verticesData)[k*3 + 2] = plane->points[plane->triangles[k]*3 + 2];
+
+        ((float*)normalsData)[k*3] = plane->normals[plane->triangles[k]*3];
+        ((float*)normalsData)[k*3 + 1] = plane->normals[plane->triangles[k]*3 + 1];
+        ((float*)normalsData)[k*3 + 2] = plane->normals[plane->triangles[k]*3 + 2];
+
+        ((float*)texcoordData)[k*2] = plane->tcoords[plane->triangles[k]*2];
+        ((float*)texcoordData)[k*2 + 1] = plane->tcoords[plane->triangles[k]*2 + 1];
+    }
+
+	meMeshID meshHandle = meshPool.Load(verticesData, {}, normalsData, texcoordData, materialID, STRING_LIT("GeneratedPlaneMesh"));
+	return meshHandle;
+
+#else
+    resolution++; // resolution of 1 should really be 2
+	s32 vertexCount = resolution * resolution;
+    DynArray<glm::vec3> planeverts = DynArrayCreateWithReserved<glm::vec3>(meshPool.GetPayloadAllocator(), vertexCount);
 
     // https://github.com/raysan5/raylib/blob/master/src/rmodels.c#L2171
     for (u32 z = 0; z < resolution; z++) {
         // [-length/2, length/2]
-        f32 yPos = ((f32)z/(resolution - 1) - 0.5f);
+        f32 yPos = ((f32)z/(resolution - 1) - 0.5f) * length;
         for (u32 x = 0; x < resolution; x++) {
             // [-width/2, width/2]
-            f32 xPos = ((f32)x/(resolution - 1) - 0.5f);
+            f32 xPos = ((f32)x/(resolution - 1) - 0.5f) * width;
             glm::vec3 v = glm::vec3(xPos, yPos, 0.0f);
-            DynArrayPush(planeverts, v);
+			planeverts[x + z * resolution] = v;
         }
     }
 
     u32 numFaces = (resolution - 1)*(resolution - 1);
-    DynArray<u32> indices = DynArrayCreate<u32>(meshPool.GetPayloadAllocator());;
-    for (u32 face = 0; face < numFaces; face++) {
+    DynArray<u32> indices = DynArrayCreateWithReserved<u32>(meshPool.GetPayloadAllocator(), numFaces * 6);
+	s32 t = 0;
+    for (u32 face = 0; face < numFaces; face++) 
+	{
         // Retrieve lower left corner from face ind
-        u32 i = face % (resolution - 1) + (face/(resolution - 1)*resolution);
+        u32 i = face + face/(resolution - 1);
 
-        DynArrayPush(indices, i + resolution);
-        DynArrayPush(indices, i + 1);
-        DynArrayPush(indices, i);
+		indices[t++] = i + resolution;
+		indices[t++] = i + 1;
+		indices[t++] = i;
 
-        DynArrayPush(indices, i + resolution);
-        DynArrayPush(indices, i + resolution + 1);
-        DynArrayPush(indices, i + 1);
+		indices[t++] = i + resolution;
+		indices[t++] = i + resolution + 1;
+		indices[t++] = i + 1;
     }
 
 	meSpan vertexBufferSpan = meSpan((s8*)planeverts.data, DynArrayGetSize(planeverts) * sizeof(glm::vec3));
 	meSpan indexBufferSpan = meSpan((s8*)indices.data, DynArrayGetSize(indices) * sizeof(u32));
 	meMeshID meshHandle = meshPool.Load(vertexBufferSpan, indexBufferSpan, {}, {}, materialID, STRING_LIT("GeneratedPlaneMesh"));
 	return meshHandle;
+#endif
 }
 
 

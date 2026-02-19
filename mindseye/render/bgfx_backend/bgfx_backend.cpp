@@ -341,7 +341,10 @@ void* BgfxRendererBackend::RenderScene(RenderInput* input)
 			bgfx::setTransform(&modelMat[0]);
 
 			bgfx::setVertexBuffer(0, bgfx::VertexBufferHandle { static_cast<u16>(mesh.vertBuffer.bufferHandle) });
-			bgfx::setIndexBuffer(bgfx::IndexBufferHandle { static_cast<u16>(mesh.idxBuffer.bufferHandle) });
+			if (mesh.idxBuffer.IsValid())
+			{ // meshes without index buffers are valid, and used for generated shapes meshes
+				bgfx::setIndexBuffer(bgfx::IndexBufferHandle { static_cast<u16>(mesh.idxBuffer.bufferHandle) });
+			}
 			if (mesh.normBuffer.IsValid())
 			{
 				bgfx::setVertexBuffer(1, bgfx::VertexBufferHandle { static_cast<u16>(mesh.normBuffer.bufferHandle) });

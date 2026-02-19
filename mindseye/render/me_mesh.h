@@ -33,7 +33,7 @@ struct meMesh
 
 	meMaterialID materialHandle = {};
 
-	bool IsLoaded() const { return vertBuffer.IsValid() && idxBuffer.IsValid(); }
+	bool IsLoaded() const { return vertBuffer.IsValid(); }
 };
 
 // mostly used for runtime-generated meshes

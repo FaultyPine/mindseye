@@ -28,7 +28,13 @@ struct meAllocator
 	virtual Allocation meAlloc(u64 size) { UNIMPLEMENTED(); return {}; }
     virtual Allocation meReserve(u64 size) { return meAlloc(size); }
     virtual void meFree(void* allocation) { UNIMPLEMENTED(); }
-	virtual Allocation meRealloc(const Allocation& allocation, u64 newSize) { UNIMPLEMENTED(); return {}; }
+	virtual Allocation meRealloc(const Allocation& allocation, u64 newSize) 
+	{
+		// default impl just copies...
+		Allocation result = meAlloc(newSize);
+		ME_MEMCPY(result.data, allocation.data, allocation.size);
+		return result;
+	}
     virtual void meClear(bool deleteMemory = false) { UNIMPLEMENTED(); }
 
 	meAllocator() : name(STRING_LIT("Unnamed allocator")) {}
@@ -68,6 +74,7 @@ MEAPI bool BufferCopy(meSpan dst, meSpan src);
 #define MESYSFREE(ptr) GetSystemAllocator()->meFree(ptr)
 
 #define MEALLOC(allocator, size) ((allocator)->meAlloc(size))
+#define MEREALLOC(allocator, buf, size) ((allocator)->meRealloc(buf, size))
 #define MERESERVE(allocator, size) ((allocator)->meReserve(size))
 #define MEFREE(allocator, ptr) \
 	do { \

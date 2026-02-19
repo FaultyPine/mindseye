@@ -7,31 +7,14 @@ Must be on windows.
 run `build.bat`
 
 ### Current focus
-
-Thought experiment:
-I'd like *everything* in the engine to be serializable, so we can write the entire state of the engine to disk and load it back up again
-Relative data structures:
-	- use {((s64)&this) - (s64)this } pointer trick
-	- https://jorenjoestar.github.io/post/serialization_for_games/
-	- taking this concept further: 
-		instead of an arbitrary offset in all of the program's memory, a relative ptr/data structure can be
-		relative to itself, but ALSO relative to some other pre-defined "allocator root" or something
-		So like, you could have a RelPtr<SomeType>(myPointer) which by default is relative to itself, see trick above
-		But one could specialize RelPtr<SomeType> if we know SomeType should always be allocated from a dedicated pool,
-		and in that case the "offset" would be relative to the start of that pool.
+- asset refactor to treat assets more generically.
+	- tie asset type to an instance of a resource pool
+	- tie asset type to a type descriptor
+	- factor buncha logic out of the meScene loader that can be generic for all assets
 
 
-
-- bugs in serialization code. It's annoying to parse all the { } [ ] , 
-	- maybe i should just use a library
-	- or maybe just use binary, who needs version control?  :)
-	- reflector generates kaitai struct specs?
-		- investigated this, kaitai struct can't WRITE... only reads. That sucks.
-	- https://gafferongames.com/post/serialization_strategies/    tho this is for binary, it has a really nice concept in it for unifying serialization/deserialization funcs
-	- SWITCHING TO A SERIALIZATION LIBRARY
 - refactor so instead of straight loading gltf, we "import" gltf and turn it into massets, then load(/compile) those
 	- meAssetCreate would do the check for .gltf in the filename, and do it there
-	- actually... on second thought do I really want this? maybe it's kinda nice that we can just load the raw gltf. Might facilitate blender-as-a-level-editor workflows better
 
 === Frame Architecture ===
 
@@ -65,12 +48,36 @@ Relative data structures:
 		- mem (arenas and such)
 		- engine ctx/systems 
 		- resource pools
+
+		- all of those ^ have their data in the main engine arenas
+
 		- renderer
-			- first impl could be to clear everything out of bgfx and let "lazy/on-demand loading" handle it
+			- will be stateless. Each frames input structure is traversed, and resources are loaded lazily if they aren't already loaded.
+				it is up to each resource system to implement an lru cache and define purge behavior
 		- OS stuff
 			- how do i handle file handles and that kinda thing...?
 			- virtualize all these funcs with hooks?
+				- another level of indirection in the os layer. "file handles" that the engine uses aren't actual file handles (virtual).
+				from savestate -> current point in time, all those opened file handles are known, and are wiped out when we restore a savestate
+				then when we read from that virtual file handle again, we re-open the file from the cached path
 			- or just keep a mapping...
+				
+					
+
+
+savestate-related thought experiment:
+*everything* in the engine is serializable, so we can write the entire state of the engine to disk and load it back up again
+Relative data structures:
+	- use {((s64)&this) - (s64)this } pointer trick
+	- https://jorenjoestar.github.io/post/serialization_for_games/
+	- taking this concept further: 
+		instead of an arbitrary offset in all of the program's memory, a relative ptr/data structure can be
+		relative to itself, but ALSO relative to some other pre-defined "allocator root" or something
+		So like, you could have a RelPtr<SomeType>(myPointer) which by default is relative to itself, see trick above
+		But one could specialize RelPtr<SomeType> if we know SomeType should always be allocated from a dedicated pool,
+		and in that case the "offset" would be relative to the start of that pool.
+
+
 
 - game/engine hot reloading
 - general purpose allocators

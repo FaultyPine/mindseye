@@ -53,7 +53,7 @@ StringView assetTypeFileExtensions[] =
 	#undef X
 };
 
-meAssetType MapFileOrPathToAssetType(StringView path)
+meAssetType FindAssetTypeFromFilepath(StringView path)
 {
 	StringView filename = meFsGetFileFromFullPath(path);
 	s32 commonExt = FindInStringRev(filename, STRING_LIT(ME_ASSET_EXTENSION));
@@ -80,7 +80,7 @@ void OnFoundAssetFile(
 	const OSFileReference& file)
 {
 	StringView filepath = file.GetPath();
-	meAssetType type = MapFileOrPathToAssetType(filepath);
+	meAssetType type = FindAssetTypeFromFilepath(filepath);
 	StringView assetPath = meAssetGetAbsPathForResource(filepath);
 	meAssetLoader* loader = meAssetSystemGet().assetLoaders[type];
 	const meTypeDescriptor& typeDesc = loader->meAssetGetTypeDescriptor();
@@ -122,7 +122,6 @@ void meAssetIndexInitialize(EngineContext* engine)
 {
 	engine->assetIndex = MENEW(&engine->engineArena, meAssetIndex);
 	meAssetIndex& assetIndex = meAssetIndexGet();
-	// TODO: async job this whole func
 	StringView dataDir = meAssetGetResourceDir();
 	StringView assetIndexFilePath = StringFormatTmp(STRING_FMT STRING_FMT STRING_FMT, 
 		STRING_VAARGS(dataDir), STRING_VAARGS(meFsGetDirectorySeperator()), STRING_VAARGS(STRING_LIT(ME_ASSET_INDEX_FILE)));
@@ -139,7 +138,7 @@ void meAssetIndexInitialize(EngineContext* engine)
 	{
 		// init asset index from nothing
 		
-		// gather files from filesystem
+		// TODO: parallelize this whole thing!
 		OSFileReference dataDirectory = {};
 		dataDirectory.InitWithoutOpening(dataDir);
 		DynArray<OSFileReference> dataFiles = DynArrayCreate<OSFileReference>(GetTLScratch());

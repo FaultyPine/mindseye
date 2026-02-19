@@ -47,6 +47,8 @@ struct DynArray
 	}
 };
 typedef DynArray<u8> DynArrayAny;
+template<typename T>
+DynArrayHeader* GetHeaderPointer(const DynArray<T>& array);
 
 StringView DynArraySerializerToStringFn(
 	const meTypeDescriptor& typeDescriptor,
@@ -63,6 +65,20 @@ DynArray<T> DynArrayCreate(
 	meAllocator* allocator, 
 	u32 initialCapacity = DynArrayDefaultCapacity,
 	u32 strideOverride = sizeof(T));
+
+// create an array with initialSize number of pre-allocated elements,
+// which are also treated as being actual pushed elements.
+template<typename T>
+DynArray<T> DynArrayCreateWithReserved(
+	meAllocator* allocator,
+	u32 initialSize,
+	u32 strideOverride = sizeof(T))
+{
+	DynArray<T> result = DynArrayCreate<T>(allocator, initialSize, strideOverride);
+	DynArrayHeader* header = GetHeaderPointer(result);
+	header->size = initialSize;
+	return result;
+}
 
 // Frees backing memory
 template <typename T>

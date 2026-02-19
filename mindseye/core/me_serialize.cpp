@@ -138,7 +138,7 @@ static bool JsonDeserializeWithTypeDescriptor(
 		}
 		else
 		{
-			str = j.dump();
+			str = j.dump(4);
 		}
 		DeserializeContext ctx = {};
 		ctx.inputData = meSpan((char*)str.data(), str.size());
@@ -220,9 +220,7 @@ static bool JsonDeserializeWithTypeDescriptor(
 	if (!j.is_object())
 	{
 		LOG_WARN("Tried to deserialize an object but the parsed json isn't an object?");
-		std::string repr = j.dump(4);
-		LOG_WARN("%s", repr.c_str());
-		//return false;
+		return false;
 	}
 	for (u64 i = 0; i < td.fields.size; i++)
 	{
@@ -236,7 +234,7 @@ static bool JsonDeserializeWithTypeDescriptor(
 		if (!j.contains(fieldName))
 		{
 			// Field not in JSON - leave as default
-			//continue;
+			continue;
 		}
 		void* fieldData = (u8*)outData + (field.offsetBits / 8);
 		JsonDeserializeWithTypeDescriptor(j[fieldName], field, fieldData, allocator, &td);
@@ -442,7 +440,7 @@ bool DynArrayDeserializerFromStringFn(
 		return false;
 	}
 	bool result = false;
-	DynArray<u8>* array = (DynArray<u8>*)ctx.outputData.data;
+	DynArrayAny* array = (DynArrayAny*)ctx.outputData.data;
 	// a byte array which is our "type erasure". Later becomes the actual typed array in the deserialized struct
 	*array = DynArrayCreate<u8>(ctx.externalDataAllocator, DynArrayDefaultCapacity, templateArg.size);
 	for (auto& element : root)

@@ -189,6 +189,7 @@ struct meAssetLoader
 
     // called on asset threads
     virtual void meAssetLoad(meAsset&) = 0;
+	// TODO: return a serialized buffer, rather than writing to disk inside this func
 	virtual void meAssetWrite(meAsset&) = 0;
 	virtual const meTypeDescriptor& meAssetGetTypeDescriptor() = 0;
 	virtual meResourcePoolBase* meAssetGetResourcePool() = 0;
