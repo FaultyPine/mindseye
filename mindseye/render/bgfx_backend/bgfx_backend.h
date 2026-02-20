@@ -26,6 +26,7 @@ struct BgfxRendererBackend : public RendererFrontend
 	virtual u64 CreateShaderUniform(StringView name, meUniformDataType type) override;
 	virtual u64 CreateShaderProgram(meSpan fsMem, meSpan vsMem) override;
 	virtual void DestroyShaderProgram(u64 programHandle) override;
+	// NOTE: textureMem must live at least 2 bgfx::frame calls past this point. (I.E. we do not copy the data, we give bgfx just the pointer...)
 	virtual u64 UploadTextureToGPU(meSpan textureMem, u32 channels, u32 width, u32 height) override;
 	virtual void DestroyGPUTexture(u64 textureHandle) override;
 };

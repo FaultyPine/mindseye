@@ -132,7 +132,6 @@ void BgfxRendererBackend::Initialize(EngineContext* engine)
     // If multiple systems are trying to subscribe here, it's time to make this an actual event, rather than one fn ptr
     ME_ASSERT(!engine->osData->onResizeCB);
     engine->osData->onResizeCB = OnWindowResize;
-    engine->renderer->rendererLoggingEnabled = false; // tmp
     bgfx::Init init;
     init.type = bgfx::RendererType::Vulkan;
     init.vendorId = BGFX_PCI_ID_NONE; // prioritize integrated? discrete? microsft/nvidia/amd adapter? None means do it automatically
@@ -259,6 +258,10 @@ u64 BgfxRendererBackend::CreateShaderProgram(meSpan fsMem, meSpan vsMem)
 	bgfx::ShaderHandle fsHandle = bgfx::createShader(fsmem);
 	bgfx::ShaderHandle vsHandle = bgfx::createShader(vsmem);
 	bgfx::ProgramHandle program = bgfx::createProgram(vsHandle, fsHandle);
+	if (!bgfx::isValid(program))
+	{
+		LOG_ERROR("Shader program was ill-formed somehow...");
+	}
 	return program.idx;
 }
 
@@ -353,10 +356,9 @@ void* BgfxRendererBackend::RenderScene(RenderInput* input)
 			{
 				bgfx::setVertexBuffer(2, bgfx::VertexBufferHandle { static_cast<u16>(mesh.texcoordBuffer.bufferHandle) });
 			}
-		
 			if (diffuseTex.IsValid())
 			{
-				bgfx::setTexture(0, bgfx::UniformHandle { static_cast<u16>(diffuseTex.sampler) }, bgfxDiffuseTex);
+				bgfx::setTexture(0, bgfx::UniformHandle { static_cast<u16>(diffuseTex.sampler) }, bgfxDiffuseTex, diffuseTex.samplingFlags);
 			}
 			bgfx::setState(BGFX_STATE_WRITE_RGB
 						   | BGFX_STATE_WRITE_A

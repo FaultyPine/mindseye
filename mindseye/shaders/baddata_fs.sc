@@ -1,14 +1,10 @@
-$input v_pos, v_view
+$input v_pos, v_texcoord0, v_view
 #include "common.sh"
+SAMPLER2D(texDiffuse, 0);
 
 void main()
 {
-    vec3 cameraPositionWorld = vec3(u_invView[3][0], u_invView[3][1], u_invView[3][2]);
-	vec3 cameraForwardWorld = normalize(vec3(u_invView[2])); // Third column (Z-axis)
-	vec3 lightDir = normalize(vec3(0.0, 1.5, -1.0));
-
-	vec3 color = vec3(255, 105, 180) / 255.0; // hot pink
-	
-	gl_FragColor.rgb = color;
+	vec4 tex = texture2D(texDiffuse, v_texcoord0.xy);
+	gl_FragColor.rgb = tex.rgb;
 	gl_FragColor.w = 1.0;
 }

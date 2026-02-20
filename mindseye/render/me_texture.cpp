@@ -8,20 +8,22 @@ void meTextureInitialize(EngineContext* ctx)
 {
 	ctx->textureSystem = MENEW(&ctx->engineArena, meTexturePool, &ctx->engineArena, &ctx->engineArena);
 	meTexture badDataTexture = {};
-	u8 dummyImgData[] = 
+	static u8 dummyImgData[] = 
     {
         0,0,0,255, // black
         255,0,255,255, // hot pink
         255,0,255,255, // hot pink
         0,0,0,255, // black
     };
+	meSpan dummyImgDataSpan = meSpan(dummyImgData, sizeof(dummyImgData));
 	u64 badDataTextureGPUHandle = ctx->renderer->UploadTextureToGPU(
-		meSpan(dummyImgData, sizeof(dummyImgData)), 4, 2, 2);
-	badDataTexture.buffer = meGPUBuffer{.bufferHandle = static_cast<u32>(badDataTextureGPUHandle)};
+		dummyImgDataSpan, 4, 2, 2);
+	badDataTexture.buffer = meGPUBuffer{.bufferHandle = static_cast<u32>(badDataTextureGPUHandle), .cpuData = dummyImgDataSpan};
 	StringCopy(StringView(badDataTexture.name, meTexture::METEXTURE_MAX_NAME_LEN), STRING_LIT("Bad Data"));
 	meMaterialTextureType texType = meMaterialTextureType::Diffuse;
 	StringView diffuseTexUniformName = meMaterialGetTextureTypeName(texType);
 	badDataTexture.sampler = ctx->renderer->CreateShaderUniform(diffuseTexUniformName, meUniformDataType::UNIFORM_SAMPLER);
+	badDataTexture.samplingFlags = ME_SAMPLER_POINT;
 	ctx->textureSystem->GetBadData() = badDataTexture;
 }
 
