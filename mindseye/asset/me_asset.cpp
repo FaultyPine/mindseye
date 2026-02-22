@@ -67,6 +67,10 @@ void meAssetInitialize(EngineContext* engine)
 		meAssetSetResourceDir(rootResDir ? rootResDir : meOSGetWorkingDir());
 	}
 	engine->assetSystem->assetCompilerJobs.Initialize(&engine->engineArena, NUM_ASSET_COMPILER_THREADS);
+}
+
+void meAssetInitializeLate(EngineContext* engine)
+{
 	registerAssetLoader( meEventPayload{ &engine->engineArena });
 }
 
@@ -82,6 +86,8 @@ void meAssetRegisterLoader(meAssetLoader* loader)
 	meAssetType type = loader->assetType;
 	ME_ASSERT(assetSystem.assetLoaders[type] == nullptr && "Not allowed to overwrite existing asset loader type");
 	ME_ASSERT(type != MABadData);
+	ME_ASSERT(loader->resourcePool != nullptr);
+	ME_ASSERT(loader->assetTypeDesc != nullptr);
 	assetSystem.assetLoaders[type] = loader;
 }
 
@@ -321,7 +327,7 @@ void meAssetLoader::meAssetLoad(meAsset& asset)
 	meSerializeResult result = DeserializeFromFileBlocking(assetPath, allocator, *assetTypeDesc, meSpan(outAsset, assetTypeDesc->size));
 	if (result)
 	{
-		ME_ASSERT(&assetTypeDesc->fields[0] == &TD_MAID);
+		ME_ASSERT(assetTypeDesc->fields[0].thisType == &TD_MAID);
 		MAID* header = (MAID*)outAsset;
 		ME_ASSERT(header->GetID() == asset.ident.id.GetID());
 		header->SetType(asset.ident.id.GetType());

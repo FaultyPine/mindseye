@@ -17,6 +17,9 @@ struct meResourcePoolBase
 	virtual void* GetOpaque(Eye handle) const { return nullptr; };
 	meAllocator* GetPayloadAllocator() const { return resourcePayloadAllocator; }
 
+	virtual Eye CreateInternal() = 0;
+	virtual void DestroyInternal(Eye handle) = 0;
+
 	meAllocator* resourcePayloadAllocator = nullptr;
 };
 
@@ -55,9 +58,8 @@ struct meResourcePool : public meResourcePoolBase
 	// EX: a 1x1 white texture
 	ResourceType& GetBadData() { return badData; }
 
-	// these shouldn't get overridden
-	Eye CreateInternal();
-	void DestroyInternal(Eye handle);
+	Eye CreateInternal() override;
+	void DestroyInternal(Eye handle) override;
 };
 
 
@@ -86,7 +88,7 @@ void meResourcePool<ResourceType>::DestroyInternal(Eye handle)
 	meResourceSlot<ResourceType>& resource = resourcePool.get(idx);
 	resource.obj.~ResourceType();
 	resource.generation++;
-	resourcePool.markDeleted(handle);
+	resourcePool.markDeleted(idx);
 }
 
 template <typename ResourceType>

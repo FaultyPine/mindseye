@@ -70,4 +70,5 @@ struct meScenePool : public meResourcePool<meScene>
 meScenePool& meScenePoolGet();
 
 void meSceneInitialize(EngineContext* ctx);
+void meSceneInitializeLate(EngineContext* engine);
 

@@ -13,8 +13,11 @@
 void meSceneInitialize(EngineContext* engine)
 {
 	engine->sceneSystem = MENEW(&engine->engineArena, meSceneManager);
-
 	engine->scenePool = MENEW(&engine->engineArena, meScenePool, &engine->engineArena, &engine->engineArena);
+}
+
+void meSceneInitializeLate(EngineContext* engine)
+{
 	// start with a "blank" new scene
 	engine->sceneSystem->rootScene = meAssetCreateNew(MAScene).runtimeHandle;
 	// CLEANUP: we're "leaking" this first blank scene, but who cares

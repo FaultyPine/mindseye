@@ -125,6 +125,10 @@ void InitializeEngineSystems(EngineContext* engine)
 	meMeshInitialize(engine);
 	meShaderInitialize(engine);
 	Entity::InitializeEntitySystem(&engine->engineSceneAllocator);
+
+	meAssetInitializeLate(engine);
+	meSceneInitializeLate(engine);
+
 	meAssetIndexInitialize(engine);
 }
 

@@ -222,6 +222,7 @@ struct meAssetSystem
 
 meAssetSystem& meAssetSystemGet();
 void meAssetInitialize(EngineContext* engine);
+void meAssetInitializeLate(EngineContext* engine);
 void meAssetTeardown(EngineContext* engine);
 void meAssetRegisterLoader(meAssetLoader* loader);
 
