@@ -76,10 +76,12 @@ void meAssetTeardown(EngineContext* engine)
     MEDELETE(&engine->engineArena, meAssetSystem, engine->assetSystem);
 }
 
-void meAssetRegisterLoader(meAssetLoader* loader, meAssetType type)
+void meAssetRegisterLoader(meAssetLoader* loader)
 {
     meAssetSystem& assetSystem = meAssetSystemGet();
+	meAssetType type = loader->assetType;
 	ME_ASSERT(assetSystem.assetLoaders[type] == nullptr && "Not allowed to overwrite existing asset loader type");
+	ME_ASSERT(type != MABadData);
 	assetSystem.assetLoaders[type] = loader;
 }
 
@@ -116,7 +118,7 @@ meAsset meAssetCreateNew(
 	newIdent.diskIdent = filename;
 	newIdent.id = newMaid;
 	newIdent.assetUniqueIdentifier = 0; // ?
-	meResourcePoolBase* resourcePool = loader->meAssetGetResourcePool();
+	meResourcePoolBase* resourcePool = loader->resourcePool;
 	Eye newRuntimeResource = resourcePool->Load();
 	void* opaqueAssetData = resourcePool->GetOpaque(newRuntimeResource);
 	MAID* assetHeader = (MAID*)opaqueAssetData;
@@ -304,6 +306,54 @@ meJobId meAssetRequestWrite(
 		}
 	}
 	return {};
+}
+
+void meAssetLoader::meAssetLoad(meAsset& asset)
+{
+	ME_ASSERT(asset.ident.id.GetType() == assetType);
+	meAllocator* allocator = resourcePool->GetPayloadAllocator();
+	// TODO: implement async loading, so this would return loadStage=Loading
+	// and would itself enqueue more asset compiling jobs for the individual parts of the asset
+	meResourcePoolBase* pool = resourcePool;
+	asset.runtimeHandle = pool->CreateInternal();
+	void* outAsset = pool->GetOpaque(asset.runtimeHandle);
+	StringView assetPath = meAssetGetAbsPathForResource(asset.ident.diskIdent);
+	meSerializeResult result = DeserializeFromFileBlocking(assetPath, allocator, *assetTypeDesc, meSpan(outAsset, assetTypeDesc->size));
+	if (result)
+	{
+		ME_ASSERT(&assetTypeDesc->fields[0] == &TD_MAID);
+		MAID* header = (MAID*)outAsset;
+		ME_ASSERT(header->GetID() == asset.ident.id.GetID());
+		header->SetType(asset.ident.id.GetType());
+	}
+	else
+	{
+		LOG_WARN("Failed to load asset " STRING_FMT, STRING_VAARGS(asset.ident.diskIdent));
+	}
+	asset.loadStage = result ? Loaded : Unloaded;
+}
+
+void meAssetLoader::meAssetWrite(meAsset& asset)
+{
+	meResourcePoolBase* pool = resourcePool;
+	if (!asset.runtimeHandle || asset.loadStage != Loaded)
+	{
+		LOG_WARN("Attempted to write an unloaded asset");
+		return;
+	}
+	void* assetData = pool->GetOpaque(asset.runtimeHandle);
+	StringView assetPath = meAssetGetAbsPathForResource(asset.ident.diskIdent);
+	meAllocator* tempAllocator = GetTLScratch();
+	StringView assetSerializedString = {};
+	meSerializeResult res = SerializeToTextBlocking(*assetTypeDesc, assetData, tempAllocator, assetSerializedString);
+	ME_ASSERT(res == meSerializeResult::SER_SUCCESS);
+	// TODO: split the actual writing out into a separate thing?
+	OSFileReference file;
+	meOSOpenFile(file, assetPath, (OSFileFlags_StompExisting | OSFileFlags_ScopedFile));
+	if (!meOSWriteFileContent(file, assetSerializedString.data, assetSerializedString.len))
+	{
+		LOG_ERROR("Failed to write asset to file. filename = " STRING_FMT "\nassetString = " STRING_FMT, STRING_VAARGS(assetPath), STRING_VAARGS(assetSerializedString));
+	}
 }
 
 meAsset* meAssetTryGet(MAID assetID)

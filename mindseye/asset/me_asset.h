@@ -188,15 +188,21 @@ struct meAssetLoader
 	// TODO: put the resourcepool in this struct!
 
     // called on asset threads
-    virtual void meAssetLoad(meAsset&) = 0;
+	virtual void meAssetLoad(meAsset&);
 	// TODO: return a serialized buffer, rather than writing to disk inside this func
-	virtual void meAssetWrite(meAsset&) = 0;
-	virtual const meTypeDescriptor& meAssetGetTypeDescriptor() = 0;
-	virtual meResourcePoolBase* meAssetGetResourcePool() = 0;
+	virtual void meAssetWrite(meAsset&);
 	virtual void meAssetOnLoad(meAsset&) {}
 	meAssetLoadStage meAssetWaitForLoadstage(
 		const meAssetIdent&, 
 		meAssetLoadStage);
+
+	meAssetLoader(meTypeDescriptor* typedesc, meResourcePoolBase* pool, meAssetType type) 
+	: assetTypeDesc(typedesc), resourcePool(pool), assetType(type)
+	{}
+
+	meTypeDescriptor* assetTypeDesc = nullptr;
+	meResourcePoolBase* resourcePool = nullptr;
+	meAssetType assetType = MABadData;
 };
 
 struct meAssetSystem
@@ -217,7 +223,7 @@ struct meAssetSystem
 meAssetSystem& meAssetSystemGet();
 void meAssetInitialize(EngineContext* engine);
 void meAssetTeardown(EngineContext* engine);
-void meAssetRegisterLoader(meAssetLoader* loader, meAssetType type);
+void meAssetRegisterLoader(meAssetLoader* loader);
 
 MAID meAssetCreateNewAssetID(meAssetType type);
 

@@ -8,9 +8,12 @@ run `build.bat`
 
 ### Current focus
 - asset refactor to treat assets more generically.
-	- tie asset type to an instance of a resource pool
-	- tie asset type to a type descriptor
-	- factor buncha logic out of the meScene loader that can be generic for all assets
+	- Can't generically CreateInternal on a resourcepoolbase
+		That function doesn't need to know the template type...
+		BOOKMARK: meResourceSlot doesn't need to store the T inplace. 
+			would make more sense to allocate the T with the resource pool's "Payload allocator"
+			so all the resource pool content lives in the same allocator.
+
 
 
 - refactor so instead of straight loading gltf, we "import" gltf and turn it into massets, then load(/compile) those

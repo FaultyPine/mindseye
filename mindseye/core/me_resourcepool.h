@@ -9,15 +9,15 @@ struct meResourceSlot
 	T obj = {};
 	u16 generation = 0;
 	bool inUse = false;
-
-	operator T&() { return obj; }
 };
 
 struct meResourcePoolBase
 {
-	// purposely left "unimplemented"
 	virtual Eye Load() { UNIMPLEMENTED(); return {}; }
 	virtual void* GetOpaque(Eye handle) const { return nullptr; };
+	meAllocator* GetPayloadAllocator() const { return resourcePayloadAllocator; }
+
+	meAllocator* resourcePayloadAllocator = nullptr;
 };
 
 // TODO: each resource should have some kind of meResourceUniqueIdentifier
@@ -32,7 +32,6 @@ struct meResourcePool : public meResourcePoolBase
 	// There's no hard dependence on that rn, since everything uses handles to reference these, but it's still a nice thing
 	// but other than that, there's no constraints on what data structure is used here. Maybe this should be a map
 	meBlockList<meResourceSlot<ResourceType>> resourcePool;
-	meAllocator* resourcePayloadAllocator = nullptr;
 	ResourceType badData = {};
 
 	meResourcePool(meAllocator* resourceAllocator, meAllocator* payloadAllocator);
@@ -50,8 +49,6 @@ struct meResourcePool : public meResourcePoolBase
 	{
 		return (void*)&Get(handle);
 	}
-
-	meAllocator* GetPayloadAllocator() const { return resourcePayloadAllocator; }
 
 	// each resource pool should assign a default "no data" object
 	// in it's constructor

@@ -83,7 +83,7 @@ void OnFoundAssetFile(
 	meAssetType type = FindAssetTypeFromFilepath(filepath);
 	StringView assetPath = meAssetGetAbsPathForResource(filepath);
 	meAssetLoader* loader = meAssetSystemGet().assetLoaders[type];
-	const meTypeDescriptor& typeDesc = loader->meAssetGetTypeDescriptor();
+	const meTypeDescriptor& typeDesc = *loader->assetTypeDesc;
 	u32 size = typeDesc.size;
 	Allocation outSerialized = MEALLOC(GetTLScratch(), size);
 	meSerializeResult result = DeserializeFromFileBlocking(assetPath, GetTLScratch(), typeDesc, outSerialized);

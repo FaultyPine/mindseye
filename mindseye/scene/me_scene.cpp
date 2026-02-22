@@ -62,70 +62,24 @@ meScene& meSceneManager::CurrentScene()
 
 struct meSceneAssetLoader : public meAssetLoader
 {
+	using meAssetLoader::meAssetLoader;
+
 	virtual void meAssetLoad(meAsset& asset) override
 	{
-        EngineContext* engine = GetEngineCtx();
-		ME_ASSERT(asset.ident.id.GetType() == MAScene);
-		meAllocator* sceneAllocator = &engine->engineSceneAllocator;
-        // TODO: implement async scene loading, so this would return loadStage=Loading
-        // and would itself enqueue more asset compiling jobs for the individual parts of the scene
-		meScenePool& scenePool = meScenePoolGet();
-		asset.runtimeHandle = scenePool.CreateInternal();
-		meScene& outScene = scenePool.Get(asset.runtimeHandle);
+		meAssetLoader::meAssetLoad(asset);
+		meAllocator* allocator = resourcePool->GetPayloadAllocator();
+		meScene& outScene = *(meScene*)resourcePool->GetOpaque(asset.runtimeHandle);
 		if (!outScene.entities)
 		{
-			outScene.entities = DynArrayCreate<EntityRef>(sceneAllocator);
+			outScene.entities = DynArrayCreate<EntityRef>(allocator);
 		}
-		StringView assetPath = meAssetGetAbsPathForResource(asset.ident.diskIdent);
-		meSerializeResult result = DeserializeFromFileBlocking(assetPath, sceneAllocator, TD_MESCENE, SPAN_FROM(outScene));
-		if (result)
+		if (FindInString(outScene.externalScenePath, STRING_LIT(".gltf")) != -1 ||
+			FindInString(outScene.externalScenePath, STRING_LIT(".glb")) != -1)
 		{
-			// TODO: individual loaders need to set this stuff after deserializing, but this should be generic for all loaders
-			ME_ASSERT(outScene.header.GetID() == asset.ident.id.GetID());
-			outScene.header.SetType(asset.ident.id.GetType()); // this should be automatic for all asset types
-			if (FindInString(outScene.externalScenePath, STRING_LIT(".gltf")) != -1 ||
-				FindInString(outScene.externalScenePath, STRING_LIT(".glb")) != -1)
-			{
-				meScenePoolGet().Load(asset.ident, sceneAllocator, outScene.externalScenePath, outScene);
-			}
-		}
-		else
-		{
-			LOG_WARN("Failed to load scene " STRING_FMT, STRING_VAARGS(asset.ident.diskIdent));
-		}
-		asset.loadStage = result ? Loaded : Unloaded;
-	}
-
-	virtual void meAssetWrite(meAsset& asset) override
-	{
-		meScenePool& scenePool = meScenePoolGet();
-		if (!asset.runtimeHandle || asset.loadStage != Loaded)
-		{
-			LOG_WARN("Attempted to write an unloaded scene asset");
-			return;
-		}
-		meScene& scene = scenePool.Get(asset.runtimeHandle);
-		StringView assetPath = meAssetGetAbsPathForResource(asset.ident.diskIdent);
-		meAllocator* tempAllocator = GetTLScratch();
-		StringView sceneString = {};
-		meSerializeResult res = SerializeToTextBlocking(TD_MESCENE, &scene, tempAllocator, sceneString);
-		ME_ASSERT(res == meSerializeResult::SER_SUCCESS);
-		OSFileReference file;
-		meOSOpenFile(file, assetPath, (OSFileFlags_StompExisting | OSFileFlags_ScopedFile));
-		if (!meOSWriteFileContent(file, sceneString.data, sceneString.len))
-		{
-			LOG_ERROR("Failed to write scene to file. filename = " STRING_FMT "\nsceneString = " STRING_FMT, STRING_VAARGS(assetPath), STRING_VAARGS(sceneString));
+			meScenePoolGet().Load(asset.ident, allocator, outScene.externalScenePath, outScene);
 		}
 	}
 
-	virtual const meTypeDescriptor& meAssetGetTypeDescriptor() override
-	{
-		return TD_MESCENE;
-	}
-	virtual meResourcePoolBase* meAssetGetResourcePool() override
-	{
-		return &meScenePoolGet();
-	}
 	virtual void meAssetOnLoad(meAsset& asset) override
 	{
 		GetEngineCtx()->sceneSystem->rootScene = asset.runtimeHandle;
@@ -135,7 +89,7 @@ struct meSceneAssetLoader : public meAssetLoader
 	static void RegisterAssetLoader(meEventPayload payload)
 	{
 		meAllocator* allocator = (meAllocator*)payload.payload;
-		meAssetRegisterLoader(MENEW(allocator, meSceneAssetLoader), meAssetType::MAScene);
+		meAssetRegisterLoader(MENEW(allocator, meSceneAssetLoader, &TD_MESCENE, &meScenePoolGet(), meAssetType::MAScene));
 	}
 };
 
