@@ -239,7 +239,7 @@ meAllocator* DynArrayGetAllocator(const DynArray<T>& array)
 void DynArrayTests()
 {
     LOG_INFO("Testing DynArray...");
-    DynArray<s32> arr = DynArrayCreate<s32>(GetSystemAllocator());
+    DynArray<s32> arr = DynArrayCreate<s32>(GetDefaultAllocator());
     s32 x = 1;
     DynArrayPush(arr, x);
     ME_ASSERT(DynArrayGetSize(arr) == 1);

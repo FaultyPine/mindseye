@@ -129,7 +129,7 @@ String& String::operator=(String&& other)
 static meAllocator* GetStringAllocator()
 {
 	// TODO
-	return GetSystemAllocator();
+	return GetDefaultAllocator();
 }
 
 String& String::operator=(const StringView& other)

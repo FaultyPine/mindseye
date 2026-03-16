@@ -21,8 +21,8 @@ struct meEvent
 	void operator()(meEventPayload payload = {}) const;
 };
 
-void meEventSubscribe(meEvent& event, MeEventCb callback);
-void meEventUnsubscribe(meEvent& event, MeEventCb callback);
+MEAPI void meEventSubscribe(meEvent& event, MeEventCb callback);
+MEAPI void meEventUnsubscribe(meEvent& event, MeEventCb callback);
 
 
 #define MEEVENT_DECLARE_STATIC(name) \

@@ -213,7 +213,7 @@ typename meBlockList<T, BLOCK_SIZE>::Iterator meBlockList<T, BLOCK_SIZE>::end()
 
 void TestBlocklist() 
 {
-    meAllocator* alloc = GetSystemAllocator();
+    meAllocator* alloc = GetDefaultAllocator();
     meBlockList<int, 5> list(alloc);
 
     // Test push and size

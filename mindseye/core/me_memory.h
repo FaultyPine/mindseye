@@ -61,6 +61,7 @@ struct ScopedAllocation
 };
 
 MEAPI meAllocator* GetSystemAllocator();
+MEAPI meAllocator* GetDefaultAllocator();
 MEAPI meAllocator* GetTLScratch();
 
 // takes an existing buffer and allocates + copies it into a new allocation

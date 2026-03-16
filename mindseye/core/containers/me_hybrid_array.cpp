@@ -39,7 +39,7 @@ HybridArray<T, fixedSize>::HybridArray(meAllocator* inAllocator)
     elements = &fixedMem[0];
     capacity = fixedSize;
     internalSize = 0;
-    allocator = inAllocator ? inAllocator : GetSystemAllocator();
+    allocator = inAllocator ? inAllocator : GetDefaultAllocator();
 }
 
 template <typename T, u32 fixedSize>
@@ -158,7 +158,7 @@ void HybridArrayTests()
 {
     LOG_INFO("Running HybridArray tests...");
     constexpr u32 testFixedSize = 10;
-    HybridArray<u32, testFixedSize> arr(GetSystemAllocator());
+    HybridArray<u32, testFixedSize> arr(GetDefaultAllocator());
     ME_ASSERT(arr.internalSize == 0);
     arr.push_back(0);
     arr.push_back(1);

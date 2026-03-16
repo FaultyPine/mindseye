@@ -145,8 +145,7 @@ void meOSCreateWindow(WindowCreationParams creationParams, EngineContext* engine
     RegisterClass(&wc);
 
     int wide_char_len = MultiByteToWideChar(CP_UTF8, 0, creationParams.name.data, -1, nullptr, 0);
-	// TODO: use TLScratch
-    StringView wideString = StringView((char*)MEALLOC(GetSystemAllocator(), wide_char_len), wide_char_len);
+    StringView wideString = StringView((char*)MEALLOC(GetTLScratch(), wide_char_len), wide_char_len);
     MultiByteToWideChar(CP_ACP, 0, creationParams.name.data, -1, (wchar_t*)wideString.data, wide_char_len);
 
     // When you create a window, windows immediately fires a WM_SIZE event

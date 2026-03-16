@@ -43,6 +43,12 @@ meAllocator* GetSystemAllocator()
     return &system;
 }
 
+meAllocator* GetDefaultAllocator()
+{
+    // TODO: fancier modern allocator
+    return GetSystemAllocator();
+}
+
 // TODO: for some reason this isn't being initialized right
 // i'm passing it by ref into ArenaInit but the actual scratchWork isn't being updated???
 // idk what's going on.
@@ -58,7 +64,7 @@ MEAPI meAllocator* GetTLScratch()
 	if (!scratchWork.backing_mem)
 	{
 		new(&scratchWork) ArenaTLScratch();
-		ArenaInit(scratchWork, MEGABYTES_BYTES(50), "Threadlocal Scratch", GetSystemAllocator());
+		ArenaInit(scratchWork, MEGABYTES_BYTES(50), "Threadlocal Scratch", GetDefaultAllocator());
 	}
 	return &scratchWork;
 }
@@ -92,11 +98,11 @@ bool BufferCopy(meSpan dst, meSpan src)
 
 void InitializeAllocatorSystem(EngineContext* engine)
 {
-    meAllocator* systemAllocator = GetSystemAllocator();
-    engine->engineArena = ArenaInit(ENGINE_INITIAL_RESERVED_MEMSIZE, "Engine", systemAllocator);
-    engine->engineFrameAllocator = ArenaInit(ENGINE_INITIAL_RESERVED_MEMSIZE, "Engine Frame", systemAllocator);
-    engine->engineSceneAllocator = ArenaInit(ENGINE_INITIAL_RESERVED_MEMSIZE, "Engine Scene", systemAllocator);
-    engine->gameArena = ArenaInit(ENGINE_INITIAL_RESERVED_MEMSIZE, "Game", systemAllocator);
+    meAllocator* allocator = GetDefaultAllocator();
+    engine->engineArena = ArenaInit(ENGINE_INITIAL_RESERVED_MEMSIZE, "Engine", allocator);
+    engine->engineFrameAllocator = ArenaInit(ENGINE_INITIAL_RESERVED_MEMSIZE, "Engine Frame", allocator);
+    engine->engineSceneAllocator = ArenaInit(ENGINE_INITIAL_RESERVED_MEMSIZE, "Engine Scene", allocator);
+    engine->gameArena = ArenaInit(ENGINE_INITIAL_RESERVED_MEMSIZE, "Game", allocator);
 }
 
 #endif

@@ -57,7 +57,7 @@ void ArenaInit(
 	const char* name,
 	meAllocator* backingAllocator)
 {
-	meAllocator* allocator = backingAllocator != nullptr ? backingAllocator : GetSystemAllocator();
+	meAllocator* allocator = backingAllocator != nullptr ? backingAllocator : GetDefaultAllocator();
     a.backingAllocator = allocator;
     a.backing_mem = (unsigned char*)MEALLOC(allocator, arenaSize).data;
     a.backing_mem_size = arenaSize;
