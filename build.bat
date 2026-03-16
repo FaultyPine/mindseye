@@ -2,6 +2,7 @@
 
 @REM Invoke this with no arguments for a standard debug build
 @REM Add 'release' at the end, like `build.bat release` for a release build
+@REM Add 'asan' or 'tsan' to enable AddressSanitizer/ThreadSanitizer (e.g. `build.bat asan` or `build.bat release tsan`)
 @REM External libraries are compiled seperately. They will be compiled if they don't exist in the build folder,
 @REM but if you need to build them manually `build.bat libs` will rebuild them.
 

@@ -7,6 +7,14 @@ enum meBuildMode
 {
 	DEBUG, RELEASE,
 };
+
+enum meSanitizerMode
+{
+	SANITIZER_NONE,
+	SANITIZER_ASAN,
+	SANITIZER_TSAN,
+};
+
 static char* root = nullptr;
 static char* g_compilerExe = nullptr;
 
@@ -112,7 +120,7 @@ void readEntireDirRecursive(const char* parent, Nob_File_Paths* paths, readDirFi
 #define NOB_CMD_APPEND_MULTIPLE(compile, arr ...) \
 for (int i = 0; i < ARRAY_SIZE(arr); i++) \
 {\
-nob_cmd_append(&compile, arr[i]);\
+if (arr[i]) nob_cmd_append(&compile, arr[i]);\
 }
 
 void normalizePathSeperators(char* str)
@@ -159,8 +167,8 @@ int main(int argc, char** argv)
 	g_compilerExe = argv[1];
 	NOB_GO_REBUILD_URSELF_PLUS(argc, argv, "mindseye/core/me_defines.h", "tools/nob.h");
 	root = argv[2];
-    const char* command = argv[3];
-    if (argc > 3 && strcmp(command, "clean") == 0)
+	const char* command = argc > 3 ? argv[3] : nullptr;
+	if (command && strcmp(command, "clean") == 0)
     {
         clean();
         return 0;
@@ -169,6 +177,7 @@ int main(int argc, char** argv)
 	normalizePathSeperators(root);
 	normalizePathSeperators(g_compilerExe);
 	meBuildMode mode = DEBUG;
+	meSanitizerMode sanitizerMode = SANITIZER_NONE;
 	bool forceBuildLibs = false;
 	for (int i = 1; i < argc; i++)
 	{
@@ -182,6 +191,35 @@ int main(int argc, char** argv)
 		{
 			forceBuildLibs = true;
 		}
+		else if (nob_sv_eq(argvSv, nob_sv_from_cstr("asan")))
+		{
+			if (sanitizerMode != SANITIZER_NONE && sanitizerMode != SANITIZER_ASAN)
+			{
+				nob_log(NOB_ERROR, "Cannot combine 'asan' and 'tsan' in the same build.");
+				return 1;
+			}
+			sanitizerMode = SANITIZER_ASAN;
+			nob_log(NOB_INFO, "[AddressSanitizer enabled]");
+		}
+		else if (nob_sv_eq(argvSv, nob_sv_from_cstr("tsan")))
+		{
+			if (sanitizerMode != SANITIZER_NONE && sanitizerMode != SANITIZER_TSAN)
+			{
+				nob_log(NOB_ERROR, "Cannot combine 'asan' and 'tsan' in the same build.");
+				return 1;
+			}
+			sanitizerMode = SANITIZER_TSAN;
+			nob_log(NOB_INFO, "[ThreadSanitizer enabled]");
+		}
+	}
+	const char* sanitizerFlag = nullptr;
+	if (sanitizerMode == SANITIZER_ASAN)
+	{
+		sanitizerFlag = "-fsanitize=address";
+	}
+	else if (sanitizerMode == SANITIZER_TSAN)
+	{
+		sanitizerFlag = "-fsanitize=thread";
 	}
 	nob_mkdir_if_not_exists("build");
 
@@ -256,6 +294,7 @@ int main(int argc, char** argv)
 		nob_temp_sprintf("-I%s/mindseye/external/bgfx/bimg/include", root),
 		nob_temp_sprintf("-I%s/mindseye/external/ktx", root),
 		nob_temp_sprintf("-I%s/mindseye/external/cereal/include", root),
+		sanitizerFlag,
 	};
 
 
