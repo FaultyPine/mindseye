@@ -88,8 +88,8 @@ struct meReflectedType
 	u32 align = 0;
 	u32 version = 0;
 	meTypeDescriptorFlags flags = 0;
-	StringView strSerializerFnName = {};
-	StringView strDeserializerFnName = {};
+	StringView serializerFnName = {};
+	StringView deserializerFnName = {};
 
 	void Print() const;
 	bool operator==(const meReflectedType& other) const
@@ -627,10 +627,10 @@ void StoreReflectedTypeInfo(
 		if (versionParam) reflType.version = StringToUint(versionParam);
 
 		StringView serializerParam = GetStringParam(STRING_LIT("Serializer"), macroContent);
-		reflType.strSerializerFnName = serializerParam;
+		reflType.serializerFnName = serializerParam;
 
 		StringView deserializerParam = GetStringParam(STRING_LIT("Deserializer"), macroContent);
-		reflType.strDeserializerFnName = deserializerParam;
+		reflType.deserializerFnName = deserializerParam;
 
 		SET_BIT(reflType.flags, meTypeDescriptorFlag_Excluded, reflType.IsExcluded() || excluded);
 	}
@@ -1057,15 +1057,15 @@ bool GenerateForwardDecls(
 				}				
 			}
 			builder.AppendFormat("extern meTypeDescriptor TD_%.*s;\n", STRING_VAARGS(uppercaseName));
-			if (typeRefl.strDeserializerFnName)
+			if (typeRefl.deserializerFnName)
 			{
-				// matches signature of DeserializerFromStringFn
-				builder.AppendFormat("bool " STRING_FMT "(const meTypeDescriptor& typeDescriptor, DeserializeContext& ctx);\n", STRING_VAARGS(typeRefl.strDeserializerFnName));
+				// matches signature of DeserializerFn
+				builder.AppendFormat("bool " STRING_FMT "(const meTypeDescriptor& typeDescriptor, DeserializeContext& ctx);\n", STRING_VAARGS(typeRefl.deserializerFnName));
 			}
-			if (typeRefl.strSerializerFnName)
+			if (typeRefl.serializerFnName)
 			{
 				// matches signature of SerializerToStringFn
-				builder.AppendFormat("StringView " STRING_FMT "(const meTypeDescriptor& typeDescriptor, SerializeContext ctx);\n", STRING_VAARGS(typeRefl.strSerializerFnName));
+				builder.AppendFormat("StringView " STRING_FMT "(const meTypeDescriptor& typeDescriptor, SerializeContext ctx);\n", STRING_VAARGS(typeRefl.serializerFnName));
 			}
 			generatedAny = true;
 		}
@@ -1316,13 +1316,13 @@ bool ProcessReflectedFile(
 			mainTypeDescriptorContent.AppendFormat("\t.version = %i,\n", typeRefl.version);
 			mainTypeDescriptorContent.AppendFormat("\t.size = %i,\n", typeRefl.size);
 			mainTypeDescriptorContent.AppendFormat("\t.align = %i,\n", typeRefl.align);
-			if (typeRefl.strSerializerFnName)
+			if (typeRefl.serializerFnName)
 			{
-				mainTypeDescriptorContent.AppendFormat("\t.strSerializer = " STRING_FMT ",\n", STRING_VAARGS(typeRefl.strSerializerFnName));
+				mainTypeDescriptorContent.AppendFormat("\t.strSerializer = " STRING_FMT ",\n", STRING_VAARGS(typeRefl.serializerFnName));
 			}
-			if (typeRefl.strDeserializerFnName)
+			if (typeRefl.deserializerFnName)
 			{
-				mainTypeDescriptorContent.AppendFormat("\t.strDeserializer = " STRING_FMT ",\n", STRING_VAARGS(typeRefl.strDeserializerFnName));
+				mainTypeDescriptorContent.AppendFormat("\t.strDeserializer = " STRING_FMT ",\n", STRING_VAARGS(typeRefl.deserializerFnName));
 			}
 
 			sourceContentBuilder.AppendFormat("meTypeDescriptor TD_%.*s = {\n%.*s};\n", STRING_VAARGS(uppercaseName), STRING_VAARGS(mainTypeDescriptorContent));

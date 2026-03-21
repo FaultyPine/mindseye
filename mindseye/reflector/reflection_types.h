@@ -57,7 +57,7 @@ StringView meTypeDescriptorFlagToString(meTypeDescriptorFlags flag);
 typedef StringView(*SerializerToStringFn)(
 	const meTypeDescriptor& typeDescriptor,
 	SerializeContext ctx);
-typedef bool(*DeserializerFromStringFn)(
+typedef bool(*DeserializerFn)(
 	const meTypeDescriptor& typeDescriptor,
 	DeserializeContext& ctx);
 
@@ -94,7 +94,7 @@ struct meTypeDescriptor
 	// for non-pod types, these can be assigned and will
 	// be called instead of default primitive serialization funcs
 	SerializerToStringFn strSerializer = nullptr;
-	DeserializerFromStringFn strDeserializer = nullptr;
+	DeserializerFn strDeserializer = nullptr;
 
 	bool operator==(const meTypeDescriptor& other) const
 	{
