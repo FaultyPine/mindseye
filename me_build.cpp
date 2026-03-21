@@ -296,7 +296,6 @@ int main(int argc, char** argv)
 		nob_temp_sprintf("-I%s/mindseye/external/bgfx/bx/include", root),
 		nob_temp_sprintf("-I%s/mindseye/external/bgfx/bimg/include", root),
 		nob_temp_sprintf("-I%s/mindseye/external/ktx", root),
-		nob_temp_sprintf("-I%s/mindseye/external/cereal/include", root),
 		sanitizerFlag,
 	};
 
