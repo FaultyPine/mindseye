@@ -36,13 +36,13 @@ static json JsonSerializeWithTypeDescriptor(
 	}
 
 	// Custom serializer override - use it and store as string
-	if (td.strSerializer)
+	if (td.serializerFn)
 	{
 		SerializeContext ctx = {};
 		ctx.allocator = GetTLScratch();
 		ctx.data = meSpan(data, td.size);
 		ctx.parentType = parentType ? parentType : &td;
-		StringView str = td.strSerializer(td, ctx);
+		StringView str = td.serializerFn(td, ctx);
 		return std::string(str.data, str.len);
 	}
 
@@ -129,7 +129,7 @@ static bool JsonDeserializeWithTypeDescriptor(
 	}
 
 	// Custom deserializer override
-	if (td.strDeserializer)
+	if (td.deserializerFn)
 	{
 		std::string str;
 		if (j.is_string())
@@ -145,7 +145,7 @@ static bool JsonDeserializeWithTypeDescriptor(
 		ctx.outputData = meSpan(outData, td.size);
 		ctx.externalDataAllocator = allocator;
 		ctx.parentType = parentType ? parentType : &td;
-		return td.strDeserializer(td, ctx);
+		return td.deserializerFn(td, ctx);
 	}
 
 	// Constant array

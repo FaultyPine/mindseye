@@ -54,7 +54,7 @@ enum meTypeDescriptorFlag_
 
 StringView meTypeDescriptorFlagToString(meTypeDescriptorFlags flag);
 
-typedef StringView(*SerializerToStringFn)(
+typedef StringView(*SerializerFn)(
 	const meTypeDescriptor& typeDescriptor,
 	SerializeContext ctx);
 typedef bool(*DeserializerFn)(
@@ -93,8 +93,8 @@ struct meTypeDescriptor
 
 	// for non-pod types, these can be assigned and will
 	// be called instead of default primitive serialization funcs
-	SerializerToStringFn strSerializer = nullptr;
-	DeserializerFn strDeserializer = nullptr;
+	SerializerFn serializerFn = nullptr;
+	DeserializerFn deserializerFn = nullptr;
 
 	bool operator==(const meTypeDescriptor& other) const
 	{
