@@ -4,29 +4,25 @@
 #include "core/me_core.h"
 #include "render/me_mesh.h"
 
-StringView EntityRefSerializerToStringFn(
+void EntityRefSerializerToStringFn(
 	const meTypeDescriptor& typeDescriptor,
-	SerializeContext ctx)
+	SerializeContext& ctx)
 {
 	meSpan data = ctx.data;
 	EntityRef* ref = (EntityRef*)data.data;
 	EntityData& entity = Entity::GetEntity(*ref);
 	if (TEST_BIT(entity.flags, EntityFlags_Invalid))
 	{
-		return STRING_LIT("INVALID_ENTITY");
+		*(json*)ctx.outputData.data = "INVALID_ENTITY";
+		return;
 	}
 	if (TEST_BIT(entity.flags, EntityFlags_NoSer))
 	{
-		return {};
+		*(json*)ctx.outputData.data = json();
+		return;
 	}
 	meSpan entitySpan = SPAN_FROM(entity);
-	SerializeContext entityCtx = ctx;
-	entityCtx.data = entitySpan;
-	json j = JsonSerializeWithTypeDescriptor(TD_ENTITYDATA, entitySpan.data, ctx.parentType);
-	std::string bruh = j.dump(4);
-	StringView result = StringView(MEALLOC(ctx.allocator, bruh.size()), bruh.size());
-	ME_MEMCPY(result.data, bruh.data(), bruh.size());
-	return result;
+	*(json*)ctx.outputData.data = JsonSerializeWithTypeDescriptor(TD_ENTITYDATA, entitySpan.data, ctx.parentType);
 }
 
 bool EntityRefDeserializerFromStringFn(

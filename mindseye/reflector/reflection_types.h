@@ -28,6 +28,8 @@ struct SerializeContext
 	meAllocator* allocator = {};
 	// buffer that should be serialized
 	meSpan data = {};
+	// output: serialized data written by serialization functions
+	meSpan outputData = {};
 	// for templated types, this is can be used to get the template params
 	const meTypeDescriptor* parentType = {};
 };
@@ -54,9 +56,9 @@ enum meTypeDescriptorFlag_
 
 StringView meTypeDescriptorFlagToString(meTypeDescriptorFlags flag);
 
-typedef StringView(*SerializerFn)(
+typedef void(*SerializerFn)(
 	const meTypeDescriptor& typeDescriptor,
-	SerializeContext ctx);
+	SerializeContext& ctx);
 typedef bool(*DeserializerFn)(
 	const meTypeDescriptor& typeDescriptor,
 	DeserializeContext& ctx);
@@ -153,7 +155,7 @@ extern meTypeDescriptor TD_STRINGVIEW; // basically the same as span
 extern meTypeDescriptor TD_STRING;
 
 // Serializer/Deserializer functions for sized buffer types
-StringView sizedBufferSerializer(const meTypeDescriptor&, SerializeContext ctx);
+void sizedBufferSerializer(const meTypeDescriptor&, SerializeContext& ctx);
 bool sizedBufferDeserializer(const meTypeDescriptor&, DeserializeContext& ctx);
 bool stringDeserializer(const meTypeDescriptor&, DeserializeContext& ctx);
 

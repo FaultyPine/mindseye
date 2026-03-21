@@ -8,6 +8,16 @@
 #include <external/json.hpp>
 using json = nlohmann::json;
 
+void sizedBufferSerializer(
+	const meTypeDescriptor& typedescriptor,
+	SerializeContext& ctx)
+{
+	meSpan fieldData = ctx.data;
+	meSpan dereferencedData = *(meSpan*)fieldData.data;
+	json& out = *(json*)ctx.outputData.data;
+	out = std::string(dereferencedData.data, dereferencedData.size);
+}
+
 // =========================================================
 // JSON Serialization Helpers
 // =========================================================
@@ -38,12 +48,14 @@ static json JsonSerializeWithTypeDescriptor(
 	// Custom serializer override - use it and store as string
 	if (td.serializerFn)
 	{
+		json result;
 		SerializeContext ctx = {};
 		ctx.allocator = GetTLScratch();
 		ctx.data = meSpan(data, td.size);
+		ctx.outputData = meSpan(&result, sizeof(json));
 		ctx.parentType = parentType ? parentType : &td;
-		StringView str = td.serializerFn(td, ctx);
-		return std::string(str.data, str.len);
+		td.serializerFn(td, ctx);
+		return result;
 	}
 
 	// Constant array
@@ -383,9 +395,9 @@ meSerializeResult DeserializeFromTextBlocking(
 
 
 
-StringView DynArraySerializerToStringFn(
+void DynArraySerializerToStringFn(
 	const meTypeDescriptor& typeDescriptor,
-	SerializeContext ctx)
+	SerializeContext& ctx)
 {
 	const meTypeDescriptor* parentType = ctx.parentType;
 	// DynArray is templated, and so requires the parent type to understand the template args, see comment in meTypeDescriptor struct
@@ -407,13 +419,8 @@ StringView DynArraySerializerToStringFn(
 		json serializedElement = JsonSerializeWithTypeDescriptor(templateArg, elementSpan.data, ctx.parentType);
 		j.push_back(serializedElement);
 	}
-	// BOOKMARK: this is icky. Instead of returning & appending to a String for
-	// all serialization funcs, should add some state to the serialization context
-	// which is the "output serialization object" which could be a String or json or something else
-	std::string bruh = j.dump(4);
-	StringView result = StringView(MEALLOC(ctx.allocator, bruh.size()), bruh.size());
-	ME_MEMCPY(result.data, bruh.data(), bruh.size());
-	return result;
+	json& out = *(json*)ctx.outputData.data;
+	out = std::move(j);
 }
 
 bool DynArrayDeserializerFromStringFn(

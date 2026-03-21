@@ -50,9 +50,9 @@ typedef DynArray<u8> DynArrayAny;
 template<typename T>
 DynArrayHeader* GetHeaderPointer(const DynArray<T>& array);
 
-StringView DynArraySerializerToStringFn(
+void DynArraySerializerToStringFn(
 	const meTypeDescriptor& typeDescriptor,
-	SerializeContext ctx);
+	SerializeContext& ctx);
 
 bool DynArrayDeserializerFromStringFn(
 	const meTypeDescriptor& typeDescriptor,

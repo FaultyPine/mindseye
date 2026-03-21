@@ -71,10 +71,9 @@ void InitializeEntitySystem(meAllocator* allocator);
 void DeinitializeEntitySystem();
 
 
-StringView EntityRefSerializerToStringFn(
+void EntityRefSerializerToStringFn(
 	const meTypeDescriptor& typeDescriptor,
-	meAllocator* allocator, 
-	meSpan data);
+	SerializeContext& ctx);
 
 bool EntityRefDeserializerFromStringFn(
 	const meTypeDescriptor& typeDescriptor,

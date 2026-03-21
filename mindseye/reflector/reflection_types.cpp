@@ -17,18 +17,20 @@ StringView meTypeDescriptorFlagToString(meTypeDescriptorFlags flag)
 }
 
 // Serializer/Deserializer functions for sized buffer types (meSpan, StringView, String)
-StringView sizedBufferSerializer(
+#ifdef ME_CORE_ONLY
+// raw fallback for reflector build (no json available)
+void sizedBufferSerializer(
 	const meTypeDescriptor& typedescriptor,
-	SerializeContext ctx)
+	SerializeContext& ctx)
 {
 	meSpan fieldData = ctx.data;
 	meAllocator* allocator = ctx.allocator;
-	// the fielddata is just a pointer to a mespan, which ITSELF has the actual data
 	meSpan dereferencedData = *(meSpan*)fieldData.data;
 	Allocation mem = MEALLOC(allocator, dereferencedData.size);
 	BufferCopy(mem, dereferencedData);
-	return StringView(mem);
+	ctx.outputData = mem;
 }
+#endif
 
 bool sizedBufferDeserializer(
 	const meTypeDescriptor& typedescriptor,

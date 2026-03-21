@@ -39,15 +39,14 @@ StringView meAssetFileExtFromType(meAssetType type)
     }
 }
 
-StringView MAIDSerializerToStringFn(
+void MAIDSerializerToStringFn(
 	const meTypeDescriptor& typeDescriptor,
-	SerializeContext ctx)
+	SerializeContext& ctx)
 {
 	MAID* maid = (MAID*)ctx.data;
-	StringBuilder builder = StringBuilder(ctx.allocator);
-	// we don't serialize the asset type because it's implicit
-	builder.AppendFormat("%llu", maid->GetID());
-	return builder;
+	char buf[32];
+	int len = stbsp_snprintf(buf, sizeof(buf), "%llu", maid->GetID());
+	*(json*)ctx.outputData.data = std::string_view(buf, len);
 }
 
 StringView meAssetGetProjectRootResourceDir(EngineContext* engine)
