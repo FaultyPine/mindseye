@@ -47,6 +47,10 @@ void meSceneManager::ChangeCurrentScene(StringView filename)
 	UnloadCurrentScene();
 	meAssetIdent sceneIdent = meAssetGetIdentFromPath(filename);
 	meAssetRequestLoad(&sceneIdent, 1);
+    if (meAsset* asset = meAssetTryGet(sceneIdent.id))
+    {
+        GetEngineCtx()->sceneSystem->rootScene = asset->runtimeHandle;
+    }
 }
 
 void meSceneManager::CopyToRenderInput(meScene& outScene)
@@ -85,8 +89,10 @@ struct meSceneAssetLoader : public meAssetLoader
 
 	virtual void meAssetOnLoad(meAsset& asset) override
 	{
-		GetEngineCtx()->sceneSystem->rootScene = asset.runtimeHandle;
-		GetEngineCtx()->appCallbacks.onSceneLoadFn(GetEngineCtx());
+        EngineContext* ctx = GetEngineCtx();
+        meEventPayload payload = {&asset};
+        // BOOKMARK: why this crashes
+        //ctx->appCallbacks.onSceneLoaded(payload);
 	}
 
 	static void RegisterAssetLoader(meEventPayload payload)

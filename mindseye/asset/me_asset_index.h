@@ -21,4 +21,7 @@ void meAssetIndexRegisterRelation(
 	const StringView& path,
 	const MAID& maid);
 
+meAssetType meAssetFindAssetTypeFromFilepath(
+    StringView path);
+
 void meAssetIndexInitialize(EngineContext* engine);

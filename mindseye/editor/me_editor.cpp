@@ -17,6 +17,7 @@
 
 #include "core/me_event.h"
 #include "asset/me_asset.h"
+#include "asset/me_asset_index.h"
 
 EditorContext& meEditorGetCtx()
 {
@@ -111,16 +112,28 @@ void meEditorTick(EngineContext* engine)
 				// Like, when you first open the engine, we put you in a blank scene, and if you then make edits and save, it'll have stuff in it, but no asset header
 				if (meAsset* asset = meAssetTryGet(currentScene->header))
 				{
+                    bool shouldWrite = true;
 					if (!asset->ident.diskIdent)
 					{
 						auto openFileResult = pfd::open_file("Location to save the scene file", ".").result();
 						ME_ASSERT(openFileResult.size() == 1);
 						const char* fileCstr = openFileResult[0].c_str();
 						StringView sceneFile = StringFromCString(fileCstr);
-						meFsNormalizePathSeperators(sceneFile);
-						asset->ident.diskIdent = sceneFile;
+                        if (!sceneFile)
+                        {
+                            shouldWrite = false;
+                        }
+                        else
+                        {
+                            meFsNormalizePathSeperators(sceneFile);
+                            sceneFile = meAssetEnsurePathHasGoodExtension(sceneFile, MAScene);
+                            asset->ident.diskIdent = sceneFile;
+                        }
 					}
-					meAssetRequestWrite(meSpanTyped<meAssetIdent>(&currentScene->header, 1));
+                    if (shouldWrite)
+                    {
+                        meAssetRequestWrite(meSpanTyped<meAssetIdent>(&currentScene->header, 1));
+                    }
 				}
             }
 			if (ImGui::BeginMenu("Entity"))

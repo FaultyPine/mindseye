@@ -8,13 +8,6 @@ run `build.bat`
 
 ### Current focus
 - asset refactor to treat assets more generically.
-	- Can't generically CreateInternal on a resourcepoolbase
-		That function doesn't need to know the template type...
-		BOOKMARK: meResourceSlot doesn't need to store the T inplace. 
-			would make more sense to allocate the T with the resource pool's "Payload allocator"
-			so all the resource pool content lives in the same allocator.
-
-
 
 - refactor so instead of straight loading gltf, we "import" gltf and turn it into massets, then load(/compile) those
 	- meAssetCreate would do the check for .gltf in the filename, and do it there
@@ -43,7 +36,8 @@ run `build.bat`
     - for this, need to be able to serialize a reference to another asset. This is equivalent to axe's .type system having a sno in it
     - after this, we will have the foundation to build a proper "asset compiler", so game just reads in compiled stuff
         - stretch idea: have compilation be a separate process (literally) that the game client asks for compiled stuff, I.E. bill + compilation server
-
+- scene graph
+- NVRHI renderer backend & slang
 
 - engine-wide savestates
 	- user can only "request" a save, that gets serviced at a fixed point after the frame (can't save in middle of frame)

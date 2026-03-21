@@ -219,7 +219,10 @@ int main(int argc, char** argv)
 	}
 	else if (sanitizerMode == SANITIZER_TSAN)
 	{
-		sanitizerFlag = "-fsanitize=thread";
+		// Clang's windows-msvc target does not support ThreadSanitizer.
+		nob_log(NOB_ERROR, "'tsan' is not supported for target x86_64-pc-windows-msvc.");
+		nob_log(NOB_ERROR, "Use 'asan' on Windows, or run a Linux/WSL toolchain for ThreadSanitizer.");
+		return 1;
 	}
 	nob_mkdir_if_not_exists("build");
 

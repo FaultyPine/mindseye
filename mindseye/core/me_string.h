@@ -95,13 +95,13 @@ struct StringView
 	}
 
 	// for strings, subspans that exceed the string length get silently clamped
-    StringView OffsetView(u64 offset = 0) 
+    StringView OffsetView(u64 offset = 0) const
     {
         offset = offset > len ? len : offset;
         return {data + offset, len - offset};
     }
 	// for strings, subspans that exceed the string length get silently clamped
-    StringView OffsetView(u64 offset, u64 len) 
+    StringView OffsetView(u64 offset, u64 len) const
     { 
         return {data + offset, this->len < len ? this->len : len};
     }

@@ -275,3 +275,9 @@ StringView meAssetGetRelPathForResource(StringView resourcePath);
 meSpan meSerializeTryGetAssetHeader(
 	const meTypeDescriptor& typeDesc,
 	meSpan serializedBuffer);
+
+StringView meAssetFileExtFromType(meAssetType type);
+
+StringView meAssetEnsurePathHasGoodExtension(
+    const StringView& assetPath, 
+    meAssetType inputType);

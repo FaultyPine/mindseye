@@ -46,17 +46,13 @@ void meAssetIndexRegisterRelation(
 	assetIndex.pathToAssetsMap[path] = maid;
 }
 
-StringView assetTypeFileExtensions[] =
-{
-	#define X(name, ext) STRING_LIT(ext),
-	ME_DECLARE_ASSET_TYPES
-	#undef X
-};
 
-meAssetType FindAssetTypeFromFilepath(StringView path)
+meAssetType meAssetFindAssetTypeFromFilepath(
+    StringView path)
 {
 	StringView filename = meFsGetFileFromFullPath(path);
 	s32 commonExt = FindInStringRev(filename, STRING_LIT(ME_ASSET_EXTENSION));
+    // assumes the asset ext is the last extension
 	s32 idx = FindInStringRev(filename, STRING_LIT("."), 
 							  commonExt != -1 ? (filename.len - commonExt) : 0, StringOpFlags_IdxAfterNeedle);
 	if (idx != -1)
@@ -64,7 +60,7 @@ meAssetType FindAssetTypeFromFilepath(StringView path)
 		StringView extension = filename.OffsetView(idx, commonExt != -1 ? Math::Abs(commonExt - idx) : ME_INT_MAX);
 		for (u32 type = MABadData; type < NUM_ASSET_TYPES; type++)
 		{
-			StringView typeExt = assetTypeFileExtensions[type];
+			StringView typeExt = meAssetFileExtFromType((meAssetType)type);
 			if (StringCompare(extension, typeExt))
 			{
 				return meAssetType(type);
@@ -80,7 +76,7 @@ void OnFoundAssetFile(
 	const OSFileReference& file)
 {
 	StringView filepath = file.GetPath();
-	meAssetType type = FindAssetTypeFromFilepath(filepath);
+	meAssetType type = meAssetFindAssetTypeFromFilepath(filepath);
 	StringView assetPath = meAssetGetAbsPathForResource(filepath);
 	meAssetLoader* loader = meAssetSystemGet().assetLoaders[type];
 	const meTypeDescriptor& typeDesc = *loader->assetTypeDesc;

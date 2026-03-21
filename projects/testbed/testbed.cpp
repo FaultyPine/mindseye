@@ -6,8 +6,11 @@
 #include "mindseye/render/me_mesh.h"
 #include "mindseye/scene/me_transform.h"
 
-void testbed_onsceneload(EngineContext* engine)
+void testbed_onsceneload(meEventPayload payload)
 {
+    meAsset* sceneAsset = (meAsset*)payload.payload;
+    UNUSED(sceneAsset);
+    EngineContext* engine = GetEngineCtx();
     //GameGlobals& globals = *MENEW(&engine->gameArena, GameGlobals);
 	EntityRef testEntity = Entity::CreateBlankEntity(STRING_LIT("bruh"));
 	DynArrayPush(engine->sceneSystem->CurrentScene().entities, testEntity);
@@ -19,7 +22,7 @@ void testbed_onsceneload(EngineContext* engine)
 
 void testbed_init(EngineContext* engine)
 {
-    engine->appCallbacks.onSceneLoadFn = testbed_onsceneload;
+    meEventSubscribe(engine->appCallbacks.onSceneLoaded, testbed_onsceneload);
 }
 
 void testbed_update(EngineContext* engine)

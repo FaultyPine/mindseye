@@ -28,6 +28,17 @@ StringView meAssetTypeToString(meAssetType type)
 	}
 }
 
+StringView meAssetFileExtFromType(meAssetType type)
+{
+    switch (type)
+    {
+        #define X(name, ext) case name: return STRING_LIT(ext);
+        ME_DECLARE_ASSET_TYPES
+        #undef X
+        default: return {};
+    }
+}
+
 StringView MAIDSerializerToStringFn(
 	const meTypeDescriptor& typeDescriptor,
 	SerializeContext ctx)
@@ -430,3 +441,22 @@ meSpan meSerializeTryGetAssetHeader(
 	}
 	return {};
 }
+
+
+StringView meAssetEnsurePathHasGoodExtension(
+    const StringView& assetPath, 
+    meAssetType inputType)
+{
+    meAssetType guessedType = meAssetFindAssetTypeFromFilepath(assetPath);
+    if (guessedType != MABadData)
+    {
+        return assetPath;
+    }
+    // if we can't figure out the asset type from the filepath
+    // chop off the extension and add the proper one to the end
+    s32 firstDot = FindInString(assetPath, STRING_LIT("."));
+    StringView noExtStr = firstDot != -1 ? assetPath.OffsetView(firstDot) : assetPath;
+    return StringFormatTmp(STRING_FMT "." STRING_FMT ME_ASSET_EXTENSION, 
+        STRING_VAARGS(noExtStr), STRING_VAARGS(meAssetFileExtFromType(inputType)));
+}
+
