@@ -91,8 +91,7 @@ struct meSceneAssetLoader : public meAssetLoader
 	{
         EngineContext* ctx = GetEngineCtx();
         meEventPayload payload = {&asset};
-        // BOOKMARK: why this crashes
-        //ctx->appCallbacks.onSceneLoaded(payload);
+        ctx->appCallbacks.onSceneLoaded(payload);
 	}
 
 	static void RegisterAssetLoader(meEventPayload payload)

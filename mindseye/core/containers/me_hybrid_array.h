@@ -10,34 +10,59 @@ template <typename T, u32 fixedSize>
 struct HybridArray
 {
     MEAPI HybridArray(meAllocator* allocator = nullptr);
+    MEAPI bool IsUsingInPlaceMemory() const { return elements == &fixedMem[0] || elements == nullptr; }
     MEAPI HybridArray(const HybridArray&& arr)
     {
         internalSize = arr.internalSize;
         capacity = arr.capacity;
-        elements = arr.elements;
-        if (arr.elements == &arr.fixedMem[0])
-        { // don't need to copy fixedmem over if we've switched to dynamic mem
+        allocator = arr.allocator;
+        if (arr.IsUsingInPlaceMemory())
+        {
             ME_MEMCPY(fixedMem, arr.fixedMem, sizeof(T) * internalSize);
+            elements = &fixedMem[0];
+        }
+        else
+        {
+            elements = (T*)allocator->meAlloc(sizeof(T) * capacity);
+            ME_MEMCPY(elements, arr.elements, sizeof(T) * internalSize);
         }
     }
 	MEAPI HybridArray(const HybridArray& arr)
     {
         internalSize = arr.internalSize;
         capacity = arr.capacity;
-        elements = arr.elements;
-        if (arr.elements == &arr.fixedMem[0])
-        { // don't need to copy fixedmem over if we've switched to dynamic mem
+        allocator = arr.allocator;
+        if (arr.IsUsingInPlaceMemory())
+        {
             ME_MEMCPY(fixedMem, arr.fixedMem, sizeof(T) * internalSize);
+            elements = &fixedMem[0];
+        }
+        else
+        {
+            elements = (T*)allocator->meAlloc(sizeof(T) * capacity);
+            ME_MEMCPY(elements, arr.elements, sizeof(T) * internalSize);
         }
     }
     MEAPI HybridArray& operator=(const HybridArray& arr)
     {
+        if (this == &arr) return *this;
+        // free existing heap allocation if any
+        if (!IsUsingInPlaceMemory())
+        {
+            allocator->meFree(elements);
+        }
         internalSize = arr.internalSize;
         capacity = arr.capacity;
-        elements = arr.elements;
-        if (arr.elements == &arr.fixedMem[0])
-        { // don't need to copy fixedmem over if we've switched to dynamic mem
+        allocator = arr.allocator;
+        if (arr.IsUsingInPlaceMemory())
+        {
             ME_MEMCPY(fixedMem, arr.fixedMem, sizeof(T) * internalSize);
+            elements = &fixedMem[0];
+        }
+        else
+        {
+            elements = (T*)allocator->meAlloc(sizeof(T) * capacity);
+            ME_MEMCPY(elements, arr.elements, sizeof(T) * internalSize);
         }
         return *this;
     }

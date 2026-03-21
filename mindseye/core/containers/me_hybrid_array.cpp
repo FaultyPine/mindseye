@@ -45,7 +45,7 @@ HybridArray<T, fixedSize>::HybridArray(meAllocator* inAllocator)
 template <typename T, u32 fixedSize>
 HybridArray<T, fixedSize>::~HybridArray()
 {
-    if (elements != &fixedMem[0])
+    if (!IsUsingInPlaceMemory())
     {
         allocator->meFree(elements);
     }
