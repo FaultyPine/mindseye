@@ -134,7 +134,7 @@ bool DestroyEntity(EntityRef ent)
     //{
     //    return false;
     //}
-    //entity.mesh.Delete();
+    // TODO: clean up mesh asset
 	UNIMPLEMENTED();
     registry.entMap.erase(ent);
     return true;

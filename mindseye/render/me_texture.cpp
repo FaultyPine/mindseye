@@ -25,6 +25,7 @@ void meTextureInitialize(EngineContext* ctx)
 	badDataTexture.sampler = ctx->renderer->CreateShaderUniform(diffuseTexUniformName, meUniformDataType::UNIFORM_SAMPLER);
 	badDataTexture.samplingFlags = ME_SAMPLER_POINT;
 	ctx->textureSystem->GetBadData() = badDataTexture;
+    meAssetRegisterRuntime({}, MATexture);
 }
 
 meTexturePool& meTextureGetPool()

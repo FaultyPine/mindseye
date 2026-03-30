@@ -321,7 +321,9 @@ void* BgfxRendererBackend::RenderScene(RenderInput* input)
 		{
 			continue;
 		}
-		meMeshID meshHandle = entity.mesh;
+		meAsset* meshAsset = meAssetTryGet(entity.mesh);
+		if (!meshAsset) continue;
+		meMeshID meshHandle = *meshAsset;
 		const meMesh& mesh = meMeshPoolGet().Get(meshHandle);
 		if (mesh.IsLoaded())
 		{

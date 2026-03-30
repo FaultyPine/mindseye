@@ -10,6 +10,7 @@ void meMaterialInitialize(EngineContext* ctx)
 	meMaterial badMaterial = {};
 	StringCopy(StringView(badMaterial.name, meMaterial::MEMATERIAL_MAX_NAME_LEN), STRING_LIT("BadDataMaterial"));
 	ctx->materialSystem->GetBadData() = badMaterial;
+    meAssetRegisterRuntime({}, MAMaterial);
 }
 
 meMaterialPool& meMaterialGetPool()

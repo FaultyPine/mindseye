@@ -1,6 +1,7 @@
 #include "me_shader.h"
 #include "shaders/generated/baddata_fs.sc.h"
 #include "shaders/generated/baddata_vs.sc.h"
+#include "asset/me_asset.h"
 
 void meShaderInitialize(EngineContext* ctx)
 {
@@ -11,6 +12,7 @@ void meShaderInitialize(EngineContext* ctx)
 	badShader.program = ctx->renderer->CreateShaderProgram(baddata_fs, baddata_vs);
 	badShader.uniformHandles = DynArrayCreate<meShaderUniform>(ctx->shaderSystem->resourcePayloadAllocator);
 	ctx->shaderSystem->GetBadData() = badShader;
+    meAssetRegisterRuntime({}, MAShader);
 }
 
 

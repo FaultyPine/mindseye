@@ -104,7 +104,7 @@ struct meSceneAssetLoader : public meAssetLoader
 MEEVENT_REGISTER_STATIC(registerAssetLoader, meSceneAssetLoader::RegisterAssetLoader);
 
 void meScenePool::Load(
-	meAssetIdent ident,
+	meAssetIdent sceneIdent,
 	meAllocator* sceneAllocator,
 	StringView resourcePathRel,
 	meScene& outScene)
@@ -159,7 +159,7 @@ void meScenePool::Load(
 			const cgltf_mesh& gltfmesh = *node.mesh;
 			meMeshID meshHandle = meshPool.Load(GetEngineCtx()->renderer, gltfResPath, gltfmesh);
 			meMesh& mesh = meshPool.Get(meshHandle);
-			entity.mesh = meAsset(meshHandle);
+            entity.mesh = meAssetRegisterRuntime(meshHandle, MAMesh);
 			entity.authoritativeBounds = mesh.meshBounds; // may change due to anims. Default initialized to mesh bounds
 		}
 		DynArrayPush(entities, entityRef);

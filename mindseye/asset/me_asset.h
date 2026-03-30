@@ -75,6 +75,26 @@ MAID
 		this->id = id;
     }
 };
+
+template <meAssetType T>
+struct MAIDCT : public MAID
+{
+    MAIDCT()
+    {
+        type = T;
+    }
+
+    MAIDCT(u64 inId) : MAID(inId, T)
+    {}
+
+    MAIDCT(const MAID& other) : MAID(other)
+    {
+        ME_ASSERT(!other || other.GetType() == T);
+    }
+
+    void SetType(meAssetType) = delete;
+};
+
 MEMAP_BEGIN_CUSTOM_HASHER(MAID, obj) 
 {
     size_t h1 = std::hash<u64>{}(obj.GetType());
@@ -218,6 +238,7 @@ struct meAssetSystem
     meEvent assetFinishedLoadingEvent = {};
 	meEvent assetBeganWritingEvent = {};
 	meEvent assetFinishedWritingEvent = {};
+    u32 dynamicAssetIdx = 0xDED;
 };
 
 meAssetSystem& meAssetSystemGet();
@@ -227,6 +248,11 @@ void meAssetTeardown(EngineContext* engine);
 void meAssetRegisterLoader(meAssetLoader* loader);
 
 MAID meAssetCreateNewAssetID(meAssetType type);
+
+// registers an existing runtime handle (Eye) in the asset system, assigning it a new MAID
+MEAPI MAID meAssetRegisterRuntime(
+    Eye handle,
+    meAssetType type);
 
 // creates a default-constructed instance of an asset type on disk (and assigns it a proper guid and all that)
 meAsset meAssetCreateNew(

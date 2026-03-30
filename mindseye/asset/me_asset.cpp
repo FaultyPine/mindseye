@@ -115,10 +115,34 @@ meAssetIdent meAssetGetIdentFromPath(
 
 MAID meAssetCreateNewAssetID(meAssetType type)
 {
-	// this guid should be ACTUALLY random, don't need to respect any replay type stuff
+	// NOTE: randomness!
 	f64 time = GetTimeUsec();
 	u32 randomNumber = HashBytes((u8*)&time, sizeof(time));
 	MAID newMaid = MAID(randomNumber, type);
+	return newMaid;
+}
+
+MAID meAssetRegisterRuntime(Eye handle, meAssetType type)
+{
+	meAssetSystem& assetSystem = meAssetSystemGet();
+    MAID newMaid = {};
+	RWLockWrite lock(assetSystem.assetRegistryLock);
+    if (handle)
+    {
+        u32 baseIdNum = assetSystem.dynamicAssetIdx++;
+        u32 randomNum = HashBytes((u8*)&baseIdNum, sizeof(baseIdNum));
+        newMaid =  MAID(randomNum, type);
+    }
+    else
+    {
+        newMaid.SetType(type);
+    }
+	meAssetIdent ident;
+	ident.id = newMaid;
+	meAsset newAsset = meAsset(handle, ident);
+    // make sure we aren't stomping on an existing one
+    ME_ASSERT(assetSystem.assetRegistry.find(newMaid) == assetSystem.assetRegistry.end());
+	assetSystem.assetRegistry[newMaid] = newAsset;
 	return newMaid;
 }
 
@@ -140,7 +164,7 @@ meAsset meAssetCreateNew(
 	MAID* assetHeader = (MAID*)opaqueAssetData;
 	*assetHeader = newMaid;
 	meAsset newAsset = meAsset(newRuntimeResource, newIdent);
-	RWLockWrite(assetSystem.assetRegistryLock);
+	RWLockWrite lock(assetSystem.assetRegistryLock);
 	assetSystem.assetRegistry[newMaid] = newAsset; // copy
 	return meMove(newAsset);
 }
@@ -195,7 +219,7 @@ meJobId meAssetRequestLoad(
 		{
 			{ // add the slot in, and mark it as "loading"
 				meAsset notYetLoadedData = meAsset(assetIdent, Loading);
-				RWLockWrite(assetSystem.assetRegistryLock);
+				RWLockWrite lock(assetSystem.assetRegistryLock);
 				assetSystem.assetRegistry[assetIdent.id] = notYetLoadedData;
 			}
 			struct AssetCompilerJobData
