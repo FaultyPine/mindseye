@@ -51,6 +51,14 @@ MAID
 		SetType(T);
 		SetID(id);
 	}
+    template <meAssetType T>
+	static MAID Of()
+	{
+		MAID m;
+		m.SetType(T);
+		m.SetID(U32_INVALID_ID);
+		return m;
+	}
     operator bool() const 
 	{
 		meAssetType type = (meAssetType)GetType();
@@ -76,24 +84,9 @@ MAID
     }
 };
 
-template <meAssetType T>
-struct MAIDCT : public MAID
-{
-    MAIDCT()
-    {
-        type = T;
-    }
-
-    MAIDCT(u64 inId) : MAID(inId, T)
-    {}
-
-    MAIDCT(const MAID& other) : MAID(other)
-    {
-        ME_ASSERT(!other || other.GetType() == T);
-    }
-
-    void SetType(meAssetType) = delete;
-};
+// initially tried a separate type that inherits MAID and has the asset type as a template param
+// but that would require TODO: implementing inheritance in the reflection/serialization system 
+#define MAID_MEMBER_DECL(name, type) MAID name = MAID::Of<type>()
 
 MEMAP_BEGIN_CUSTOM_HASHER(MAID, obj) 
 {
