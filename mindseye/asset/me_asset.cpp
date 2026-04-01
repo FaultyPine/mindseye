@@ -145,7 +145,7 @@ MAID meAssetRegisterRuntime(Eye handle, meAssetType type)
 	assetSystem.assetRegistry[newMaid] = newAsset;
 	return newMaid;
 }
-blah test
+
 meAsset meAssetCreateNew(
 	meAssetType type,
 	StringView filename)
