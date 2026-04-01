@@ -1057,34 +1057,65 @@ par_shapes_mesh* par_shapes_create_tetrahedron()
 
 par_shapes_mesh* par_shapes_create_cube()
 {
-    static float verts[8 * 3] = {
-        0, 0, 0, // 0
-        0, 1, 0, // 1
-        1, 1, 0, // 2
-        1, 0, 0, // 3
-        0, 0, 1, // 4
-        0, 1, 1, // 5
-        1, 1, 1, // 6
-        1, 0, 1, // 7
+    // 24 vertices (4 per face) so each face has its own normals and texcoords.
+    static float verts[24 * 3] = {
+        // Front face (z=1)
+        0,0,1,  1,0,1,  1,1,1,  0,1,1,
+        // Back face (z=0)
+        1,0,0,  0,0,0,  0,1,0,  1,1,0,
+        // Right face (x=1)
+        1,0,1,  1,0,0,  1,1,0,  1,1,1,
+        // Left face (x=0)
+        0,0,0,  0,0,1,  0,1,1,  0,1,0,
+        // Top face (y=1)
+        0,1,1,  1,1,1,  1,1,0,  0,1,0,
+        // Bottom face (y=0)
+        0,0,0,  1,0,0,  1,0,1,  0,0,1,
+    };
+    static float normals[24 * 3] = {
+        // Front
+        0,0,1,  0,0,1,  0,0,1,  0,0,1,
+        // Back
+        0,0,-1, 0,0,-1, 0,0,-1, 0,0,-1,
+        // Right
+        1,0,0,  1,0,0,  1,0,0,  1,0,0,
+        // Left
+        -1,0,0, -1,0,0, -1,0,0, -1,0,0,
+        // Top
+        0,1,0,  0,1,0,  0,1,0,  0,1,0,
+        // Bottom
+        0,-1,0, 0,-1,0, 0,-1,0, 0,-1,0,
+    };
+    static float tcoords[24 * 2] = {
+        // Each face: BL, BR, TR, TL
+        0,0, 1,0, 1,1, 0,1,
+        0,0, 1,0, 1,1, 0,1,
+        0,0, 1,0, 1,1, 0,1,
+        0,0, 1,0, 1,1, 0,1,
+        0,0, 1,0, 1,1, 0,1,
+        0,0, 1,0, 1,1, 0,1,
     };
     static PAR_SHAPES_T quads[6 * 4] = {
-        7,6,5,4, // front
-        0,1,2,3, // back
-        6,7,3,2, // right
-        5,6,2,1, // top
-        4,5,1,0, // left
-        7,4,0,3, // bottom
+        0,1,2,3,
+        4,5,6,7,
+        8,9,10,11,
+        12,13,14,15,
+        16,17,18,19,
+        20,21,22,23,
     };
-    int nquads = sizeof(quads) / sizeof(quads[0]) / 4;
+    int nquads = 6;
     par_shapes_mesh* mesh = PAR_CALLOC(par_shapes_mesh, 1);
-    int ncorners = sizeof(verts) / sizeof(verts[0]) / 3;
-    mesh->npoints = ncorners;
-    mesh->points = PAR_MALLOC(float, mesh->npoints * 3);
+    mesh->npoints = 24;
+    mesh->points = PAR_MALLOC(float, 24 * 3);
     memcpy(mesh->points, verts, sizeof(verts));
-    PAR_SHAPES_T const* quad = quads;
-    mesh->ntriangles = nquads * 2;
-    mesh->triangles = PAR_MALLOC(PAR_SHAPES_T, mesh->ntriangles * 3);
+    mesh->normals = PAR_MALLOC(float, 24 * 3);
+    memcpy(mesh->normals, normals, sizeof(normals));
+    mesh->tcoords = PAR_MALLOC(float, 24 * 2);
+    memcpy(mesh->tcoords, tcoords, sizeof(tcoords));
+    mesh->ntriangles = 12;
+    mesh->triangles = PAR_MALLOC(PAR_SHAPES_T, 12 * 3);
     PAR_SHAPES_T* tris = mesh->triangles;
+    PAR_SHAPES_T const* quad = quads;
     for (int p = 0; p < nquads; p++, quad += 4) {
         *tris++ = quad[0];
         *tris++ = quad[1];
