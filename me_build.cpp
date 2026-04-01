@@ -613,7 +613,11 @@ int main(int argc, char** argv)
 	if (reflectorBuildResult == BUILD_SUCCEEDED)
 	{
 		// if we rebuilt the reflector program, we should force a full re-reflect of everything by deleting the output folder
-		nob_delete_dir(nob_temp_sprintf("%s/mindseye/generatedtypes", root));
+        const char* generatedTypesFolder = nob_temp_sprintf("%s/mindseye/generatedtypes", root);
+        if (nob_file_exists(generatedTypesFolder))
+        {
+            nob_delete_dir(generatedTypesFolder);
+        }
 	}
 	CHECK_BUILD_RESULT(reflectorBuildResult);
 	CHECK_BUILD_RESULT(mindseyeReflectorRun.build(true));
