@@ -37,6 +37,21 @@ MAID meAssetIndexGetMAIDFromPath(
 	return {};
 }
 
+u32 meAssetIndexGetUniqueID(MAID maid)
+{
+    if (!maid)
+    {
+        return 0;
+    }
+    meAssetIndex& assetIndex = meAssetIndexGet();
+	auto it = assetIndex.serializedUniqueIdentifiers.find(maid);
+	if (it != assetIndex.serializedUniqueIdentifiers.end())
+	{
+		return it->second;
+	}
+	return 0;
+}
+
 void meAssetIndexRegisterRelation(
 	const StringView& path,
 	const MAID& maid)

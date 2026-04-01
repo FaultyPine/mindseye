@@ -127,6 +127,7 @@ void meEditorTick(EngineContext* engine)
                         {
                             meFsNormalizePathSeperators(sceneFile);
                             sceneFile = meAssetEnsurePathHasGoodExtension(sceneFile, MAScene);
+                            sceneFile = meAssetGetRelPathForResource(sceneFile);
                             asset->ident.diskIdent = sceneFile;
                         }
 					}

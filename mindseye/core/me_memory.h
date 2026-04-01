@@ -71,6 +71,7 @@ MEAPI meOwningSpan ReallocateBuffer(
 	u64 existingBufferSize);
 MEAPI bool BufferCopy(meSpan dst, meSpan src);
 
+
 #define MESYSMALLOC(size) GetSystemAllocator()->meAlloc(size)
 #define MESYSFREE(ptr) GetSystemAllocator()->meFree(ptr)
 
@@ -84,6 +85,14 @@ MEAPI bool BufferCopy(meSpan dst, meSpan src);
 			ptr = {}; \
 		} \
 	} while(0)
+
+inline Allocation _internalAllocAndClear(meAllocator* allocator, u64 size)
+{
+    Allocation alloc = MEALLOC(allocator, size);
+    ME_MEMCLEAR(alloc, size);
+    return alloc;
+}
+#define MECALLOC(allocator, size) (_internalAllocAndClear(allocator, size))
 
 #define MENEW(allocator, Type, ...) \
     (new (MEALLOC((allocator), sizeof(Type)).data) Type(__VA_ARGS__))

@@ -109,7 +109,7 @@ meAssetIdent meAssetGetIdentFromPath(
 	meAssetIdent result = {};
 	result.diskIdent = assetPath;
 	result.id = maid;
-	result.assetUniqueIdentifier = 0; // ?
+	result.assetUniqueIdentifier = meAssetIndexGetUniqueID(maid);
 	return meMove(result);
 }
 
@@ -155,7 +155,7 @@ meAsset meAssetCreateNew(
 	ME_ASSERT(loader);
 	MAID newMaid = meAssetCreateNewAssetID(type);
 	meAssetIdent newIdent = {};
-	newIdent.diskIdent = filename;
+	newIdent.diskIdent = meAssetGetRelPathForResource(filename);
 	newIdent.id = newMaid;
 	newIdent.assetUniqueIdentifier = 0; // ?
 	meResourcePoolBase* resourcePool = loader->resourcePool;

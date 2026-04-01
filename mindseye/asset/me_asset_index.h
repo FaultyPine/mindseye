@@ -17,6 +17,8 @@ StringView meAssetIndexGetFilesystemPath(
 MAID meAssetIndexGetMAIDFromPath(
 	const StringView& path);
 
+u32 meAssetIndexGetUniqueID(MAID maid);
+
 void meAssetIndexRegisterRelation(
 	const StringView& path,
 	const MAID& maid);
