@@ -17,7 +17,7 @@ void meMeshInitialize(EngineContext* engine)
 	meMesh defaultBadDataMesh = {};
 	defaultBadDataMesh.name = StringFromCString("BadDataMesh");
 	// TODO: cube?
-	meMeshID defaultMesh = GenPlaneMesh(2);
+	meMeshID defaultMesh = GenCubeMesh(2);
 	// we technically are "leaking" the default mesh id here.
 	engine->meshSystem->GetBadData() = meMeshPoolGet().Get(defaultMesh);
     meAssetRegisterRuntime({}, MAMesh);
@@ -194,13 +194,47 @@ meMeshID meMeshPool::Load(
 }
 
 
+MEAPI meMeshID GenCubeMesh(
+    u32 resolution, 
+    meMaterialID materialID)
+{
+	meMeshPool& meshPool = meMeshPoolGet();
+
+    par_shapes_mesh* cube = par_shapes_create_cube();
+    ME_ON_SCOPE_EXIT([cube](){
+		par_shapes_free_mesh(cube);
+	});
+    //par_shapes_compute_normals(cube);
+    meAllocator* allocator = meshPool.GetPayloadAllocator();
+	Allocation verticesData = MEALLOC(allocator, cube->ntriangles * 3 * 3 * sizeof(float));
+	Allocation texcoordData = MEALLOC(allocator, cube->ntriangles * 3 * 2 * sizeof(float));
+	Allocation normalsData = MEALLOC(allocator, cube->ntriangles * 3 * 3 * sizeof(float));
+	s32 vertexCount = cube->ntriangles * 3;
+
+	for (int k = 0; k < vertexCount; k++)
+    {
+        ((float*)verticesData)[k*3] = cube->points[cube->triangles[k]*3];
+        ((float*)verticesData)[k*3 + 1] = cube->points[cube->triangles[k]*3 + 1];
+        ((float*)verticesData)[k*3 + 2] = cube->points[cube->triangles[k]*3 + 2];
+
+        ((float*)normalsData)[k*3] = cube->normals[cube->triangles[k]*3];
+        ((float*)normalsData)[k*3 + 1] = cube->normals[cube->triangles[k]*3 + 1];
+        ((float*)normalsData)[k*3 + 2] = cube->normals[cube->triangles[k]*3 + 2];
+
+        ((float*)texcoordData)[k*2] = cube->tcoords[cube->triangles[k]*2];
+        ((float*)texcoordData)[k*2 + 1] = cube->tcoords[cube->triangles[k]*2 + 1];
+    }
+
+	meMeshID meshHandle = meshPool.Load(verticesData, {}, normalsData, texcoordData, materialID, STRING_LIT("GeneratedCubeMesh"));
+    return meshHandle;
+}
+
 meMeshID GenPlaneMesh(
     u32 resolution,
     meMaterialID materialID) 
 {
 	meMeshPool& meshPool = meMeshPoolGet();
 
-#ifdef USE_PAR_SHAPES
 	s32 resX = resolution;
 	s32 resZ = resolution;
 	float length = 1.0f;
@@ -234,46 +268,6 @@ meMeshID GenPlaneMesh(
 
 	meMeshID meshHandle = meshPool.Load(verticesData, {}, normalsData, texcoordData, materialID, STRING_LIT("GeneratedPlaneMesh"));
 	return meshHandle;
-
-#else
-    resolution++; // resolution of 1 should really be 2
-	s32 vertexCount = resolution * resolution;
-    DynArray<glm::vec3> planeverts = DynArrayCreateWithReserved<glm::vec3>(meshPool.GetPayloadAllocator(), vertexCount);
-
-    // https://github.com/raysan5/raylib/blob/master/src/rmodels.c#L2171
-    for (u32 z = 0; z < resolution; z++) {
-        // [-length/2, length/2]
-        f32 yPos = ((f32)z/(resolution - 1) - 0.5f) * length;
-        for (u32 x = 0; x < resolution; x++) {
-            // [-width/2, width/2]
-            f32 xPos = ((f32)x/(resolution - 1) - 0.5f) * width;
-            glm::vec3 v = glm::vec3(xPos, yPos, 0.0f);
-			planeverts[x + z * resolution] = v;
-        }
-    }
-
-    u32 numFaces = (resolution - 1)*(resolution - 1);
-    DynArray<u32> indices = DynArrayCreateWithReserved<u32>(meshPool.GetPayloadAllocator(), numFaces * 6);
-	s32 t = 0;
-    for (u32 face = 0; face < numFaces; face++) 
-	{
-        // Retrieve lower left corner from face ind
-        u32 i = face + face/(resolution - 1);
-
-		indices[t++] = i + resolution;
-		indices[t++] = i + 1;
-		indices[t++] = i;
-
-		indices[t++] = i + resolution;
-		indices[t++] = i + resolution + 1;
-		indices[t++] = i + 1;
-    }
-
-	meSpan vertexBufferSpan = meSpan((s8*)planeverts.data, DynArrayGetSize(planeverts) * sizeof(glm::vec3));
-	meSpan indexBufferSpan = meSpan((s8*)indices.data, DynArrayGetSize(indices) * sizeof(u32));
-	meMeshID meshHandle = meshPool.Load(vertexBufferSpan, indexBufferSpan, {}, {}, materialID, STRING_LIT("GeneratedPlaneMesh"));
-	return meshHandle;
-#endif
 }
 
 

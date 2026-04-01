@@ -81,5 +81,6 @@ void meMeshInitialize(EngineContext* engine);
 
 meMeshPool& meMeshPoolGet();
 
+MEAPI meMeshID GenCubeMesh(u32 resolution, meMaterialID materialID = {});
 MEAPI meMeshID GenSphereMesh(u32 resolution, meMaterialID materialID = {});
 MEAPI meMeshID GenPlaneMesh(u32 resolution, meMaterialID materialID = {});
