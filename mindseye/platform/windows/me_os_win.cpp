@@ -141,6 +141,7 @@ void meOSCreateWindow(WindowCreationParams creationParams, EngineContext* engine
     wc.lpfnWndProc   = WndProc;
     wc.hInstance     = hInstance;
     wc.lpszClassName = CLASS_NAME;
+    wc.hbrBackground = CreateSolidBrush(RGB(30, 30, 30));
 
     RegisterClass(&wc);
 
