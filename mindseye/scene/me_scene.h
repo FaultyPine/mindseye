@@ -23,6 +23,16 @@ meScene
 	DynArray<EntityRef> entities = {};
 };
 
+struct meSceneRaycastHit
+{
+	EntityRef entity = {};
+	f32 distance = 0.0f;
+	glm::vec3 point = glm::vec3(0);
+	explicit operator bool() const { return entity.ref != U32_INVALID_ID; }
+};
+
+MEAPI meSceneRaycastHit meSceneRaycast(meScene& scene, const meRay& ray);
+
 struct meSceneManager
 {
 	MEAPI void ChangeCurrentScene(

@@ -59,6 +59,39 @@ void meSceneManager::CopyToRenderInput(meScene& outScene)
 	outScene = CurrentScene();
 }
 
+// TODO: BVH
+meSceneRaycastHit meSceneRaycast(meScene& scene, const meRay& ray)
+{
+	meSceneRaycastHit result = {};
+	f32 closestT = FLT_MAX;
+
+	DynArray<EntityRef>& entities = scene.entities;
+	for (DynArray_Foreach(entities, i))
+	{
+		EntityRef entRef = entities[i];
+		EntityData& entData = Entity::GetEntity(entRef);
+		if (Entity::IsFlag(entRef, EntityFlags_HIDDEN) || Entity::IsFlag(entRef, EntityFlags_DISABLED))
+			continue;
+
+		glm::vec3 worldMin = entData.transform.position + entData.authoritativeBounds.min;
+		glm::vec3 worldMax = entData.transform.position + entData.authoritativeBounds.max;
+
+		f32 t = 0.0f;
+		if (meRayIntersectsAABB(ray, worldMin, worldMax, t))
+		{
+			if (t < closestT)
+			{
+				closestT = t;
+				result.entity = entRef;
+				result.distance = t;
+				result.point = ray.origin + ray.direction * t;
+			}
+		}
+	}
+
+	return result;
+}
+
 meScene& meSceneManager::CurrentScene()
 {
 	meScenePool& scenePool = meScenePoolGet();

@@ -71,44 +71,22 @@ static void HandlePickEntity(const meCmdPickEntity& cmd)
 
 	meRay ray = meScreenPointToRay(cmd.screenPos, engine->osData->windowWidth, engine->osData->windowHeight, view, proj);
 
-	EntityRef closestEntity = {};
-	f32 closestT = FLT_MAX;
+	meSceneRaycastHit hit = meSceneRaycast(*currentScene, ray);
 
-	DynArray<EntityRef>& entities = currentScene->entities;
-	for (DynArray_Foreach(entities, i))
-	{
-		EntityRef entRef = entities[i];
-		EntityData& entData = Entity::GetEntity(entRef);
-		if (Entity::IsFlag(entRef, EntityFlags_HIDDEN) || Entity::IsFlag(entRef, EntityFlags_DISABLED))
-			continue;
-
-		// Transform the AABB by the entity's position
-		glm::vec3 worldMin = entData.transform.position + entData.authoritativeBounds.min;
-		glm::vec3 worldMax = entData.transform.position + entData.authoritativeBounds.max;
-
-		f32 t = 0.0f;
-		if (meRayIntersectsAABB(ray, worldMin, worldMax, t))
-		{
-			if (t < closestT)
-			{
-				closestT = t;
-				closestEntity = entRef;
-			}
-		}
-	}
-
-    if (editor.selectedEntity != closestEntity)
+    if (editor.selectedEntity != hit.entity)
     {
-        // just picked a new entity
         if (editor.selectedEntity)
         {
             EntityData& oldPickedEntity = Entity::GetEntity(editor.selectedEntity);
             SET_BIT(oldPickedEntity.flags, EntityFlags_Selected, false);
         }
-        EntityData& newlyPickedEntity = Entity::GetEntity(closestEntity);
-        SET_BIT(oldPickedEntity.flags, EntityFlags_Selected, true);
+        if (hit)
+        {
+            EntityData& newlyPickedEntity = Entity::GetEntity(hit.entity);
+            SET_BIT(newlyPickedEntity.flags, EntityFlags_Selected, true);
+        }
     }
-	editor.selectedEntity = closestEntity;
+	editor.selectedEntity = hit.entity;
 }
 
 void meReceiveExternalCommand(meExternalCommand cmd)
