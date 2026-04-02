@@ -16,6 +16,7 @@
 #include "external/potable-file-dialogs.h"
 
 #include "core/me_event.h"
+#include "core/me_command.h"
 #include "asset/me_asset.h"
 #include "asset/me_asset_index.h"
 
@@ -169,9 +170,10 @@ void meEditorTick(EngineContext* engine)
                 {
 					const char* fileCstr = openFileResult.c_str();
 					StringView openFilename = StringFromCString(fileCstr);
-					meAsset newAsset = meAssetCreateNew(MAScene, openFilename);
-					meJobId writeReq = meAssetRequestWrite(meSpanTyped<meAssetIdent>(&newAsset.ident, 1));
-					UNUSED(writeReq); // don't need to wait on it...
+					meExternalCommand cmd = {};
+					cmd.type = meExternalCommandType_CreateNewScene;
+					cmd.createNewScene.path = openFilename;
+					meReceiveExternalCommand(cmd);
                 }
 			}
             if (ImGui::MenuItem("Open"))
@@ -182,49 +184,42 @@ void meEditorTick(EngineContext* engine)
                     ME_ASSERT(openFileResult.size() == 1);
 					const char* fileCstr = openFileResult[0].c_str();
                     StringView sceneFile = StringFromCString(fileCstr);
-                    meFsNormalizePathSeperators(sceneFile);
-                    engine->sceneSystem->ChangeCurrentScene(sceneFile);
+					meExternalCommand cmd = {};
+					cmd.type = meExternalCommandType_ChangeScene;
+					cmd.changeScene.path = sceneFile;
+					meReceiveExternalCommand(cmd);
                 }
             }
             if (ImGui::MenuItem("Save Current"))
             {
-                meScene* currentScene = &engine->sceneSystem->CurrentScene();
-				// a scene with an invalid header might mean a "untitled" scene
-				// Like, when you first open the engine, we put you in a blank scene, and if you then make edits and save, it'll have stuff in it, but no asset header
+				meExternalCommand cmd = {};
+				cmd.type = meExternalCommandType_SaveCurrentScene;
+				// if the scene has no disk path yet, ask the user for one
+				// kept in outer scope so the string data outlives the command dispatch
+				std::vector<std::string> openFileResult;
+				meScene* currentScene = &engine->sceneSystem->CurrentScene();
 				if (meAsset* asset = meAssetTryGet(currentScene->header))
 				{
-                    bool shouldWrite = true;
 					if (!asset->ident.diskIdent)
 					{
-						auto openFileResult = pfd::open_file("Location to save the scene file", ".").result();
-						ME_ASSERT(openFileResult.size() == 1);
-						const char* fileCstr = openFileResult[0].c_str();
-						StringView sceneFile = StringFromCString(fileCstr);
-                        if (!sceneFile)
-                        {
-                            shouldWrite = false;
-                        }
-                        else
-                        {
-                            meFsNormalizePathSeperators(sceneFile);
-                            sceneFile = meAssetEnsurePathHasGoodExtension(sceneFile, MAScene);
-                            sceneFile = meAssetGetRelPathForResource(sceneFile);
-                            asset->ident.diskIdent = sceneFile;
-                        }
+						openFileResult = pfd::open_file("Location to save the scene file", ".").result();
+						if (!openFileResult.empty())
+						{
+							ME_ASSERT(openFileResult.size() == 1);
+							const char* fileCstr = openFileResult[0].c_str();
+							cmd.saveCurrentScene.path = StringFromCString(fileCstr);
+						}
 					}
-                    if (shouldWrite)
-                    {
-                        meAssetRequestWrite(meSpanTyped<meAssetIdent>(&currentScene->header, 1));
-                    }
 				}
+				meReceiveExternalCommand(cmd);
             }
 			if (ImGui::BeginMenu("Entity"))
 			{
 				if (ImGui::MenuItem("New"))
 				{
-					meScene* currentScene = &engine->sceneSystem->CurrentScene();
-					EntityRef newEnt = Entity::CreateBlankEntity();
-					DynArrayPush(currentScene->entities, newEnt);
+					meExternalCommand cmd = {};
+					cmd.type = meExternalCommandType_CreateEntity;
+					meReceiveExternalCommand(cmd);
 				}
 				ImGui::EndMenu();
 			}

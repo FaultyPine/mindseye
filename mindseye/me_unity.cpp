@@ -37,6 +37,7 @@
 #ifndef ME_CORE_ONLY
 #include "core/me_serialize.h"
 #include "core/me_cmdline.h"
+#include "core/me_command.h"
 #include "core/me_app.h"
 #include "asset/me_asset.h"
 #include "core/me_resourcepool.h"
@@ -67,6 +68,7 @@
 #ifndef ME_CORE_ONLY
 #include "core/me_serialize.cpp"
 #include "core/me_cmdline.cpp"
+#include "core/me_command.cpp"
 #include "core/me_app.cpp"
 #include "asset/me_asset.cpp"
 #include "asset/me_asset_index.cpp"
