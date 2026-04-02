@@ -15,6 +15,7 @@ enum EntityFlags_
     EntityFlags_DISABLED,
 	EntityFlags_HIDDEN,
 	EntityFlags_NoSer, // runtime-only entity
+    EntityFlags_Selected,
 
     EntityFlags_NUM_ENTITY_FLAGS,
 };
@@ -26,7 +27,8 @@ EntityRef
 	u32 ref = U32_INVALID_ID;
 	EntityRef(u32 r) : ref(r) {}
 	EntityRef() = default;
-	explicit operator u32() { return ref; }
+	explicit operator u32() const { return ref; }
+    explicit operator bool() const { return ref != U32_INVALID_ID; }
 	bool operator==(const EntityRef& other) const
 	{
 		return ref == other.ref;

@@ -225,7 +225,12 @@ MEAPI meMeshID GenCubeMesh(
         ((float*)texcoordData)[k*2 + 1] = cube->tcoords[cube->triangles[k]*2 + 1];
     }
 
+	float aabb[6];
+	par_shapes_compute_aabb(cube, aabb);
+
 	meMeshID meshHandle = meshPool.Load(verticesData, {}, normalsData, texcoordData, materialID, STRING_LIT("GeneratedCubeMesh"));
+	meMesh& outMesh = meshPool.Get(meshHandle);
+	outMesh.meshBounds = BoundingBox(glm::vec3(aabb[0], aabb[1], aabb[2]), glm::vec3(aabb[3], aabb[4], aabb[5]));
     return meshHandle;
 }
 
@@ -266,7 +271,12 @@ meMeshID GenPlaneMesh(
         ((float*)texcoordData)[k*2 + 1] = plane->tcoords[plane->triangles[k]*2 + 1];
     }
 
+	float aabb[6];
+	par_shapes_compute_aabb(plane, aabb);
+
 	meMeshID meshHandle = meshPool.Load(verticesData, {}, normalsData, texcoordData, materialID, STRING_LIT("GeneratedPlaneMesh"));
+	meMesh& outMesh = meshPool.Get(meshHandle);
+	outMesh.meshBounds = BoundingBox(glm::vec3(aabb[0], aabb[1], aabb[2]), glm::vec3(aabb[3], aabb[4], aabb[5]));
 	return meshHandle;
 }
 
@@ -356,5 +366,7 @@ meMeshID GenSphereMesh(
 	meSpan vertexSpan = meSpan((s8*)vertices.data, DynArrayGetSize(vertices) * sizeof(*vertices));
 	meSpan indexSpan = meSpan((s8*)indices.data, DynArrayGetSize(indices) * sizeof(*indices));
     meMeshID result = meshPool.Load(vertexSpan, indexSpan, {}, {}, materialID, STRING_LIT("GeneratedSphereMesh"));
+	meMesh& outMesh = meshPool.Get(result);
+	outMesh.meshBounds = BoundingBox(glm::vec3(-radius, -radius, -radius), glm::vec3(radius, radius, radius));
 	return result;
 }

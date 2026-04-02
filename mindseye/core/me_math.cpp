@@ -158,6 +158,56 @@ uint32_t hash(const char* message, size_t message_length)
 
 }
 
+meRay meScreenPointToRay(glm::vec2 screenPos, u32 screenWidth, u32 screenHeight, const glm::mat4& view, const glm::mat4& projection)
+{
+	// Convert screen coords to NDC [-1, 1]
+	f32 ndcX = (2.0f * screenPos.x) / (f32)screenWidth - 1.0f;
+	f32 ndcY = 1.0f - (2.0f * screenPos.y) / (f32)screenHeight; // flip Y
+
+	glm::mat4 invVP = glm::inverse(projection * view);
+
+	glm::vec4 nearPoint = invVP * glm::vec4(ndcX, ndcY, -1.0f, 1.0f);
+	glm::vec4 farPoint  = invVP * glm::vec4(ndcX, ndcY,  1.0f, 1.0f);
+	nearPoint /= nearPoint.w;
+	farPoint  /= farPoint.w;
+
+	meRay ray;
+	ray.origin = glm::vec3(nearPoint);
+	ray.direction = glm::normalize(glm::vec3(farPoint - nearPoint));
+	return ray;
+}
+
+bool meRayIntersectsAABB(const meRay& ray, glm::vec3 aabbMin, glm::vec3 aabbMax, f32& outT)
+{
+	// Slab method
+	f32 tmin = -FLT_MAX;
+	f32 tmax = FLT_MAX;
+
+	for (int i = 0; i < 3; i++)
+	{
+		if (Math::Abs(ray.direction[i]) < 1e-8f)
+		{
+			// Ray is parallel to this slab. No hit if origin is outside.
+			if (ray.origin[i] < aabbMin[i] || ray.origin[i] > aabbMax[i])
+				return false;
+		}
+		else
+		{
+			f32 invD = 1.0f / ray.direction[i];
+			f32 t1 = (aabbMin[i] - ray.origin[i]) * invD;
+			f32 t2 = (aabbMax[i] - ray.origin[i]) * invD;
+			if (t1 > t2) { f32 tmp = t1; t1 = t2; t2 = tmp; }
+			if (t1 > tmin) tmin = t1;
+			if (t2 < tmax) tmax = t2;
+			if (tmin > tmax) return false;
+		}
+	}
+
+	if (tmax < 0.0f) return false; // AABB is behind the ray
+	outT = (tmin >= 0.0f) ? tmin : tmax;
+	return true;
+}
+
 Frustum::Frustum(
 	const glm::mat4& mat)
 {

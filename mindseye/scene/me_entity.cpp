@@ -121,6 +121,7 @@ EntityRef CreateBlankEntity(
     ME_ASSERT(entityID != U32_INVALID_ID); // make absolutely sure
     // we increment this every time, even if it's not what we use for the id.
     registry.entityCreationIndex++;
+    ent.authoritativeBounds = meMeshPoolGet().Get({}).meshBounds;
     registry.entMap[entityID] = ent;
     return entityID;
 }

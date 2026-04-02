@@ -2,6 +2,7 @@
 
 #include "core/me_defines.h"
 #include "core/me_string.h"
+#include "core/me_math.h"
 
 enum meExternalCommandType
 {
@@ -9,6 +10,7 @@ enum meExternalCommandType
 	meExternalCommandType_ChangeScene,
 	meExternalCommandType_SaveCurrentScene,
 	meExternalCommandType_CreateEntity,
+	meExternalCommandType_PickEntity,
 };
 
 struct meCmdCreateNewScene
@@ -31,6 +33,11 @@ struct meCmdCreateEntity
 {
 };
 
+struct meCmdPickEntity
+{
+	glm::vec2 screenPos;
+};
+
 struct meExternalCommand
 {
 	meExternalCommandType type;
@@ -40,6 +47,7 @@ struct meExternalCommand
 		meCmdChangeScene changeScene;
 		meCmdSaveCurrentScene saveCurrentScene;
 		meCmdCreateEntity createEntity;
+		meCmdPickEntity pickEntity;
 	};
 };
 

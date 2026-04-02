@@ -45,6 +45,18 @@ struct Frustum
 	bool ShouldCullSphere(glm::vec3 center, float radius);
 };
 
+struct meRay
+{
+	glm::vec3 origin;
+	glm::vec3 direction; // should be normalized
+};
+
+// world-space ray from screen-space pixel coordinates and a camera's view/projection matrices
+MEAPI meRay meScreenPointToRay(glm::vec2 screenPos, u32 screenWidth, u32 screenHeight, const glm::mat4& view, const glm::mat4& projection);
+
+// if the ray intersects the AABB. If hit, outT is set to the distance along the ray.
+MEAPI bool meRayIntersectsAABB(const meRay& ray, glm::vec3 aabbMin, glm::vec3 aabbMax, f32& outT);
+
 namespace Math {
 
 

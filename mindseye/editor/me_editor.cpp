@@ -143,6 +143,17 @@ void meEditorTick(EngineContext* engine)
 	EditorContext& editor = meEditorGetCtx();
 	editor.editorCamera.UpdateCameraWithUserInput(*engine->osData);
 
+	// Entity picking on left click (only when cursor is free / not captured by camera)
+	if (engine->osData->cursorState == FREE &&
+		engine->osData->mouseState.IsMouseButtonJustPressed(LBUTTON) &&
+		!ImGui::GetIO().WantCaptureMouse)
+	{
+		meExternalCommand cmd = {};
+		cmd.type = meExternalCommandType_PickEntity;
+		cmd.pickEntity.screenPos = engine->osData->mouseState.mousePosScreen;
+		meReceiveExternalCommand(cmd);
+	}
+
 	// TODO: debug draw main scene camera
 	// engine->sceneSystem->CurrentScene().mainCamera.cameraPos
 
