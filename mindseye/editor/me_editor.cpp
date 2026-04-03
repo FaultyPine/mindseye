@@ -19,6 +19,7 @@
 #include "core/me_command.h"
 #include "asset/me_asset.h"
 #include "asset/me_asset_index.h"
+#include "scene/me_scene.h"
 
 EditorContext& meEditorGetCtx()
 {
@@ -138,6 +139,9 @@ void meEditorInitialize(EngineContext* engine)
 	ImGui::GetIO().Fonts->AddFontFromMemoryCompressedTTF(fa_solid_900_compressed_data, fa_solid_900_compressed_size, iconFontSize, &iconsConfig, iconsRanges);
 }
 
+
+static void DrawEntityInspector(EngineContext* engine);
+
 void meEditorTick(EngineContext* engine)
 {
 	EditorContext& editor = meEditorGetCtx();
@@ -154,8 +158,10 @@ void meEditorTick(EngineContext* engine)
 		meReceiveExternalCommand(cmd);
 	}
 
-	// TODO: debug draw main scene camera
+    // TODO: debug draw main scene camera
 	// engine->sceneSystem->CurrentScene().mainCamera.cameraPos
+
+	DrawEntityInspector(engine);
 
 	// Notifications style setup
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.f); // Disable round borders
@@ -247,4 +253,244 @@ void meEditorTick(EngineContext* engine)
 	}
 	ImGui::PopStyleVar();
 
+}
+
+
+
+
+
+
+
+
+
+
+// ============================================================================
+// Entity Inspector
+// ============================================================================
+
+// Label helper: draw a left-aligned label in a two-column table row.
+// The caller must be inside a BeginTable() with at least 2 columns.
+static void InspectorLabel(const char* label)
+{
+	ImGui::TableNextRow();
+	ImGui::TableSetColumnIndex(0);
+	ImGui::AlignTextToFramePadding();
+	ImGui::TextUnformatted(label);
+	ImGui::TableSetColumnIndex(1);
+	ImGui::SetNextItemWidth(-FLT_MIN);
+}
+
+static bool DrawTypeDescriptorField(const meTypeDescriptor& field, u8* dataPtr);
+
+static bool DrawPrimitiveValue(const meTypeDescriptor& type, u8* data)
+{
+	bool changed = false;
+
+	if (&type == &TD_FLOAT)
+	{
+		changed = ImGui::DragFloat("##v", (float*)data, 0.01f);
+	}
+	else if (&type == &TD_DOUBLE)
+	{
+		float tmp = (float)*(double*)data;
+		if (ImGui::DragFloat("##v", &tmp, 0.01f)) { *(double*)data = tmp; changed = true; }
+	}
+	else if (&type == &TD_INT)
+	{
+		changed = ImGui::DragInt("##v", (int*)data);
+	}
+	else if (&type == &TD_UNSIGNED_INT)
+	{
+		changed = ImGui::DragScalar("##v", ImGuiDataType_U32, data);
+	}
+	else if (&type == &TD_SHORT)
+	{
+		changed = ImGui::DragScalar("##v", ImGuiDataType_S16, data);
+	}
+	else if (&type == &TD_UNSIGNED_SHORT)
+	{
+		changed = ImGui::DragScalar("##v", ImGuiDataType_U16, data);
+	}
+	else if (&type == &TD_LONG || &type == &TD_LONGLONG)
+	{
+		changed = ImGui::DragScalar("##v", ImGuiDataType_S64, data);
+	}
+	else if (&type == &TD_UNSIGNED_LONG || &type == &TD_UNSIGNED_LONG_LONG)
+	{
+		changed = ImGui::DragScalar("##v", ImGuiDataType_U64, data);
+	}
+	else if (&type == &TD_BOOL)
+	{
+		changed = ImGui::Checkbox("##v", (bool*)data);
+	}
+	else if (&type == &TD_CHAR || &type == &TD_UNSIGNED_CHAR)
+	{
+		int tmp = *(u8*)data;
+		if (ImGui::DragInt("##v", &tmp, 1.0f, 0, 255)) { *(u8*)data = (u8)tmp; changed = true; }
+	}
+	else if (&type == &TD_VEC3)
+	{
+		changed = ImGui::DragFloat3("##v", (float*)data, 0.01f);
+	}
+	else if (&type == &TD_QUAT)
+	{
+		glm::quat& q = *(glm::quat*)data;
+		glm::vec3 euler = glm::degrees(glm::eulerAngles(q));
+		if (ImGui::DragFloat3("##v", &euler.x, 0.5f))
+		{
+			q = glm::quat(glm::radians(euler));
+			changed = true;
+		}
+	}
+	else if (&type == &TD_STRING)
+	{
+		String* str = (String*)data;
+		const char* preview = (str->data && str->len) ? str->cstr() : "";
+		ImGui::TextUnformatted(preview);
+	}
+	else if (&type == &TD_STRINGVIEW)
+	{
+		StringView* sv = (StringView*)data;
+		ImGui::Text(STRING_FMT, STRING_VAARGS((*sv)));
+	}
+	else
+	{
+		return false; // not a primitive we handle
+	}
+	return changed;
+}
+
+static bool DrawStructFields(const meTypeDescriptor& type, u8* dataPtr)
+{
+	bool anyChanged = false;
+	for (u32 i = 0; i < type.fields.size; i++)
+	{
+		const meTypeDescriptor& field = type.fields[i];
+		if (TEST_BIT(field.flags, meTypeDescriptorFlag_PaddingMember)) continue;
+		if (TEST_BIT(field.flags, meTypeDescriptorFlag_Excluded)) continue;
+
+		ImGui::PushID((int)i);
+		if (DrawTypeDescriptorField(field, dataPtr))
+			anyChanged = true;
+		ImGui::PopID();
+	}
+	return anyChanged;
+}
+
+// dataPtr is the base address of the parent struct
+static bool DrawTypeDescriptorField(const meTypeDescriptor& field, u8* dataPtr)
+{
+	u8* fieldData = dataPtr + (field.offsetBits / 8);
+	const meTypeDescriptor* fieldType = field.thisType;
+	bool changed = false;
+
+	if (!fieldType) return false;
+
+	const char* displayName = field.editorName.data ? field.editorName.cstr() : field.name.cstr();
+
+	// it's a struct -> show as tree node
+	if (fieldType->fields.size > 0)
+	{
+		ImGui::TableNextRow();
+		ImGui::TableSetColumnIndex(0);
+		ImGui::AlignTextToFramePadding();
+
+		bool nodeOpen = ImGui::TreeNodeEx(displayName,
+			ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_DefaultOpen);
+
+        if (field.tooltip.data && field.tooltip.len > 0 && ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip(STRING_FMT, STRING_VAARGS(field.tooltip));
+		}
+		ImGui::TableSetColumnIndex(1);
+		ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+		ImGui::Text(STRING_FMT, STRING_VAARGS(fieldType->name));
+		ImGui::PopStyleColor();
+
+		if (nodeOpen)
+		{
+			changed = DrawStructFields(*fieldType, fieldData);
+			ImGui::TreePop();
+		}
+	}
+	else
+	{
+		InspectorLabel(displayName);
+		ImGui::PushID(displayName);
+		changed = DrawPrimitiveValue(*fieldType, fieldData);
+		ImGui::PopID();
+
+		if (field.tooltip.data && field.tooltip.len > 0 && ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip(STRING_FMT, STRING_VAARGS(field.tooltip));
+		}
+	}
+	return changed;
+}
+
+static void DrawEntityInspector(EngineContext* engine)
+{
+	EditorContext& editor = meEditorGetCtx();
+
+	ImGui::SetNextWindowSize(ImVec2(340, 500), ImGuiCond_FirstUseEver);
+	if (!ImGui::Begin(ICON_FA_CIRCLE_INFO " Inspector"))
+	{
+		ImGui::End();
+		return;
+	}
+
+	if (!editor.selectedEntity)
+	{
+		ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+		ImGui::TextWrapped("No entity selected. Click an entity in the viewport to inspect it.");
+		ImGui::PopStyleColor();
+		ImGui::End();
+		return;
+	}
+
+	EntityData& entity = Entity::GetEntity(editor.selectedEntity);
+
+	ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.13f, 0.14f, 0.18f, 1.00f));
+	ImGui::BeginChild("##inspector_header", ImVec2(0, 56), ImGuiChildFlags_Borders);
+	{
+		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.74f, 0.58f, 0.98f, 1.00f));
+		ImGui::Text(ICON_FA_CUBE);
+		ImGui::PopStyleColor();
+		ImGui::SameLine();
+
+		char nameBuf[256] = {};
+		if (entity.name.data && entity.name.len > 0)
+		{
+			u64 copyLen = entity.name.len < sizeof(nameBuf) - 1 ? entity.name.len : sizeof(nameBuf) - 1;
+			memcpy(nameBuf, entity.name.data, copyLen);
+		}
+		ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+		ImGui::InputText("##entity_name", nameBuf, sizeof(nameBuf), ImGuiInputTextFlags_ReadOnly);
+
+		ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+		ImGui::Text("ID: %u", editor.selectedEntity.ref);
+		ImGui::PopStyleColor();
+	}
+	ImGui::EndChild();
+	ImGui::PopStyleColor();
+
+	ImGui::Spacing();
+
+	const ImGuiTableFlags tableFlags =
+		ImGuiTableFlags_BordersInnerH |
+		ImGuiTableFlags_Resizable |
+		ImGuiTableFlags_SizingStretchProp |
+		ImGuiTableFlags_PadOuterX;
+
+	if (ImGui::BeginTable("##inspector_props", 2, tableFlags))
+	{
+		ImGui::TableSetupColumn("Property", ImGuiTableColumnFlags_WidthStretch, 0.4f);
+		ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch, 0.6f);
+
+		DrawStructFields(TD_ENTITYDATA, (u8*)&entity);
+
+		ImGui::EndTable();
+	}
+
+	ImGui::End();
 }

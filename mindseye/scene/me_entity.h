@@ -44,6 +44,7 @@ MEMAP_END_CUSTOM_HASHER
 struct MEREFLECT(type) EntityData
 {
     meTransform transform = {};
+    MEREFLECT(tooltip = "The 'appearance' of the entity")
     MAID_MEMBER_DECL(mesh, MAMesh);
 	// gameplay-focused bounds. Rendering bounds including anims may be different (stored on mesh)
     BoundingBox authoritativeBounds = {}; 
