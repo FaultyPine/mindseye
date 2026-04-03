@@ -300,6 +300,26 @@ int main(int argc, char** argv)
 	};
 
 
+	// ======================== PCH ==============================================
+	BuildableArtifact pchBuild = {};
+	Nob_Cmd& pchCmd = pchBuild.compileCmd;
+	nob_cmd_append(&pchCmd, g_compilerExe, "-x", "c++-header");
+	if (mode == DEBUG)
+	{
+		nob_cmd_append(&pchCmd, "-O0", "-DBUILD_DEBUG=1", "-DMEEXPORT", "-D_DLL", "-DBX_CONFIG_DEBUG=1");
+	}
+	else if (mode == RELEASE)
+	{
+		nob_cmd_append(&pchCmd, "-O2", "-DBUILD_DEBUG=0", "-DMEEXPORT", "-D_DLL", "-DBX_CONFIG_DEBUG=0");
+	}
+	NOB_CMD_APPEND_MULTIPLE(pchCmd, compilerFlagsCommon);
+	const char* pchInput = nob_temp_sprintf("%s/mindseye/me_pch.h", root);
+	pchBuild.addInputs(&pchInput, 1);
+	pchBuild.addOutput("me_pch.h.pch");
+	const char* pchFlag = "-include-pch";
+	const char* pchFile = nob_temp_sprintf("%s/build/me_pch.h.pch", root);
+	// =====================================================================================
+
 	// ======================== DRIVER ==============================================
 	BuildableArtifact driver = {};
 	Nob_Cmd& driverCompile = driver.compileCmd;
@@ -473,6 +493,7 @@ int main(int argc, char** argv)
 		"-O2", "-DBUILD_DEBUG=0", "-DMEEXPORT", "-D_USRDLL", "-D_WINDLL", "-D_DLL", "-c", "-DBX_CONFIG_DEBUG=0");
 	}
 	NOB_CMD_APPEND_MULTIPLE(mindseyeCmd, compilerFlagsCommon);
+	nob_cmd_append(&mindseyeCmd, pchFlag, pchFile);
 	// input/output
 	const char* mindseyeEngineInputs = nob_temp_sprintf("%s/mindseye/me_unity.cpp", root);
 	mindseyeEngineObj.addInputs(&mindseyeEngineInputs, 1);
@@ -629,14 +650,18 @@ int main(int argc, char** argv)
 	}
 	nob_set_current_dir("build");
 
+	BuildResult pchBuildRes = pchBuild.build();
+	CHECK_BUILD_RESULT(pchBuildRes);
+	bool builtPch = pchBuildRes == BUILD_SUCCEEDED;
+
 	// Build object files in parallel
 	externalLibsObj.options.async = &procs;
-	BuildResult externalLibsBuildRes = externalLibsObj.build(forceBuildLibs);
+	BuildResult externalLibsBuildRes = externalLibsObj.build(forceBuildLibs || builtPch);
 	CHECK_BUILD_RESULT(externalLibsBuildRes);
 	bool builtExternalLibs = externalLibsBuildRes == BUILD_SUCCEEDED;
 	
 	mindseyeEngineObj.options.async = &procs;
-	BuildResult builtMindseyeObjRes = mindseyeEngineObj.build(builtExternalLibs);
+	BuildResult builtMindseyeObjRes = mindseyeEngineObj.build(builtExternalLibs || builtPch);
 	bool builtMindseyeObj = builtMindseyeObjRes == BUILD_SUCCEEDED;
 	CHECK_BUILD_RESULT(builtMindseyeObjRes);
 	
