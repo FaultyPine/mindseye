@@ -24,7 +24,6 @@ bool meMouseInput::IsMouseButtonJustReleased(s32 meMouseButton) const
 void meMouseInput::MouseInputTick()
 {
 	prevButtons = buttons;
-	buttons = 0;
 }
 
 void meKeyboardInput::KeyboardInputTick()
