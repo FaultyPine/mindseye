@@ -8,6 +8,10 @@ meAssetIndex& meAssetIndexGet()
 	return *GetEngineCtx()->assetIndex;
 }
 
+const meAssetIndex& meAssetIndexGetRO()
+{
+    return meAssetIndexGet();
+}
 
 StringView meAssetIndexGetFilesystemPath(
 	const MAID& maid)

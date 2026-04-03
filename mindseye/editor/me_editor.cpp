@@ -388,6 +388,54 @@ static bool DrawTypeDescriptorField(const meTypeDescriptor& field, u8* dataPtr)
 
 	const char* displayName = field.editorName.data ? field.editorName.cstr() : field.name.cstr();
 
+	// Special case: MAID asset reference - show an asset browser combo
+	if (fieldType == &TD_MAID)
+	{
+		MAID* maid = (MAID*)fieldData;
+		meAssetType assetType = maid->GetType();
+
+		ImGui::TableNextRow();
+		ImGui::TableSetColumnIndex(0);
+		ImGui::AlignTextToFramePadding();
+		ImGui::TextUnformatted(displayName);
+		if (field.tooltip.data && field.tooltip.len > 0 && ImGui::IsItemHovered())
+			ImGui::SetTooltip(STRING_FMT, STRING_VAARGS(field.tooltip));
+		ImGui::TableSetColumnIndex(1);
+		ImGui::SetNextItemWidth(-FLT_MIN);
+
+		StringView currentPath = meAssetIndexGetFilesystemPath(*maid);
+		const char* preview = (currentPath.data && currentPath.len)
+			? currentPath.cstr()
+			: ((*maid) ? "(unknown asset)" : "(none)");
+
+		if (ImGui::BeginCombo("##v", preview))
+		{
+			if (ImGui::Selectable("(none)", !(*maid)))
+			{
+				maid->SetID(U32_INVALID_ID);
+				changed = true;
+			}
+
+			const meAssetIndex& index = meAssetIndexGetRO();
+			for (auto& [id, path] : index.assetToPathMap)
+			{
+				if (id.GetType() != assetType) continue;
+
+				bool isSelected = (*maid == id);
+				if (ImGui::Selectable(path.cstr(), isSelected))
+				{
+					*maid = id;
+					changed = true;
+				}
+				if (isSelected)
+					ImGui::SetItemDefaultFocus();
+			}
+			ImGui::EndCombo();
+		}
+
+		return changed;
+	}
+
 	// it's a struct -> show as tree node
 	if (fieldType->fields.size > 0)
 	{

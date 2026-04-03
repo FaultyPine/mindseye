@@ -27,3 +27,4 @@ meAssetType meAssetFindAssetTypeFromFilepath(
     StringView path);
 
 void meAssetIndexInitialize(EngineContext* engine);
+const meAssetIndex& meAssetIndexGetRO();
