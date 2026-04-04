@@ -50,6 +50,8 @@ void meSceneManager::ChangeCurrentScene(StringView filename)
     if (meAsset* asset = meAssetTryGet(sceneIdent.id))
     {
         GetEngineCtx()->sceneSystem->rootScene = asset->runtimeHandle;
+        meEventPayload payload = {asset};
+        GetEngineCtx()->appCallbacks.onSceneLoaded(payload);
     }
 }
 
@@ -118,13 +120,6 @@ struct meSceneAssetLoader : public meAssetLoader
 		{
 			meScenePoolGet().Load(asset.ident, allocator, outScene.externalScenePath, outScene);
 		}
-	}
-
-	virtual void meAssetOnLoad(meAsset& asset) override
-	{
-        EngineContext* ctx = GetEngineCtx();
-        meEventPayload payload = {&asset};
-        ctx->appCallbacks.onSceneLoaded(payload);
 	}
 
 	static void RegisterAssetLoader(meEventPayload payload)
