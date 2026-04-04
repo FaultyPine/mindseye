@@ -46,3 +46,21 @@
 #undef STBSP_NO_SIMD
 #undef STBI_NO_SIMD
 #pragma clang diagnostic pop
+
+// imgui-node-editor
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-variable"
+#pragma clang diagnostic ignored "-Wsign-compare"
+#pragma clang diagnostic ignored "-Wunused-function"
+#pragma clang diagnostic ignored "-Wmissing-field-initializers"
+#define IMGUI_NODE_EDITOR_API MEAPI
+// imgui_canvas.cpp and imgui_node_editor_internal.h both define a static
+// ImFringeScaleRef helper. In a unity build they collide. Rename the canvas
+// copy so the node-editor internal copy (used by FringeScaleScope) wins.
+#define ImFringeScaleRef ImFringeScaleRef_Canvas
+#include "imgui-node-editor/imgui_canvas.cpp"
+#undef ImFringeScaleRef
+#include "imgui-node-editor/crude_json.cpp"
+#include "imgui-node-editor/imgui_node_editor.cpp"
+#include "imgui-node-editor/imgui_node_editor_api.cpp"
+#pragma clang diagnostic pop

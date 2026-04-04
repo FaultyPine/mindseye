@@ -293,6 +293,7 @@ int main(int argc, char** argv)
 		nob_temp_sprintf("-I%s/mindseye/external/bgfx/bgfx/3rdparty/dear-imgui", root),
 		nob_temp_sprintf("-I%s/mindseye/external/bgfx/bgfx/include", root),
 		nob_temp_sprintf("-I%s/mindseye/external/bgfx/bgfx/3rdparty", root),
+		nob_temp_sprintf("-I%s/mindseye/external/imgui-node-editor", root),
 		nob_temp_sprintf("-I%s/mindseye/external/bgfx/bx/include", root),
 		nob_temp_sprintf("-I%s/mindseye/external/bgfx/bimg/include", root),
 		nob_temp_sprintf("-I%s/mindseye/external/ktx", root),
@@ -351,12 +352,12 @@ int main(int argc, char** argv)
 	if (mode == DEBUG)
 	{
 		nob_cmd_append(&externalLibsCmd,
-		"-O0", "-DBUILD_DEBUG=1" ,"-DMEEXPORT", "-DBX_CONFIG_DEBUG=1", "-c", "-w");
+		"-O0", "-DBUILD_DEBUG=1" ,"-DMEEXPORT", "-D_DLL", "-DBX_CONFIG_DEBUG=1", "-c", "-w");
 	}
 	else if (mode == RELEASE)
 	{
 		nob_cmd_append(&externalLibsCmd, 
-		"-O2", "-DBUILD_DEBUG=0", "-DMEEXPORT", "-DBX_CONFIG_DEBUG=0", "-c", "-w");
+		"-O2", "-DBUILD_DEBUG=0", "-DMEEXPORT", "-D_DLL", "-DBX_CONFIG_DEBUG=0", "-c", "-w");
 	}
 	NOB_CMD_APPEND_MULTIPLE(externalLibsCmd, compilerFlagsCommon);
 	// input/output
