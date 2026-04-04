@@ -35,7 +35,7 @@ void meEditorOnAssetBeginLoading(meEventPayload payload)
 void meEditorOnAssetFinishedLoading(meEventPayload payload)
 {
 	const meAssetIdent& ident = *(meAssetIdent*)payload.payload;
-	ImGui::InsertNotification({ImGuiToastType::Info, 3000, "Finished loading " STRING_FMT, STRING_VAARGS(ident.diskIdent)});
+	ImGui::InsertNotification({ImGuiToastType::Info, 3000, StringFormatTmp("Finished loading " STRING_FMT, STRING_VAARGS(ident.diskIdent)).cstr()});
 }
 
 static void SetupImGuiDraculaStyle()
