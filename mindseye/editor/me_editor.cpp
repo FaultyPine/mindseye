@@ -28,8 +28,8 @@ EditorContext& meEditorGetCtx()
 
 void meEditorOnAssetBeginLoading(meEventPayload payload)
 {
-	const meAssetIdent& ident = *(meAssetIdent*)payload.payload;
-	ImGui::InsertNotification({ImGuiToastType::Info, 3000, "Began loading " STRING_FMT, STRING_VAARGS(ident.diskIdent)});
+	//const meAssetIdent& ident = *(meAssetIdent*)payload.payload;
+	//ImGui::InsertNotification({ImGuiToastType::Info, 3000, "Began loading " STRING_FMT, STRING_VAARGS(ident.diskIdent)});
 }
 
 void meEditorOnAssetFinishedLoading(meEventPayload payload)
