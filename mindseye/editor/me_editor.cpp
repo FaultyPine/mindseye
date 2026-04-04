@@ -137,6 +137,8 @@ void meEditorInitialize(EngineContext* engine)
 	iconsConfig.PixelSnapH = true;
 	iconsConfig.GlyphMinAdvanceX = iconFontSize;
 	ImGui::GetIO().Fonts->AddFontFromMemoryCompressedTTF(fa_solid_900_compressed_data, fa_solid_900_compressed_size, iconFontSize, &iconsConfig, iconsRanges);
+
+	meAssetEditorInitialize(engine->editor->assetEditor);
 }
 
 
@@ -145,7 +147,6 @@ static void DrawEntityInspector(EngineContext* engine);
 void meEditorTick(EngineContext* engine)
 {
 	EditorContext& editor = meEditorGetCtx();
-	editor.editorCamera.UpdateCameraWithUserInput(*engine->osData);
 
 	// Entity picking on left click (only when cursor is free / not captured by camera)
 	if (engine->osData->cursorState == FREE &&
@@ -162,6 +163,12 @@ void meEditorTick(EngineContext* engine)
 	// engine->sceneSystem->CurrentScene().mainCamera.cameraPos
 
 	DrawEntityInspector(engine);
+
+	meAssetEditorTick(editor.assetEditor);
+
+	// Camera updates happen after editor windows so input blocking is set in time
+    GetEngineCtx()->osData->userInputBlocked = editor.assetEditor.isFocused;
+	editor.editorCamera.UpdateCameraWithUserInput(*engine->osData);
 
 	// Notifications style setup
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.f); // Disable round borders
@@ -521,6 +528,13 @@ static void DrawEntityInspector(EngineContext* engine)
 	}
 	ImGui::EndChild();
 	ImGui::PopStyleColor();
+
+	ImGui::Spacing();
+
+	if (ImGui::Button(ICON_FA_DIAGRAM_PROJECT " Open in Asset Editor"))
+	{
+		meAssetEditorOpen(editor.assetEditor, editor.selectedEntity);
+	}
 
 	ImGui::Spacing();
 
