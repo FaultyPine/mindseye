@@ -84,10 +84,6 @@ MAID
     }
 };
 
-// initially tried a separate type that inherits MAID and has the asset type as a template param
-// but that would require TODO: implementing inheritance in the reflection/serialization system 
-#define MAID_MEMBER_DECL(name, type) MAID name = MAID::Of<type>()
-
 MEMAP_BEGIN_CUSTOM_HASHER(MAID, obj) 
 {
     size_t h1 = std::hash<u64>{}(obj.GetType());
@@ -112,7 +108,9 @@ enum meAssetLoadStage
 	LoadStageCount
 };
 
-#define ME_ASSET_STRUCTURE(typeName, typeDesc) \
+#define ME_ASSET_HEADER_FIELDNAME "header"
+
+#define ME_ASSET_STRUCTURE(typeName) \
 MAID header = {}; \
 typeName(const MAID& ident) : typeName() { header = ident; } \
 typeName() = default;
