@@ -14,7 +14,7 @@ typedef u32 meSceneID;
 struct MEREFLECT(type, Description="Scene Description")
 meScene
 {
-	ME_ASSET_STRUCTURE(meScene, TD_MESCENE)
+	ME_ASSET_STRUCTURE(meScene);
 
 	// an external file that represents the scene - i.e. gltf
 	String externalScenePath = {};

@@ -381,6 +381,8 @@ void meAssetLoader::meAssetWrite(meAsset& asset)
 		LOG_WARN("Attempted to write an unloaded asset");
 		return;
 	}
+	ME_ASSERT(assetTypeDesc->fields[0].thisType == &TD_MAID);
+
 	void* assetData = pool->GetOpaque(asset.runtimeHandle);
 	StringView assetPath = meAssetGetAbsPathForResource(asset.ident.diskIdent);
 	meAllocator* tempAllocator = GetTLScratch();
@@ -456,7 +458,7 @@ meSpan meSerializeTryGetAssetHeader(
 	{
 		// search top-level fields for asset header type
 		const meTypeDescriptor& field = typeDesc.fields[i];
-		if (field.thisType == &TD_MAID)
+		if (field.thisType == &TD_MAID && StringCompare(field.name, STRING_LIT(ME_ASSET_HEADER_FIELDNAME)))
 		{
 			meSpan result = serializedBuffer.Subspan(field.offsetBits * 8, field.size);
 			return result;
