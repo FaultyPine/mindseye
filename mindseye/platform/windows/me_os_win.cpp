@@ -121,7 +121,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
         case WM_RBUTTONUP:
         { SET_BIT(osState->mouseState.buttons, meMouseButton::RBUTTON, false); break; }
         case WM_MOUSEWHEEL:
-        { osState->mouseState.scroll = (int)(short)HIWORD(wParam); break; } // expressed in multiples of WHEEL_DELTA
+        { osState->mouseState.scroll += (int)(short)HIWORD(wParam) / WHEEL_DELTA; break; } // normalize to ±1 per notch
         break;
     }
     return DefWindowProc(hWnd, msg, wParam, lParam);
@@ -187,14 +187,14 @@ void meOSCreateWindow(WindowCreationParams creationParams, EngineContext* engine
     HCURSOR hArrowCursor = LoadCursor(NULL, IDC_ARROW);
     SetCursor(hArrowCursor);
 
-    OSStateView* cachedOSData = &g_osData;
-    cachedOSData->hinstance = hInstance;
-    cachedOSData->hwnd = hwnd;
-    cachedOSData->windowWidth = creationParams.width;
-    cachedOSData->windowHeight = creationParams.height;
-	QueryPerformanceFrequency((LARGE_INTEGER *)&cachedOSData->ticksPerSecond);
-	QueryPerformanceCounter((LARGE_INTEGER *)&cachedOSData->ticksAtAppStart);
-    engine->osData = cachedOSData;
+    engine->osData = &g_osData;
+    OSStateView* osData = engine->osData;
+    osData->hinstance = hInstance;
+    osData->hwnd = hwnd;
+    osData->windowWidth = creationParams.width;
+    osData->windowHeight = creationParams.height;
+	QueryPerformanceFrequency((LARGE_INTEGER *)&osData->ticksPerSecond);
+	QueryPerformanceCounter((LARGE_INTEGER *)&osData->ticksAtAppStart);
     engine->appName = creationParams.name;
 }
 

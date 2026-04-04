@@ -28,6 +28,7 @@ struct OSStateView
 	u64 ticksPerSecond = 0;
 	u64 ticksAtAppStart = 0;
 	meOSCursorState cursorState = FREE;
+	bool userInputBlocked = false;
 	u64 GetTicksUsec() const;
 #ifdef OS_WINDOWS
     void* hwnd = nullptr;
@@ -36,7 +37,6 @@ struct OSStateView
 #else
 #endif
 };
-extern OSStateView g_osData;
 
 #ifdef OS_WINDOWS
 #define NOMINMAX

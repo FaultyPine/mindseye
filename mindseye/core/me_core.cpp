@@ -1,5 +1,6 @@
 #include "me_core.h"
 
+#include "me_app.h"
 #include "platform/me_os.h"
 
 // sanity
@@ -68,7 +69,7 @@ f32 GetRandomf(f32 start, f32 end)
 // returns the current time since app launch
 f64 GetTimeUsec() 
 {
-	f64 result = g_osData.GetTicksUsec();
+	f64 result = GetEngineCtx()->osData->GetTicksUsec();
     return result;
 }
 

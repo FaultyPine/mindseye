@@ -69,7 +69,7 @@ glm::mat4 meCamera::GetViewMatrix() const
 
 void meCamera::UpdateCameraWithUserInput(OSStateView& osState) 
 {
-	if (!isControlledByUserInput)
+	if (!isControlledByUserInput || osState.userInputBlocked)
 	{
 		return;
 	}

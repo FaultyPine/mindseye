@@ -29,7 +29,6 @@ run `build.bat`
 ============================
 
 ### General Roadmap
-- PCH
 - render 2d squares and have em move around
 - flesh out custom serialization format, implement for all current assets, like meshes, shaders, textures, and have them load through that data
     - i.e. a meScene asset on disk refers to a collection of "serialized entities" which contain materials, meshes, transforms
@@ -106,6 +105,8 @@ and all engine features will be built with this feature in mind.
 *Assets*: 
 seperated into read-only and writable to support r&r. Readonly assets are "deterministic". Writable assets would need special functionality to be properly rolled back and re-written to during resimulation.
 Could also use a heavy-handed approach where writing to assets is fully disallowed during regular application loops. Writes to assets would need special consideration from the recording/replaying systems
+Further thought:
+for simplicity, don't distinguish rw/ro. All disk reads are copied into the event log, and during replay we just give you a pointer to the mapped file content in that event log. all "file" operations/storage is owned by the engine, so it could do this abstraction. For perf - weird idea: engine creates 2 mappings on the file - one for the engine/user to start using which is COW. Another for the engine to copy into the event log which is readonly. Once engine copies it, readonly mapping goes away, and we atomically replace the COW mapped pointer with a regular writable pointer to the file, and (syncro) copy the content of the COW mapped pointer into the actual file. That way, the engine can do the event log file copy "for free" without blocking the rest of the engine.
 
 *Rendering*: 
 Takes in a readonly gamestate and passes it to the user's rendering system.

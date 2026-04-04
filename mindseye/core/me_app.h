@@ -85,7 +85,9 @@ struct EngineContext
 	meUserConfig userConfig = {};
 	meAppConfig appConfig = {};
     String appName = {};
-    OSStateView* osData = nullptr; // static, persistent throughout app
+    
+    // NOTE: points to static data. This is so we don't include the OSState in record/replay stuff
+    OSStateView* osData = nullptr;
 
     bool isRunning = false;
     bool isIdle = false;
