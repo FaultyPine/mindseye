@@ -11,13 +11,13 @@ struct meAssetIndex
 	meMap<MAID, u32> serializedUniqueIdentifiers = {};
 };
 
-StringView meAssetIndexGetFilesystemPath(
+MEAPI StringView meAssetIndexGetFilesystemPath(
 	const MAID& maid);
 
-MAID meAssetIndexGetMAIDFromPath(
+MEAPI MAID meAssetIndexGetMAIDFromPath(
 	const StringView& path);
 
-u32 meAssetIndexGetUniqueID(MAID maid);
+MEAPI u32 meAssetIndexGetUniqueID(MAID maid);
 
 void meAssetIndexRegisterRelation(
 	const StringView& path,

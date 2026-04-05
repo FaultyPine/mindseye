@@ -127,9 +127,10 @@ void InitializeEngineSystems(EngineContext* engine)
 	Entity::InitializeEntitySystem(&engine->engineSceneAllocator);
 
 	meAssetInitializeLate(engine);
+	meAssetIndexInitialize(engine);
+
 	meSceneInitializeLate(engine);
 
-	meAssetIndexInitialize(engine);
 }
 
 void InitializeEngine(s32 argc, char** argv)
@@ -162,7 +163,7 @@ void InitializeEngine(s32 argc, char** argv)
     engine->appCallbacks.initFn(engine);
 
 	// default scene load
-	meAssetIdent sceneIdent = meAssetGetIdentFromPath(engine->appConfig.defaultSceneName);
+	MAID sceneIdent = meAssetIndexGetMAIDFromPath(engine->appConfig.defaultSceneName);
 	if (sceneIdent)
 	{
 		meAssetRequestLoad(&sceneIdent, 1);

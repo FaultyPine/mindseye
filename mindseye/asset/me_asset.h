@@ -116,53 +116,27 @@ typeName(const MAID& ident) : typeName() { header = ident; } \
 typeName() = default;
 
 
-// identifies an asset "on disk".
-// these can map to filesystem paths, or something else if assets are being loaded/fetched from some other mechanism
-struct MEREFLECT(type) meAssetIdent
-{
-    MAID id = MAID_INVALID;
-	MEREFLECT(exclude) String diskIdent = {};
-	// treated opaquely as a identifier for a single verion of a single asset
-	// could be a hash, timestamp, or something else
-	MEREFLECT(exclude) u32 assetUniqueIdentifier = 0;
-    meAssetIdent() = default;
-    bool operator==(const meAssetIdent& other) const 
-	{ 
-		return id == other.id && assetUniqueIdentifier == other.assetUniqueIdentifier;
-	}
-	operator bool() const 
-	{
-		return id;
-	}
-};
-
-MEMAP_BEGIN_CUSTOM_HASHER(meAssetIdent, ident) 
-{
-    size_t h1 = std::hash<MAID>{}(ident.id);
-    size_t h2 = std::hash<u32>{}(ident.assetUniqueIdentifier);
-	return HashCombine(h1, h2);
-} MEMAP_END_CUSTOM_HASHER
-
 // storing both the "load-time" and "usage-time" information, this is meant to be
 // both serialized, and also used for loading at runtime. This is what will be in the fields
 // of asset definitions. I.E. when a "scene" asset references a "mesh" asset, use this structure
 struct MEREFLECT(type) meAsset
 {
-	meAssetIdent ident = {};
+	MAID id = {};
+    // BOOKMARK: THIS IS NOT RIGHT. MAID -> Eye should be one-to-many. It's currently one-to-one.
 	MEREFLECT(exclude)
 	Eye runtimeHandle = {};
 	MEREFLECT(exclude)
     meAssetLoadStage loadStage = Unloaded;
 	
-	meAsset(const meAssetIdent& identifier) : 
-		ident(identifier)
+	meAsset(const MAID& identifier) : 
+		id(identifier)
 	{}
-	meAsset(const meAssetIdent& identifier, meAssetLoadStage stage) :
-		ident(identifier), loadStage(stage)
+	meAsset(const MAID& identifier, meAssetLoadStage stage) :
+		id(identifier), loadStage(stage)
 	{}
 	// initialized with both "load-time" and "usage-time" info
-	meAsset(Eye eye, const meAssetIdent& identifier) : 
-		ident(identifier), runtimeHandle(eye) 
+	meAsset(Eye eye, const MAID& identifier) : 
+		id(identifier), runtimeHandle(eye) 
 	{
 		if (runtimeHandle)
 		{
@@ -185,7 +159,7 @@ struct MEREFLECT(type) meAsset
 		return runtimeHandle != EYE_INVALID && loadStage == Loaded; 
 	}
 	operator const Eye() const { return runtimeHandle; }
-	operator const MAID() const { return ident.id; }
+	operator const MAID() const { return id; }
 };
 
 struct meAssetLoader
@@ -204,7 +178,7 @@ struct meAssetLoader
 	virtual void meAssetWrite(meAsset&);
 	virtual void meAssetOnLoad(meAsset&) {}
 	meAssetLoadStage meAssetWaitForLoadstage(
-		const meAssetIdent&, 
+		const MAID&, 
 		meAssetLoadStage);
 
 	meAssetLoader(meTypeDescriptor* typedesc, meResourcePoolBase* pool, meAssetType type) 
@@ -250,22 +224,19 @@ meAsset meAssetCreateNew(
 	meAssetType type,
 	StringView filename = {});
 
-meAssetIdent meAssetGetIdentFromPath(
-	StringView path);
-
 typedef void(*meAssetOnAssetLoadCb)(const meAsset&);
 
 meJobId meAssetRequestLoad(
-	meAssetIdent* assetIdents, 
+	MAID* assetIdents, 
 	u32 numAssets = 1,
     meAssetOnAssetLoadCb cb = nullptr);
 
 bool meAssetWaitUntilLoadstage(
-	meSpanTyped<meAssetIdent> assetIdents,
+	meSpanTyped<MAID> assetIdents,
 	meAssetLoadStage loadStage);
 
 meJobId meAssetRequestWrite(
-	meSpanTyped<meAssetIdent> assetIdents,
+	meSpanTyped<MAID> assetIdents,
 	meAssetOnAssetLoadCb onWriteCb = nullptr);
 
 meAsset* meAssetTryGet(MAID assetID);

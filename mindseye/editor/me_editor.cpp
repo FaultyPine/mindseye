@@ -28,14 +28,15 @@ EditorContext& meEditorGetCtx()
 
 void meEditorOnAssetBeginLoading(meEventPayload payload)
 {
-	//const meAssetIdent& ident = *(meAssetIdent*)payload.payload;
-	//ImGui::InsertNotification({ImGuiToastType::Info, 3000, "Began loading " STRING_FMT, STRING_VAARGS(ident.diskIdent)});
+	//const MAID& id = *(MAID*)payload.payload;
+	//ImGui::InsertNotification({ImGuiToastType::Info, 3000, "Began loading " STRING_FMT, STRING_VAARGS(meAssetIndexGetFilesystemPath(id))});
 }
 
 void meEditorOnAssetFinishedLoading(meEventPayload payload)
 {
-	const meAssetIdent& ident = *(meAssetIdent*)payload.payload;
-	ImGui::InsertNotification({ImGuiToastType::Info, 3000, StringFormatTmp("Finished loading " STRING_FMT, STRING_VAARGS(ident.diskIdent)).cstr()});
+	const MAID& id = *(MAID*)payload.payload;
+	StringView diskPath = meAssetIndexGetFilesystemPath(id);
+	ImGui::InsertNotification({ImGuiToastType::Info, 3000, StringFormatTmp("Finished loading " STRING_FMT, STRING_VAARGS(diskPath)).cstr()});
 }
 
 static void SetupImGuiDraculaStyle()
@@ -224,7 +225,7 @@ void meEditorTick(EngineContext* engine)
 				meScene* currentScene = &engine->sceneSystem->CurrentScene();
 				if (meAsset* asset = meAssetTryGet(currentScene->header))
 				{
-					if (!asset->ident.diskIdent)
+					if (!meAssetIndexGetFilesystemPath(asset->id))
 					{
 						openFileResult = pfd::open_file("Location to save the scene file", ".").result();
 						if (!openFileResult.empty())

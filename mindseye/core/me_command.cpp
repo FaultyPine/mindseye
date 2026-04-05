@@ -4,6 +4,7 @@
 #include "core/me_log.h"
 #include "core/me_math.h"
 #include "asset/me_asset.h"
+#include "asset/me_asset_index.h"
 #include "scene/me_scene.h"
 #include "scene/me_entity.h"
 #include "platform/me_os.h"
@@ -13,7 +14,7 @@
 static void HandleCreateNewScene(const meCmdCreateNewScene& cmd)
 {
 	meAsset newAsset = meAssetCreateNew(MAScene, cmd.path);
-	meJobId writeReq = meAssetRequestWrite(meSpanTyped<meAssetIdent>(&newAsset.ident, 1));
+	meJobId writeReq = meAssetRequestWrite(meSpanTyped<MAID>(&newAsset.id, 1));
 	UNUSED(writeReq);
 }
 
@@ -35,18 +36,18 @@ static void HandleSaveCurrentScene(const meCmdSaveCurrentScene& cmd)
 		return;
 	}
 
-	if (!asset->ident.diskIdent && cmd.path)
+	if (!meAssetIndexGetFilesystemPath(asset->id) && cmd.path)
 	{
 		StringView sceneFile = cmd.path;
 		meFsNormalizePathSeperators(sceneFile);
 		sceneFile = meAssetEnsurePathHasGoodExtension(sceneFile, MAScene);
 		sceneFile = meAssetGetRelPathForResource(sceneFile);
-		asset->ident.diskIdent = sceneFile;
+		meAssetIndexRegisterRelation(sceneFile, asset->id);
 	}
 
-	if (asset->ident.diskIdent)
+	if (meAssetIndexGetFilesystemPath(asset->id))
 	{
-		meAssetRequestWrite(meSpanTyped<meAssetIdent>(&currentScene->header, 1));
+		meAssetRequestWrite(meSpanTyped<MAID>(&currentScene->header, 1));
 	}
 }
 

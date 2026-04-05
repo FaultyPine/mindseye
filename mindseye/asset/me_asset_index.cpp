@@ -32,8 +32,9 @@ MAID meAssetIndexGetMAIDFromPath(
 	{
 		return {};
 	}
+	StringView assetPath = meAssetGetRelPathForResource(path);
 	meAssetIndex& assetIndex = meAssetIndexGet();
-	auto it = assetIndex.pathToAssetsMap.find(path);
+	auto it = assetIndex.pathToAssetsMap.find(assetPath);
 	if (it != assetIndex.pathToAssetsMap.end())
 	{
 		return it->second;
@@ -121,7 +122,7 @@ void OnFoundAssetFile(
 		}
 		else
 		{
-			LOG_ERROR("Tried to serialize " STRING_FMT " from disk, but couldn't find a meAssetIdent field", STRING_VAARGS(meAssetTypeToString(type)));
+			LOG_ERROR("Tried to serialize " STRING_FMT " from disk, but couldn't find an asset header field", STRING_VAARGS(meAssetTypeToString(type)));
 		}
 	}
 	else

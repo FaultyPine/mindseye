@@ -43,6 +43,8 @@ MEMAP_END_CUSTOM_HASHER
 
 struct MEREFLECT(type) EntityData
 {
+    ME_ASSET_STRUCTURE(EntityData);
+    
     meTransform transform = {};
     MEREFLECT(tooltip = "The 'appearance' of the entity")
     MAID mesh = MAID::Of<MAMesh>();
@@ -51,7 +53,6 @@ struct MEREFLECT(type) EntityData
     EntityFlags flags = 0;
 	String name = {};
     
-    EntityData() = default;
 };
 
 typedef meMap<EntityRef, EntityData> EntityMap;

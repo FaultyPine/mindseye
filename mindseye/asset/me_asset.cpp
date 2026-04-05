@@ -1,5 +1,6 @@
 #include "me_asset.h"
 
+#include "asset/me_asset_index.h"
 #include "core/me_defines.h"
 #include "core/me_cmdline.h"
 #include "core/me_string.h"
@@ -98,19 +99,9 @@ void meAssetRegisterLoader(meAssetLoader* loader)
 	ME_ASSERT(type != MABadData);
 	ME_ASSERT(loader->resourcePool != nullptr);
 	ME_ASSERT(loader->assetTypeDesc != nullptr);
+    // any "asset" must have a header with it's own asset id
+	ME_ASSERT(loader->assetTypeDesc->fields[0].thisType == &TD_MAID);
 	assetSystem.assetLoaders[type] = loader;
-}
-
-meAssetIdent meAssetGetIdentFromPath(
-	StringView path)
-{
-	StringView assetPath = meAssetGetRelPathForResource(path);
-	MAID maid = meAssetIndexGetMAIDFromPath(assetPath);
-	meAssetIdent result = {};
-	result.diskIdent = assetPath;
-	result.id = maid;
-	result.assetUniqueIdentifier = meAssetIndexGetUniqueID(maid);
-	return meMove(result);
 }
 
 MAID meAssetCreateNewAssetID(meAssetType type)
@@ -137,9 +128,7 @@ MAID meAssetRegisterRuntime(Eye handle, meAssetType type)
     {
         newMaid.SetType(type);
     }
-	meAssetIdent ident;
-	ident.id = newMaid;
-	meAsset newAsset = meAsset(handle, ident);
+	meAsset newAsset = meAsset(handle, newMaid);
     // make sure we aren't stomping on an existing one
     ME_ASSERT(assetSystem.assetRegistry.find(newMaid) == assetSystem.assetRegistry.end());
 	assetSystem.assetRegistry[newMaid] = newAsset;
@@ -154,16 +143,14 @@ meAsset meAssetCreateNew(
 	meAssetLoader* loader = assetSystem.assetLoaders[type];
 	ME_ASSERT(loader);
 	MAID newMaid = meAssetCreateNewAssetID(type);
-	meAssetIdent newIdent = {};
-	newIdent.diskIdent = meAssetGetRelPathForResource(filename);
-	newIdent.id = newMaid;
-	newIdent.assetUniqueIdentifier = 0; // ?
+	StringView relPath = meAssetGetRelPathForResource(filename);
+	meAssetIndexRegisterRelation(relPath, newMaid);
 	meResourcePoolBase* resourcePool = loader->resourcePool;
 	Eye newRuntimeResource = resourcePool->Load();
 	void* opaqueAssetData = resourcePool->GetOpaque(newRuntimeResource);
 	MAID* assetHeader = (MAID*)opaqueAssetData;
 	*assetHeader = newMaid;
-	meAsset newAsset = meAsset(newRuntimeResource, newIdent);
+	meAsset newAsset = meAsset(newRuntimeResource, newMaid);
 	RWLockWrite lock(assetSystem.assetRegistryLock);
 	assetSystem.assetRegistry[newMaid] = newAsset; // copy
 	return meMove(newAsset);
@@ -176,32 +163,32 @@ MAID::MAID(u64 id, meAssetType type)
 }
 
 meAssetLoadStage meAssetLoader::meAssetWaitForLoadstage(
-	const meAssetIdent& ident,
+	const MAID& maid,
 	meAssetLoadStage loadStage)
 {
-	meAsset* asset = meAssetTryGet(ident.id);
+	meAsset* asset = meAssetTryGet(maid);
 	constexpr u32 maxAttempts = 1000;
 	u32 attempts = 0;
 	while (asset && asset->loadStage != loadStage && attempts++ < maxAttempts)
 	{
 		meThreadSleep(1); // TMP
 		//GetAssetSystem().assetCompilerJobs.WaitOnJob(assetJobId);
-		asset = meAssetTryGet(ident.id);
+		asset = meAssetTryGet(maid);
 	}
 	return asset ? asset->loadStage : Unloaded;
 }
 
 meJobId meAssetRequestLoad(
-	meAssetIdent* assetIdents, 
+	MAID* assetIdents, 
 	u32 numAssets,
     meAssetOnAssetLoadCb cb)
 {
 	meAssetSystem& assetSystem = meAssetSystemGet();
 	for (u32 i = 0; i < numAssets; i++)
 	{
-		const meAssetIdent& assetIdent = assetIdents[i];
+		const MAID& assetIdent = assetIdents[i];
 		ME_ASSERT(assetIdent);
-		meAssetType assetType = meAssetType(assetIdent.id.GetType());
+		meAssetType assetType = meAssetType(assetIdent.GetType());
 		meAssetLoader* loader = assetSystem.assetLoaders[assetType];
 		meAssetLoadStage stage = Unloaded;
 		if (!loader)
@@ -209,7 +196,7 @@ meJobId meAssetRequestLoad(
 			LOG_ERROR("Tried to load asset type that doesn't have an implemented loader");
 			return {}; // dev error, should never happen, unrecoverable
 		}
-		meAsset* asset = meAssetTryGet(assetIdent.id);
+		meAsset* asset = meAssetTryGet(assetIdent);
 		// if it's already loaded, noop
 		if (asset)
 		{
@@ -220,11 +207,11 @@ meJobId meAssetRequestLoad(
 			{ // add the slot in, and mark it as "loading"
 				meAsset notYetLoadedData = meAsset(assetIdent, Loading);
 				RWLockWrite lock(assetSystem.assetRegistryLock);
-				assetSystem.assetRegistry[assetIdent.id] = notYetLoadedData;
+				assetSystem.assetRegistry[assetIdent] = notYetLoadedData;
 			}
 			struct AssetCompilerJobData
 			{
-				meAssetIdent ident;
+				MAID ident;
 				meAssetLoader* loader;
 				meAssetOnAssetLoadCb cb;
 			};
@@ -235,10 +222,10 @@ meJobId meAssetRequestLoad(
 			jobData.cb = cb;
 			auto fn = [jobData, &assetSystem]() 
 			{
-				meAsset* asset = meAssetTryGet(jobData.ident.id);
+				meAsset* asset = meAssetTryGet(jobData.ident);
 				ME_ASSERT(asset);
 				jobData.loader->meAssetLoad(*asset);
-				ME_ASSERT(asset->ident);
+				ME_ASSERT(asset->id);
 				ME_ASSERT(asset->loadStage == Loaded && asset->runtimeHandle);
 				// each asset type can respond to loaded events
 				jobData.loader->meAssetOnLoad(*asset);
@@ -265,14 +252,14 @@ meJobId meAssetRequestLoad(
 }
 
 bool meAssetWaitUntilLoadstage(
-	meSpanTyped<meAssetIdent> assetIdents, 
+	meSpanTyped<MAID> assetIdents, 
 	meAssetLoadStage loadStage)
 {
     for (u32 i = 0; i < assetIdents.size; i++)
 	{
 		// dispatch to the loader for this asset type
-		const meAssetIdent& assetIdent = assetIdents[i];
-		meAssetType assetType = meAssetType(assetIdents[i].id.GetType());
+		const MAID& assetIdent = assetIdents[i];
+		meAssetType assetType = meAssetType(assetIdents[i].GetType());
 		const meAssetSystem& assetSystem = meAssetSystemGet();
 		meAssetLoader* loader = assetSystem.assetLoaders[assetType];
 		if (loader)
@@ -288,14 +275,14 @@ bool meAssetWaitUntilLoadstage(
 }
 
 meJobId meAssetRequestWrite(
-	meSpanTyped<meAssetIdent> assetIdents,
+	meSpanTyped<MAID> assetIdents,
 	meAssetOnAssetLoadCb onWriteCb)
 {
 	meAssetSystem& assetSystem = meAssetSystemGet();
 	for (u32 i = 0; i < assetIdents.size; i++)
 	{
-		const meAssetIdent& assetIdent = assetIdents[i];
-		meAssetType assetType = meAssetType(assetIdent.id.GetType());
+		const MAID& assetIdent = assetIdents[i];
+		meAssetType assetType = meAssetType(assetIdent.GetType());
 		meAssetLoader* loader = assetSystem.assetLoaders[assetType];
 		meAssetLoadStage stage = Unloaded;
 		if (!loader)
@@ -303,7 +290,7 @@ meJobId meAssetRequestWrite(
 			LOG_ERROR("Tried to write asset type that doesn't have an implemented loader");
 			return {}; // engine dev error, should never happen
 		}
-		meAsset* asset = meAssetTryGet(assetIdent.id);
+		meAsset* asset = meAssetTryGet(assetIdent);
 		// if it's already loaded, noop
 		if (asset)
 		{
@@ -313,7 +300,7 @@ meJobId meAssetRequestWrite(
 		{
 			struct AssetCompilerJobData
 			{
-				meAssetIdent ident;
+				MAID ident;
 				meAssetLoader* loader;
 				meAssetOnAssetLoadCb cb;
 			};
@@ -324,10 +311,11 @@ meJobId meAssetRequestWrite(
 			jobData.cb = onWriteCb;
 			auto fn = [jobData, &assetSystem]() 
 			{
-				meAsset* asset = meAssetTryGet(jobData.ident.id);
-				ME_ASSERT(asset && asset->loadStage == Loaded && asset->runtimeHandle && asset->ident.id);
+				meAsset* asset = meAssetTryGet(jobData.ident);
+				ME_ASSERT(asset && asset->loadStage == Loaded && asset->runtimeHandle && asset->id);
 				jobData.loader->meAssetWrite(*asset);
-				meAssetIndexRegisterRelation(asset->ident.diskIdent, asset->ident.id);
+				StringView diskPath = meAssetIndexGetFilesystemPath(asset->id);
+				meAssetIndexRegisterRelation(diskPath, asset->id);
 				if (jobData.cb)
 				{
 					jobData.cb(*asset);
@@ -350,25 +338,26 @@ meJobId meAssetRequestWrite(
 
 void meAssetLoader::meAssetLoad(meAsset& asset)
 {
-	ME_ASSERT(asset.ident.id.GetType() == assetType);
+	ME_ASSERT(asset.id.GetType() == assetType);
 	meAllocator* allocator = resourcePool->GetPayloadAllocator();
 	// TODO: implement async loading, so this would return loadStage=Loading
 	// and would itself enqueue more asset compiling jobs for the individual parts of the asset
 	meResourcePoolBase* pool = resourcePool;
 	asset.runtimeHandle = pool->CreateInternal();
 	void* outAsset = pool->GetOpaque(asset.runtimeHandle);
-	StringView assetPath = meAssetGetAbsPathForResource(asset.ident.diskIdent);
+	StringView diskPath = meAssetIndexGetFilesystemPath(asset.id);
+	StringView assetPath = meAssetGetAbsPathForResource(diskPath);
 	meSerializeResult result = DeserializeFromFileBlocking(assetPath, allocator, *assetTypeDesc, meSpan(outAsset, assetTypeDesc->size));
 	if (result)
 	{
 		ME_ASSERT(assetTypeDesc->fields[0].thisType == &TD_MAID);
 		MAID* header = (MAID*)outAsset;
-		ME_ASSERT(header->GetID() == asset.ident.id.GetID());
-		header->SetType(asset.ident.id.GetType());
+		ME_ASSERT(header->GetID() == asset.id.GetID());
+		header->SetType(asset.id.GetType());
 	}
 	else
 	{
-		LOG_WARN("Failed to load asset " STRING_FMT, STRING_VAARGS(asset.ident.diskIdent));
+		LOG_WARN("Failed to load asset " STRING_FMT, STRING_VAARGS(diskPath));
 	}
 	asset.loadStage = result ? Loaded : Unloaded;
 }
@@ -384,7 +373,8 @@ void meAssetLoader::meAssetWrite(meAsset& asset)
 	ME_ASSERT(assetTypeDesc->fields[0].thisType == &TD_MAID);
 
 	void* assetData = pool->GetOpaque(asset.runtimeHandle);
-	StringView assetPath = meAssetGetAbsPathForResource(asset.ident.diskIdent);
+	StringView diskPath = meAssetIndexGetFilesystemPath(asset.id);
+	StringView assetPath = meAssetGetAbsPathForResource(diskPath);
 	meAllocator* tempAllocator = GetTLScratch();
 	StringView assetSerializedString = {};
 	meSerializeResult res = SerializeToTextBlocking(*assetTypeDesc, assetData, tempAllocator, assetSerializedString);

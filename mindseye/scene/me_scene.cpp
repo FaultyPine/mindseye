@@ -45,9 +45,9 @@ void meSceneManager::UnloadCurrentScene()
 void meSceneManager::ChangeCurrentScene(StringView filename)
 {
 	UnloadCurrentScene();
-	meAssetIdent sceneIdent = meAssetGetIdentFromPath(filename);
+	MAID sceneIdent = meAssetIndexGetMAIDFromPath(filename);
 	meAssetRequestLoad(&sceneIdent, 1);
-    if (meAsset* asset = meAssetTryGet(sceneIdent.id))
+    if (meAsset* asset = meAssetTryGet(sceneIdent))
     {
         GetEngineCtx()->sceneSystem->rootScene = asset->runtimeHandle;
         meEventPayload payload = {asset};
@@ -118,7 +118,7 @@ struct meSceneAssetLoader : public meAssetLoader
 		if (FindInString(outScene.externalScenePath, STRING_LIT(".gltf")) != -1 ||
 			FindInString(outScene.externalScenePath, STRING_LIT(".glb")) != -1)
 		{
-			meScenePoolGet().Load(asset.ident, allocator, outScene.externalScenePath, outScene);
+			meScenePoolGet().Load(asset.id, allocator, outScene.externalScenePath, outScene);
 		}
 	}
 
@@ -132,7 +132,7 @@ struct meSceneAssetLoader : public meAssetLoader
 MEEVENT_REGISTER_STATIC(registerAssetLoader, meSceneAssetLoader::RegisterAssetLoader);
 
 void meScenePool::Load(
-	meAssetIdent sceneIdent,
+	MAID sceneIdent,
 	meAllocator* sceneAllocator,
 	StringView resourcePathRel,
 	meScene& outScene)
