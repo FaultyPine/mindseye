@@ -63,7 +63,6 @@ struct meScenePool : public meResourcePool<meScene>
 
 	// loads gltf scene from the filesystem
 	void Load(
-		MAID ident,
 		meAllocator* allocator, 
 		StringView resourcePath, 
 		meScene& outScene);

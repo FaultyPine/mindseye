@@ -124,14 +124,14 @@ struct MEREFLECT(type) meAsset
 	MAID id = {};
     // BOOKMARK: THIS IS NOT RIGHT. MAID -> Eye should be one-to-many. It's currently one-to-one.
 	MEREFLECT(exclude)
-	Eye runtimeHandle = {};
+	Eye runtimeHandle = EYE_INVALID;
 	MEREFLECT(exclude)
     meAssetLoadStage loadStage = Unloaded;
 	
-	meAsset(const MAID& identifier) : 
+	meAsset(const MAID identifier) : 
 		id(identifier)
 	{}
-	meAsset(const MAID& identifier, meAssetLoadStage stage) :
+	meAsset(const MAID identifier, meAssetLoadStage stage) :
 		id(identifier), loadStage(stage)
 	{}
 	// initialized with both "load-time" and "usage-time" info
@@ -201,8 +201,6 @@ struct meAssetSystem
     meEvent assetFinishedLoadingEvent = {};
 	meEvent assetBeganWritingEvent = {};
 	meEvent assetFinishedWritingEvent = {};
-    // for assets "discovered" at runtime, used for giving them a unique id
-    u32 dynamicAssetIdx = 0xDED;
 };
 
 meAssetSystem& meAssetSystemGet();
@@ -212,11 +210,6 @@ void meAssetTeardown(EngineContext* engine);
 void meAssetRegisterLoader(meAssetLoader* loader);
 
 MAID meAssetCreateNewAssetID(meAssetType type);
-
-// registers an existing runtime handle (Eye) in the asset system, assigning it a new MAID
-MEAPI MAID meAssetRegisterRuntime(
-    Eye handle,
-    meAssetType type);
 
 // creates a default-constructed instance of an asset type on disk (and assigns it a proper guid and all that)
 meAsset meAssetCreateNew(

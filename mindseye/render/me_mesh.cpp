@@ -20,7 +20,6 @@ void meMeshInitialize(EngineContext* engine)
 	meMeshID defaultMesh = GenCubeMesh(2);
 	// we technically are "leaking" the default mesh id here.
 	engine->meshSystem->GetBadData() = meMeshPoolGet().Get(defaultMesh);
-    meAssetRegisterRuntime({}, MAMesh);
 }
 
 meMeshPool& meMeshPoolGet()

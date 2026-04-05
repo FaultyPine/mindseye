@@ -118,7 +118,7 @@ struct meSceneAssetLoader : public meAssetLoader
 		if (FindInString(outScene.externalScenePath, STRING_LIT(".gltf")) != -1 ||
 			FindInString(outScene.externalScenePath, STRING_LIT(".glb")) != -1)
 		{
-			meScenePoolGet().Load(asset.id, allocator, outScene.externalScenePath, outScene);
+			meScenePoolGet().Load(allocator, outScene.externalScenePath, outScene);
 		}
 	}
 
@@ -132,7 +132,6 @@ struct meSceneAssetLoader : public meAssetLoader
 MEEVENT_REGISTER_STATIC(registerAssetLoader, meSceneAssetLoader::RegisterAssetLoader);
 
 void meScenePool::Load(
-	MAID sceneIdent,
 	meAllocator* sceneAllocator,
 	StringView resourcePathRel,
 	meScene& outScene)
@@ -187,7 +186,9 @@ void meScenePool::Load(
 			const cgltf_mesh& gltfmesh = *node.mesh;
 			meMeshID meshHandle = meshPool.Load(GetEngineCtx()->renderer, gltfResPath, gltfmesh);
 			meMesh& mesh = meshPool.Get(meshHandle);
-            entity.mesh = meAssetRegisterRuntime(meshHandle, MAMesh);
+            // TODO: right now, we have this asset without an asset id, it's just a runtime concept
+            // in the future, we won't be "loading from gltf". We'll "import" gltf into mindseye assets, and load those, so this concept of a meAsset with no MAID will go away
+            entity.mesh = meAsset(meshHandle);
 			entity.authoritativeBounds = mesh.meshBounds; // may change due to anims. Default initialized to mesh bounds
 		}
 		DynArrayPush(entities, entityRef);

@@ -12,7 +12,6 @@ void meShaderInitialize(EngineContext* ctx)
 	badShader.program = ctx->renderer->CreateShaderProgram(baddata_fs, baddata_vs);
 	badShader.uniformHandles = DynArrayCreate<meShaderUniform>(ctx->shaderSystem->resourcePayloadAllocator);
 	ctx->shaderSystem->GetBadData() = badShader;
-    meAssetRegisterRuntime({}, MAShader);
 }
 
 

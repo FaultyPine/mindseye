@@ -141,6 +141,7 @@ static void CollectMAIDFields(const meTypeDescriptor& typeDesc, u8* basePtr,
                                MAIDFieldInfo* outFields, u32* outCount, u32 maxFields, u32 baseFieldIdx = 0)
 {
 	extern meTypeDescriptor TD_MAID;
+	extern meTypeDescriptor TD_MEASSET;
 	for (u32 i = 0; i < typeDesc.fields.size && *outCount < maxFields; i++)
 	{
 		const meTypeDescriptor& field = typeDesc.fields[i];
@@ -159,6 +160,14 @@ static void CollectMAIDFields(const meTypeDescriptor& typeDesc, u8* basePtr,
 			info.fieldIndex = baseFieldIdx + i;
 			outFields[(*outCount)++] = info;
 		}
+		else if (fieldType == &TD_MEASSET)
+		{
+			MAIDFieldInfo info = {};
+			info.field = &field;
+			info.maidPtr = &((meAsset*)fieldData)->id;
+			info.fieldIndex = baseFieldIdx + i;
+			outFields[(*outCount)++] = info;
+		}
 		else if (fieldType->fields.size > 0)
 		{
 			CollectMAIDFields(*fieldType, fieldData, outFields, outCount, maxFields, baseFieldIdx + i * 100);
@@ -171,6 +180,7 @@ static void DrawEntityNode(EntityRef ref, EntityData& entity,
 {
 	extern meTypeDescriptor TD_ENTITYDATA;
 	extern meTypeDescriptor TD_MAID;
+	extern meTypeDescriptor TD_MEASSET;
 	
 	ed::BeginNode(MakeEntityNodeId(ref));
 	
@@ -195,7 +205,7 @@ static void DrawEntityNode(EntityRef ref, EntityData& entity,
 		const meTypeDescriptor* fieldType = field.thisType;
 		if (!fieldType) continue;
 		
-		if (fieldType == &TD_MAID) continue; // MAID fields become output pins
+		if (fieldType == &TD_MAID || fieldType == &TD_MEASSET) continue; // asset reference fields become output pins
 		
 		const char* displayName = field.editorName.data ? field.editorName.cstr() : field.name.cstr();
 		

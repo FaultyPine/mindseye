@@ -17,7 +17,7 @@ void testbed_onsceneload(meEventPayload payload)
 	EntityData& entity = Entity::GetEntity(testEntity);
 	entity.transform = meTransform(glm::vec3(sin(GetTimeUsec()) * 5.0, cos(GetTimeUsec()) * 5.0, 0.0));
 	//Entity::SetFlag(entity, EntityFlags_NoSer, true);
-	entity.mesh = meAssetRegisterRuntime(GenPlaneMesh(2), MAMesh);
+	entity.mesh = meAsset(GenPlaneMesh(2));
 }
 
 void testbed_init(EngineContext* engine)

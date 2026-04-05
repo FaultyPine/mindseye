@@ -47,7 +47,7 @@ struct MEREFLECT(type) EntityData
     
     meTransform transform = {};
     MEREFLECT(tooltip = "The 'appearance' of the entity")
-    MAID mesh = MAID::Of<MAMesh>();
+    meAsset mesh = meAsset(MAID::Of<MAMesh>());
 	// gameplay-focused bounds. Rendering bounds including anims may be different (stored on mesh)
     BoundingBox authoritativeBounds = {}; 
     EntityFlags flags = 0;

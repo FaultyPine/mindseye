@@ -116,29 +116,6 @@ MAID meAssetCreateNewAssetID(meAssetType type)
 	return newMaid;
 }
 
-MAID meAssetRegisterRuntime(Eye handle, meAssetType type)
-{
-	meAssetSystem& assetSystem = meAssetSystemGet();
-    MAID newMaid = {};
-    if (handle)
-    {
-        u32 baseIdNum = assetSystem.dynamicAssetIdx++;
-        u32 randomNum = HashBytes((u8*)&baseIdNum, sizeof(baseIdNum));
-        newMaid =  MAID(randomNum, type);
-    }
-    else
-    {
-        newMaid.SetType(type);
-    }
-	meAsset newAsset = meAsset(handle, newMaid);
-	meAssetTypeRegistry& reg = assetSystem.registries[type];
-	RWLockWrite lock(reg.lock);
-    // make sure we aren't stomping on an existing one
-    ME_ASSERT(reg.assets.find(newMaid) == reg.assets.end());
-	reg.assets[newMaid] = newAsset;
-	return newMaid;
-}
-
 meAsset meAssetCreateNew(
 	meAssetType type,
 	StringView filename)

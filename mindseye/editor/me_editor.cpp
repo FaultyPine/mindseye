@@ -393,10 +393,18 @@ static bool DrawTypeDescriptorField(const meTypeDescriptor& field, u8* dataPtr)
 
 	const char* displayName = field.editorName.data ? field.editorName.cstr() : field.name.cstr();
 
-	// Special case: MAID asset reference - show an asset browser combo
+	// Special case: MAID or meAsset asset reference - show an asset browser combo
+	MAID* maid = nullptr;
 	if (fieldType == &TD_MAID)
 	{
-		MAID* maid = (MAID*)fieldData;
+		maid = (MAID*)fieldData;
+	}
+	else if (fieldType == &TD_MEASSET)
+	{
+		maid = &((meAsset*)fieldData)->id;
+	}
+	if (maid)
+	{
 		meAssetType assetType = maid->GetType();
 
 		ImGui::TableNextRow();
