@@ -36,7 +36,8 @@ static void HandleSaveCurrentScene(const meCmdSaveCurrentScene& cmd)
 		return;
 	}
 
-	if (!meAssetIndexGetFilesystemPath(asset->id) && cmd.path)
+    StringView fsPath = meAssetIndexGetFilesystemPath(asset->id);
+	if (!fsPath && cmd.path)
 	{
 		StringView sceneFile = cmd.path;
 		meFsNormalizePathSeperators(sceneFile);

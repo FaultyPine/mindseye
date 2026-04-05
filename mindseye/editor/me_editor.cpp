@@ -223,7 +223,8 @@ void meEditorTick(EngineContext* engine)
 				// kept in outer scope so the string data outlives the command dispatch
 				std::vector<std::string> openFileResult;
 				meScene& currentScene = engine->sceneSystem->CurrentScene();
-                if (!meAssetIndexGetFilesystemPath(currentScene.header))
+                StringView fsPath = meAssetIndexGetFilesystemPath(currentScene.header);
+                if (!fsPath)
                 {
                     openFileResult = pfd::open_file("Location to save the scene file", ".").result();
                     if (!openFileResult.empty())
