@@ -164,14 +164,6 @@ struct MEREFLECT(type) meAsset
 
 struct meAssetLoader
 {
-	// TODO: these could have defaults that just 
-	// serializes/deserializes opaquely. Systems can then add their own custom stuff
-	// and call into this base functionality
-	// additionally in order to do the above, there should be a "generic" way to access
-	// each asset's resourcepool by just the meAssetType
-	// instead of bespoke pointers in the EngineContext, there should be a list NUM_ASSET_TYPES large of meResourcePool* base classes
-	// TODO: put the resourcepool in this struct!
-
     // called on asset threads
 	virtual void meAssetLoad(meAsset&);
 	// TODO: return a serialized buffer, rather than writing to disk inside this func
@@ -190,12 +182,18 @@ struct meAssetLoader
 	meAssetType assetType = MABadData;
 };
 
+struct meAssetTypeRegistry
+{
+	RWLock lock = {};
+	meMap<MAID, meAsset> assets = {};
+};
+
 struct meAssetSystem
 {
 	// relative to working dir
 	String resourceDir = {};
-	RWLock assetRegistryLock = {};
-    meMap<MAID, meAsset> assetRegistry = {};
+	// per-asset-type registries, each with their own RWLock
+	meArray<meAssetTypeRegistry, NUM_ASSET_TYPES> registries = {};
     // meAssetType -> loader
     meArray<meAssetLoader*, NUM_ASSET_TYPES> assetLoaders = {};
 	meJobSystem assetCompilerJobs = {}; // TODO: replace this with a unified job system which should have multiple "queue" types
@@ -203,6 +201,7 @@ struct meAssetSystem
     meEvent assetFinishedLoadingEvent = {};
 	meEvent assetBeganWritingEvent = {};
 	meEvent assetFinishedWritingEvent = {};
+    // for assets "discovered" at runtime, used for giving them a unique id
     u32 dynamicAssetIdx = 0xDED;
 };
 

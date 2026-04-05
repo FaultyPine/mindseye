@@ -65,7 +65,10 @@ StringView meAssetGetProjectRootResourceDir(EngineContext* engine)
 void meAssetInitialize(EngineContext* engine)
 {
     engine->assetSystem = MENEW(&engine->engineArena, meAssetSystem);
-	engine->assetSystem->assetRegistry.reserve(500);
+	for (u32 i = 0; i < NUM_ASSET_TYPES; i++)
+	{
+		engine->assetSystem->registries[i].assets.reserve(100);
+	}
     const CommandLineArgs& cmdline = GetCommandLineArgs();
 	if (cmdline.hasResourceDir)
 	{
@@ -117,7 +120,6 @@ MAID meAssetRegisterRuntime(Eye handle, meAssetType type)
 {
 	meAssetSystem& assetSystem = meAssetSystemGet();
     MAID newMaid = {};
-	RWLockWrite lock(assetSystem.assetRegistryLock);
     if (handle)
     {
         u32 baseIdNum = assetSystem.dynamicAssetIdx++;
@@ -129,9 +131,11 @@ MAID meAssetRegisterRuntime(Eye handle, meAssetType type)
         newMaid.SetType(type);
     }
 	meAsset newAsset = meAsset(handle, newMaid);
+	meAssetTypeRegistry& reg = assetSystem.registries[type];
+	RWLockWrite lock(reg.lock);
     // make sure we aren't stomping on an existing one
-    ME_ASSERT(assetSystem.assetRegistry.find(newMaid) == assetSystem.assetRegistry.end());
-	assetSystem.assetRegistry[newMaid] = newAsset;
+    ME_ASSERT(reg.assets.find(newMaid) == reg.assets.end());
+	reg.assets[newMaid] = newAsset;
 	return newMaid;
 }
 
@@ -151,8 +155,9 @@ meAsset meAssetCreateNew(
 	MAID* assetHeader = (MAID*)opaqueAssetData;
 	*assetHeader = newMaid;
 	meAsset newAsset = meAsset(newRuntimeResource, newMaid);
-	RWLockWrite lock(assetSystem.assetRegistryLock);
-	assetSystem.assetRegistry[newMaid] = newAsset; // copy
+	meAssetTypeRegistry& reg = assetSystem.registries[type];
+	RWLockWrite lock(reg.lock);
+	reg.assets[newMaid] = newAsset; // copy
 	return meMove(newAsset);
 }
 
@@ -206,8 +211,9 @@ meJobId meAssetRequestLoad(
 		{
 			{ // add the slot in, and mark it as "loading"
 				meAsset notYetLoadedData = meAsset(assetIdent, Loading);
-				RWLockWrite lock(assetSystem.assetRegistryLock);
-				assetSystem.assetRegistry[assetIdent] = notYetLoadedData;
+				meAssetTypeRegistry& reg = assetSystem.registries[assetType];
+				RWLockWrite lock(reg.lock);
+				reg.assets[assetIdent] = notYetLoadedData;
 			}
 			struct AssetCompilerJobData
 			{
@@ -391,9 +397,10 @@ void meAssetLoader::meAssetWrite(meAsset& asset)
 meAsset* meAssetTryGet(MAID assetID)
 {
 	meAssetSystem& assetSystem = meAssetSystemGet();
-	RWLockRead(assetSystem.assetRegistryLock);
-	auto it = assetSystem.assetRegistry.find(assetID);
-	if (it == assetSystem.assetRegistry.end())
+	meAssetTypeRegistry& reg = assetSystem.registries[assetID.GetType()];
+	RWLockRead(reg.lock);
+	auto it = reg.assets.find(assetID);
+	if (it == reg.assets.end())
 	{
 		return nullptr;
 	}
