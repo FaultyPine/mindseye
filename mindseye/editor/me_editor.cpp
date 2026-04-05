@@ -222,20 +222,17 @@ void meEditorTick(EngineContext* engine)
 				// if the scene has no disk path yet, ask the user for one
 				// kept in outer scope so the string data outlives the command dispatch
 				std::vector<std::string> openFileResult;
-				meScene* currentScene = &engine->sceneSystem->CurrentScene();
-				if (meAsset* asset = meAssetTryGet(currentScene->header))
-				{
-					if (!meAssetIndexGetFilesystemPath(asset->id))
-					{
-						openFileResult = pfd::open_file("Location to save the scene file", ".").result();
-						if (!openFileResult.empty())
-						{
-							ME_ASSERT(openFileResult.size() == 1);
-							const char* fileCstr = openFileResult[0].c_str();
-							cmd.saveCurrentScene.path = StringFromCString(fileCstr);
-						}
-					}
-				}
+				meScene& currentScene = engine->sceneSystem->CurrentScene();
+                if (!meAssetIndexGetFilesystemPath(currentScene.header))
+                {
+                    openFileResult = pfd::open_file("Location to save the scene file", ".").result();
+                    if (!openFileResult.empty())
+                    {
+                        ME_ASSERT(openFileResult.size() == 1);
+                        const char* fileCstr = openFileResult[0].c_str();
+                        cmd.saveCurrentScene.path = StringFromCString(fileCstr);
+                    }
+                }
 				meReceiveExternalCommand(cmd);
             }
 			if (ImGui::BeginMenu("Entity"))
