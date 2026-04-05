@@ -152,8 +152,90 @@ void BgfxRendererBackend::Initialize(EngineContext* engine)
 }
 
 
+static void DestroyMeshGPUResources(meMesh& mesh)
+{
+	if (mesh.vertBuffer.bufferHandle != U32_INVALID_ID)
+	{
+		bgfx::destroy(bgfx::VertexBufferHandle{ static_cast<u16>(mesh.vertBuffer.bufferHandle) });
+		mesh.vertBuffer.bufferHandle = U32_INVALID_ID;
+	}
+	if (mesh.idxBuffer.bufferHandle != U32_INVALID_ID)
+	{
+		bgfx::destroy(bgfx::IndexBufferHandle{ static_cast<u16>(mesh.idxBuffer.bufferHandle) });
+		mesh.idxBuffer.bufferHandle = U32_INVALID_ID;
+	}
+	if (mesh.normBuffer.bufferHandle != U32_INVALID_ID)
+	{
+		bgfx::destroy(bgfx::VertexBufferHandle{ static_cast<u16>(mesh.normBuffer.bufferHandle) });
+		mesh.normBuffer.bufferHandle = U32_INVALID_ID;
+	}
+	if (mesh.texcoordBuffer.bufferHandle != U32_INVALID_ID)
+	{
+		bgfx::destroy(bgfx::VertexBufferHandle{ static_cast<u16>(mesh.texcoordBuffer.bufferHandle) });
+		mesh.texcoordBuffer.bufferHandle = U32_INVALID_ID;
+	}
+}
+
+static void DestroyTextureGPUResources(meTexture& tex)
+{
+	if (tex.buffer.bufferHandle != U32_INVALID_ID)
+	{
+		bgfx::destroy(bgfx::TextureHandle{ static_cast<u16>(tex.buffer.bufferHandle) });
+		tex.buffer.bufferHandle = U32_INVALID_ID;
+	}
+	if (tex.sampler != U64_INVALID_ID)
+	{
+		bgfx::destroy(bgfx::UniformHandle{ static_cast<u16>(tex.sampler) });
+		tex.sampler = U64_INVALID_ID;
+	}
+}
+
+static void DestroyShaderGPUResources(meShader& shader)
+{
+	if (shader.program != 0)
+	{
+		bgfx::destroy(bgfx::ProgramHandle{ static_cast<u16>(shader.program) });
+		shader.program = 0;
+	}
+	for (DynArray_Foreach(shader.uniformHandles, i))
+	{
+		meShaderUniform& uniform = shader.uniformHandles[i];
+		if (uniform.handle != 0)
+		{
+			bgfx::destroy(bgfx::UniformHandle{ static_cast<u16>(uniform.handle) });
+			uniform.handle = 0;
+		}
+	}
+}
+
 void BgfxRendererBackend::Teardown(EngineContext* engine)
 {
+	// Destroy all GPU resources from pools before shutting down bgfx
+	{
+		meMeshPool& meshPool = meMeshPoolGet();
+		// NOTE: mesh badData is a copy of a pool entry (see meMeshInitialize),
+		// so we skip it here to avoid double-destroying the same handles.
+		for (auto& slot : meshPool.resourcePool)
+			DestroyMeshGPUResources(slot.obj);
+	}
+	{
+		meTexturePool& texPool = meTextureGetPool();
+		DestroyTextureGPUResources(texPool.GetBadData());
+		for (auto& slot : texPool.resourcePool)
+			DestroyTextureGPUResources(slot.obj);
+	}
+	{
+		meShaderPool& shaderPool = meShaderGetPool();
+		DestroyShaderGPUResources(shaderPool.GetBadData());
+		for (auto& slot : shaderPool.resourcePool)
+			DestroyShaderGPUResources(slot.obj);
+	}
+
+	// Destroy the screen-space quad sampler if it was created
+	if (screenQuadSampler.idx != bgfx::kInvalidHandle)
+		bgfx::destroy(screenQuadSampler);
+
+	ddShutdown();
     imguiDestroy();
     bgfx::shutdown();
 }
@@ -257,7 +339,7 @@ u64 BgfxRendererBackend::CreateShaderProgram(meSpan fsMem, meSpan vsMem)
 
 	bgfx::ShaderHandle fsHandle = bgfx::createShader(fsmem);
 	bgfx::ShaderHandle vsHandle = bgfx::createShader(vsmem);
-	bgfx::ProgramHandle program = bgfx::createProgram(vsHandle, fsHandle);
+	bgfx::ProgramHandle program = bgfx::createProgram(vsHandle, fsHandle, true);
 	if (!bgfx::isValid(program))
 	{
 		LOG_ERROR("Shader program was ill-formed somehow...");
@@ -267,7 +349,7 @@ u64 BgfxRendererBackend::CreateShaderProgram(meSpan fsMem, meSpan vsMem)
 
 void BgfxRendererBackend::DestroyShaderProgram(u64 programHandle)
 {
-	bgfx::destroy(static_cast<bgfx::ShaderHandle>(programHandle));
+	bgfx::destroy(bgfx::ProgramHandle{ static_cast<u16>(programHandle) });
 }
 
 u64 BgfxRendererBackend::UploadTextureToGPU(meSpan textureMem, u32 channels, u32 width, u32 height)
@@ -287,8 +369,6 @@ void BgfxRendererBackend::DestroyGPUTexture(u64 textureHandle)
 {
 	bgfx::destroy(static_cast<bgfx::TextureHandle>(textureHandle));
 }
-
-void renderScreenSpaceQuad(const glm::mat4& proj, uint8_t _view, bgfx::ProgramHandle _program, float _x, float _y, float _width, float _height, bgfx::TextureHandle tex);
 
 void* BgfxRendererBackend::RenderScene(RenderInput* input)
 {
@@ -419,7 +499,7 @@ void BgfxRendererBackend::Push2DBox(
 
 bgfx::VertexLayout PosTexCoord0Vertex::ms_layout;
 
-void renderScreenSpaceQuad(const glm::mat4& proj,
+void BgfxRendererBackend::renderScreenSpaceQuad(const glm::mat4& proj,
 						   uint8_t _view, 
 						   bgfx::ProgramHandle _program, 
 						   float _x, float _y, float _width, float _height, 
@@ -427,12 +507,11 @@ void renderScreenSpaceQuad(const glm::mat4& proj,
 {
 	bgfx::TransientVertexBuffer tvb;
 	bgfx::TransientIndexBuffer tib;
-	static bgfx::UniformHandle sampler = bgfx::UniformHandle(bgfx::kInvalidHandle);
-	if (sampler.idx == bgfx::kInvalidHandle)
+	if (screenQuadSampler.idx == bgfx::kInvalidHandle)
 	{
 		PosTexCoord0Vertex::init();
 		StringView uniformName = meMaterialGetTextureTypeName(Diffuse);
-		sampler = bgfx::createUniform(uniformName.cstr(), bgfx::UniformType::Sampler);
+		screenQuadSampler = bgfx::createUniform(uniformName.cstr(), bgfx::UniformType::Sampler);
 	}
 	if (bgfx::allocTransientBuffers(&tvb, PosTexCoord0Vertex::ms_layout, 4, &tib, 6) )
 	{
@@ -497,7 +576,7 @@ void renderScreenSpaceQuad(const glm::mat4& proj,
 					   | BGFX_STATE_DEPTH_TEST_LESS 
 					   //| BGFX_STATE_CULL_CCW 
 					   | BGFX_STATE_MSAA);
-		bgfx::setTexture(0, sampler, tex);
+		bgfx::setTexture(0, screenQuadSampler, tex);
 		bgfx::setIndexBuffer(&tib);
 		bgfx::setVertexBuffer(0, &tvb);
 		bgfx::submit(_view, _program);

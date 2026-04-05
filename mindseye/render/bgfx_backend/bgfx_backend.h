@@ -29,4 +29,8 @@ struct BgfxRendererBackend : public RendererFrontend
 	// NOTE: textureMem must live at least 2 bgfx::frame calls past this point. (I.E. we do not copy the data, we give bgfx just the pointer...)
 	virtual u64 UploadTextureToGPU(meSpan textureMem, u32 channels, u32 width, u32 height) override;
 	virtual void DestroyGPUTexture(u64 textureHandle) override;
+
+	void renderScreenSpaceQuad(const glm::mat4& proj, uint8_t _view, bgfx::ProgramHandle _program, float _x, float _y, float _width, float _height, bgfx::TextureHandle tex);
+
+	bgfx::UniformHandle screenQuadSampler = bgfx::UniformHandle(bgfx::kInvalidHandle);
 };
