@@ -45,10 +45,7 @@ static void HandleSaveCurrentScene(const meCmdSaveCurrentScene& cmd)
 		meAssetIndexRegisterRelation(sceneFile, asset->id);
 	}
 
-	if (meAssetIndexGetFilesystemPath(asset->id))
-	{
-		meAssetRequestWrite(meSpanTyped<MAID>(&currentScene->header, 1));
-	}
+    meAssetRequestWrite(meSpanTyped<MAID>(&currentScene->header, 1));
 }
 
 static void HandleCreateEntity(const meCmdCreateEntity& cmd)
