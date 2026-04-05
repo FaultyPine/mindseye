@@ -134,33 +134,37 @@ static meAllocator* GetStringAllocator()
 
 String& String::operator=(const StringView& other)
 {
-	// Free existing data
-	if (allocator && data)
-	{
-		MEFREE(allocator, data);
-	}
-
 	if (!allocator)
 	{
 		allocator = GetStringAllocator();
 	}
+
+	// Allocate and copy new data before freeing — other.data may alias our buffer
+	char* oldData = data;
 	CopyOf(other, allocator);
+
+	if (oldData && oldData != data)
+	{
+		MEFREE(allocator, oldData);
+	}
 	return *this;
 }
 
 String& String::operator=(const StringBuilder& other)
 {
-	// Free existing data
-	if (allocator && data)
-	{
-		MEFREE(allocator, data);
-	}
-
 	if (!allocator)
 	{
 		allocator = other.allocator ? other.allocator : GetStringAllocator();
 	}
+
+	// Allocate and copy new data before freeing — other.data may alias our buffer
+	char* oldData = data;
 	CopyOf(StringView(other.data, other.len), allocator);
+
+	if (oldData && oldData != data)
+	{
+		MEFREE(allocator, oldData);
+	}
 	return *this;
 }
 
