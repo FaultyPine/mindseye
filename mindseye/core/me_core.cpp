@@ -67,6 +67,7 @@ f32 GetRandomf(f32 start, f32 end)
 }
 
 // returns the current time since app launch
+#ifndef ME_CORE_ONLY
 f64 GetTimeUsec() 
 {
 	f64 result = GetEngineCtx()->osData->GetTicksUsec();
@@ -78,6 +79,7 @@ f64 GetTimeSec()
 	f64 result = GetTimeUsec() / 1000000.0;
 	return result;
 }
+#endif
 
 
 u64 HashBytesL(u8* data, u32 size)
