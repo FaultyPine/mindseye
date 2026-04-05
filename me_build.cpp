@@ -651,7 +651,9 @@ int main(int argc, char** argv)
 	}
 	nob_set_current_dir("build");
 
-	BuildResult pchBuildRes = pchBuild.build();
+    const char* definesFilepath = nob_temp_sprintf("%s/mindseye/core/me_defines.h", root);
+    bool forcePchRebuild = nob_needs_rebuild(pchBuild.output.data, &definesFilepath, 1) > 0;
+	BuildResult pchBuildRes = pchBuild.build(forcePchRebuild);
 	CHECK_BUILD_RESULT(pchBuildRes);
 	bool builtPch = pchBuildRes == BUILD_SUCCEEDED;
 

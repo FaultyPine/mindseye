@@ -47,6 +47,7 @@ typedef wchar_t wchar;
 #error "Unrecogized platform"
 #endif
 
+#define ME_CACHELINE_SIZE 64
 
 #if defined(COMPILER_CLANG) || defined(COMPILER_GCC)
 #define STATIC_ASSERT _Static_assert
