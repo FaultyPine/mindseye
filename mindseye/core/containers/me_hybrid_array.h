@@ -84,7 +84,15 @@ struct HybridArray
     MEAPI u32 size() const;
     // sets size to 0 - does not zero out internal memory or do any deallocation
     MEAPI void clear();
- 
+    const T& operator[](u32 i) const
+    {
+        return at(i);
+    }
+    T& operator[](u32 i)
+    {
+        return at(i);
+    }
+
     MEAPI inline T* get_elements() { return elements; }
 
     // this points to the current array of elements.
