@@ -34,6 +34,11 @@ struct SerializeContext
 	const meTypeDescriptor* parentType = {};
 };
 
+struct EditorRenderContext
+{
+    u8* data = nullptr;
+};
+
 // type flags bitfield
 typedef s32 meTypeDescriptorFlags;
 #define DECLARE_METYPEDESCRIPTOR_FLAGS \
@@ -59,9 +64,13 @@ StringView meTypeDescriptorFlagToString(meTypeDescriptorFlags flag);
 typedef void(*SerializerFn)(
 	const meTypeDescriptor& typeDescriptor,
 	SerializeContext& ctx);
+
 typedef bool(*DeserializerFn)(
 	const meTypeDescriptor& typeDescriptor,
 	DeserializeContext& ctx);
+
+typedef void (*EditorRenderFn)(
+    EditorRenderContext& ctx);
 
 struct meTypeDescriptor
 {
@@ -97,6 +106,7 @@ struct meTypeDescriptor
 	// be called instead of default primitive serialization funcs
 	SerializerFn serializerFn = nullptr;
 	DeserializerFn deserializerFn = nullptr;
+    EditorRenderFn editorRenderFn = nullptr;
 
 	bool operator==(const meTypeDescriptor& other) const
 	{

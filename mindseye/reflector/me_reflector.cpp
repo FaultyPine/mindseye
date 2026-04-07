@@ -90,6 +90,7 @@ struct meReflectedType
 	meTypeDescriptorFlags flags = 0;
 	StringView serializerFnName = {};
 	StringView deserializerFnName = {};
+	StringView editorRenderFnName = {};
 
 	void Print() const;
 	bool operator==(const meReflectedType& other) const
@@ -631,6 +632,9 @@ void StoreReflectedTypeInfo(
 
 		StringView deserializerParam = GetStringParam(STRING_LIT("Deserializer"), macroContent);
 		reflType.deserializerFnName = deserializerParam;
+
+        StringView editorRenderParam = GetStringParam(STRING_LIT("EditorRender"), macroContent);
+		reflType.editorRenderFnName = editorRenderParam;
 
 		SET_BIT(reflType.flags, meTypeDescriptorFlag_Excluded, reflType.IsExcluded() || excluded);
 	}
@@ -1324,6 +1328,10 @@ bool ProcessReflectedFile(
 			{
 				mainTypeDescriptorContent.AppendFormat("\t.deserializerFn = " STRING_FMT ",\n", STRING_VAARGS(typeRefl.deserializerFnName));
 			}
+            if (typeRefl.editorRenderFnName)
+            {
+				mainTypeDescriptorContent.AppendFormat("\t.editorRenderFn = " STRING_FMT ",\n", STRING_VAARGS(typeRefl.editorRenderFnName));
+            }
 
 			sourceContentBuilder.AppendFormat("meTypeDescriptor TD_%.*s = {\n%.*s};\n", STRING_VAARGS(uppercaseName), STRING_VAARGS(mainTypeDescriptorContent));
 			generatedAny = true;
