@@ -60,6 +60,7 @@ DynArray<T> DynArrayCreate(
 template<typename T>
 void DynArrayDestroy(DynArray<T>& array)
 {
+    if (!array.data) return;
     // since header info is stored before the array pointer, move back to the beginning of the allocation to free it
     DynArrayHeader* baseArrayPtr = GetHeaderPointer(array);
     DynArrayInternalFree(baseArrayPtr->allocator, Allocation(baseArrayPtr, baseArrayPtr->size));
