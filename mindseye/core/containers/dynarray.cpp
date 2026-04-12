@@ -154,6 +154,7 @@ void __DynArrayPopAt(DynArray<T>& array, u32 index, void* out)
     DynArrayHeader* header = GetHeaderPointer(array);
     u32 arrSize = header->size;
     u32 stride = header->stride;
+    ME_ASSERT(stride == sizeof(T)); // i don't think we're going to need to pop for an opaque dynarray but if we do, need a similar line as in DynArrayPushAt
 #if ARRAY_CHECKS
     if (index >= arrSize)
     {
