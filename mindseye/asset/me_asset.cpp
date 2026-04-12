@@ -103,6 +103,7 @@ void meAssetRegisterLoader(meAssetLoader* loader)
 	ME_ASSERT(loader->resourcePool != nullptr);
 	ME_ASSERT(loader->assetTypeDesc != nullptr);
     // any "asset" must have a header with it's own asset id
+    // if you hit this assert, make sure your asset struct has ME_ASSET_STRUCTURE as the first field
 	ME_ASSERT(loader->assetTypeDesc->fields[0].thisType == &TD_MAID);
 	assetSystem.assetLoaders[type] = loader;
 }
@@ -122,21 +123,33 @@ meAsset meAssetCreateNew(
 	StringView filename)
 {
     meAssetSystem& assetSystem = meAssetSystemGet();
-	meAssetLoader* loader = assetSystem.assetLoaders[type];
-	ME_ASSERT(loader);
 	MAID newMaid = meAssetCreateNewAssetID(type);
 	StringView relPath = meAssetGetRelPathForResource(filename);
 	meAssetIndexRegisterRelation(relPath, newMaid);
+
+	meAssetLoader* loader = assetSystem.assetLoaders[type];
+	ME_ASSERT(loader);
 	meResourcePoolBase* resourcePool = loader->resourcePool;
 	Eye newRuntimeResource = resourcePool->Load();
 	void* opaqueAssetData = resourcePool->GetOpaque(newRuntimeResource);
 	MAID* assetHeader = (MAID*)opaqueAssetData;
 	*assetHeader = newMaid;
+
 	meAsset newAsset = meAsset(newRuntimeResource, newMaid);
 	meAssetTypeRegistry& reg = assetSystem.registries[type];
 	RWLockWrite lock(reg.lock);
 	reg.assets[newMaid] = newAsset; // copy
 	return meMove(newAsset);
+}
+
+Eye meAssetCreateNewResource(meAssetType type)
+{
+    meAssetSystem& assetSystem = meAssetSystemGet();
+	meAssetLoader* loader = assetSystem.assetLoaders[type];
+	ME_ASSERT(loader);
+	meResourcePoolBase* resourcePool = loader->resourcePool;
+	Eye newRuntimeResource = resourcePool->Load();
+    return newRuntimeResource;
 }
 
 MAID::MAID(u64 id, meAssetType type)

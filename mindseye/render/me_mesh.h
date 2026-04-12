@@ -22,15 +22,23 @@ enum meMeshVertexLayoutType_
 	meMeshVertexLayoutType_Weights,
 };
 
-struct meMesh
+struct MEREFLECT(type) meMesh
 {
+    ME_ASSET_STRUCTURE(meMesh);
+    
 	String name;
+    MEREFLECT(exclude)
 	meGPUBuffer vertBuffer = {};
+    MEREFLECT(exclude)
 	meGPUBuffer idxBuffer = {};
+    MEREFLECT(exclude)
 	meGPUBuffer normBuffer = {};
+    MEREFLECT(exclude)
 	meGPUBuffer texcoordBuffer = {};
+    MEREFLECT(exclude)
 	BoundingBox meshBounds = {};
-
+    
+    MEREFLECT(exclude)
 	meMaterialID materialHandle = {};
 
 	bool IsLoaded() const { return vertBuffer.IsValid(); }
@@ -67,7 +75,8 @@ struct meMeshPool : public meResourcePool<meMesh>
 		StringView gltfResPath,
 		const cgltf_mesh& inMesh);
 
-	meMeshID Load(
+	void Load(
+        meMeshID outMeshHandle,
 		meSpan vertBuffer,
 		meSpan idx16Buffer,
 		meSpan normBufferOpt = {},
@@ -81,6 +90,6 @@ void meMeshInitialize(EngineContext* engine);
 
 meMeshPool& meMeshPoolGet();
 
-MEAPI meMeshID GenCubeMesh(u32 resolution, meMaterialID materialID = {});
-MEAPI meMeshID GenSphereMesh(u32 resolution, meMaterialID materialID = {});
-MEAPI meMeshID GenPlaneMesh(u32 resolution, meMaterialID materialID = {});
+MEAPI void GenCubeMesh(meMeshID outMeshHandle, u32 resolution, meMaterialID materialID = {});
+MEAPI void GenSphereMesh(meMeshID outMeshHandle, u32 resolution, meMaterialID materialID = {});
+MEAPI void GenPlaneMesh(meMeshID outMeshHandle, u32 resolution, meMaterialID materialID = {});

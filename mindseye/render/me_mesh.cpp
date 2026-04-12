@@ -14,12 +14,7 @@
 void meMeshInitialize(EngineContext* engine)
 {
 	engine->meshSystem = MENEW(&engine->engineArena, meMeshPool, &engine->engineArena, &engine->engineArena);
-	meMesh defaultBadDataMesh = {};
-	defaultBadDataMesh.name = StringFromCString("BadDataMesh");
-	// TODO: cube?
-	meMeshID defaultMesh = GenCubeMesh(2);
-	// we technically are "leaking" the default mesh id here.
-	engine->meshSystem->GetBadData() = meMeshPoolGet().Get(defaultMesh);
+	GenCubeMesh(EYE_INVALID, 2); // Bad data mesh is a cube
 }
 
 meMeshPool& meMeshPoolGet()
@@ -29,7 +24,8 @@ meMeshPool& meMeshPoolGet()
 
 
 
-meMeshID meMeshPool::Load(
+void meMeshPool::Load(
+    meMeshID outMeshHandle,
 	meSpan vertBuffer,
 	meSpan idx16Buffer,
 	meSpan normBufferOpt,
@@ -39,8 +35,7 @@ meMeshID meMeshPool::Load(
 {
 	meMeshPool& meshPool = meMeshPoolGet();
 	RendererFrontend& renderer = RendererGetMain();
-	meMeshID meshHandle = meshPool.CreateInternal();
-	meMesh& outMesh = meshPool.Get(meshHandle);
+	meMesh& outMesh = meshPool.Get(outMeshHandle);
 	
 	outMesh.vertBuffer.cpuData = vertBuffer;
 	outMesh.vertBuffer.bufferHandle = renderer.CreateVertexBuffer(outMesh.vertBuffer.cpuData, NTH_BIT(meMeshVertexLayoutType_Position));
@@ -65,8 +60,6 @@ meMeshID meMeshPool::Load(
 
 	outMesh.materialHandle = materialIDOpt;
 	outMesh.name = nameOpt;
-
-	return meshHandle;
 }
 
 meMeshID meMeshPool::Load(
@@ -193,7 +186,8 @@ meMeshID meMeshPool::Load(
 }
 
 
-MEAPI meMeshID GenCubeMesh(
+MEAPI void GenCubeMesh(
+    meMeshID outMeshHandle,
     u32 resolution, 
     meMaterialID materialID)
 {
@@ -227,13 +221,13 @@ MEAPI meMeshID GenCubeMesh(
 	float aabb[6];
 	par_shapes_compute_aabb(cube, aabb);
 
-	meMeshID meshHandle = meshPool.Load(verticesData, {}, normalsData, texcoordData, materialID, STRING_LIT("GeneratedCubeMesh"));
-	meMesh& outMesh = meshPool.Get(meshHandle);
+	meshPool.Load(outMeshHandle, verticesData, {}, normalsData, texcoordData, materialID, STRING_LIT("GeneratedCubeMesh"));
+	meMesh& outMesh = meshPool.Get(outMeshHandle);
 	outMesh.meshBounds = BoundingBox(glm::vec3(aabb[0], aabb[1], aabb[2]), glm::vec3(aabb[3], aabb[4], aabb[5]));
-    return meshHandle;
 }
 
-meMeshID GenPlaneMesh(
+void GenPlaneMesh(
+    meMeshID outMeshHandle,
     u32 resolution,
     meMaterialID materialID) 
 {
@@ -273,14 +267,14 @@ meMeshID GenPlaneMesh(
 	float aabb[6];
 	par_shapes_compute_aabb(plane, aabb);
 
-	meMeshID meshHandle = meshPool.Load(verticesData, {}, normalsData, texcoordData, materialID, STRING_LIT("GeneratedPlaneMesh"));
-	meMesh& outMesh = meshPool.Get(meshHandle);
+	meshPool.Load(outMeshHandle, verticesData, {}, normalsData, texcoordData, materialID, STRING_LIT("GeneratedPlaneMesh"));
+	meMesh& outMesh = meshPool.Get(outMeshHandle);
 	outMesh.meshBounds = BoundingBox(glm::vec3(aabb[0], aabb[1], aabb[2]), glm::vec3(aabb[3], aabb[4], aabb[5]));
-	return meshHandle;
 }
 
 
-meMeshID GenSphereMesh(
+void GenSphereMesh(
+    meMeshID outMeshHandle,
     u32 resolution,
     meMaterialID materialID)
 {
@@ -364,8 +358,21 @@ meMeshID GenSphereMesh(
     //indices.shrink_to_fit();
 	meSpan vertexSpan = meSpan((s8*)vertices.data, DynArrayGetSize(vertices) * sizeof(*vertices));
 	meSpan indexSpan = meSpan((s8*)indices.data, DynArrayGetSize(indices) * sizeof(*indices));
-    meMeshID result = meshPool.Load(vertexSpan, indexSpan, {}, {}, materialID, STRING_LIT("GeneratedSphereMesh"));
-	meMesh& outMesh = meshPool.Get(result);
+    meshPool.Load(outMeshHandle, vertexSpan, indexSpan, {}, {}, materialID, STRING_LIT("GeneratedSphereMesh"));
+	meMesh& outMesh = meshPool.Get(outMeshHandle);
 	outMesh.meshBounds = BoundingBox(glm::vec3(-radius, -radius, -radius), glm::vec3(radius, radius, radius));
-	return result;
 }
+
+
+struct meMeshAssetLoader : public meAssetLoader
+{
+	using meAssetLoader::meAssetLoader;
+
+	static void RegisterAssetLoader(meEventPayload payload)
+	{
+		meAllocator* allocator = (meAllocator*)payload.payload;
+		meAssetRegisterLoader(MENEW(allocator, meMeshAssetLoader, &TD_MEMESH, &meMeshPoolGet(), meAssetType::MAMesh));
+	}
+};
+
+MEEVENT_REGISTER_STATIC(registerAssetLoader, meMeshAssetLoader::RegisterAssetLoader);

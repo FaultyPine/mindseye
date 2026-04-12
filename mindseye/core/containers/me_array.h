@@ -5,6 +5,10 @@
 template <typename T, u32 N>
 struct meArray
 {
+    meArray()
+    {
+        size = N;
+    }
 	const T& operator[](u32 idx) const
 	{
 		ME_ASSERT(idx < N);

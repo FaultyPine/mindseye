@@ -8,7 +8,7 @@
 struct Eye
 {
 	// currently 24 bits for index, 8 bits for generation
-	u32 eye = U32_INVALID_ID;
+	u32 eye = 0;
 
 	static constexpr u32 IndexNumBits = 24;
 	static constexpr u32 IndexBitsMask = (1 << IndexNumBits) - 1;
@@ -25,7 +25,7 @@ struct Eye
 	u8 GetGeneration() const { return (eye & GenerationBitsMask) >> IndexNumBits; }
 	explicit operator u32() const { return eye; }
     explicit operator u64() const { return (u64)eye; }
-	explicit operator bool() const { return eye != U32_INVALID_ID; }
+	explicit operator bool() const { return eye != 0; }
 	bool operator==(const Eye& other) const { return eye == other.eye; }
 };
 const Eye EYE_INVALID = Eye();

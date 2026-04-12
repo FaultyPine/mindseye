@@ -214,40 +214,42 @@ void meAssetRegisterLoader(meAssetLoader* loader);
 MAID meAssetCreateNewAssetID(meAssetType type);
 
 // creates a default-constructed instance of an asset type on disk (and assigns it a proper guid and all that)
-meAsset meAssetCreateNew(
+MEAPI meAsset meAssetCreateNew(
 	meAssetType type,
 	StringView filename = {});
 
+MEAPI Eye meAssetCreateNewResource(meAssetType type);
+
 typedef void(*meAssetOnAssetLoadCb)(const meAsset&);
 
-meJobId meAssetRequestLoad(
+MEAPI meJobId meAssetRequestLoad(
 	MAID* assetIdents, 
 	u32 numAssets = 1,
     meAssetOnAssetLoadCb cb = nullptr);
 
-bool meAssetWaitUntilLoadstage(
+MEAPI bool meAssetWaitUntilLoadstage(
 	meSpanTyped<MAID> assetIdents,
 	meAssetLoadStage loadStage);
 
-meJobId meAssetRequestWrite(
+MEAPI meJobId meAssetRequestWrite(
 	meSpanTyped<MAID> assetIdents,
 	meAssetOnAssetLoadCb onWriteCb = nullptr);
 
-meAsset* meAssetTryGet(MAID assetID);
+MEAPI meAsset* meAssetTryGet(MAID assetID);
 
-void meAssetSetResourceDir(StringView dir);
+MEAPI void meAssetSetResourceDir(StringView dir);
 
-StringView meAssetGetResourceDir();
+MEAPI StringView meAssetGetResourceDir();
 
 // I.E. "models/obj.gltf" -> "C:/workingdir/mindseye/bin/resource/models/obj.gltf" or something similar
 // returns a short-lived string. This should only be used for "scratch" operations. If you need to store this string long-term,
 // copy it, or use something else
 // NOTE: allocates a temporary buffer
-StringView meAssetGetAbsPathForResource(StringView resourcePath);
+MEAPI StringView meAssetGetAbsPathForResource(StringView resourcePath);
 // does the opposite of the above func
 // takes an abs path on disk and converts it to be relative to the "data directory"
 // NOTE: allocates and returns a temporary buffer
-StringView meAssetGetRelPathForResource(StringView resourcePath);
+MEAPI StringView meAssetGetRelPathForResource(StringView resourcePath);
 
 
 // takes a buffer that has been deserialized from an asset (I.E. SerializeFromFile)
