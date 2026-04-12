@@ -25,7 +25,7 @@ enum meMeshVertexLayoutType_
 struct MEREFLECT(type) meMesh
 {
     ME_ASSET_STRUCTURE(meMesh);
-    
+
 	String name;
     MEREFLECT(exclude)
 	meGPUBuffer vertBuffer = {};
@@ -35,8 +35,8 @@ struct MEREFLECT(type) meMesh
 	meGPUBuffer normBuffer = {};
     MEREFLECT(exclude)
 	meGPUBuffer texcoordBuffer = {};
-    MEREFLECT(exclude)
-	BoundingBox meshBounds = {};
+
+    BoundingBox meshBounds = {};
     
     MEREFLECT(exclude)
 	meMaterialID materialHandle = {};

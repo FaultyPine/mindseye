@@ -72,6 +72,8 @@ typedef bool(*DeserializerFn)(
 typedef void (*EditorRenderFn)(
     EditorRenderContext& ctx);
 
+typedef void (*SetToDefaults)(void* objData);
+
 struct meTypeDescriptor
 {
 	String name = {};
@@ -107,6 +109,8 @@ struct meTypeDescriptor
 	SerializerFn serializerFn = nullptr;
 	DeserializerFn deserializerFn = nullptr;
     EditorRenderFn editorRenderFn = nullptr;
+    // invoke default constructor on an arbitrary buffer
+    SetToDefaults setToDefaultsFn = nullptr;
 
 	bool operator==(const meTypeDescriptor& other) const
 	{
@@ -173,3 +177,9 @@ bool stringDeserializer(const meTypeDescriptor&, DeserializeContext& ctx);
 // in me_reflector.cpp
 // I.E. "String" -> TD_STRING or "glm::vec3<3, float>" -> TD_VEC3
 
+
+template <typename T>
+void meTypeDescriptorSetToDefaults(void* objData)
+{
+    new (objData) T();
+}

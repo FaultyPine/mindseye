@@ -1333,6 +1333,8 @@ bool ProcessReflectedFile(
 				mainTypeDescriptorContent.AppendFormat("\t.editorRenderFn = " STRING_FMT ",\n", STRING_VAARGS(typeRefl.editorRenderFnName));
             }
 
+            mainTypeDescriptorContent.AppendFormat("\t.setToDefaultsFn = &meTypeDescriptorSetToDefaults<" STRING_FMT ">,\n", STRING_VAARGS(typeRefl.name));
+
 			sourceContentBuilder.AppendFormat("meTypeDescriptor TD_%.*s = {\n%.*s};\n", STRING_VAARGS(uppercaseName), STRING_VAARGS(mainTypeDescriptorContent));
 			generatedAny = true;
 		}

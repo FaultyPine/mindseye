@@ -454,7 +454,8 @@ bool DynArrayDeserializerFromStringFn(
 	{
 		Allocation elementData = MEALLOC(ctx.externalDataAllocator, templateArg.size);
 		result &= JsonDeserializeWithTypeDescriptor(element, templateArg, elementData, ctx.externalDataAllocator, parentType);
-		DynArrayPush(*array, (u8*)elementData, elementData.size);
+		templateArg.setToDefaultsFn(elementData);
+        DynArrayPush(*array, (u8*)elementData, elementData.size);
 	}
 	return result;
 }
