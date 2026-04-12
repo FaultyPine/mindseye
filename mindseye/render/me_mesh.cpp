@@ -69,7 +69,7 @@ meMeshID meMeshPool::Load(
 {
 	meMaterialPool& materialPool = meMaterialGetPool();
 	meMeshPool& meshPool = meMeshPoolGet();
-	meMeshID meshHandle = meshPool.CreateInternal();
+	meMeshID meshHandle = meshPool.Load();
 	meMesh& outMesh = meshPool.Get(meshHandle);
 	meAllocator* meshPayloadAllocator = meshPool.GetPayloadAllocator();
 

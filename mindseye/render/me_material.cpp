@@ -35,14 +35,14 @@ meMaterialID meMaterialPool::Load(
 	const cgltf_material& gltfMaterial)
 {
 	meMaterialPool& materialPool = meMaterialGetPool();
-	meMaterialID materialHdl = materialPool.CreateInternal();
+	meMaterialID materialHdl = materialPool.Load();
 	meMaterial& material = materialPool.Get(materialHdl);
 	StringCopy(StringView(material.name, meMaterial::MEMATERIAL_MAX_NAME_LEN), StringFromCString(gltfMaterial.name));
 	
 	if (gltfMaterial.has_pbr_metallic_roughness)
 	{
 		meTexturePool& texturePool = meTextureGetPool();
-		meTextureID textureHdl = texturePool.CreateInternal();
+		meTextureID textureHdl = texturePool.Load();
 		meTexture& texture = texturePool.Get(textureHdl);
 
 		meMaterialTextureType texType = meMaterialTextureType::Diffuse;
@@ -76,7 +76,7 @@ meMaterialID meMaterialPool::Load(
 		// TODO: deduplicate, see comment in me_resourcepool.h
 		u64 litProgram = renderer->CreateShaderProgram(meSpan(main_lit_fs), meSpan(main_lit_vs));
 		meShaderPool& shaderPool = meShaderGetPool();
-		meShaderID shaderHandle = shaderPool.CreateInternal();
+		meShaderID shaderHandle = shaderPool.Load();
 		meShader& shader = shaderPool.Get(shaderHandle);
 		shader.uniformHandles = DynArrayCreate<meShaderUniform>(shaderPool.resourcePayloadAllocator);
 		meShaderUniform timeU = meShaderUniform();

@@ -311,8 +311,6 @@ meJobId meAssetRequestWrite(
 				meAsset* asset = meAssetTryGet(jobData.ident);
 				ME_ASSERT(asset && asset->loadStage == Loaded && asset->runtimeHandle && asset->id);
 				jobData.loader->meAssetWrite(*asset);
-				StringView diskPath = meAssetIndexGetFilesystemPath(asset->id);
-				meAssetIndexRegisterRelation(diskPath, asset->id);
 				if (jobData.cb)
 				{
 					jobData.cb(*asset);
@@ -340,7 +338,7 @@ void meAssetLoader::meAssetLoad(meAsset& asset)
 	// TODO: implement async loading, so this would return loadStage=Loading
 	// and would itself enqueue more asset compiling jobs for the individual parts of the asset
 	meResourcePoolBase* pool = resourcePool;
-	asset.runtimeHandle = pool->CreateInternal();
+	asset.runtimeHandle = pool->Load();
 	void* outAsset = pool->GetOpaque(asset.runtimeHandle);
 	StringView diskPath = meAssetIndexGetFilesystemPath(asset.id);
 	StringView assetPath = meAssetGetAbsPathForResource(diskPath);
