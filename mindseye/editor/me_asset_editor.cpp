@@ -23,7 +23,6 @@ namespace ed = ax::NodeEditor;
 STATIC_ASSERT(sizeof(((MAID*)0)->id)   == sizeof(u32));
 STATIC_ASSERT(sizeof(((MAID*)0)->type) == sizeof(u32));
 STATIC_ASSERT(NUM_ASSET_TYPES < 256);
-STATIC_ASSERT(sizeof(((EntityRef*)0)->ref) == sizeof(u32));
 
 static constexpr u64 ENTITY_NODE_BASE = 0x1000000000ULL;
 static constexpr u64 ASSET_NODE_BASE  = 0x2000000000ULL;
@@ -32,7 +31,7 @@ static constexpr u64 LINK_BASE        = 0x8000000000ULL;
 
 static ed::NodeId MakeEntityNodeId(EntityRef ref)
 {
-	return ed::NodeId(ENTITY_NODE_BASE + (u64)ref.ref);
+	return ed::NodeId(ENTITY_NODE_BASE + (u64)ref);
 }
 
 static ed::NodeId MakeAssetNodeId(MAID maid)
@@ -42,7 +41,7 @@ static ed::NodeId MakeAssetNodeId(MAID maid)
 
 static ed::PinId MakeEntityFieldOutputPin(EntityRef ref, u32 fieldIdx)
 {
-	u64 v = PIN_BASE + (u64)ref.ref + ((u64)fieldIdx << 32) + (1ULL << 40);
+	u64 v = PIN_BASE + (u64)ref + ((u64)fieldIdx << 32) + (1ULL << 40);
 	return ed::PinId(v);
 }
 
@@ -54,7 +53,7 @@ static ed::PinId MakeAssetInputPin(MAID maid)
 
 static ed::LinkId MakeLinkId(EntityRef ref, u32 fieldIdx)
 {
-	return ed::LinkId(LINK_BASE + (u64)ref.ref + ((u64)fieldIdx << 32));
+	return ed::LinkId(LINK_BASE + (u64)ref + ((u64)fieldIdx << 32));
 }
 
 static bool DrawNodePrimitiveValue(const meTypeDescriptor& type, u8* data)
@@ -175,10 +174,10 @@ static void CollectMAIDFields(const meTypeDescriptor& typeDesc, u8* basePtr,
 	}
 }
 
-static void DrawEntityNode(EntityRef ref, EntityData& entity, 
+static void DrawEntityNode(EntityRef ref, meEntity& entity, 
                             MAIDFieldInfo* maidFields, u32 maidFieldCount)
 {
-	extern meTypeDescriptor TD_ENTITYDATA;
+	extern meTypeDescriptor TD_MEENTITY;
 	extern meTypeDescriptor TD_MAID;
 	extern meTypeDescriptor TD_MEASSET;
 	
@@ -189,15 +188,15 @@ static void DrawEntityNode(EntityRef ref, EntityData& entity,
 		(entity.name.data && entity.name.len) ? entity.name.cstr() : "Entity");
 	ImGui::PopStyleColor();
 	ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-	ImGui::Text("ID: %u", ref.ref);
+	ImGui::Text("ID: %u", (u32)ref);
 	ImGui::PopStyleColor();
 	
 	ImGui::Separator();
 	
 	u8* basePtr = (u8*)&entity;
-	for (u32 i = 0; i < TD_ENTITYDATA.fields.size; i++)
+	for (u32 i = 0; i < TD_MEENTITY.fields.size; i++)
 	{
-		const meTypeDescriptor& field = TD_ENTITYDATA.fields[i];
+		const meTypeDescriptor& field = TD_MEENTITY.fields[i];
 		if (TEST_BIT(field.flags, meTypeDescriptorFlag_PaddingMember)) continue;
 		if (TEST_BIT(field.flags, meTypeDescriptorFlag_Excluded)) continue;
 		
@@ -417,7 +416,7 @@ void meAssetEditorTick(AssetEditorContext& ctx)
 		return;
 	}
 	
-	EntityData& entity = Entity::GetEntity(ctx.rootEntity);
+	meEntity& entity = meEntityGet(ctx.rootEntity);
 	
 	ed::SetCurrentEditor(ctx.nodeEditorCtx);
 	ed::Begin("AssetEditor");
@@ -426,8 +425,8 @@ void meAssetEditorTick(AssetEditorContext& ctx)
 	MAIDFieldInfo maidFields[MAX_MAID_FIELDS] = {};
 	u32 maidFieldCount = 0;
 	
-	extern meTypeDescriptor TD_ENTITYDATA;
-	CollectMAIDFields(TD_ENTITYDATA, (u8*)&entity, maidFields, &maidFieldCount, MAX_MAID_FIELDS);
+	extern meTypeDescriptor TD_MEENTITY;
+	CollectMAIDFields(TD_MEENTITY, (u8*)&entity, maidFields, &maidFieldCount, MAX_MAID_FIELDS);
 	
 	DrawEntityNode(ctx.rootEntity, entity, maidFields, maidFieldCount);
 	

@@ -2,153 +2,93 @@
 
 #include "me_entity.h"
 #include "core/me_core.h"
+#include "core/me_app.h"
 #include "render/me_mesh.h"
 
-void EntityRefSerializerToStringFn(
-	const meTypeDescriptor& typeDescriptor,
-	SerializeContext& ctx)
+meEntityPool& meEntityGetPool()
 {
-	meSpan data = ctx.data;
-	EntityRef* ref = (EntityRef*)data.data;
-	EntityData& entity = Entity::GetEntity(*ref);
-	if (TEST_BIT(entity.flags, EntityFlags_Invalid))
-	{
-		*(json*)ctx.outputData.data = "INVALID_ENTITY";
-		return;
-	}
-	if (TEST_BIT(entity.flags, EntityFlags_NoSer))
-	{
-		*(json*)ctx.outputData.data = json();
-		return;
-	}
-	meSpan entitySpan = SPAN_FROM(entity);
-	*(json*)ctx.outputData.data = JsonSerializeWithTypeDescriptor(TD_ENTITYDATA, entitySpan.data, ctx.parentType);
+    return *GetEngineCtx()->entityPool;
 }
 
-bool EntityRefDeserializerFromStringFn(
-	const meTypeDescriptor& typeDescriptor,
-	DeserializeContext& ctx)
+void InitializeEntitySystem(EngineContext* engine)
 {
-	// we serialize/deserialize EntityRef as if it were EntityData
-	EntityData entity = {};
-	if (!DeserializeFromTextBlocking(
-		TD_ENTITYDATA, ctx.externalDataAllocator, 
-		StringView(ctx.inputData, ctx.inputData.size), SPAN_FROM(entity)))
-	{
-		LOG_ERROR("Failed to deserialize entity");
-		return false;
-	}
-	EntityRef ref = Entity::CreateBlankEntity();
-	Entity::GetEntity(ref) = entity;
-	ME_ASSERT(ctx.outputData.size == sizeof(ref.ref));
-	ME_MEMCPY(ctx.outputData.data, &ref.ref, sizeof(ref.ref));
-	return true;
+	engine->entityPool = MENEW(&engine->engineArena, meEntityPool, &engine->engineArena, &engine->engineArena);
+    meEntitySetFlag(EYE_INVALID, EntityFlags_Invalid, true);
+    meEntitySetFlag(EYE_INVALID, EntityFlags_DISABLED, true);
 }
 
-namespace Entity
+void DeinitializeEntitySystem(EngineContext* ctx)
 {
-
-static EntityRegistry& GetRegistry()
-{
-    return *GetEngineCtx()->entityRegistry;
+    ctx->entityPool->Clear();
+    MEDELETE(&ctx->engineArena, meEntityPool, ctx->entityPool);
+    ctx->entityPool = nullptr;
 }
 
-void InitializeEntitySystem(meAllocator* allocator)
-{
-    EntityRegistry* registryMem = MENEW(allocator, EntityRegistry);
-    GetEngineCtx()->entityRegistry = registryMem;
-    // dummy entity with bad id so we can return it on failure from methods like GetEntity
-    registryMem->entMap[U32_INVALID_ID] = {};
-    Entity::SetFlag(U32_INVALID_ID, EntityFlags_Invalid, true);
-    Entity::SetFlag(U32_INVALID_ID, EntityFlags_DISABLED, true);
-}
-
-void ReinitializeEntitySystem()
-{
-	EngineContext* ctx = GetEngineCtx();
-    ctx->entityRegistry = nullptr;
-	Entity::InitializeEntitySystem(&ctx->engineSceneAllocator);
-}
-
-void SetFlag(EntityData& ent, EntityFlags flag, bool enabled)
+void meEntitySetFlag(meEntity& ent, EntityFlags flag, bool enabled)
 {
     u32& bitfield = ent.flags;
     SET_BIT(bitfield, flag, enabled);
 }
 
-void SetFlag(EntityRef ent, EntityFlags flag, bool enabled)
+void meEntitySetFlag(EntityRef ent, EntityFlags flag, bool enabled)
 {
-    EntityRegistry& registry = GetRegistry();
-    SetFlag(registry.entMap[ent], flag, enabled);
+    meEntitySetFlag(meEntityGet(ent), flag, enabled);
 }
 
-bool IsFlag(const EntityData& data, EntityFlags flag)
+bool meEntityIsFlag(const meEntity& data, EntityFlags flag)
 {
     const u32& bitfield = data.flags;
     bool result = TEST_BIT(bitfield, flag);
     return result;
 }
 
-bool IsFlag(EntityRef ent, EntityFlags flag)
+bool meEntityIsFlag(EntityRef ent, EntityFlags flag)
 {
-    EntityRegistry& registry = GetRegistry();
-    return IsFlag(registry.entMap[ent], flag);
+    return meEntityIsFlag(meEntityGet(ent), flag);
 }
 
-EntityRef CreateBlankEntity(
+meAsset meEntityCreateBlank(
 	StringView name)
 {
-    EntityRegistry& registry = GetRegistry();
-    EntityData ent = {};
-    u32 entityID = 0;
+    meAsset newEntityAsset = meAssetCreateNew(MAEntity);
+    meEntityPool& entityPool = meEntityGetPool();
+    meEntity& ent = entityPool.Get(newEntityAsset);
     if (name)
     {
-        // if this entity has a name, use the name's hash as the id
 		ent.name = name;
-        entityID = HashBytes((u8*)name.data, name.len);
     }
     else
     {
-        // if no name, the entity id is just a incrementally increasing num
-        entityID = registry.entityCreationIndex;
-		ent.name = StringFormatTmp("UnnamedEntity%i", entityID);
+		ent.name = StringFormatTmp("UnnamedEntity%i", (u32)newEntityAsset.runtimeHandle);
     }
-    // hash until we don't collide
-    while (registry.entMap.count(entityID))
-    {
-        entityID = HashBytes((u8*)&entityID, sizeof(entityID));
-    }
-    ME_ASSERT(entityID != U32_INVALID_ID); // make absolutely sure
-    // we increment this every time, even if it's not what we use for the id.
-    registry.entityCreationIndex++;
-    ent.authoritativeBounds = meMeshPoolGet().Get({}).meshBounds;
-    registry.entMap[entityID] = ent;
-    return entityID;
+    // default bounds is bounds of default mesh
+    ent.authoritativeBounds = meMeshPoolGet().Get(ent.mesh).meshBounds;
+    return newEntityAsset;
 }
 
-bool DestroyEntity(EntityRef ent)
+bool meEntityDestroy(EntityRef ent)
 {
-    EntityRegistry& registry = GetRegistry();
-	EntityData& entity = GetEntity(ent);
-	UNUSED(entity);
-    //if (entity.id == U32_INVALID_ID)
-    //{
-    //    return false;
-    //}
-    // TODO: clean up mesh asset
-	UNIMPLEMENTED();
-    registry.entMap.erase(ent);
+    meEntityPool& entityPool = meEntityGetPool();
+    entityPool.Destroy(ent);
     return true;
 }
 
-EntityData& GetEntity(EntityRef ref)
+meEntity& meEntityGet(EntityRef ref)
 {
-    EntityRegistry& registry = GetRegistry();
-    if (registry.entMap.count(ref) > 0)
-    {
-        return registry.entMap[ref];
-    }
-    return registry.entMap[U32_INVALID_ID]; // if doesn't exist, return our dummy
+    meEntityPool& entityPool = meEntityGetPool();
+    return entityPool.Get(ref);
 }
 
-} // namespace Entity
+
+struct meEntityAssetLoader : public meAssetLoader
+{
+	using meAssetLoader::meAssetLoader;
+
+	static void RegisterAssetLoader(meEventPayload payload)
+	{
+		meAllocator* allocator = (meAllocator*)payload.payload;
+		meAssetRegisterLoader(MENEW(allocator, meEntityAssetLoader, &TD_MEENTITY, &meEntityGetPool(), meAssetType::MAEntity));
+	}
+};
+
+MEEVENT_REGISTER_STATIC(registerAssetLoader, meEntityAssetLoader::RegisterAssetLoader);

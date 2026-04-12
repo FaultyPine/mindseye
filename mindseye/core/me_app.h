@@ -9,7 +9,6 @@
 
 struct RendererFrontend;
 struct EngineContext;
-struct EntityRegistry;
 struct meAssetSystem;
 struct CommandLineArgs;
 struct meSceneManager;
@@ -18,6 +17,7 @@ struct meTexturePool;
 struct meMeshPool;
 struct meShaderPool;
 struct meScenePool;
+struct meEntityPool;
 struct EditorContext;
 struct meAssetIndex;
 
@@ -66,13 +66,12 @@ struct EngineContext
     CommandLineArgs* cmdLine = nullptr;
 	
 	meScenePool* scenePool = nullptr;
+    meEntityPool* entityPool = nullptr;
 	meMaterialPool* materialSystem = nullptr;
 	meTexturePool* textureSystem = nullptr;
 	meMeshPool* meshSystem = nullptr;
 	meShaderPool* shaderSystem = nullptr;
 	
-	// these hold actual "game state"
-    EntityRegistry* entityRegistry = nullptr;
 	meSceneManager* sceneSystem = nullptr;
 	
 

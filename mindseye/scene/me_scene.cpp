@@ -35,11 +35,15 @@ void meSceneManager::Tick(EngineContext* ctx)
 
 void meSceneManager::UnloadCurrentScene()
 {
+    EngineContext* ctx = GetEngineCtx();
+
+    CurrentScene().Destroy();
+    ctx->scenePool->Destroy(rootScene);
 	rootScene = {};
 
-	meAllocator* sceneAllocator = &GetEngineCtx()->engineSceneAllocator;
+    meAllocator* sceneAllocator = &ctx->engineSceneAllocator;
 	sceneAllocator->meClear();
-	Entity::ReinitializeEntitySystem();
+
 }
 
 void meSceneManager::ChangeCurrentScene(StringView filename)
@@ -58,6 +62,7 @@ void meSceneManager::ChangeCurrentScene(StringView filename)
 void meSceneManager::CopyToRenderInput(meScene& outScene)
 {
 	// copy the "current"? scene to the given scene for the renderer to use as its readonly copy. This will become complex later...
+    // TODO: deep copy everything in the scene - for assets, that means incrementing reader (ref) count
 	outScene = CurrentScene();
 }
 
@@ -67,12 +72,12 @@ meSceneRaycastHit meSceneRaycast(meScene& scene, const meRay& ray)
 	meSceneRaycastHit result = {};
 	f32 closestT = FLT_MAX;
 
-	DynArray<EntityRef>& entities = scene.entities;
+	DynArray<meAsset>& entities = scene.entities;
 	for (DynArray_Foreach(entities, i))
 	{
 		EntityRef entRef = entities[i];
-		EntityData& entData = Entity::GetEntity(entRef);
-		if (Entity::IsFlag(entRef, EntityFlags_HIDDEN) || Entity::IsFlag(entRef, EntityFlags_DISABLED))
+		meEntity& entData = meEntityGet(entRef);
+		if (meEntityIsFlag(entRef, EntityFlags_HIDDEN) || meEntityIsFlag(entRef, EntityFlags_DISABLED))
 			continue;
 
 		glm::vec3 worldMin = entData.transform.position + entData.authoritativeBounds.min;
@@ -94,6 +99,11 @@ meSceneRaycastHit meSceneRaycast(meScene& scene, const meRay& ray)
 	return result;
 }
 
+void meScene::Destroy()
+{
+    DynArrayDestroy(entities);
+}
+
 meScene& meSceneManager::CurrentScene()
 {
 	meScenePool& scenePool = meScenePoolGet();
@@ -111,10 +121,10 @@ struct meSceneAssetLoader : public meAssetLoader
 		meAssetLoader::meAssetLoad(asset);
 		meAllocator* allocator = resourcePool->GetPayloadAllocator();
 		meScene& outScene = *(meScene*)resourcePool->GetOpaque(asset.runtimeHandle);
-		if (!outScene.entities)
-		{
-			outScene.entities = DynArrayCreate<EntityRef>(allocator);
-		}
+		// if (!outScene.entities)
+		// {
+		// 	outScene.entities = DynArrayCreate<meAsset>(allocator);
+		// }
 		if (FindInString(outScene.externalScenePath, STRING_LIT(".gltf")) != -1 ||
 			FindInString(outScene.externalScenePath, STRING_LIT(".glb")) != -1)
 		{
@@ -169,7 +179,7 @@ void meScenePool::Load(
 		LOG_WARN("Failed to parse gltf from %.*s", STRING_VAARGS(resourcePathAbs));
 	}
 	const cgltf_scene& scene = *gltfData->scene;
-	DynArray<EntityRef>& entities = outScene.entities;
+	DynArray<meAsset>& entities = outScene.entities;
 	StringView gltfResPath = msFsGetDirFromPath(resourcePathAbs);
 	meMeshPool& meshPool = meMeshPoolGet();
 	for (u64 nodeIdx = 0; nodeIdx < scene.nodes_count; nodeIdx++)
@@ -178,8 +188,8 @@ void meScenePool::Load(
 		float nodeMatrix[16];
 		cgltf_node_transform_local(&node, nodeMatrix);
 		meTransform nodeTf = meTransform(glm::make_mat4(nodeMatrix));
-		EntityRef entityRef = Entity::CreateBlankEntity(StringFromCString(node.name));
-		EntityData& entity = Entity::GetEntity(entityRef);
+		meAsset entityAsset = meEntityCreateBlank(StringFromCString(node.name));
+		meEntity& entity = meEntityGet(entityAsset);
 		entity.transform = nodeTf;
 		if (node.mesh)
 		{
@@ -188,9 +198,9 @@ void meScenePool::Load(
 			meMesh& mesh = meshPool.Get(meshHandle);
             // TODO: right now, we have this asset without an asset id, it's just a runtime concept
             // in the future, we won't be "loading from gltf". We'll "import" gltf into mindseye assets, and load those, so this concept of a meAsset with no MAID will go away
-            entity.mesh = meAsset(meshHandle);
+            entity.mesh = meAsset(meshHandle, MAMesh);
 			entity.authoritativeBounds = mesh.meshBounds; // may change due to anims. Default initialized to mesh bounds
 		}
-		DynArrayPush(entities, entityRef);
+		DynArrayPush(entities, entityAsset);
 	}
 }

@@ -124,13 +124,18 @@ void InitializeEngineSystems(EngineContext* engine)
 	meTextureInitialize(engine);
 	meMeshInitialize(engine);
 	meShaderInitialize(engine);
-	Entity::InitializeEntitySystem(&engine->engineSceneAllocator);
+	InitializeEntitySystem(engine);
 
 	meAssetInitializeLate(engine);
 	meAssetIndexInitialize(engine);
 
 	meSceneInitializeLate(engine);
 
+}
+
+void DeinitializeEngineSystems(EngineContext* engine)
+{
+    DeinitializeEntitySystem(engine);
 }
 
 void InitializeEngine(s32 argc, char** argv)
@@ -171,4 +176,5 @@ void InitializeEngine(s32 argc, char** argv)
 
     RunEngine(engine);
 	engine->appCallbacks.shutdownFn(engine);
+    DeinitializeEngineSystems(engine);
 }

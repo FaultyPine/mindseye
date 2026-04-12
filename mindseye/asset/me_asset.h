@@ -16,7 +16,8 @@ X(MAScene, "scn")\
 X(MAShader, "shd")\
 X(MAMaterial, "mat")\
 X(MAMesh, "mesh")\
-X(MATexture, "tex")
+X(MATexture, "tex")\
+X(MAEntity, "ent")
 
 #define ME_ASSET_EXTENSION ".masset"
 
@@ -145,12 +146,13 @@ struct MEREFLECT(type) meAsset
 	}
 	// can be initialized as a usage-only concept. 
 	// I.E. Generating meshes/etc on-the-fly without an associated on-disk asset.
-	meAsset(Eye eye) : runtimeHandle(eye)
+	meAsset(Eye eye, meAssetType type) : runtimeHandle(eye)
 	{
 		if (runtimeHandle)
 		{
 			loadStage = Loaded;
 		}
+        id.SetType(type);
 	}
 	meAsset() = default;
 

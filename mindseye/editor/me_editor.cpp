@@ -433,7 +433,7 @@ static bool DrawTypeDescriptorField(const meTypeDescriptor& field, u8* dataPtr)
 			const meAssetIndex& index = meAssetIndexGetRO();
 			for (auto& [id, path] : index.assetToPathMap)
 			{
-				if (id.GetType() != assetType) continue;
+				if (id.GetType() != assetType || !path) continue;
 
 				bool isSelected = (*maid == id);
 				if (ImGui::Selectable(path.cstr(), isSelected))
@@ -510,7 +510,7 @@ static void DrawEntityInspector(EngineContext* engine)
 		return;
 	}
 
-	EntityData& entity = Entity::GetEntity(editor.selectedEntity);
+	meEntity& entity = meEntityGet(editor.selectedEntity);
 
 	ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.13f, 0.14f, 0.18f, 1.00f));
 	ImGui::BeginChild("##inspector_header", ImVec2(0, 56), ImGuiChildFlags_Borders);
@@ -530,7 +530,7 @@ static void DrawEntityInspector(EngineContext* engine)
 		ImGui::InputText("##entity_name", nameBuf, sizeof(nameBuf), ImGuiInputTextFlags_ReadOnly);
 
 		ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-		ImGui::Text("ID: %u", editor.selectedEntity.ref);
+		ImGui::Text("ID: %u", (u32)editor.selectedEntity);
 		ImGui::PopStyleColor();
 	}
 	ImGui::EndChild();
@@ -556,7 +556,7 @@ static void DrawEntityInspector(EngineContext* engine)
 		ImGui::TableSetupColumn("Property", ImGuiTableColumnFlags_WidthStretch, 0.4f);
 		ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch, 0.6f);
 
-		DrawStructFields(TD_ENTITYDATA, (u8*)&entity);
+		DrawStructFields(TD_MEENTITY, (u8*)&entity);
 
 		ImGui::EndTable();
 	}

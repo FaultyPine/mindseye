@@ -19,6 +19,7 @@ struct meResourcePoolBase
 
 	virtual Eye CreateInternal() = 0;
 	virtual void DestroyInternal(Eye handle) = 0;
+    virtual ~meResourcePoolBase() {}
 
 	meAllocator* resourcePayloadAllocator = nullptr;
 };
@@ -35,11 +36,18 @@ struct meResourcePool : public meResourcePoolBase
 	// There's no hard dependence on that rn, since everything uses handles to reference these, but it's still a nice thing
 	// but other than that, there's no constraints on what data structure is used here. Maybe this should be a map
 	meBlockList<meResourceSlot<ResourceType>> resourcePool;
-	ResourceType badData = {};
+	meResourceSlot<ResourceType> badData = {};
 
-	meResourcePool(meAllocator* resourceAllocator, meAllocator* payloadAllocator);
+	meResourcePool(
+        meAllocator* resourceAllocator, 
+        meAllocator* payloadAllocator);
 	meResourcePool(const meResourcePool& other) = default;
 	meResourcePool(const meResourcePool&& other) = default;
+    ~meResourcePool() override
+    {
+        Clear();
+    }
+    void Clear();
 	bool Empty() const { return resourcePool.empty(); }
 	// derived resource pools will overload this Load function with
 	// their own signature. Those derived functions should use CreateInternal
@@ -56,10 +64,12 @@ struct meResourcePool : public meResourcePoolBase
 	// each resource pool should assign a default "no data" object
 	// in it's constructor
 	// EX: a 1x1 white texture
-	ResourceType& GetBadData() { return badData; }
+    // if it isn't assigned, the "bad data" is just a default-constructed resource
+	ResourceType& GetBadData() { return badData.obj; }
 
 	Eye CreateInternal() override;
 	void DestroyInternal(Eye handle) override;
+	void DestroyInternal(meResourceSlot<ResourceType>& res);
 };
 
 
@@ -76,9 +86,28 @@ template <typename ResourceType>
 Eye meResourcePool<ResourceType>::CreateInternal()
 {
 	meResourceSlot<ResourceType> newResourceInstance = {};
-	u32 resourceIdx = resourcePool.push(newResourceInstance);
+	u32 resourceIdx = resourcePool.push(meMove(newResourceInstance));
 	meResourceSlot<ResourceType>& resource = resourcePool.get(resourceIdx);
 	return Eye(resourceIdx, resource.generation);
+}
+
+template <typename ResourceType>
+void meResourcePool<ResourceType>::Clear()
+{
+    for (auto& res : resourcePool)
+    {
+        DestroyInternal(res);
+    }
+    resourcePool.clear();
+    DestroyInternal(badData);
+}
+
+template <typename ResourceType>
+void meResourcePool<ResourceType>::DestroyInternal(meResourceSlot<ResourceType>& res)
+{
+    res.obj.~ResourceType();
+    res.generation++;
+    res.inUse = false;
 }
 
 template <typename ResourceType>
@@ -86,8 +115,7 @@ void meResourcePool<ResourceType>::DestroyInternal(Eye handle)
 {
 	auto idx = handle.GetIndex();
 	meResourceSlot<ResourceType>& resource = resourcePool.get(idx);
-	resource.obj.~ResourceType();
-	resource.generation++;
+	DestroyInternal(resource);
 	resourcePool.markDeleted(idx);
 }
 

@@ -44,6 +44,13 @@ DynArray<T> DynArrayCreate(
     u32 allocSize = headerSize + arraySize;
     Allocation arrayBackingAlloc = DynArrayInternalAlloc(allocator, allocSize);
     u8* arrayBackingMem = (u8*)arrayBackingAlloc.data;
+    // BOOKMARK: when we have DynArray<meAsset> in meScene, and we deserialize meScene from file
+    // the Eye portion of the meAsset isn't serialized, so we don't write to it. The problem is
+    // the contents of the DynArray end up cleared to 0 here, so all deserialized meAsset's inside the DynArray are 0, which isn't right
+    // they should be EYE_INVALID on paper. 2 solutions here:
+    // - 0 should be a valid "bad" state for everything. Instead of using U32_INVALID_ID for the "bad" value for Eye, use 0.
+    // - somehow in-place construct internal structures based only on their type descriptor. Would need to be able to call a madeup func like meTypeDescriptorConstruct(typeDesc, dataPtr)
+    // both are good, honestly i'd like to do both....
     ME_MEMCLEAR(arrayBackingMem, allocSize);
     // populate header
     DynArrayHeader* headerPointer = (DynArrayHeader*)arrayBackingMem;

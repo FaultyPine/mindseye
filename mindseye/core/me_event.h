@@ -30,7 +30,7 @@ static meEvent name;
 
 #define MEEVENT_REGISTER_STATIC(eventName, cb) \
 extern meEvent eventName; \
-struct ME_MACRO_CONCAT(MEEVENT_INTERNAL_STATIC_REGISTERER, __LINE__) { \
-ME_MACRO_CONCAT(MEEVENT_INTERNAL_STATIC_REGISTERER, __LINE__)() \
+struct ME_MACRO_CONCAT_EX(MEEVENT_INTERNAL_STATIC_REGISTERER, __LINE__) { \
+ME_MACRO_CONCAT_EX(MEEVENT_INTERNAL_STATIC_REGISTERER, __LINE__)() \
 { meEventSubscribe(eventName, cb); }\
-} ME_MACRO_CONCAT(meevent_registerer, __LINE__);
+} ME_MACRO_CONCAT_EX(meevent_registerer, __LINE__);

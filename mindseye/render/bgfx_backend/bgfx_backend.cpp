@@ -396,8 +396,8 @@ void* BgfxRendererBackend::RenderScene(RenderInput* input)
 	for (DynArray_Foreach(input->scene.entities, i))
 	{
 		const EntityRef& entityRef = input->scene.entities[i];
-		const EntityData& entity = Entity::GetEntity(entityRef);
-		if (Entity::IsFlag(entity, EntityFlags_HIDDEN))
+		const meEntity& entity = meEntityGet(entityRef);
+		if (meEntityIsFlag(entity, EntityFlags_HIDDEN))
 		{
 			continue;
 		}

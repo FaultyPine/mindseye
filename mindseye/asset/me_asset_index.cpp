@@ -61,6 +61,10 @@ void meAssetIndexRegisterRelation(
 	const StringView& path,
 	const MAID& maid)
 {
+    if (!path || !maid)
+    {
+        return;
+    }
 	meAssetIndex& assetIndex = meAssetIndexGet();
 	assetIndex.assetToPathMap[maid] = path;
 	assetIndex.pathToAssetsMap[path] = maid;

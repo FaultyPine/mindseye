@@ -93,7 +93,7 @@ typedef wchar_t wchar;
 // concat tokens without expanding macro definitions
 #define ME_MACRO_CONCAT(a,b) a##b
 // concat tokens after macro expanding them
-#define ME_MACRO_CONCAT_EX(a,b) TMACRO_CONCAT(a,b)
+#define ME_MACRO_CONCAT_EX(a,b) ME_MACRO_CONCAT(a,b)
 
 // stringize token without macro expanding A
 #define ME_MACRO_STRINGIZE(A) #A

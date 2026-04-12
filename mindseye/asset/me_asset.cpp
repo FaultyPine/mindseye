@@ -110,6 +110,7 @@ void meAssetRegisterLoader(meAssetLoader* loader)
 MAID meAssetCreateNewAssetID(meAssetType type)
 {
 	// NOTE: randomness!
+    // TODO: use engine random once i implement that
 	f64 time = GetTimeUsec();
 	u32 randomNumber = HashBytes((u8*)&time, sizeof(time));
 	MAID newMaid = MAID(randomNumber, type);

@@ -54,7 +54,7 @@ static void HandleCreateEntity(const meCmdCreateEntity& cmd)
 	UNUSED(cmd);
 	EngineContext* engine = GetEngineCtx();
 	meScene* currentScene = &engine->sceneSystem->CurrentScene();
-	EntityRef newEnt = Entity::CreateBlankEntity();
+	meAsset newEnt = meEntityCreateBlank();
 	DynArrayPush(currentScene->entities, newEnt);
 }
 
@@ -76,12 +76,12 @@ static void HandlePickEntity(const meCmdPickEntity& cmd)
     {
         if (editor.selectedEntity)
         {
-            EntityData& oldPickedEntity = Entity::GetEntity(editor.selectedEntity);
+            meEntity& oldPickedEntity = meEntityGet(editor.selectedEntity);
             SET_BIT(oldPickedEntity.flags, EntityFlags_Selected, false);
         }
         if (hit)
         {
-            EntityData& newlyPickedEntity = Entity::GetEntity(hit.entity);
+            meEntity& newlyPickedEntity = meEntityGet(hit.entity);
             SET_BIT(newlyPickedEntity.flags, EntityFlags_Selected, true);
         }
     }

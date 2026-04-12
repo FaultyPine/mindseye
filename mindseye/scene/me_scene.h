@@ -20,7 +20,9 @@ meScene
 	String externalScenePath = {};
 	meCamera mainCamera = {};
 
-	DynArray<EntityRef> entities = {};
+	DynArray<meAsset> entities = {};
+
+    void Destroy();
 };
 
 struct meSceneRaycastHit
@@ -28,7 +30,7 @@ struct meSceneRaycastHit
 	EntityRef entity = {};
 	f32 distance = 0.0f;
 	glm::vec3 point = glm::vec3(0);
-	explicit operator bool() const { return entity.ref != U32_INVALID_ID; }
+	explicit operator bool() const { return entity != EYE_INVALID; }
 };
 
 MEAPI meSceneRaycastHit meSceneRaycast(meScene& scene, const meRay& ray);
@@ -71,7 +73,7 @@ struct meScenePool : public meResourcePool<meScene>
 	{
 		Eye e = meResourcePool<meScene>::Load();
 		meScene& scene = Get(e);
-		scene.entities = DynArrayCreate<EntityRef>(GetPayloadAllocator());
+		scene.entities = DynArrayCreate<meAsset>(GetPayloadAllocator());
 		return e;
 	}
 };

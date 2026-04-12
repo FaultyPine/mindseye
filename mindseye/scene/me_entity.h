@@ -21,29 +21,11 @@ enum EntityFlags_
 };
 STATIC_ASSERT(EntityFlags_NUM_ENTITY_FLAGS < 32);
 
-struct MEREFLECT(type, Serializer=EntityRefSerializerToStringFn, Deserializer=EntityRefDeserializerFromStringFn) 
-EntityRef
-{
-	u32 ref = U32_INVALID_ID;
-	EntityRef(u32 r) : ref(r) {}
-	EntityRef() = default;
-	explicit operator u32() const { return ref; }
-    explicit operator bool() const { return ref != U32_INVALID_ID; }
-	bool operator==(const EntityRef& other) const
-	{
-		return ref == other.ref;
-	}
-};
+typedef Eye EntityRef;
 
-MEMAP_BEGIN_CUSTOM_HASHER(EntityRef, obj) 
+struct MEREFLECT(type) meEntity
 {
-    return HashBytesL((u8*)&obj.ref, sizeof(obj.ref));
-}
-MEMAP_END_CUSTOM_HASHER
-
-struct MEREFLECT(type) EntityData
-{
-    ME_ASSET_STRUCTURE(EntityData);
+    ME_ASSET_STRUCTURE(meEntity);
     
     meTransform transform = {};
     MEREFLECT(tooltip = "The 'appearance' of the entity")
@@ -55,43 +37,32 @@ struct MEREFLECT(type) EntityData
     
 };
 
-typedef meMap<EntityRef, EntityData> EntityMap;
 
-// at the moment, we keep a registry allocated with the current scene
-// this currently contains all entities at all times
-// This registry isn't meant to be used to know "what entities should I render"
-// or queries like that. For those, there's another structure of entity
-// references in the meScene
-struct EntityRegistry
+struct meEntityPool : public meResourcePool<meEntity>
 {
-    EntityMap entMap = {};
-    u32 entityCreationIndex = 0;
+	meEntityPool(
+		meAllocator* resourceAllocator,
+		meAllocator* payloadAllocator) :
+		meResourcePool<meEntity>(resourceAllocator, payloadAllocator) {}
+
+	meAssetType GetAssetType() const
+	{
+		return MAEntity;
+	}
 };
 
-namespace Entity
-{
+void InitializeEntitySystem(EngineContext* engine);
+void DeinitializeEntitySystem(EngineContext* engine);
+meEntityPool& meEntityGetPool();
 
-void InitializeEntitySystem(meAllocator* allocator);
-void DeinitializeEntitySystem();
-
-
-void EntityRefSerializerToStringFn(
-	const meTypeDescriptor& typeDescriptor,
-	SerializeContext& ctx);
-
-bool EntityRefDeserializerFromStringFn(
-	const meTypeDescriptor& typeDescriptor,
-	DeserializeContext& ctx);
-
-MEAPI EntityRef CreateBlankEntity(
+MEAPI meAsset meEntityCreateBlank(
 	StringView name = {});
-MEAPI bool DestroyEntity(EntityRef ent);
-MEAPI EntityData& GetEntity(EntityRef ent);
+MEAPI bool meEntityDestroy(EntityRef ent);
+MEAPI meEntity& meEntityGet(EntityRef ent);
 
-MEAPI void SetFlag(EntityRef ent, EntityFlags flag, bool enabled);
-MEAPI void SetFlag(EntityData& ent, EntityFlags flag, bool enabled);
-MEAPI bool IsFlag(EntityRef ent, EntityFlags flag);
-MEAPI bool IsFlag(const EntityData& ent, EntityFlags flag);
+MEAPI void meEntitySetFlag(EntityRef ent, EntityFlags flag, bool enabled);
+MEAPI void meEntitySetFlag(meEntity& ent, EntityFlags flag, bool enabled);
+MEAPI bool meEntityIsFlag(EntityRef ent, EntityFlags flag);
+MEAPI bool meEntityIsFlag(const meEntity& ent, EntityFlags flag);
 
-} // namespace Entity
 
