@@ -110,7 +110,6 @@ bool DynArrayPushAt(
     }
     u32 arrSize = header->size;
 	u32 stride = header->stride;
-	UNUSED(stride);
 	T* destination = array.data + index;
     // if inserting at a populated index, copy all elements to the right
     if (index < arrSize)
@@ -142,7 +141,10 @@ bool DynArrayPushAt(
 			destination[i] = objs[i];
 		}
 	}
-    header->size += numObjs;
+    // when pushing to a dynarray with an overridden stride (that != sizeof(T))
+    // the "numObjs" being pushed may not be the number of T's
+    u32 numAddedObjs = header->stride != sizeof(T) ? numObjs / header->stride : numObjs;
+    header->size += numAddedObjs;
     return true;
 }
 
