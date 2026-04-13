@@ -9,6 +9,7 @@ struct EditorContext
 	meCamera editorCamera = {};
 	EntityRef selectedEntity = {};
 	AssetEditorContext assetEditor = {};
+    bool sceneDirty = false;
 };
 
 EditorContext& meEditorGetCtx();

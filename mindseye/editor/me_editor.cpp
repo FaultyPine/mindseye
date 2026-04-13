@@ -13,8 +13,6 @@
 #pragma GCC diagnostic pop
 #endif
 
-#include "external/potable-file-dialogs.h"
-
 #include "core/me_event.h"
 #include "core/me_command.h"
 #include "asset/me_asset.h"
@@ -219,21 +217,6 @@ void meEditorTick(EngineContext* engine)
             {
 				meExternalCommand cmd = {};
 				cmd.type = meExternalCommandType_SaveCurrentScene;
-				// if the scene has no disk path yet, ask the user for one
-				// kept in outer scope so the string data outlives the command dispatch
-				std::vector<std::string> openFileResult;
-				meScene& currentScene = engine->sceneSystem->CurrentScene();
-                StringView fsPath = meAssetIndexGetFilesystemPath(currentScene.header);
-                if (!fsPath)
-                {
-                    openFileResult = pfd::open_file("Location to save the scene file", ".").result();
-                    if (!openFileResult.empty())
-                    {
-                        ME_ASSERT(openFileResult.size() == 1);
-                        const char* fileCstr = openFileResult[0].c_str();
-                        cmd.saveCurrentScene.path = StringFromCString(fileCstr);
-                    }
-                }
 				meReceiveExternalCommand(cmd);
             }
 			if (ImGui::BeginMenu("Entity"))
@@ -249,6 +232,17 @@ void meEditorTick(EngineContext* engine)
             ImGui::EndMenu();
         }
 
+        
+        if (editor.sceneDirty)
+        {
+            if (ImGui::Button("Save"))
+            {
+                meExternalCommand cmd = {};
+                cmd.type = meExternalCommandType_SaveCurrentScene;
+                meReceiveExternalCommand(cmd);
+                editor.sceneDirty = false;
+            }
+        }
 		
 		StringView rightAlignedText = StringFormatTmp("Avg framerate: %6.2f | %.*s", ImGui::GetIO().Framerate, STRING_VAARGS(engine->appConfig.appName));
 		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetColumnWidth() - ImGui::CalcTextSize(rightAlignedText.cstr()).x
@@ -292,6 +286,7 @@ static bool DrawPrimitiveValue(const meTypeDescriptor& type, u8* data)
 {
 	bool changed = false;
 
+    static thread_local char s_textEditIntermediateBuf[75] = {};
 	if (&type == &TD_FLOAT)
 	{
 		changed = ImGui::DragFloat("##v", (float*)data, 0.01f);
@@ -352,12 +347,24 @@ static bool DrawPrimitiveValue(const meTypeDescriptor& type, u8* data)
 	{
 		String* str = (String*)data;
 		const char* preview = (str->data && str->len) ? str->cstr() : "";
-		ImGui::TextUnformatted(preview);
+        ImGui::PushID(preview);
+        bool textChangedAtAll = ImGui::InputTextWithHint("##MyInput", "Enter text here...", s_textEditIntermediateBuf, IM_ARRAYSIZE(s_textEditIntermediateBuf));
+        if (ImGui::IsItemDeactivatedAfterEdit())
+        {
+            changed |= textChangedAtAll;
+        }
+        ImGui::PopID();
 	}
 	else if (&type == &TD_STRINGVIEW)
 	{
 		StringView* sv = (StringView*)data;
-		ImGui::Text(STRING_FMT, STRING_VAARGS((*sv)));
+        ImGui::PushID(sv->cstr());
+		bool textChangedAtAll = ImGui::InputTextWithHint("##MyInput", "Enter text here...", s_textEditIntermediateBuf, IM_ARRAYSIZE(s_textEditIntermediateBuf));
+        if (ImGui::IsItemDeactivatedAfterEdit())
+        {
+            changed |= textChangedAtAll;
+        }
+        ImGui::PopID();
 	}
 	else
 	{
@@ -540,7 +547,8 @@ static void DrawEntityInspector(EngineContext* engine)
 
 	if (ImGui::Button(ICON_FA_DIAGRAM_PROJECT " Open in Asset Editor"))
 	{
-		meAssetEditorOpen(editor.assetEditor, editor.selectedEntity);
+        ImGui::Text("Temporarily Disabled, TODO: better impl of the asset editor");
+		//meAssetEditorOpen(editor.assetEditor, editor.selectedEntity);
 	}
 
 	ImGui::Spacing();
@@ -556,7 +564,11 @@ static void DrawEntityInspector(EngineContext* engine)
 		ImGui::TableSetupColumn("Property", ImGuiTableColumnFlags_WidthStretch, 0.4f);
 		ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch, 0.6f);
 
-		DrawStructFields(TD_MEENTITY, (u8*)&entity);
+		bool didUserChangeSomething = DrawStructFields(TD_MEENTITY, (u8*)&entity);
+        if (didUserChangeSomething)
+        {
+            editor.sceneDirty = true;
+        }
 
 		ImGui::EndTable();
 	}

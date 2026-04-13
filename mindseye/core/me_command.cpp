@@ -11,6 +11,8 @@
 #include "core/me_filesystem.h"
 #include "editor/me_editor.h"
 
+#include "external/potable-file-dialogs.h"
+
 static void HandleCreateNewScene(const meCmdCreateNewScene& cmd)
 {
 	meAsset newAsset = meAssetCreateNew(MAScene, cmd.path);
@@ -26,17 +28,33 @@ static void HandleChangeScene(const meCmdChangeScene& cmd)
 	engine->sceneSystem->ChangeCurrentScene(sceneFile);
 }
 
-static void HandleSaveCurrentScene(const meCmdSaveCurrentScene& cmd)
+static void HandleSaveCurrentScene(const meCmdSaveCurrentScene& cmdIn)
 {
+    meCmdSaveCurrentScene cmd = cmdIn;
 	EngineContext* engine = GetEngineCtx();
 	meScene* currentScene = &engine->sceneSystem->CurrentScene();
+
+    // if the scene has no disk path yet, ask the user for one
+    // kept in outer scope so the string data outlives the command dispatch
+    std::vector<std::string> openFileResult;
+    StringView fsPath = meAssetIndexGetFilesystemPath(currentScene->header);
+    if (!fsPath && !cmd.path)
+    {
+        openFileResult = pfd::open_file("Location to save the scene file", ".").result();
+        if (!openFileResult.empty())
+        {
+            ME_ASSERT(openFileResult.size() == 1);
+            const char* fileCstr = openFileResult[0].c_str();
+            cmd.path = StringFromCString(fileCstr);
+        }
+    }
+
 	meAsset* asset = meAssetTryGet(currentScene->header);
 	if (!asset)
 	{
 		return;
 	}
 
-    StringView fsPath = meAssetIndexGetFilesystemPath(asset->id);
 	if (!fsPath && cmd.path)
 	{
 		StringView sceneFile = cmd.path;
