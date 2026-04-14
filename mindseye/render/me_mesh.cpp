@@ -69,7 +69,7 @@ meMeshID meMeshPool::Load(
 {
 	meMaterialPool& materialPool = meMaterialGetPool();
 	meMeshPool& meshPool = meMeshPoolGet();
-	meMeshID meshHandle = meshPool.Load();
+	meMeshID meshHandle = meshPool.Load({.resourceType = meResourceType_InstanceAsset});
 	meMesh& outMesh = meshPool.Get(meshHandle);
 	meAllocator* meshPayloadAllocator = meshPool.GetPayloadAllocator();
 

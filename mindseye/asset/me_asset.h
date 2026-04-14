@@ -229,6 +229,7 @@ MEAPI meJobId meAssetRequestLoad(
 
 // assets passed in do not have to be the actual meAsset's in the asset registry
 // this reaches into the registry to do necessary bookeeping
+// Also if the resource type has a "Destroy()" member fn, it'll call that before the dtor is called
 MEAPI void meAssetUnloadBlocking(meSpanTyped<meAsset> assets);
 
 MEAPI bool meAssetWaitUntilLoadstage(

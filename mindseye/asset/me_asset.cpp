@@ -130,7 +130,7 @@ meAsset meAssetCreateNew(
 	meAssetLoader* loader = assetSystem.assetLoaders[type];
 	ME_ASSERT(loader);
 	meResourcePoolBase* resourcePool = loader->resourcePool;
-	Eye newRuntimeResource = resourcePool->Load();
+	Eye newRuntimeResource = resourcePool->Load({.resourceType = meResourceType_TemplateAsset});
 	void* opaqueAssetData = resourcePool->GetOpaque(newRuntimeResource);
 	MAID* assetHeader = (MAID*)opaqueAssetData;
 	*assetHeader = newMaid;
@@ -148,7 +148,7 @@ Eye meAssetCreateNewResource(meAssetType type)
 	meAssetLoader* loader = assetSystem.assetLoaders[type];
 	ME_ASSERT(loader);
 	meResourcePoolBase* resourcePool = loader->resourcePool;
-	Eye newRuntimeResource = resourcePool->Load();
+	Eye newRuntimeResource = resourcePool->Load({.resourceType = meResourceType_InstanceAsset});
     return newRuntimeResource;
 }
 
@@ -338,7 +338,7 @@ void meAssetLoader::meAssetLoad(meAsset& asset)
 	// TODO: implement async loading, so this would return loadStage=Loading
 	// and would itself enqueue more asset compiling jobs for the individual parts of the asset
 	meResourcePoolBase* pool = resourcePool;
-	asset.runtimeHandle = pool->Load();
+	asset.runtimeHandle = pool->Load({.resourceType = meResourceType_TemplateAsset});
 	void* outAsset = pool->GetOpaque(asset.runtimeHandle);
 	StringView diskPath = meAssetIndexGetFilesystemPath(asset.id);
 	StringView assetPath = meAssetGetAbsPathForResource(diskPath);

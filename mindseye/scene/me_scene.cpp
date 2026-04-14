@@ -37,13 +37,11 @@ void meSceneManager::UnloadCurrentScene()
 {
     EngineContext* ctx = GetEngineCtx();
 
-    CurrentScene().Destroy();
     meAssetUnloadBlocking(SPAN_FROM_TYPED_SINGLE(rootScene));
 	rootScene = {};
 
     meAllocator* sceneAllocator = &ctx->engineSceneAllocator;
 	sceneAllocator->meClear();
-
 }
 
 void meSceneManager::ChangeCurrentScene(StringView filename)

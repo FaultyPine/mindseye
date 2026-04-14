@@ -69,9 +69,9 @@ struct meScenePool : public meResourcePool<meScene>
 		StringView resourcePath, 
 		meScene& outScene);
 
-	Eye Load() override
+	Eye Load(meResourceCreateParams createParams) override
 	{
-		Eye e = meResourcePool<meScene>::Load();
+		Eye e = meResourcePool<meScene>::Load(createParams);
 		meScene& scene = Get(e);
 		scene.entities = DynArrayCreate<meAsset>(GetPayloadAllocator());
 		return e;

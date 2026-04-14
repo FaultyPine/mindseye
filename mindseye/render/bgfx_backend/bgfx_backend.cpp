@@ -215,19 +215,25 @@ void BgfxRendererBackend::Teardown(EngineContext* engine)
 		meMeshPool& meshPool = meMeshPoolGet();
 		// NOTE: mesh badData is a copy of a pool entry (see meMeshInitialize),
 		// so we skip it here to avoid double-destroying the same handles.
-		for (auto& slot : meshPool.resourcePool)
+		for (auto& slot : meshPool.resourcePoolInstances)
+			DestroyMeshGPUResources(slot.obj);
+		for (auto& slot : meshPool.resourcePoolTemplates)
 			DestroyMeshGPUResources(slot.obj);
 	}
 	{
 		meTexturePool& texPool = meTextureGetPool();
 		DestroyTextureGPUResources(texPool.GetBadData());
-		for (auto& slot : texPool.resourcePool)
+		for (auto& slot : texPool.resourcePoolInstances)
+			DestroyTextureGPUResources(slot.obj);
+		for (auto& slot : texPool.resourcePoolTemplates)
 			DestroyTextureGPUResources(slot.obj);
 	}
 	{
 		meShaderPool& shaderPool = meShaderGetPool();
 		DestroyShaderGPUResources(shaderPool.GetBadData());
-		for (auto& slot : shaderPool.resourcePool)
+		for (auto& slot : shaderPool.resourcePoolInstances)
+			DestroyShaderGPUResources(slot.obj);
+		for (auto& slot : shaderPool.resourcePoolTemplates)
 			DestroyShaderGPUResources(slot.obj);
 	}
 
