@@ -45,7 +45,7 @@ struct meSceneManager
 	void Tick(EngineContext* ctx);
 	void CopyToRenderInput(meScene& outScene);
 
-	Eye rootScene = {};
+	meAsset rootScene = {};
 
 	MEAPI meScene& CurrentScene();
 };

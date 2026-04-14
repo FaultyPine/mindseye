@@ -19,7 +19,7 @@ void meSceneInitialize(EngineContext* engine)
 void meSceneInitializeLate(EngineContext* engine)
 {
 	// start with a "blank" new scene
-	engine->sceneSystem->rootScene = meAssetCreateNew(MAScene).runtimeHandle;
+	engine->sceneSystem->rootScene = meAssetCreateNew(MAScene);
 	// CLEANUP: we're "leaking" this first blank scene, but who cares
 }
 
@@ -38,7 +38,7 @@ void meSceneManager::UnloadCurrentScene()
     EngineContext* ctx = GetEngineCtx();
 
     CurrentScene().Destroy();
-    ctx->scenePool->Destroy(rootScene);
+    meAssetUnloadBlocking(SPAN_FROM_TYPED_SINGLE(rootScene));
 	rootScene = {};
 
     meAllocator* sceneAllocator = &ctx->engineSceneAllocator;
@@ -53,7 +53,7 @@ void meSceneManager::ChangeCurrentScene(StringView filename)
 	meAssetRequestLoad(&sceneIdent, 1);
     if (meAsset* asset = meAssetTryGet(sceneIdent))
     {
-        GetEngineCtx()->sceneSystem->rootScene = asset->runtimeHandle;
+        GetEngineCtx()->sceneSystem->rootScene = *asset;
         meEventPayload payload = {asset};
         GetEngineCtx()->appCallbacks.onSceneLoaded(payload);
     }

@@ -5,6 +5,9 @@
 #define SPAN_FROM(var) meSpan(&var, sizeof(var))
 #define SPAN_FROM_TYPED(var) meSpanTyped<decltype(var)>(&var, sizeof(var))
 
+#define SPAN_FROM_SINGLE(var) meSpan(&var, 1)
+#define SPAN_FROM_TYPED_SINGLE(var) meSpanTyped<decltype(var)>(&var, 1)
+
 struct meSpan
 {
     char* data;

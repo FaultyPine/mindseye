@@ -357,6 +357,25 @@ void meAssetLoader::meAssetLoad(meAsset& asset)
 	asset.loadStage = result ? Loaded : Unloaded;
 }
 
+void meAssetUnloadBlocking(meSpanTyped<meAsset> assets)
+{
+	meAssetSystem& assetSystem = meAssetSystemGet();
+    for (u32 i = 0; i < assets.size; i++)
+    {
+        meAsset& asset = assets[i];
+        // modify registry first, so we don't have assets in the registry with invalid data
+        if (meAsset* registryAsset = meAssetTryGet(asset.id))
+        {
+            RWLockWrite lock(assetSystem.registries[asset.id.GetType()].lock);
+            registryAsset->loadStage = Unloaded;
+            registryAsset->runtimeHandle = {};
+        }
+        meAssetLoader* loader = assetSystem.assetLoaders[asset.id.GetType()];
+        ME_ASSERT(loader);
+        loader->resourcePool->Destroy(asset.runtimeHandle);
+    }
+}
+
 void meAssetLoader::meAssetWrite(meAsset& asset)
 {
 	meResourcePoolBase* pool = resourcePool;

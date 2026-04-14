@@ -227,6 +227,10 @@ MEAPI meJobId meAssetRequestLoad(
 	u32 numAssets = 1,
     meAssetOnAssetLoadCb cb = nullptr);
 
+// assets passed in do not have to be the actual meAsset's in the asset registry
+// this reaches into the registry to do necessary bookeeping
+MEAPI void meAssetUnloadBlocking(meSpanTyped<meAsset> assets);
+
 MEAPI bool meAssetWaitUntilLoadstage(
 	meSpanTyped<MAID> assetIdents,
 	meAssetLoadStage loadStage);

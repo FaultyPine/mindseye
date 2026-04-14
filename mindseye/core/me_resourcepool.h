@@ -17,8 +17,8 @@ struct meResourcePoolBase
 	virtual void* GetOpaque(Eye handle) const { return nullptr; };
 	meAllocator* GetPayloadAllocator() const { return resourcePayloadAllocator; }
 
-	virtual Eye CreateInternal() = 0;
-	virtual void DestroyInternal(Eye handle) = 0;
+	virtual Eye Create() = 0;
+	virtual void Destroy(Eye handle) = 0;
     virtual ~meResourcePoolBase() {}
 
 	meAllocator* resourcePayloadAllocator = nullptr;
@@ -49,10 +49,9 @@ struct meResourcePool : public meResourcePoolBase
     void Clear();
 	bool Empty() const { return resourcePool.empty(); }
 	// derived resource pools will overload this Load function with
-	// their own signature. Those derived functions should use CreateInternal
+	// their own signature. Those derived functions should use Create
 	// to return & write to the handle
-	virtual Eye Load() override { return CreateInternal(); }
-	void Destroy(Eye handle) { DestroyInternal(handle); }
+	virtual Eye Load() override { return Create(); }
 	ResourceType& Get(Eye handle);
 	const ResourceType& Get(Eye handle) const;
 	virtual void* GetOpaque(Eye handle) const override
@@ -66,9 +65,9 @@ struct meResourcePool : public meResourcePoolBase
     // if it isn't assigned, the "bad data" is just a default-constructed resource
 	ResourceType& GetBadData() { return Get(EYE_INVALID); }
 
-	Eye CreateInternal() override;
-	void DestroyInternal(Eye handle) override;
-	void DestroyInternal(meResourceSlot<ResourceType>& res);
+	Eye Create() override;
+	void Destroy(Eye handle) override;
+	void Destroy(meResourceSlot<ResourceType>& res);
 };
 
 template <typename ResourceType>
@@ -79,14 +78,14 @@ meResourcePool<ResourceType>::meResourcePool(
 	resourcePool = meBlockList<meResourceSlot<ResourceType>>(resourceAllocator);
 	meResourceSlot<ResourceType> badData = {};
     badData.inUse = true;
-    u32 idx = resourcePool.push(badData); // BadData starts as just default-constructed element
+    u32 idx = resourcePool.push(meMove(badData)); // BadData starts as just default-constructed element
     UNUSED(idx);
     ME_ASSERT(idx == 0); // we expect the "bad data" to be the first thing pushed
 	resourcePayloadAllocator = payloadAllocator;
 }
 
 template <typename ResourceType>
-Eye meResourcePool<ResourceType>::CreateInternal()
+Eye meResourcePool<ResourceType>::Create()
 {
 	meResourceSlot<ResourceType> newResourceInstance = {};
 	u32 resourceIdx = resourcePool.push(meMove(newResourceInstance));
@@ -100,14 +99,14 @@ void meResourcePool<ResourceType>::Clear()
 {
     for (auto& res : resourcePool)
     {
-        DestroyInternal(res);
+        Destroy(res);
     }
     resourcePool.clear();
     new (this) meResourcePool<ResourceType>(resourcePool.allocator, resourcePayloadAllocator);
 }
 
 template <typename ResourceType>
-void meResourcePool<ResourceType>::DestroyInternal(meResourceSlot<ResourceType>& res)
+void meResourcePool<ResourceType>::Destroy(meResourceSlot<ResourceType>& res)
 {
     res.obj.~ResourceType();
     res.generation++;
@@ -115,11 +114,11 @@ void meResourcePool<ResourceType>::DestroyInternal(meResourceSlot<ResourceType>&
 }
 
 template <typename ResourceType>
-void meResourcePool<ResourceType>::DestroyInternal(Eye handle)
+void meResourcePool<ResourceType>::Destroy(Eye handle)
 {
 	auto idx = handle.GetIndex();
 	meResourceSlot<ResourceType>& resource = resourcePool.get(idx);
-	DestroyInternal(resource);
+	Destroy(resource);
 	resourcePool.markDeleted(idx);
 }
 
