@@ -122,13 +122,17 @@ typeName() = default;
 // of asset definitions. I.E. when a "scene" asset references a "mesh" asset, use this structure
 struct MEREFLECT(type) meAsset
 {
+    // refers to a template asset on disk
 	MAID id = {};
-    // BOOKMARK: THIS IS NOT RIGHT. MAID -> Eye should be one-to-many. It's currently one-to-one.
+    // NOTE: a given meAsset can refer to a "template asset" which is an asset on disk
+    // OR an "instance" asset, which is generally a copy of a template asset, used at runtime
 	MEREFLECT(exclude)
 	Eye runtimeHandle = EYE_INVALID;
 	MEREFLECT(exclude)
     meAssetLoadStage loadStage = Unloaded;
 	
+    bool IsTemplateAsset() const { return runtimeHandle.IsTemplateAsset(); }
+
 	meAsset(const MAID identifier) : 
 		id(identifier)
 	{}
