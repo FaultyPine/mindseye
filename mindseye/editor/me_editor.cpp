@@ -235,7 +235,7 @@ void meEditorTick(EngineContext* engine)
         
         if (editor.sceneDirty)
         {
-            if (ImGui::Button("Save"))
+            if (ImGui::Button("Save Current Scene (Ctrl+S)") || (ImGui::IsKeyDown(ImGuiMod_Ctrl) && ImGui::IsKeyDown(ImGuiKey_S)))
             {
                 meExternalCommand cmd = {};
                 cmd.type = meExternalCommandType_SaveCurrentScene;
