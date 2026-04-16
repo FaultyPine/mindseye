@@ -11,11 +11,10 @@
 #include "core/me_filesystem.h"
 #include "editor/me_editor.h"
 
-#include "external/potable-file-dialogs.h"
 
-static void HandleCreateNewScene(const meCmdCreateNewScene& cmd)
+static void HandleCreateAsset(const meCmdCreateNewAsset& cmd)
 {
-	meAsset newAsset = meAssetCreateNew(MAScene, cmd.path);
+	meAsset newAsset = meAssetCreateNewTemplateAsset(cmd.type, cmd.path);
 	meJobId writeReq = meAssetRequestWrite(meSpanTyped<MAID>(&newAsset.id, 1));
 	UNUSED(writeReq);
 }
@@ -28,36 +27,21 @@ static void HandleChangeScene(const meCmdChangeScene& cmd)
 	engine->sceneSystem->ChangeCurrentScene(sceneFile);
 }
 
-static void HandleSaveCurrentScene(const meCmdSaveCurrentScene& cmdIn)
+static void HandleSaveCurrentScene(const meCmdSaveCurrentScene& cmd)
 {
-    meCmdSaveCurrentScene cmd = cmdIn;
 	EngineContext* engine = GetEngineCtx();
 	meScene* currentScene = &engine->sceneSystem->CurrentScene();
-
-    // if the scene has no disk path yet, ask the user for one
-    // kept in outer scope so the string data outlives the command dispatch
-    std::vector<std::string> openFileResult;
-    StringView fsPath = meAssetIndexGetFilesystemPath(currentScene->header);
-    if (!fsPath && !cmd.path)
-    {
-        openFileResult = pfd::open_file("Location to save the scene file", ".").result();
-        if (!openFileResult.empty())
-        {
-            ME_ASSERT(openFileResult.size() == 1);
-            const char* fileCstr = openFileResult[0].c_str();
-            cmd.path = StringFromCString(fileCstr);
-        }
-    }
 
 	meAsset* asset = meAssetTryGet(currentScene->header);
 	if (!asset)
 	{
+        LOG_WARN("Tried to save current scene, but scene header doesn't point to a valid loaded asset");
 		return;
 	}
 
-	if (!fsPath && cmd.path)
+    StringView sceneFile = cmd.path;
+	if (sceneFile)
 	{
-		StringView sceneFile = cmd.path;
 		meFsNormalizePathSeperators(sceneFile);
 		sceneFile = meAssetEnsurePathHasGoodExtension(sceneFile, MAScene);
 		sceneFile = meAssetGetRelPathForResource(sceneFile);
@@ -65,15 +49,6 @@ static void HandleSaveCurrentScene(const meCmdSaveCurrentScene& cmdIn)
 	}
 
     meAssetRequestWrite(meSpanTyped<MAID>(&currentScene->header, 1));
-}
-
-static void HandleCreateEntity(const meCmdCreateEntity& cmd)
-{
-	UNUSED(cmd);
-	EngineContext* engine = GetEngineCtx();
-	meScene* currentScene = &engine->sceneSystem->CurrentScene();
-	meAsset newEnt = meEntityCreateBlank();
-	DynArrayPush(currentScene->entities, newEnt);
 }
 
 static void HandlePickEntity(const meCmdPickEntity& cmd)
@@ -110,17 +85,14 @@ void meReceiveExternalCommand(meExternalCommand cmd)
 {
 	switch (cmd.type)
 	{
-		case meExternalCommandType_CreateNewScene:
-			HandleCreateNewScene(cmd.createNewScene);
-			break;
 		case meExternalCommandType_ChangeScene:
 			HandleChangeScene(cmd.changeScene);
 			break;
 		case meExternalCommandType_SaveCurrentScene:
 			HandleSaveCurrentScene(cmd.saveCurrentScene);
 			break;
-		case meExternalCommandType_CreateEntity:
-			HandleCreateEntity(cmd.createEntity);
+		case meExternalCommandType_CreateAsset:
+			HandleCreateAsset(cmd.createAsset);
 			break;
 		case meExternalCommandType_PickEntity:
 			HandlePickEntity(cmd.pickEntity);

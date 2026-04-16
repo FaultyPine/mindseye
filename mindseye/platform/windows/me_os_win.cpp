@@ -346,8 +346,8 @@ bool meOSOpenFile(
 	StringView path, 
 	OSFileFlags flags)
 {
-    ME_MEMCLEAR((void*)file.path, PATH_MAX);
-    StringCopy({file.path, PATH_MAX}, path);
+    ME_MEMCLEAR((void*)file.path, ME_PATH_MAX);
+    StringCopy({file.path, ME_PATH_MAX}, path);
 	flags |= file.flags;
 	u32 openMode = OPEN_ALWAYS;
 	if (flags & OSFileFlags_OnlyIfExists)
@@ -428,10 +428,10 @@ bool meOSReadDirectory(
 
 StringView meOSGetExeFilepath()
 {
-	static char path[PATH_MAX];
+	static char path[ME_PATH_MAX];
 	if (path[0] == '\0')
 	{
-		ME_MEMCLEAR(path, PATH_MAX);
+		ME_MEMCLEAR(path, ME_PATH_MAX);
 		GetModuleFileNameA(NULL, path, sizeof(path));
 		meFsNormalizePathSeperators(StringView(path, CStringLength(path)));
 	}
@@ -440,10 +440,10 @@ StringView meOSGetExeFilepath()
 
 StringView meOSGetExeFileFolder()
 {
-	static char path[PATH_MAX];
+	static char path[ME_PATH_MAX];
 	if (path[0] == '\0')
 	{
-		ME_MEMCLEAR(path, PATH_MAX);
+		ME_MEMCLEAR(path, ME_PATH_MAX);
 		StringView fullPath = meOSGetExeFilepath();
 		s32 lastDirSep = FindInStringRev(fullPath, meFsGetDirectorySeperator());
 		ME_MEMCPY(path, fullPath.cstr(), lastDirSep);
@@ -453,11 +453,11 @@ StringView meOSGetExeFileFolder()
 
 StringView meOSGetWorkingDir()
 {
-	static char workingDirBuffer[PATH_MAX];
+	static char workingDirBuffer[ME_PATH_MAX];
 	if (workingDirBuffer[0] == '\0')
 	{
-		ME_MEMCLEAR(workingDirBuffer, PATH_MAX);
-		DWORD dwRet = GetCurrentDirectoryA(PATH_MAX, workingDirBuffer);
+		ME_MEMCLEAR(workingDirBuffer, ME_PATH_MAX);
+		DWORD dwRet = GetCurrentDirectoryA(ME_PATH_MAX, workingDirBuffer);
 		if (dwRet == 0) 
 		{
 			// failure
@@ -465,16 +465,16 @@ StringView meOSGetWorkingDir()
 			LOG_ERROR("Failed to get working directory. Err %i", error);
 			return {};
 		} 
-		else if (dwRet > PATH_MAX) 
+		else if (dwRet > ME_PATH_MAX) 
 		{
 			// path is too long for the buffer
-			ME_ASSERT(false && "working dir is more than PATH_MAX characters");
+			ME_ASSERT(false && "working dir is more than ME_PATH_MAX characters");
 		}
-		StringView result = StringFromCString(workingDirBuffer, PATH_MAX);
+		StringView result = StringFromCString(workingDirBuffer, ME_PATH_MAX);
 		meFsNormalizePathSeperators(result);
 		return result;
 	}
-	StringView result = StringFromCString(workingDirBuffer, PATH_MAX);
+	StringView result = StringFromCString(workingDirBuffer, ME_PATH_MAX);
 	return result;
 }
 
@@ -567,12 +567,12 @@ String meOSResolveRelativeToAbsPath(
 	meAllocator* allocator,
 	StringView potentiallyRelativePath)
 {
-	String absolutePath = String(PATH_MAX, allocator);
-	ME_MEMCLEAR((char*)absolutePath, PATH_MAX);
-	char src[PATH_MAX];
-	ME_MEMCLEAR(src, PATH_MAX);
+	String absolutePath = String(ME_PATH_MAX, allocator);
+	ME_MEMCLEAR((char*)absolutePath, ME_PATH_MAX);
+	char src[ME_PATH_MAX];
+	ME_MEMCLEAR(src, ME_PATH_MAX);
 	ME_MEMCPY(src, potentiallyRelativePath.data, potentiallyRelativePath.len);
-    DWORD result = GetFullPathNameA(src, PATH_MAX, absolutePath.data, NULL);
+    DWORD result = GetFullPathNameA(src, ME_PATH_MAX, absolutePath.data, NULL);
 	ME_ASSERT(result > 0);
 	absolutePath.len = CStringLength(absolutePath.cstr());
 	meFsNormalizePathSeperators(absolutePath);

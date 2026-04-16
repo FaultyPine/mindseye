@@ -17,7 +17,7 @@ struct String
     MEAPI StringView OffsetView(u64 offset = 0);
     MEAPI StringView OffsetView(u64 offset, u64 len);
     MEAPI String(const char* data, u64 len, meAllocator* allocator);
-    MEAPI String(u64 len, meAllocator* allocator);
+    MEAPI String(u64 len, meAllocator* allocator = nullptr);
     MEAPI String(const StringView& str, meAllocator* allocator = nullptr);
 	MEAPI String(const StringBuilder& builder, meAllocator* allocator = nullptr);
 	MEAPI String() = default;

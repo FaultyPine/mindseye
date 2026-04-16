@@ -28,7 +28,7 @@ struct RendererFrontend
     RendererBackendType backendType = NONE;
     meAllocator* rendererPersistentAllocator = nullptr;
     Arena rendererFrameArena = {};
-    bool rendererLoggingEnabled = true;
+    bool rendererLoggingEnabled = false;
 
 	virtual void PushLine(
 		const glm::vec3& start,

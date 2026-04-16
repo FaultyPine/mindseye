@@ -55,7 +55,7 @@ void InitializeEntitySystem(EngineContext* engine);
 void DeinitializeEntitySystem(EngineContext* engine);
 meEntityPool& meEntityGetPool();
 
-MEAPI meAsset meEntityCreateBlank(
+MEAPI meAsset meEntityCreateBlankInstance(
 	StringView name = {});
 MEAPI bool meEntityDestroy(EntityRef ent);
 MEAPI meEntity& meEntityGet(EntityRef ent);

@@ -19,7 +19,7 @@ void meSceneInitialize(EngineContext* engine)
 void meSceneInitializeLate(EngineContext* engine)
 {
 	// start with a "blank" new scene
-	engine->sceneSystem->rootScene = meAssetCreateNew(MAScene);
+	engine->sceneSystem->rootScene = meAssetCreateNewInstanceAsset(MAScene);
 	// CLEANUP: we're "leaking" this first blank scene, but who cares
 }
 
@@ -48,6 +48,12 @@ void meSceneManager::ChangeCurrentScene(StringView filename)
 {
 	UnloadCurrentScene();
 	MAID sceneIdent = meAssetIndexGetMAIDFromPath(filename);
+    if (!sceneIdent)
+    {
+        // BOOKMARK: opening a scene file gives this. filename isn't mapping to an asset in the index for some reason
+        LOG_WARN("Failed to change scene. Scene file " STRING_FMT " doesn't map to a asset", STRING_VAARGS(filename));
+        return;
+    }
 	meAssetRequestLoad(&sceneIdent, 1);
     if (meAsset* asset = meAssetTryGet(sceneIdent))
     {
@@ -186,7 +192,7 @@ void meScenePool::Load(
 		float nodeMatrix[16];
 		cgltf_node_transform_local(&node, nodeMatrix);
 		meTransform nodeTf = meTransform(glm::make_mat4(nodeMatrix));
-		meAsset entityAsset = meEntityCreateBlank(StringFromCString(node.name));
+		meAsset entityAsset = meEntityCreateBlankInstance(StringFromCString(node.name));
 		meEntity& entity = meEntityGet(entityAsset);
 		entity.transform = nodeTf;
 		if (node.mesh)

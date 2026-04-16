@@ -190,6 +190,10 @@ String::String(const char* data, size_t len, meAllocator* allocator)
 
 String::String(size_t len, meAllocator* allocator)
 {
+    if (!allocator)
+	{
+		allocator = GetStringAllocator();
+	}
 	this->data = MEALLOC(allocator, len + 1);
 	ME_MEMCLEAR(this->data, len + 1);
 	this->len = len;

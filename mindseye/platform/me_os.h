@@ -41,9 +41,6 @@ struct OSStateView
 #ifdef OS_WINDOWS
 #define NOMINMAX
 #define UNICODE
-#ifndef PATH_MAX
-#define PATH_MAX 260
-#endif
 #else
 #error unknown os-specific defines
 #endif
@@ -166,7 +163,7 @@ struct OSFileReference
     OSFileFlags flags = OSFileFlags(0);
     #ifdef OS_WINDOWS
     void* fileHandle = 0;
-    char path[PATH_MAX] = {};
+    char path[ME_PATH_MAX] = {};
     #else
     #error unsupported filereference platform
     #endif
@@ -183,7 +180,7 @@ struct OSFileReference
 	}
 	void InitWithoutOpening(StringView str)
 	{
-		StringCopy({path, PATH_MAX}, str);
+		StringCopy({path, ME_PATH_MAX}, str);
 		ME_ASSERT(path[str.len] == '\0');
 	}
 	bool HasOpenFile() const { return reinterpret_cast<s64>(fileHandle) != -1; }

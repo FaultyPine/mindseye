@@ -110,27 +110,21 @@ void meAssetRegisterLoader(meAssetLoader* loader)
 
 MAID meAssetCreateNewAssetID(meAssetType type)
 {
-	// NOTE: randomness!
-    // TODO: use engine random once i implement that
+	// TODO: this shouldn't be random. Base it on an incrementing int in the asset index
 	f64 time = GetTimeUsec();
 	u32 randomNumber = HashBytes((u8*)&time, sizeof(time));
 	MAID newMaid = MAID(randomNumber, type);
 	return newMaid;
 }
 
-meAsset meAssetCreateNew(
-	meAssetType type,
-	StringView filename)
+static meAsset meAssetCreateNewAsset(meAssetType type, MAID newMaid, meResourceType resourceType)
 {
     meAssetSystem& assetSystem = meAssetSystemGet();
-	MAID newMaid = meAssetCreateNewAssetID(type);
-	StringView relPath = meAssetGetRelPathForResource(filename);
-	meAssetIndexRegisterRelation(relPath, newMaid);
-
 	meAssetLoader* loader = assetSystem.assetLoaders[type];
 	ME_ASSERT(loader);
 	meResourcePoolBase* resourcePool = loader->resourcePool;
-	Eye newRuntimeResource = resourcePool->Load({.resourceType = meResourceType_TemplateAsset});
+
+	Eye newRuntimeResource = resourcePool->Load({.resourceType = resourceType});
 	void* opaqueAssetData = resourcePool->GetOpaque(newRuntimeResource);
 	MAID* assetHeader = (MAID*)opaqueAssetData;
 	*assetHeader = newMaid;
@@ -142,14 +136,25 @@ meAsset meAssetCreateNew(
 	return meMove(newAsset);
 }
 
-Eye meAssetCreateNewResource(meAssetType type)
+meAsset meAssetCreateNewTemplateAsset(
+	meAssetType type,
+	StringView filename)
 {
-    meAssetSystem& assetSystem = meAssetSystemGet();
-	meAssetLoader* loader = assetSystem.assetLoaders[type];
-	ME_ASSERT(loader);
-	meResourcePoolBase* resourcePool = loader->resourcePool;
-	Eye newRuntimeResource = resourcePool->Load({.resourceType = meResourceType_InstanceAsset});
-    return newRuntimeResource;
+	MAID newMaid = meAssetCreateNewAssetID(type);
+    if (filename)
+    {
+        meFsNormalizePathSeperators(filename);
+        filename = meAssetEnsurePathHasGoodExtension(filename, type);
+        filename = meAssetGetRelPathForResource(filename);
+        meAssetIndexRegisterRelation(filename, newMaid);
+    }
+    return meAssetCreateNewAsset(type, newMaid, meResourceType_TemplateAsset);
+}
+
+meAsset meAssetCreateNewInstanceAsset(meAssetType type)
+{
+	MAID newMaid = meAssetCreateNewAssetID(type);
+    return meAssetCreateNewAsset(type, newMaid, meResourceType_InstanceAsset);
 }
 
 MAID::MAID(u64 id, meAssetType type)
@@ -315,7 +320,7 @@ meJobId meAssetRequestWrite(
 				{
 					jobData.cb(*asset);
 				}
-				assetSystem.assetFinishedLoadingEvent(meEventPayload((void*)&jobData.ident));
+				assetSystem.assetFinishedWritingEvent(meEventPayload((void*)&jobData.ident));
 			};
 			if (MEASSET_DEBUG_SINGLETHREADED_LOAD)
 			{

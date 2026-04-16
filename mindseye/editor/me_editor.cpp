@@ -19,15 +19,12 @@
 #include "asset/me_asset_index.h"
 #include "scene/me_scene.h"
 
+// TODO: remove this, replace with something lighter weight. this brings in a lot of STL stuff
+#include "external/potable-file-dialogs.h"
+
 EditorContext& meEditorGetCtx()
 {
 	return *GetEngineCtx()->editor;
-}
-
-void meEditorOnAssetBeginLoading(meEventPayload payload)
-{
-	//const MAID& id = *(MAID*)payload.payload;
-	//ImGui::InsertNotification({ImGuiToastType::Info, 3000, "Began loading " STRING_FMT, STRING_VAARGS(meAssetIndexGetFilesystemPath(id))});
 }
 
 void meEditorOnAssetFinishedLoading(meEventPayload payload)
@@ -35,6 +32,12 @@ void meEditorOnAssetFinishedLoading(meEventPayload payload)
 	const MAID& id = *(MAID*)payload.payload;
 	StringView diskPath = meAssetIndexGetFilesystemPath(id);
 	ImGui::InsertNotification({ImGuiToastType::Info, 3000, StringFormatTmp("Finished loading " STRING_FMT, STRING_VAARGS(diskPath)).cstr()});
+}
+void meEditorOnAssetFinishedWriting(meEventPayload payload)
+{
+	const MAID& id = *(MAID*)payload.payload;
+	StringView diskPath = meAssetIndexGetFilesystemPath(id);
+	ImGui::InsertNotification({ImGuiToastType::Info, 3000, StringFormatTmp("Finished writing " STRING_FMT, STRING_VAARGS(diskPath)).cstr()});
 }
 
 static void SetupImGuiDraculaStyle()
@@ -120,8 +123,8 @@ void meEditorInitialize(EngineContext* engine)
 {
 	engine->editor = MENEW(&engine->engineArena, EditorContext);
 
-	meEventSubscribe(engine->assetSystem->assetBeginLoadingEvent, meEditorOnAssetBeginLoading);
 	meEventSubscribe(engine->assetSystem->assetFinishedLoadingEvent, meEditorOnAssetFinishedLoading);
+	meEventSubscribe(engine->assetSystem->assetFinishedWritingEvent, meEditorOnAssetFinishedWriting);
 
 	SetupImGuiDraculaStyle();
 
@@ -140,6 +143,32 @@ void meEditorInitialize(EngineContext* engine)
 	meAssetEditorInitialize(engine->editor->assetEditor);
 }
 
+
+static void PopulatePathFromUserInputIfNotValid(String& path)
+{
+    if (!path.allocator)
+    {
+        path = String(ME_PATH_MAX);
+    }
+    // if the scene has no disk path yet, ask the user for one
+    // kept in outer scope so the string data outlives the command dispatch
+    if (path)
+    {
+        std::vector<std::string> openFileResult;
+        openFileResult = pfd::open_file("Location to save the file", ".").result();
+        if (!openFileResult.empty())
+        {
+            ME_ASSERT(openFileResult.size() == 1);
+            const char* fileCstr = openFileResult[0].c_str();
+            ME_ASSERT(CStringLength(fileCstr) <= ME_PATH_MAX);
+            StringView userPath = StringFromCString(fileCstr);
+            if (!StringCopy(path, userPath))
+            {
+                LOG_WARN("Internal error: Failed to get user input");
+            }
+        }
+    }
+}
 
 static void DrawEntityInspector(EngineContext* engine);
 
@@ -188,50 +217,46 @@ void meEditorTick(EngineContext* engine)
 		{
 			if (ImGui::MenuItem("New"))
 			{
-				auto openFileResult = pfd::save_file("Creating new scene file", ".").result();
-                if (!openFileResult.empty())
-                {
-					const char* fileCstr = openFileResult.c_str();
-					StringView openFilename = StringFromCString(fileCstr);
-					meExternalCommand cmd = {};
-					cmd.type = meExternalCommandType_CreateNewScene;
-					cmd.createNewScene.path = openFilename;
-					meReceiveExternalCommand(cmd);
-                }
+                meExternalCommand cmd = {};
+                cmd.type = meExternalCommandType_CreateAsset;
+                cmd.createAsset.type = MAScene;
+                PopulatePathFromUserInputIfNotValid(cmd.createAsset.path);
+                meReceiveExternalCommand(cmd);
 			}
             if (ImGui::MenuItem("Open"))
             {
-                auto openFileResult = pfd::open_file("Select a scene file", ".").result();
-                if (!openFileResult.empty())
-                {
-                    ME_ASSERT(openFileResult.size() == 1);
-					const char* fileCstr = openFileResult[0].c_str();
-                    StringView sceneFile = StringFromCString(fileCstr);
-					meExternalCommand cmd = {};
-					cmd.type = meExternalCommandType_ChangeScene;
-					cmd.changeScene.path = sceneFile;
-					meReceiveExternalCommand(cmd);
-                }
+                meExternalCommand cmd = {};
+                cmd.type = meExternalCommandType_ChangeScene;
+                PopulatePathFromUserInputIfNotValid(cmd.changeScene.path);
+                meReceiveExternalCommand(cmd);
             }
             if (ImGui::MenuItem("Save Current"))
             {
 				meExternalCommand cmd = {};
 				cmd.type = meExternalCommandType_SaveCurrentScene;
+                PopulatePathFromUserInputIfNotValid(cmd.saveCurrentScene.path);
 				meReceiveExternalCommand(cmd);
             }
-			if (ImGui::BeginMenu("Entity"))
-			{
-				if (ImGui::MenuItem("New"))
-				{
-					meExternalCommand cmd = {};
-					cmd.type = meExternalCommandType_CreateEntity;
-					meReceiveExternalCommand(cmd);
-				}
-				ImGui::EndMenu();
-			}
             ImGui::EndMenu();
         }
+        // BOOKMARK: "creating a new entity instance in the scene" shouldn't be a thing
+        // instead, you should have to *instance* a *template asset entity* into the scene
+        // SO really, we should let you create a new Entity asset, then "drag" that entity into the scene
+        // that way there's a connection between the template and instance asset we can use to serialize
+        // changed fields
 
+        if (ImGui::BeginMenu("Entity"))
+        {
+            if (ImGui::MenuItem("New"))
+            {
+                meExternalCommand cmd = {};
+                cmd.type = meExternalCommandType_CreateAsset;
+                cmd.createAsset.type = MAEntity;
+                PopulatePathFromUserInputIfNotValid(cmd.createAsset.path);
+                meReceiveExternalCommand(cmd);
+            }
+            ImGui::EndMenu();
+        }
         
         if (editor.sceneDirty)
         {

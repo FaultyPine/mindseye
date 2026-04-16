@@ -218,11 +218,11 @@ void meAssetRegisterLoader(meAssetLoader* loader);
 MAID meAssetCreateNewAssetID(meAssetType type);
 
 // creates a default-constructed instance of an asset type on disk (and assigns it a proper guid and all that)
-MEAPI meAsset meAssetCreateNew(
+MEAPI meAsset meAssetCreateNewTemplateAsset(
 	meAssetType type,
 	StringView filename = {});
 
-MEAPI Eye meAssetCreateNewResource(meAssetType type);
+MEAPI meAsset meAssetCreateNewInstanceAsset(meAssetType type);
 
 typedef void(*meAssetOnAssetLoadCb)(const meAsset&);
 

@@ -3,34 +3,31 @@
 #include "core/me_defines.h"
 #include "core/me_string.h"
 #include "core/me_math.h"
+#include "asset/me_asset.h"
 
 enum meExternalCommandType
 {
-	meExternalCommandType_CreateNewScene,
 	meExternalCommandType_ChangeScene,
 	meExternalCommandType_SaveCurrentScene,
-	meExternalCommandType_CreateEntity,
+	meExternalCommandType_CreateAsset,
 	meExternalCommandType_PickEntity,
 };
 
-struct meCmdCreateNewScene
+struct meCmdCreateNewAsset
 {
-	StringView path;
+    meAssetType type;
+	String path;
 };
 
 struct meCmdChangeScene
 {
-	StringView path;
+	String path;
 };
 
 struct meCmdSaveCurrentScene
 {
 	// if the current scene asset has no disk path, this will be used
-	StringView path;
-};
-
-struct meCmdCreateEntity
-{
+	String path;
 };
 
 struct meCmdPickEntity
@@ -41,14 +38,12 @@ struct meCmdPickEntity
 struct meExternalCommand
 {
 	meExternalCommandType type;
-	union
-	{
-		meCmdCreateNewScene createNewScene;
-		meCmdChangeScene changeScene;
-		meCmdSaveCurrentScene saveCurrentScene;
-		meCmdCreateEntity createEntity;
-		meCmdPickEntity pickEntity;
-	};
+    // this is theoretically a tagged union, but it's really annoying writing dtor and copy ctor and all that so meh
+    meCmdChangeScene changeScene;
+    meCmdSaveCurrentScene saveCurrentScene;
+    meCmdCreateNewAsset createAsset;
+    meCmdPickEntity pickEntity;
+
 };
 
 MEAPI void meReceiveExternalCommand(meExternalCommand cmd);

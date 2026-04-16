@@ -47,10 +47,10 @@ bool meEntityIsFlag(EntityRef ent, EntityFlags flag)
     return meEntityIsFlag(meEntityGet(ent), flag);
 }
 
-meAsset meEntityCreateBlank(
+meAsset meEntityCreateBlankInstance(
 	StringView name)
 {
-    meAsset newEntityAsset = meAssetCreateNew(MAEntity);
+    meAsset newEntityAsset = meAssetCreateNewInstanceAsset(MAEntity);
     meEntityPool& entityPool = meEntityGetPool();
     meEntity& ent = entityPool.Get(newEntityAsset);
     if (name)
