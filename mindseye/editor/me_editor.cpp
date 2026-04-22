@@ -239,11 +239,6 @@ void meEditorTick(EngineContext* engine)
             }
             ImGui::EndMenu();
         }
-        // BOOKMARK: "creating a new entity instance in the scene" shouldn't be a thing
-        // instead, you should have to *instance* a *template asset entity* into the scene
-        // SO really, we should let you create a new Entity asset, then "drag" that entity into the scene
-        // that way there's a connection between the template and instance asset we can use to serialize
-        // changed fields
 
         if (ImGui::BeginMenu("Entity"))
         {

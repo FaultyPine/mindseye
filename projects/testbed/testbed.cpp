@@ -12,14 +12,14 @@ void testbed_onsceneload(meEventPayload payload)
     UNUSED(sceneAsset);
     EngineContext* engine = GetEngineCtx();
     //GameGlobals& globals = *MENEW(&engine->gameArena, GameGlobals);
-	meAsset testEntity = meEntityCreateBlank(STRING_LIT("bruh"));
+	meAsset testEntity = meEntityCreateBlankInstance(STRING_LIT("bruh"));
 	DynArrayPush(engine->sceneSystem->CurrentScene().entities, testEntity);
 	meEntity& entity = meEntityGet(testEntity);
 	entity.transform = meTransform(glm::vec3(sin(GetTimeUsec()) * 5.0, cos(GetTimeUsec()) * 5.0, 0.0));
 	//meEntitySetFlag(entity, EntityFlags_NoSer, true);
-    meMeshID newMesh = meAssetCreateNewResource(MAMesh);
+    meAsset newMesh = meAssetCreateNewInstanceAsset(MAMesh);
     GenPlaneMesh(newMesh, 2);
-	entity.mesh = meAsset(newMesh, MAMesh);
+	entity.mesh = newMesh;
 }
 
 void testbed_init(EngineContext* engine)
