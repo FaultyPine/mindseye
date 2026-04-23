@@ -2,6 +2,7 @@
 
 #include "mindseye/core/me_defines.h"
 #include "mindseye/core/me_string.h"
+#include <string_view>
 
 // The mindseye runtime "handle" type
 // contains an index and generation
@@ -115,6 +116,16 @@ consteval u32 HashStringComptime(const char* str, u32 value = FNV_offset_basis_u
     return (str[0] == '\0') ? value : 
 		HashStringComptime(&str[1], (value ^ static_cast<u32>(str[0])) * FNV_prime_u32);
 }
+constexpr u64 HashStringComptime(std::string_view str) 
+{
+    u64 hash = 14695981039346656037ull;
+    for (char c : str) 
+    {
+        hash ^= static_cast<unsigned char>(c);
+        hash *= 1099511628211ull;
+    }
+    return hash;
+}
 
 template <typename T>
 void HashCombineImpl(u64& seed, const T& val) {
@@ -131,3 +142,28 @@ u64 HashCombine(const Types&... args) {
 
 // Assuming floats are in the range [0.0, 1.0] and we want 8 bits per component
 u32 PackFloatsToU32(float f1, float f2, float f3, float f4);
+
+
+
+template<typename T>
+constexpr u64 type_id() {
+#if defined(__clang__) || defined(__GNUC__)
+    constexpr std::string_view name = __PRETTY_FUNCTION__;
+    // Format: constexpr std::size_t type_id() [with T = ...]
+    constexpr std::string_view prefix = "T = ";
+    auto start = name.find(prefix) + prefix.size();
+    auto end = name.find(']', start);
+    return HashStringComptime(name.substr(start, end - start));
+#elif defined(_MSC_VER)
+    constexpr std::string_view name = __FUNCSIG__;
+    // Format: size_t __cdecl typeid_util::type_id<...>(void)
+    constexpr std::string_view prefix = "type_id<";
+    auto start = name.find(prefix) + prefix.size();
+    auto end = name.find('>', start);
+    return HashStringComptime(name.substr(start, end - start));
+#else
+    // Fallback: use typeid
+    return HashStringComptime(typeid(T).name());
+#endif
+}
+
