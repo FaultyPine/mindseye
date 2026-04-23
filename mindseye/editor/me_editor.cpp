@@ -146,27 +146,17 @@ void meEditorInitialize(EngineContext* engine)
 
 static void PopulatePathFromUserInputIfNotValid(String& path)
 {
-    if (!path.allocator)
-    {
-        path = String(ME_PATH_MAX);
-    }
     // if the scene has no disk path yet, ask the user for one
     // kept in outer scope so the string data outlives the command dispatch
-    if (path)
+    std::vector<std::string> openFileResult;
+    openFileResult = pfd::open_file("Location to save the file", ".").result();
+    if (!openFileResult.empty())
     {
-        std::vector<std::string> openFileResult;
-        openFileResult = pfd::open_file("Location to save the file", ".").result();
-        if (!openFileResult.empty())
-        {
-            ME_ASSERT(openFileResult.size() == 1);
-            const char* fileCstr = openFileResult[0].c_str();
-            ME_ASSERT(CStringLength(fileCstr) <= ME_PATH_MAX);
-            StringView userPath = StringFromCString(fileCstr);
-            if (!StringCopy(path, userPath))
-            {
-                LOG_WARN("Internal error: Failed to get user input");
-            }
-        }
+        ME_ASSERT(openFileResult.size() == 1);
+        const char* fileCstr = openFileResult[0].c_str();
+        ME_ASSERT(CStringLength(fileCstr) <= ME_PATH_MAX);
+        StringView userPath = StringFromCString(fileCstr);
+        path = userPath;
     }
 }
 

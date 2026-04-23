@@ -567,14 +567,11 @@ String meOSResolveRelativeToAbsPath(
 	meAllocator* allocator,
 	StringView potentiallyRelativePath)
 {
-	String absolutePath = String(ME_PATH_MAX, allocator);
-	ME_MEMCLEAR((char*)absolutePath, ME_PATH_MAX);
-	char src[ME_PATH_MAX];
-	ME_MEMCLEAR(src, ME_PATH_MAX);
-	ME_MEMCPY(src, potentiallyRelativePath.data, potentiallyRelativePath.len);
-    DWORD result = GetFullPathNameA(src, ME_PATH_MAX, absolutePath.data, NULL);
+    char dst[ME_PATH_MAX];
+    DWORD result = GetFullPathNameA(potentiallyRelativePath.cstr(), ME_PATH_MAX, dst, NULL);
 	ME_ASSERT(result > 0);
-	absolutePath.len = CStringLength(absolutePath.cstr());
+	u64 len = CStringLength(dst);
+	String absolutePath = String((const char*)dst, len);
 	meFsNormalizePathSeperators(absolutePath);
 	return meMove(absolutePath);
 }

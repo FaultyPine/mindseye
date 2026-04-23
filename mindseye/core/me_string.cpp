@@ -171,6 +171,10 @@ String& String::operator=(const StringBuilder& other)
 
 static void InitFromBuf(String* str, const char* data, size_t len, meAllocator* allocator)
 {
+    if (!allocator)
+    {
+        allocator = GetStringAllocator();
+    }
 	if (len == 0)
 	{
 		*str = String();
@@ -186,18 +190,6 @@ static void InitFromBuf(String* str, const char* data, size_t len, meAllocator* 
 String::String(const char* data, size_t len, meAllocator* allocator)
 {
 	InitFromBuf(this, data, len, allocator);
-}
-
-String::String(size_t len, meAllocator* allocator)
-{
-    if (!allocator)
-	{
-		allocator = GetStringAllocator();
-	}
-	this->data = MEALLOC(allocator, len + 1);
-	ME_MEMCLEAR(this->data, len + 1);
-	this->len = len;
-	this->allocator = allocator;
 }
 
 String::String(const StringBuilder& builder, meAllocator* allocator)

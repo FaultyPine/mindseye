@@ -50,7 +50,7 @@ void MAIDSerializerToStringFn(
 	*(json*)ctx.outputData.data = std::string_view(buf, len);
 }
 
-StringView meAssetGetProjectRootResourceDir(EngineContext* engine)
+String meAssetGetProjectRootResourceDir(EngineContext* engine)
 {
 	StringView userAppConfigFile = engine->userConfig.projectRootConfigFile;
 	if (userAppConfigFile)
@@ -77,8 +77,8 @@ void meAssetInitialize(EngineContext* engine)
 	}
 	else
 	{
-		StringView rootResDir = meAssetGetProjectRootResourceDir(engine);
-		meAssetSetResourceDir(rootResDir ? rootResDir : meOSGetWorkingDir());
+		String rootResDir = meAssetGetProjectRootResourceDir(engine);
+		meAssetSetResourceDir(rootResDir ? StringView(rootResDir) : meOSGetWorkingDir());
 	}
 	engine->assetSystem->assetCompilerJobs.Initialize(&engine->engineArena, NUM_ASSET_COMPILER_THREADS);
 }

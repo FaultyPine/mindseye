@@ -50,7 +50,6 @@ void meSceneManager::ChangeCurrentScene(StringView filename)
 	MAID sceneIdent = meAssetIndexGetMAIDFromPath(filename);
     if (!sceneIdent)
     {
-        // BOOKMARK: opening a scene file gives this. filename isn't mapping to an asset in the index for some reason
         LOG_WARN("Failed to change scene. Scene file " STRING_FMT " doesn't map to a asset", STRING_VAARGS(filename));
         return;
     }
