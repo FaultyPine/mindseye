@@ -92,10 +92,6 @@ MEMAP_BEGIN_CUSTOM_HASHER(MAID, obj)
 	return HashCombine(h1, h2);
 } MEMAP_END_CUSTOM_HASHER
 
-void MAIDSerializerToStringFn(
-	const meTypeDescriptor& typeDescriptor,
-	SerializeContext& ctx);
-
 STATIC_ASSERT(sizeof(MAID) == sizeof(u64));
 constexpr MAID MAID_INVALID = {};
 

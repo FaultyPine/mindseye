@@ -40,16 +40,6 @@ StringView meAssetFileExtFromType(meAssetType type)
     }
 }
 
-void MAIDSerializerToStringFn(
-	const meTypeDescriptor& typeDescriptor,
-	SerializeContext& ctx)
-{
-	MAID* maid = (MAID*)ctx.data;
-	char buf[32];
-	int len = stbsp_snprintf(buf, sizeof(buf), "%llu", maid->GetID());
-	*(json*)ctx.outputData.data = std::string_view(buf, len);
-}
-
 String meAssetGetProjectRootResourceDir(EngineContext* engine)
 {
 	StringView userAppConfigFile = engine->userConfig.projectRootConfigFile;
