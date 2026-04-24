@@ -39,3 +39,30 @@ meSerializeResult DeserializeFromTextBlocking(
 	StringView inText,
 	meSpan outBuffer);
 
+
+// Returns true if the two buffers, interpreted as the given type, are
+// semantically equal
+// parentType is used for templated types (see meTypeDescriptor docs).
+bool meFieldsEqual(
+    const meTypeDescriptor& typeDesc,
+    const void* a,
+    const void* b,
+    const meTypeDescriptor* parentType = nullptr);
+
+// Like SerializeToTextBlocking, but only emits fields whose values
+// differ from those in templateData. Header MAID is always written.
+meSerializeResult SerializeOverridesToTextBlocking(
+    const meTypeDescriptor& assetTypeDesc,
+    void* instanceData,
+    void* templateData,
+    meAllocator* allocator,
+    StringView& outResult);
+
+// Counterpart: copies templateData into outBuffer first, then
+// overwrites any fields present in inText.
+meSerializeResult DeserializeOverridesFromTextBlocking(
+    const meTypeDescriptor& assetTypeDesc,
+    meAllocator* allocator,
+    StringView inText,
+    const void* templateData,
+    meSpan outBuffer);

@@ -26,6 +26,7 @@ struct MEREFLECT(type) meMesh
 {
     ME_ASSET_STRUCTURE(meMesh);
 
+    MEREFLECT(exclude)
 	String name;
     MEREFLECT(exclude)
 	meGPUBuffer vertBuffer = {};
@@ -36,6 +37,7 @@ struct MEREFLECT(type) meMesh
     MEREFLECT(exclude)
 	meGPUBuffer texcoordBuffer = {};
 
+    MEREFLECT(exclude)
     BoundingBox meshBounds = {};
     
     MEREFLECT(exclude)

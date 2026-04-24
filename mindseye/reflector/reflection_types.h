@@ -74,6 +74,8 @@ typedef void (*EditorRenderFn)(
 
 typedef void (*SetToDefaults)(void* objData);
 
+typedef bool (*EqualsFn)(const void* a, const void* b);
+
 struct meTypeDescriptor
 {
 	String name = {};
@@ -111,6 +113,8 @@ struct meTypeDescriptor
     EditorRenderFn editorRenderFn = nullptr;
     // invoke default constructor on an arbitrary buffer
     SetToDefaults setToDefaultsFn = nullptr;
+    // compare two buffers of this type for semantic equality
+    EqualsFn equalsFn = nullptr;
 
 	bool operator==(const meTypeDescriptor& other) const
 	{
@@ -172,6 +176,7 @@ extern meTypeDescriptor TD_STRING;
 void sizedBufferSerializer(const meTypeDescriptor&, SerializeContext& ctx);
 bool sizedBufferDeserializer(const meTypeDescriptor&, DeserializeContext& ctx);
 bool stringDeserializer(const meTypeDescriptor&, DeserializeContext& ctx);
+bool sizedBufferEquals(const void* a, const void* b);
 
 // NOTE: there are static maps mapping between reflected types and their type descriptors
 // in me_reflector.cpp
@@ -182,4 +187,23 @@ template <typename T>
 void meTypeDescriptorSetToDefaults(void* objData)
 {
     new (objData) T();
+}
+
+template <typename T>
+bool meTypeDescriptorEquals(const void* a, const void* b)
+{
+    if constexpr (requires(const T& x, const T& y) { x.SerEquals(y); })
+    {
+        return (*(const T*)a) .SerEquals (*(const T*)b);
+    }
+    else
+    {
+        // is POD?
+        static_assert(
+            std::is_trivially_destructible_v<T> &&
+            //std::is_trivial_v<T> && // not using this check, because it flags types that use unions as nontrivial. In this situation, that's fine.
+            std::is_standard_layout_v<T>, 
+            "Serialized type that doesn't define SerEquals must be POD");
+        return memcmp(a, b, sizeof(T)) == 0;
+    }
 }
