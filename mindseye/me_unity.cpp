@@ -44,7 +44,6 @@
 #endif
 
 // SOURCE
-#ifndef ME_UNITY_HEADER_ONLY
 #include "platform/me_os.cpp"
 #include "platform/me_input.cpp"
 #include "core/me_log.cpp"
@@ -81,4 +80,3 @@
 #include "editor/me_editor_unity.cpp"
 
 #endif // ME_CORE_ONLY
-#endif // ME_UNITY_HEADER_ONLY

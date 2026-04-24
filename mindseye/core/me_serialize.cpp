@@ -281,24 +281,14 @@ bool meFieldsEqual(
 		return true;
 	}
 
-
-	if (td.serializerFn)
+	if (td.thisType)
 	{
-		json ja, jb;
-		SerializeContext ctxA = {};
-		ctxA.allocator = GetTLScratch();
-		ctxA.data = meSpan((void*)a, td.size);
-		ctxA.outputData = meSpan(&ja, sizeof(json));
-		ctxA.parentType = parentType ? parentType : &td;
-		td.serializerFn(td, ctxA);
+		return meFieldsEqual(*td.thisType, a, b, &td);
+	}
 
-		SerializeContext ctxB = {};
-		ctxB.allocator = GetTLScratch();
-		ctxB.data = meSpan((void*)b, td.size);
-		ctxB.outputData = meSpan(&jb, sizeof(json));
-		ctxB.parentType = parentType ? parentType : &td;
-		td.serializerFn(td, ctxB);
-		return ja == jb;
+	if (td.equalsFn)
+	{
+		return td.equalsFn(td, a, b);
 	}
 
 	if (td.fields.size > 0)
@@ -315,15 +305,25 @@ bool meFieldsEqual(
 		return true;
 	}
 
-	if (td.thisType)
-	{
-		return meFieldsEqual(*td.thisType, a, b, &td);
-	}
+    // icky semi-last-resort. Compare the result of serializing both objects
+	// if (td.serializerFn)
+	// {
+	// 	json ja, jb;
+	// 	SerializeContext ctxA = {};
+	// 	ctxA.allocator = GetTLScratch();
+	// 	ctxA.data = meSpan((void*)a, td.size);
+	// 	ctxA.outputData = meSpan(&ja, sizeof(json));
+	// 	ctxA.parentType = parentType ? parentType : &td;
+	// 	td.serializerFn(td, ctxA);
 
-	if (td.equalsFn)
-	{
-		return td.equalsFn(a, b);
-	}
+	// 	SerializeContext ctxB = {};
+	// 	ctxB.allocator = GetTLScratch();
+	// 	ctxB.data = meSpan((void*)b, td.size);
+	// 	ctxB.outputData = meSpan(&jb, sizeof(json));
+	// 	ctxB.parentType = parentType ? parentType : &td;
+	// 	td.serializerFn(td, ctxB);
+	// 	return ja == jb;
+	// }
 
 	// Last resort
 	return memcmp(a, b, td.size) == 0;
@@ -658,6 +658,15 @@ bool DynArrayDeserializerFromStringFn(
 	return result;
 }
 
+bool DynArrayEqualsFn(
+    const meTypeDescriptor& td,
+    const void* a,
+    const void* b)
+{
+    // BOOKMARK:
+    UNIMPLEMENTED();
+    return true;
+}
 
 
 void meAssetSerializerToStringFn(const meTypeDescriptor& td, SerializeContext& ctx) {

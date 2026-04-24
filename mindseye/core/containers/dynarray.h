@@ -58,6 +58,11 @@ bool DynArrayDeserializerFromStringFn(
 	const meTypeDescriptor& typeDescriptor,
 	DeserializeContext& ctx);
 
+bool DynArrayEqualsFn(
+    const meTypeDescriptor& td,
+    const void* a,
+    const void* b);
+
 // Create an array with an optional initial capacity (number of elements)
 // optionally, can override the array stride to not use sizeof(T) - useful for type erasure I.E. during deserialization
 template<typename T>

@@ -74,7 +74,7 @@ typedef void (*EditorRenderFn)(
 
 typedef void (*SetToDefaults)(void* objData);
 
-typedef bool (*EqualsFn)(const void* a, const void* b);
+typedef bool (*EqualsFn)(const meTypeDescriptor& td, const void* a, const void* b);
 
 struct meTypeDescriptor
 {
@@ -190,20 +190,47 @@ void meTypeDescriptorSetToDefaults(void* objData)
 }
 
 template <typename T>
-bool meTypeDescriptorEquals(const void* a, const void* b)
+bool meTypeDescriptorEquals(
+    const meTypeDescriptor& td, 
+    const void* a, 
+    const void* b)
 {
-    if constexpr (requires(const T& x, const T& y) { x.SerEquals(y); })
+    constexpr bool isPOD = std::is_trivially_destructible_v<T> &&
+        //std::is_trivial_v<T> && // not using this check, because it flags types that use unions as nontrivial. In this situation, that's fine.
+        std::is_standard_layout_v<T>;
+    if constexpr (isPOD && requires(const T& x, const T& y)
+    { 
+        x == y;
+    })
     {
-        return (*(const T*)a) .SerEquals (*(const T*)b);
+        return (*(const T*)a) == (*(const T*)b);
     }
     else
     {
-        // is POD?
-        static_assert(
-            std::is_trivially_destructible_v<T> &&
-            //std::is_trivial_v<T> && // not using this check, because it flags types that use unions as nontrivial. In this situation, that's fine.
-            std::is_standard_layout_v<T>, 
-            "Serialized type that doesn't define SerEquals must be POD");
-        return memcmp(a, b, sizeof(T)) == 0;
+        // if a type descriptor was made without an equalsFn that also isn't POD, 
+        // you need to implement this. See DynArray's equalsFn for reference
+        // If this typedescriptor doesn't have an internal type (it is an unknown non-reflected structure)
+        // and that unknown struct isn't POD, we can't do a proper comparison on it. Need to reflect that struct, or exclude it, or make it POD.
+        ME_ASSERT(td.thisType);
+        ME_ASSERT(td.fields.size > 0);
+        ME_ASSERT(td.equalsFn); 
+        for (u32 i = 0; i < td.fields.size; i++)
+        {
+            const meTypeDescriptor& field = td.fields[i];
+            if (!field.ShouldSerializeText())
+            {
+                continue;
+            }
+            u64 offset = field.offsetBits * 8;
+            const void* aField = ((char*)a)+offset;
+            const void* bField = ((char*)b)+offset;
+            // see above comment
+            ME_ASSERT(field.equalsFn);
+            if (!field.equalsFn(field, aField, bField))
+            {
+                return false;
+            }
+        }
+        return true;
     }
 }

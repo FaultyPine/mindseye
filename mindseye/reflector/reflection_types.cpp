@@ -55,7 +55,10 @@ bool stringDeserializer(
 	return true;
 }
 
-bool sizedBufferEquals(const void* a, const void* b)
+bool sizedBufferEquals(
+    const meTypeDescriptor& td,
+    const void* a, 
+    const void* b)
 {
 	const meSpan* sa = (const meSpan*)a;
 	const meSpan* sb = (const meSpan*)b;
@@ -88,7 +91,8 @@ meTypeDescriptor TD_STRINGVIEW = { .name = STRING_LIT("StringView"), .flags = me
 meTypeDescriptor TD_STRING = { .name = STRING_LIT("String"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(String), .align = alignof(String), .serializerFn = sizedBufferSerializer, .deserializerFn = stringDeserializer, .equalsFn = &sizedBufferEquals };
 meTypeDescriptor TD_DYNARRAY = { .name = STRING_LIT("DynArray"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(DynArray<int>), .align = alignof(DynArray<int>),
 #ifndef ME_CORE_ONLY
-    .serializerFn = DynArraySerializerToStringFn, .deserializerFn = DynArrayDeserializerFromStringFn
+    .serializerFn = DynArraySerializerToStringFn, .deserializerFn = DynArrayDeserializerFromStringFn,
+    .equalsFn = DynArrayEqualsFn,
 #endif
 };
 
