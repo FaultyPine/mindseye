@@ -90,6 +90,7 @@ struct meReflectedType
 	meTypeDescriptorFlags flags = 0;
 	StringView serializerFnName = {};
 	StringView deserializerFnName = {};
+	StringView equalsFnName = {};
 	StringView editorRenderFnName = {};
 
 	void Print() const;
@@ -632,6 +633,9 @@ void StoreReflectedTypeInfo(
 
 		StringView deserializerParam = GetStringParam(STRING_LIT("Deserializer"), macroContent);
 		reflType.deserializerFnName = deserializerParam;
+		
+        StringView equalsFnParam = GetStringParam(STRING_LIT("Equals"), macroContent);
+		reflType.equalsFnName = equalsFnParam;
 
         StringView editorRenderParam = GetStringParam(STRING_LIT("EditorRender"), macroContent);
 		reflType.editorRenderFnName = editorRenderParam;
@@ -1071,6 +1075,11 @@ bool GenerateForwardDecls(
 				// matches signature of SerializerFn
 				builder.AppendFormat("void " STRING_FMT "(const meTypeDescriptor& typeDescriptor, SerializeContext& ctx);\n", STRING_VAARGS(typeRefl.serializerFnName));
 			}
+            if (typeRefl.equalsFnName)
+            {
+                // matches signature of EqualsFn
+                builder.AppendFormat("bool " STRING_FMT "(const meTypeDescriptor& typeDescriptor, const void* a, const void* b);\n", STRING_VAARGS(typeRefl.equalsFnName));
+            }
 			generatedAny = true;
 		}
 	}
@@ -1328,14 +1337,20 @@ bool ProcessReflectedFile(
 			{
 				mainTypeDescriptorContent.AppendFormat("\t.deserializerFn = " STRING_FMT ",\n", STRING_VAARGS(typeRefl.deserializerFnName));
 			}
+            if (typeRefl.equalsFnName)
+            {
+                mainTypeDescriptorContent.AppendFormat("\t.equalsFn = " STRING_FMT ",\n", STRING_VAARGS(typeRefl.equalsFnName));
+            }
+            else
+            {
+                mainTypeDescriptorContent.AppendFormat("\t.equalsFn = &meTypeDescriptorEquals<" STRING_FMT ">,\n", STRING_VAARGS(typeRefl.name));
+            }
             if (typeRefl.editorRenderFnName)
             {
 				mainTypeDescriptorContent.AppendFormat("\t.editorRenderFn = " STRING_FMT ",\n", STRING_VAARGS(typeRefl.editorRenderFnName));
             }
 
             mainTypeDescriptorContent.AppendFormat("\t.setToDefaultsFn = &meTypeDescriptorSetToDefaults<" STRING_FMT ">,\n", STRING_VAARGS(typeRefl.name));
-
-            mainTypeDescriptorContent.AppendFormat("\t.equalsFn = &meTypeDescriptorEquals<" STRING_FMT ">,\n", STRING_VAARGS(typeRefl.name));
 
 			sourceContentBuilder.AppendFormat("meTypeDescriptor TD_%.*s = {\n%.*s};\n", STRING_VAARGS(uppercaseName), STRING_VAARGS(mainTypeDescriptorContent));
 			generatedAny = true;

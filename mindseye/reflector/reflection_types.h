@@ -110,11 +110,11 @@ struct meTypeDescriptor
 	// be called instead of default primitive serialization funcs
 	SerializerFn serializerFn = nullptr;
 	DeserializerFn deserializerFn = nullptr;
+    // compare two buffers of this type for semantic equality
+    EqualsFn equalsFn = nullptr;
     EditorRenderFn editorRenderFn = nullptr;
     // invoke default constructor on an arbitrary buffer
     SetToDefaults setToDefaultsFn = nullptr;
-    // compare two buffers of this type for semantic equality
-    EqualsFn equalsFn = nullptr;
 
 	bool operator==(const meTypeDescriptor& other) const
 	{

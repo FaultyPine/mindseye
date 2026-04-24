@@ -116,7 +116,8 @@ typeName() = default;
 // storing both the "load-time" and "usage-time" information, this is meant to be
 // both serialized, and also used for loading at runtime. This is what will be in the fields
 // of asset definitions. I.E. when a "scene" asset references a "mesh" asset, use this structure
-struct MEREFLECT(type, Serializer="meAssetSerializerToStringFn", Deserializer="meAssetDeserializerFromStringFn") meAsset
+struct MEREFLECT(type, Serializer="meAssetSerializerToStringFn", Deserializer="meAssetDeserializerFromStringFn", Equals="meAssetEqualsFn") 
+meAsset
 {
     // refers to a template asset on disk
 	MAID id = {};

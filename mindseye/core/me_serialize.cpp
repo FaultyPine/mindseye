@@ -663,8 +663,31 @@ bool DynArrayEqualsFn(
     const void* a,
     const void* b)
 {
-    // BOOKMARK:
-    UNIMPLEMENTED();
+    // td here is the field descriptor (not TD_DYNARRAY itself), so templatedTypes is populated.
+    ME_ASSERT(td.templatedTypes && td.templatedTypes.size == 1);
+    const meTypeDescriptor& elementType = *td.templatedTypes[0];
+
+    DynArrayAny& arrA = *(DynArrayAny*)a;
+    DynArrayAny& arrB = *(DynArrayAny*)b;
+
+    u32 sizeA = DynArrayGetSize(arrA);
+    u32 sizeB = DynArrayGetSize(arrB);
+
+    if (sizeA != sizeB) return false;
+    if (sizeA == 0) return true;
+
+    u32 stride = DynArrayGetStride(arrA);
+    ME_ASSERT(elementType.equalsFn);
+
+    for (u32 i = 0; i < sizeA; i++)
+    {
+        const void* elemA = &arrA[i * stride];
+        const void* elemB = &arrB[i * stride];
+        if (!elementType.equalsFn(elementType, elemA, elemB))
+        {
+            return false;
+        }
+    }
     return true;
 }
 
@@ -807,4 +830,41 @@ bool meAssetDeserializerFromStringFn(const meTypeDescriptor& td, DeserializeCont
     outAsset->runtimeHandle = instanceEye;
     outAsset->loadStage = Loaded;
     return true;
+}
+
+bool meAssetEqualsFn(const meTypeDescriptor& td, const void* a, const void* b)
+{
+    const meAsset* assetA = (const meAsset*)a;
+    const meAsset* assetB = (const meAsset*)b;
+
+    if (assetA->id != assetB->id) 
+    {
+        return false;
+    }
+
+    // Determine whether each side is a loaded instance (vs. a plain template ref).
+    // Mirrors the isInstance check in meAssetSerializerToStringFn.
+    bool aIsInstance = assetA->runtimeHandle
+                    && !assetA->runtimeHandle.IsTemplateAsset()
+                    && assetA->loadStage == Loaded;
+    bool bIsInstance = assetB->runtimeHandle
+                    && !assetB->runtimeHandle.IsTemplateAsset()
+                    && assetB->loadStage == Loaded;
+
+    if (aIsInstance != bIsInstance) 
+    {
+        return false;
+    }
+
+    // Both are plain template refs with matching IDs — equal.
+    if (!aIsInstance) 
+    {
+        return true;
+    }
+
+    // Both are loaded instances of the same template.
+    // The same Eye means the same resource-pool slot, so identical data.
+    // Alternative is to do more depthy comparison, but in practice i don't think that's necessary.
+    // NOTE: that does also mean two separate loaded runtime handles with identical content will compare false. That's fine though.
+    return assetA->runtimeHandle == assetB->runtimeHandle;
 }
