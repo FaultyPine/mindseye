@@ -242,7 +242,7 @@ void meEditorTick(EngineContext* engine)
             }
             ImGui::EndMenu();
         }
-        
+
         if (editor.sceneDirty)
         {
             if (ImGui::Button("Save Current Scene (Ctrl+S)") || (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_S)))
@@ -253,8 +253,17 @@ void meEditorTick(EngineContext* engine)
                 editor.sceneDirty = false;
             }
         }
+
+        StringView scenePath = STRING_LIT("No Scene Loaded");
+        meScene& scene = engine->sceneSystem->CurrentScene();
+        MAID currentSceneAsset = scene.header;
+        if (StringView currentScenePath = meAssetIndexGetFilesystemPath(currentSceneAsset))
+        {
+            scenePath = currentScenePath;
+        }
 		
-		StringView rightAlignedText = StringFormatTmp("Avg framerate: %6.2f | %.*s", ImGui::GetIO().Framerate, STRING_VAARGS(engine->appConfig.appName));
+		StringView rightAlignedText = StringFormatTmp("Avg framerate: %6.2f | %.*s | %.*s", 
+            ImGui::GetIO().Framerate, STRING_VAARGS(engine->appConfig.appName), STRING_VAARGS(scenePath));
 		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetColumnWidth() - ImGui::CalcTextSize(rightAlignedText.cstr()).x
 							 - ImGui::GetScrollX() - 2 * ImGui::GetStyle().ItemSpacing.x);
 		ImGui::TextEx(rightAlignedText.cstr());
