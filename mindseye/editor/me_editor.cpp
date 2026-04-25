@@ -18,6 +18,7 @@
 #include "asset/me_asset.h"
 #include "asset/me_asset_index.h"
 #include "scene/me_scene.h"
+#include "core/me_scope_exit.h"
 
 // TODO: remove this, replace with something lighter weight. this brings in a lot of STL stuff
 #include "external/potable-file-dialogs.h"
@@ -203,42 +204,53 @@ void meEditorTick(EngineContext* engine)
 	ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 5.0f);
 	if (ImGui::BeginMainMenuBar())
 	{
-		if (ImGui::BeginMenu("Scene"))
+		if (ImGui::BeginMenu("Asset"))
 		{
-			if (ImGui::MenuItem("New"))
+			if (ImGui::BeginMenu("New"))
 			{
                 meExternalCommand cmd = {};
                 cmd.type = meExternalCommandType_CreateAsset;
-                cmd.createAsset.type = MAScene;
-                PopulatePathFromUserInputIfNotValid(cmd.createAsset.path);
-                meReceiveExternalCommand(cmd);
+                cmd.createAsset.type = MABadData;
+                for (u32 i = 0; i < NUM_ASSET_TYPES; i++)
+                {
+                    StringView assetTypeStr = meAssetTypeToString((meAssetType)i);
+                    if (ImGui::MenuItem(assetTypeStr.cstr()))
+                    {
+                        cmd.createAsset.type = (meAssetType)i;
+                        break;
+                    }
+                }
+                if (cmd.createAsset.type != MABadData)
+                {
+                    PopulatePathFromUserInputIfNotValid(cmd.createAsset.path);
+                    meReceiveExternalCommand(cmd);
+                }
+                ImGui::EndMenu();
 			}
-            if (ImGui::MenuItem("Open"))
+            if (ImGui::BeginMenu("Open"))
             {
                 meExternalCommand cmd = {};
-                cmd.type = meExternalCommandType_ChangeScene;
-                PopulatePathFromUserInputIfNotValid(cmd.changeScene.path);
-                meReceiveExternalCommand(cmd);
-            }
-            if (ImGui::MenuItem("Save Current"))
-            {
-				meExternalCommand cmd = {};
-				cmd.type = meExternalCommandType_SaveCurrentScene;
-                PopulatePathFromUserInputIfNotValid(cmd.saveCurrentScene.path);
-				meReceiveExternalCommand(cmd);
-            }
-            ImGui::EndMenu();
-        }
-
-        if (ImGui::BeginMenu("Entity"))
-        {
-            if (ImGui::MenuItem("New"))
-            {
-                meExternalCommand cmd = {};
-                cmd.type = meExternalCommandType_CreateAsset;
-                cmd.createAsset.type = MAEntity;
-                PopulatePathFromUserInputIfNotValid(cmd.createAsset.path);
-                meReceiveExternalCommand(cmd);
+                for (u32 i = 0; i < NUM_ASSET_TYPES; i++)
+                {
+                    meAssetType assetType = (meAssetType)i;
+                    StringView assetTypeStr = meAssetTypeToString(assetType);
+                    if (ImGui::MenuItem(assetTypeStr.cstr()))
+                    {
+                        if (assetType == MAScene)
+                        {
+                            cmd.type = meExternalCommandType_ChangeScene;
+                            PopulatePathFromUserInputIfNotValid(cmd.changeScene.path);
+                            meReceiveExternalCommand(cmd);
+                        }
+                        else
+                        {
+                            // TODO: open asset editor filtered to this type of asset
+                            ImGui::InsertNotification({ImGuiToastType::Error, 3000, StringFormatTmp("Haven't implemented asset editing yet").cstr()});
+                        }
+                        break;
+                    }
+                }
+                ImGui::EndMenu();
             }
             ImGui::EndMenu();
         }
