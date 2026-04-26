@@ -47,7 +47,8 @@ X(ConstantArray)\
 X(PaddingMember)\
 X(Excluded)\
 X(NonSerializedFlagsMarker)\
-X(IncludeInGeneratedHeader)
+X(IncludeInGeneratedHeader)\
+X(IntegralStub)
 
 #define meTypeDescriptorFlagsSerializedBitmask \
 	(~((~0) << meTypeDescriptorFlag_NonSerializedFlagsMarker))

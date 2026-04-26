@@ -3,6 +3,8 @@
 
 #include "asset/me_asset.h"
 
+#define ME_ASSET_INDEX_DEBUGLOG 1
+
 meAssetIndex& meAssetIndexGet()
 {
 	return *GetEngineCtx()->assetIndex;
@@ -66,8 +68,9 @@ void meAssetIndexRegisterRelation(
         return;
     }
 	meAssetIndex& assetIndex = meAssetIndexGet();
-	assetIndex.assetToPathMap[maid] = path;
-	assetIndex.pathToAssetsMap[path] = maid;
+	String pathCopy(path); // if path == assetToPathMap[maid] we need a temp copy or else we end up use-after-freeing this string mem
+	assetIndex.assetToPathMap[maid] = pathCopy;
+	assetIndex.pathToAssetsMap[pathCopy] = maid;
 }
 
 
@@ -184,5 +187,11 @@ void meAssetIndexInitialize(EngineContext* engine)
 		}
 		LOG_INFO("[AssetIndex] Discovered %d assets", numAssetsDiscovered);
 	}
+    #if ME_ASSET_INDEX_DEBUGLOG
+    for (const auto& [asset,path] : meAssetIndexGetRO().assetToPathMap)
+    {
+        LOG_INFO("%llu %u | " STRING_FMT, asset.GetID(), asset.GetType(), STRING_VAARGS(path));
+    }
+    #endif
 }
 

@@ -161,130 +161,6 @@ static void PopulatePathFromUserInputIfNotValid(String& path)
     }
 }
 
-static void DrawEntityInspector(EngineContext* engine);
-
-void meEditorTick(EngineContext* engine)
-{
-	EditorContext& editor = meEditorGetCtx();
-
-	// Entity picking on left click (only when cursor is free / not captured by camera)
-	if (engine->osData->cursorState == FREE &&
-		engine->osData->mouseState.IsMouseButtonJustPressed(LBUTTON) &&
-		!ImGui::GetIO().WantCaptureMouse)
-	{
-		meExternalCommand cmd = {};
-		cmd.type = meExternalCommandType_PickEntity;
-		cmd.pickEntity.screenPos = engine->osData->mouseState.mousePosScreen;
-		meReceiveExternalCommand(cmd);
-	}
-
-    // TODO: debug draw main scene camera
-	// engine->sceneSystem->CurrentScene().mainCamera.cameraPos
-
-	DrawEntityInspector(engine);
-
-	meAssetEditorTick(editor.assetEditor);
-
-	// Camera updates happen after editor windows so input blocking is set in time
-    GetEngineCtx()->osData->userInputBlocked = editor.assetEditor.isFocused;
-	editor.editorCamera.UpdateCameraWithUserInput(*engine->osData);
-
-	// Notifications style setup
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.f); // Disable round borders
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.f); // Disable borders
-	// Notifications color setup
-	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.10f, 0.10f, 0.10f, 1.00f)); // Background color
-	// Main rendering function
-	ImGui::RenderNotifications();
-	// Argument MUST match the amount of ImGui::PushStyleVar() calls 
-	ImGui::PopStyleVar(2);
-	// Argument MUST match the amount of ImGui::PushStyleColor() calls 
-	ImGui::PopStyleColor(1);
-   
-	ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 5.0f);
-	if (ImGui::BeginMainMenuBar())
-	{
-		if (ImGui::BeginMenu("Asset"))
-		{
-			if (ImGui::BeginMenu("New"))
-			{
-                meExternalCommand cmd = {};
-                cmd.type = meExternalCommandType_CreateAsset;
-                cmd.createAsset.type = MABadData;
-                for (u32 i = 0; i < NUM_ASSET_TYPES; i++)
-                {
-                    StringView assetTypeStr = meAssetTypeToString((meAssetType)i);
-                    if (ImGui::MenuItem(assetTypeStr.cstr()))
-                    {
-                        cmd.createAsset.type = (meAssetType)i;
-                        break;
-                    }
-                }
-                if (cmd.createAsset.type != MABadData)
-                {
-                    PopulatePathFromUserInputIfNotValid(cmd.createAsset.path);
-                    meReceiveExternalCommand(cmd);
-                }
-                ImGui::EndMenu();
-			}
-            if (ImGui::BeginMenu("Open"))
-            {
-                meExternalCommand cmd = {};
-                for (u32 i = 0; i < NUM_ASSET_TYPES; i++)
-                {
-                    meAssetType assetType = (meAssetType)i;
-                    StringView assetTypeStr = meAssetTypeToString(assetType);
-                    if (ImGui::MenuItem(assetTypeStr.cstr()))
-                    {
-                        if (assetType == MAScene)
-                        {
-                            cmd.type = meExternalCommandType_ChangeScene;
-                            PopulatePathFromUserInputIfNotValid(cmd.changeScene.path);
-                            meReceiveExternalCommand(cmd);
-                        }
-                        else
-                        {
-                            // TODO: open asset editor filtered to this type of asset
-                            ImGui::InsertNotification({ImGuiToastType::Error, 3000, StringFormatTmp("Haven't implemented asset editing yet").cstr()});
-                        }
-                        break;
-                    }
-                }
-                ImGui::EndMenu();
-            }
-            ImGui::EndMenu();
-        }
-
-        if (editor.sceneDirty)
-        {
-            if (ImGui::Button("Save Current Scene (Ctrl+S)") || (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_S)))
-            {
-                meExternalCommand cmd = {};
-                cmd.type = meExternalCommandType_SaveCurrentScene;
-                meReceiveExternalCommand(cmd);
-                editor.sceneDirty = false;
-            }
-        }
-
-        StringView scenePath = STRING_LIT("No Scene Loaded");
-        meScene& scene = engine->sceneSystem->CurrentScene();
-        MAID currentSceneAsset = scene.header;
-        if (StringView currentScenePath = meAssetIndexGetFilesystemPath(currentSceneAsset))
-        {
-            scenePath = currentScenePath;
-        }
-		
-		StringView rightAlignedText = StringFormatTmp("Avg framerate: %6.2f | %.*s | %.*s", 
-            ImGui::GetIO().Framerate, STRING_VAARGS(engine->appConfig.appName), STRING_VAARGS(scenePath));
-		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetColumnWidth() - ImGui::CalcTextSize(rightAlignedText.cstr()).x
-							 - ImGui::GetScrollX() - 2 * ImGui::GetStyle().ItemSpacing.x);
-		ImGui::TextEx(rightAlignedText.cstr());
-
-		ImGui::EndMainMenuBar();
-	}
-	ImGui::PopStyleVar();
-
-}
 
 
 
@@ -311,9 +187,72 @@ static void InspectorLabel(const char* label)
 	ImGui::SetNextItemWidth(-FLT_MIN);
 }
 
+static bool DrawAssetField(
+    const meTypeDescriptor& field,
+    MAID* maid)
+{
+    if (!maid)
+    {
+        return false;
+    } 
+    bool changed = false;
+    const char* displayName = field.editorName.data ? field.editorName.cstr() : field.name.cstr();
+    // For meTypedAsset<T> fields the reflector stores the enum value as an integral stub
+    // in field.templatedTypes[0]. Prefer that over the MAID's stored type so that the
+    // combo is correctly filtered even when the MAID is default-constructed ("none").
+    meAssetType assetType = (field.templatedTypes.size > 0)
+        ? (meAssetType)field.templatedTypes[0]->value
+        : maid->GetType();
+
+    if ((u32)assetType == U32_INVALID_ID)
+    {
+        return false;
+    }
+
+    ImGui::TableNextRow();
+    ImGui::TableSetColumnIndex(0);
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted(displayName);
+    if (field.tooltip.data && field.tooltip.len > 0 && ImGui::IsItemHovered())
+        ImGui::SetTooltip(STRING_FMT, STRING_VAARGS(field.tooltip));
+    ImGui::TableSetColumnIndex(1);
+    ImGui::SetNextItemWidth(-FLT_MIN);
+
+    StringView currentPath = meAssetIndexGetFilesystemPath(*maid);
+    const char* preview = (currentPath.data && currentPath.len)
+        ? currentPath.cstr()
+        : ((*maid) ? "(unknown asset)" : "(none)");
+
+    if (ImGui::BeginCombo("##v", preview))
+    {
+        if (ImGui::Selectable("(none)", !(*maid)))
+        {
+            maid->SetID(U32_INVALID_ID);
+            changed = true;
+        }
+
+        const meAssetIndex& index = meAssetIndexGetRO();
+        for (auto& [id, path] : index.assetToPathMap)
+        {
+            if (id.GetType() != assetType || !path) continue;
+
+            bool isSelected = (*maid == id);
+            if (ImGui::Selectable(path.cstr(), isSelected))
+            {
+                *maid = id;
+                changed = true;
+            }
+            if (isSelected)
+                ImGui::SetItemDefaultFocus();
+        }
+        ImGui::EndCombo();
+    }
+    return changed;
+}
+
 static bool DrawTypeDescriptorField(const meTypeDescriptor& field, u8* dataPtr);
 
-static bool DrawPrimitiveValue(const meTypeDescriptor& type, u8* data)
+static bool DrawPrimitiveValue(const meTypeDescriptor& type, u8* data, const meTypeDescriptor* parentType = nullptr)
 {
 	bool changed = false;
 
@@ -397,6 +336,71 @@ static bool DrawPrimitiveValue(const meTypeDescriptor& type, u8* data)
         }
         ImGui::PopID();
 	}
+	else if (&type == &TD_DYNARRAY)
+	{
+		bool changed = false;
+		// Assume DynArray<T> layout: struct { T* data; u32 size; u32 capacity; }
+		struct DynArrayHeader { void* data; u32 size; u32 capacity; };
+		DynArrayAny& arr = *(DynArrayAny*)data;
+        ME_ASSERT(arr); // we expect the asset loader to initialize these sorts of internal things
+		if (!parentType->templatedTypes)
+			return false;
+		const meTypeDescriptor& elemType = *parentType->templatedTypes[0];
+
+		if (ImGui::BeginTable("##dynarray_table", 2, ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingStretchProp))
+		{
+			ImGui::TableSetupColumn("#", ImGuiTableColumnFlags_WidthFixed, 32.0f);
+			ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
+			for (u32 i = 0; i < DynArrayGetSize(arr); ++i)
+			{
+				ImGui::TableNextRow();
+				ImGui::TableSetColumnIndex(0);
+				ImGui::Text("%u", i);
+				ImGui::SameLine();
+				// Remove button
+				ImGui::PushID(i);
+				if (ImGui::SmallButton("-"))
+				{
+					// Shift elements down
+					DynArrayPopAt(arr, i);
+					changed = true;
+					ImGui::PopID();
+					break; // Only one change per frame
+				}
+				ImGui::PopID();
+				ImGui::TableSetColumnIndex(1);
+				u8* elemPtr = (u8*)arr.data + (i * elemType.size);
+				ImGui::PushID((int)i);
+				changed |= DrawPrimitiveValue(elemType, elemPtr, parentType);
+				ImGui::PopID();
+			}
+			ImGui::EndTable();
+		}
+		// Add button
+		if (ImGui::Button("Add"))
+		{
+            // blank allocation with defaults, since it'll get copied into the correct asset memory anyway
+            Allocation elementData = MECALLOC(GetTLScratch(), elemType.size);
+            elemType.setToDefaultsFn(elementData);
+            DynArrayPush(arr, (u8*)elementData, elementData.size);
+			changed = true;
+		}
+		return changed;
+	}
+    else if (&type == &TD_MEASSET || type.thisType == &TD_MEASSET)
+    {
+        // Matches both TD_MEASSET directly and intermediate typed-asset descriptors
+        // (e.g. g_typearg_entities_0 for DynArray<meTypedAsset<MAEntity>> elements),
+        // which have .thisType == &TD_MEASSET and carry the enum value in templatedTypes[0].
+        meAsset& asset = *(meAsset*)data;
+        MAID& maid = asset.id;
+	    changed = DrawAssetField(type, &maid);
+    }
+    else if (&type == &TD_MAID)
+    {
+        MAID* maid = (MAID*)data;
+        changed = DrawAssetField(type, maid);
+    }
 	else
 	{
 		return false; // not a primitive we handle
@@ -432,62 +436,6 @@ static bool DrawTypeDescriptorField(const meTypeDescriptor& field, u8* dataPtr)
 
 	const char* displayName = field.editorName.data ? field.editorName.cstr() : field.name.cstr();
 
-	// Special case: MAID or meAsset asset reference - show an asset browser combo
-	MAID* maid = nullptr;
-	if (fieldType == &TD_MAID)
-	{
-		maid = (MAID*)fieldData;
-	}
-	else if (fieldType == &TD_MEASSET)
-	{
-		maid = &((meAsset*)fieldData)->id;
-	}
-	if (maid)
-	{
-		meAssetType assetType = maid->GetType();
-
-		ImGui::TableNextRow();
-		ImGui::TableSetColumnIndex(0);
-		ImGui::AlignTextToFramePadding();
-		ImGui::TextUnformatted(displayName);
-		if (field.tooltip.data && field.tooltip.len > 0 && ImGui::IsItemHovered())
-			ImGui::SetTooltip(STRING_FMT, STRING_VAARGS(field.tooltip));
-		ImGui::TableSetColumnIndex(1);
-		ImGui::SetNextItemWidth(-FLT_MIN);
-
-		StringView currentPath = meAssetIndexGetFilesystemPath(*maid);
-		const char* preview = (currentPath.data && currentPath.len)
-			? currentPath.cstr()
-			: ((*maid) ? "(unknown asset)" : "(none)");
-
-		if (ImGui::BeginCombo("##v", preview))
-		{
-			if (ImGui::Selectable("(none)", !(*maid)))
-			{
-				maid->SetID(U32_INVALID_ID);
-				changed = true;
-			}
-
-			const meAssetIndex& index = meAssetIndexGetRO();
-			for (auto& [id, path] : index.assetToPathMap)
-			{
-				if (id.GetType() != assetType || !path) continue;
-
-				bool isSelected = (*maid == id);
-				if (ImGui::Selectable(path.cstr(), isSelected))
-				{
-					*maid = id;
-					changed = true;
-				}
-				if (isSelected)
-					ImGui::SetItemDefaultFocus();
-			}
-			ImGui::EndCombo();
-		}
-
-		return changed;
-	}
-
 	// it's a struct -> show as tree node
 	if (fieldType->fields.size > 0)
 	{
@@ -517,7 +465,7 @@ static bool DrawTypeDescriptorField(const meTypeDescriptor& field, u8* dataPtr)
 	{
 		InspectorLabel(displayName);
 		ImGui::PushID(displayName);
-		changed = DrawPrimitiveValue(*fieldType, fieldData);
+		changed = DrawPrimitiveValue(*fieldType, fieldData, &field);
 		ImGui::PopID();
 
 		if (field.tooltip.data && field.tooltip.len > 0 && ImGui::IsItemHovered())
@@ -528,27 +476,36 @@ static bool DrawTypeDescriptorField(const meTypeDescriptor& field, u8* dataPtr)
 	return changed;
 }
 
-static void DrawEntityInspector(EngineContext* engine)
+static void DrawAssetInspector(EditorContext& editor, InspectorWindow& inspector)
 {
-	EditorContext& editor = meEditorGetCtx();
-
 	ImGui::SetNextWindowSize(ImVec2(340, 500), ImGuiCond_FirstUseEver);
-	if (!ImGui::Begin(ICON_FA_CIRCLE_INFO " Inspector"))
+	if (!ImGui::Begin(ICON_FA_CIRCLE_INFO " Inspector", &inspector.active))
 	{
-		ImGui::End();
+        ImGui::End();
 		return;
 	}
+    MAID asset = inspector.currentAsset;
+    meAsset* loadedAsset = meAssetTryGet(asset);
+    if (!loadedAsset)
+    {
+        meAssetRequestLoad(&asset, 1);
+        ImGui::Text("Loading asset...");
+        ImGui::End();
+        return;
+    }
 
-	if (!editor.selectedEntity)
-	{
-		ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-		ImGui::TextWrapped("No entity selected. Click an entity in the viewport to inspect it.");
-		ImGui::PopStyleColor();
-		ImGui::End();
-		return;
-	}
 
-	meEntity& entity = meEntityGet(editor.selectedEntity);
+    if (editor.dirtyAssets.find(asset) != editor.dirtyAssets.end())
+    {
+        if (ImGui::Button("Save") || (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_S)))
+        {
+            meExternalCommand cmd = {};
+            cmd.type = meExternalCommandType_SaveAsset;
+            cmd.saveAsset.asset = asset;
+            meReceiveExternalCommand(cmd);
+            editor.dirtyAssets[asset] = false;
+        }
+    }
 
 	ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.13f, 0.14f, 0.18f, 1.00f));
 	ImGui::BeginChild("##inspector_header", ImVec2(0, 56), ImGuiChildFlags_Borders);
@@ -558,18 +515,9 @@ static void DrawEntityInspector(EngineContext* engine)
 		ImGui::PopStyleColor();
 		ImGui::SameLine();
 
-		char nameBuf[256] = {};
-		if (entity.name.data && entity.name.len > 0)
-		{
-			u64 copyLen = entity.name.len < sizeof(nameBuf) - 1 ? entity.name.len : sizeof(nameBuf) - 1;
-			memcpy(nameBuf, entity.name.data, copyLen);
-		}
+        StringView assetName = meAssetIndexGetFilesystemPath(asset);
 		ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-		ImGui::InputText("##entity_name", nameBuf, sizeof(nameBuf), ImGuiInputTextFlags_ReadOnly);
-
-		ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-		ImGui::Text("ID: %u", (u32)editor.selectedEntity);
-		ImGui::PopStyleColor();
+		ImGui::InputText("##entity_name", (char*)assetName.cstr(), assetName.len, ImGuiInputTextFlags_ReadOnly);
 	}
 	ImGui::EndChild();
 	ImGui::PopStyleColor();
@@ -594,15 +542,140 @@ static void DrawEntityInspector(EngineContext* engine)
 	{
 		ImGui::TableSetupColumn("Property", ImGuiTableColumnFlags_WidthStretch, 0.4f);
 		ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch, 0.6f);
-
-		bool didUserChangeSomething = DrawStructFields(TD_MEENTITY, (u8*)&entity);
+        meTypeDescriptor* assetTypeDesc = meAssetSystemGet().assetLoaders[asset.GetType()]->assetTypeDesc;
+        void* assetData = meAssetSystemGet().assetLoaders[asset.GetType()]->resourcePool->GetOpaque(*loadedAsset);
+		bool didUserChangeSomething = DrawStructFields(*assetTypeDesc, (u8*)assetData);
         if (didUserChangeSomething)
         {
-            editor.sceneDirty = true;
+            editor.dirtyAssets[asset] = true;
         }
 
 		ImGui::EndTable();
 	}
 
 	ImGui::End();
+}
+
+
+
+void meEditorTick(EngineContext* engine)
+{
+	EditorContext& editor = meEditorGetCtx();
+
+	// Entity picking on left click (only when cursor is free / not captured by camera)
+	if (engine->osData->cursorState == FREE &&
+		engine->osData->mouseState.IsMouseButtonJustPressed(LBUTTON) &&
+		!ImGui::GetIO().WantCaptureMouse)
+	{
+		meExternalCommand cmd = {};
+		cmd.type = meExternalCommandType_PickEntity;
+		cmd.pickEntity.screenPos = engine->osData->mouseState.mousePosScreen;
+		meReceiveExternalCommand(cmd);
+	}
+
+    // TODO: debug draw main scene camera
+	// engine->sceneSystem->CurrentScene().mainCamera.cameraPos
+    for (u32 i = 0; i < editor.inspectors.size(); i++)
+    {
+        if (!editor.inspectors[i].active) continue;
+        DrawAssetInspector(editor, editor.inspectors[i]);
+    }
+
+	meAssetEditorTick(editor.assetEditor);
+
+	// Camera updates happen after editor windows so input blocking is set in time
+    GetEngineCtx()->osData->userInputBlocked = editor.assetEditor.isFocused;
+	editor.editorCamera.UpdateCameraWithUserInput(*engine->osData);
+
+	// Notifications style setup
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.f); // Disable round borders
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.f); // Disable borders
+	// Notifications color setup
+	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.10f, 0.10f, 0.10f, 1.00f)); // Background color
+	// Main rendering function
+	ImGui::RenderNotifications();
+	// Argument MUST match the amount of ImGui::PushStyleVar() calls 
+	ImGui::PopStyleVar(2);
+	// Argument MUST match the amount of ImGui::PushStyleColor() calls 
+	ImGui::PopStyleColor(1);
+   
+	ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 5.0f);
+	if (ImGui::BeginMainMenuBar())
+	{
+		if (ImGui::BeginMenu("Asset"))
+		{
+			if (ImGui::BeginMenu("New"))
+			{
+                meExternalCommand cmd = {};
+                cmd.type = meExternalCommandType_CreateAsset;
+                cmd.createAsset.type = MABadData;
+                for (u32 i = 0; i < NUM_ASSET_TYPES; i++)
+                {
+                    StringView assetTypeStr = meAssetTypeToString((meAssetType)i);
+                    if (ImGui::MenuItem(assetTypeStr.cstr()))
+                    {
+                        cmd.createAsset.type = (meAssetType)i;
+                        break;
+                    }
+                }
+                if (cmd.createAsset.type != MABadData)
+                {
+                    PopulatePathFromUserInputIfNotValid(cmd.createAsset.path);
+                    meReceiveExternalCommand(cmd);
+                }
+                ImGui::EndMenu();
+			}
+            if (ImGui::BeginMenu("Open"))
+            {
+                meExternalCommand cmd = {};
+                for (u32 i = 0; i < NUM_ASSET_TYPES; i++)
+                {
+                    meAssetType assetType = (meAssetType)i;
+                    StringView assetTypeStr = meAssetTypeToString(assetType);
+                    if (ImGui::BeginMenu(assetTypeStr.cstr()))
+                    {
+                        // simple stupid thing for now, in the future: a typical asset browser or maybe something else
+                        for (const auto& [path, asset] : meAssetIndexGetRO().pathToAssetsMap)
+                        {
+                            if (asset.GetType() != assetType) continue;
+                            if (ImGui::MenuItem(path.cstr()))
+                            {
+                                InspectorWindow inspector{ .currentAsset = asset, .active = true  };
+                                editor.inspectors.push_back(inspector);
+                            }
+                        }
+                        ImGui::EndMenu();
+                        break;
+                    }
+                }
+                ImGui::EndMenu();
+            }
+            ImGui::EndMenu();
+        }
+        if (ImGui::MenuItem("Change Scene"))
+        {
+            meExternalCommand cmd = {};
+            cmd.type = meExternalCommandType_ChangeScene;
+            PopulatePathFromUserInputIfNotValid(cmd.changeScene.path);
+            meReceiveExternalCommand(cmd);
+        }
+
+        StringView scenePath = STRING_LIT("No Scene Loaded");
+        meScene& scene = engine->sceneSystem->CurrentScene();
+        MAID currentSceneAsset = scene.header;
+        if (StringView currentScenePath = meAssetIndexGetFilesystemPath(currentSceneAsset))
+        {
+            scenePath = currentScenePath;
+        }
+		
+		StringView rightAlignedText = StringFormatTmp("Avg framerate: %6.2f | %.*s | %.*s", 
+            ImGui::GetIO().Framerate, STRING_VAARGS(engine->appConfig.appName), STRING_VAARGS(scenePath));
+		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetColumnWidth() - ImGui::CalcTextSize(rightAlignedText.cstr()).x
+							 - ImGui::GetScrollX() - 2 * ImGui::GetStyle().ItemSpacing.x);
+		ImGui::TextEx(rightAlignedText.cstr());
+
+		ImGui::EndMainMenuBar();
+	}
+	ImGui::PopStyleVar();
+
 }

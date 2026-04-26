@@ -12,7 +12,7 @@ void testbed_onsceneload(meEventPayload payload)
     UNUSED(sceneAsset);
     EngineContext* engine = GetEngineCtx();
     //GameGlobals& globals = *MENEW(&engine->gameArena, GameGlobals);
-	meAsset testEntity = meEntityCreateBlankInstance(STRING_LIT("bruh"));
+	meTypedAsset<MAEntity> testEntity = meEntityCreateBlankInstance(STRING_LIT("bruh"));
 	DynArrayPush(engine->sceneSystem->CurrentScene().entities, testEntity);
 	meEntity& entity = meEntityGet(testEntity);
 	entity.transform = meTransform(glm::vec3(sin(GetTimeUsec()) * 5.0, cos(GetTimeUsec()) * 5.0, 0.0));

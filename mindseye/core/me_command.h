@@ -8,7 +8,7 @@
 enum meExternalCommandType
 {
 	meExternalCommandType_ChangeScene,
-	meExternalCommandType_SaveCurrentScene,
+	meExternalCommandType_SaveAsset,
 	meExternalCommandType_CreateAsset,
 	meExternalCommandType_PickEntity,
 };
@@ -24,10 +24,9 @@ struct meCmdChangeScene
 	String path;
 };
 
-struct meCmdSaveCurrentScene
+struct meCmdSaveAsset
 {
-	// if the current scene asset has no disk path, this will be used
-	String path;
+	MAID asset;
 };
 
 struct meCmdPickEntity
@@ -40,7 +39,7 @@ struct meExternalCommand
 	meExternalCommandType type;
     // this is theoretically a tagged union, but it's really annoying writing dtor and copy ctor and all that so meh
     meCmdChangeScene changeScene;
-    meCmdSaveCurrentScene saveCurrentScene;
+    meCmdSaveAsset saveAsset;
     meCmdCreateNewAsset createAsset;
     meCmdPickEntity pickEntity;
 

@@ -281,7 +281,7 @@ void DynArrayTests()
     ME_ASSERT(DynArrayGetSize(arr) == 23);
     ME_ASSERT(lastElem == 19);
     s32 shouldBeZero;
-    DynArrayPopAt(arr, 4, shouldBeZero);
+    DynArrayPopAt(arr, 4, &shouldBeZero);
     ME_ASSERT(shouldBeZero == 0);
     ME_ASSERT(DynArrayGetSize(arr) == 22);
 
@@ -291,7 +291,7 @@ void DynArrayTests()
     s32 shouldntChange = 12345678;
     LOG_INFO("Expecting two fatal errors here:");
     DynArrayPop(arr, shouldntChange);
-    DynArrayPopAt(arr, 0, shouldntChange);
+    DynArrayPopAt(arr, 0, &shouldntChange);
     ME_ASSERT(shouldntChange == 12345678);
 
     LOG_INFO("DynArray Tests complete");

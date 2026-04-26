@@ -75,7 +75,7 @@ meSceneRaycastHit meSceneRaycast(meScene& scene, const meRay& ray)
 	meSceneRaycastHit result = {};
 	f32 closestT = FLT_MAX;
 
-	DynArray<meAsset>& entities = scene.entities;
+	DynArray<meTypedAsset<MAEntity>>& entities = scene.entities;
 	for (DynArray_Foreach(entities, i))
 	{
 		EntityRef entRef = entities[i];
@@ -182,7 +182,7 @@ void meScenePool::Load(
 		LOG_WARN("Failed to parse gltf from %.*s", STRING_VAARGS(resourcePathAbs));
 	}
 	const cgltf_scene& scene = *gltfData->scene;
-	DynArray<meAsset>& entities = outScene.entities;
+	DynArray<meTypedAsset<MAEntity>>& entities = outScene.entities;
 	StringView gltfResPath = msFsGetDirFromPath(resourcePathAbs);
 	meMeshPool& meshPool = meMeshPoolGet();
 	for (u64 nodeIdx = 0; nodeIdx < scene.nodes_count; nodeIdx++)
@@ -191,7 +191,7 @@ void meScenePool::Load(
 		float nodeMatrix[16];
 		cgltf_node_transform_local(&node, nodeMatrix);
 		meTransform nodeTf = meTransform(glm::make_mat4(nodeMatrix));
-		meAsset entityAsset = meEntityCreateBlankInstance(StringFromCString(node.name));
+		meTypedAsset<MAEntity> entityAsset = meEntityCreateBlankInstance(StringFromCString(node.name));
 		meEntity& entity = meEntityGet(entityAsset);
 		entity.transform = nodeTf;
 		if (node.mesh)

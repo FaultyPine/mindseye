@@ -20,7 +20,7 @@ meScene
 	String externalScenePath = {};
 	meCamera mainCamera = {};
 
-	DynArray<meAsset> entities = {};
+	DynArray<meTypedAsset<MAEntity>> entities = {};
 
     void Destroy();
 };
@@ -73,7 +73,7 @@ struct meScenePool : public meResourcePool<meScene>
 	{
 		Eye e = meResourcePool<meScene>::Load(createParams);
 		meScene& scene = Get(e);
-		scene.entities = DynArrayCreate<meAsset>(GetPayloadAllocator());
+		scene.entities = DynArrayCreate<meTypedAsset<MAEntity>>(GetPayloadAllocator());
 		return e;
 	}
 };

@@ -165,6 +165,18 @@ meAsset
 	operator const MAID() const { return id; }
 };
 
+template <meAssetType AssetTypeV>
+struct meTypedAsset : public meAsset
+{
+    static constexpr meAssetType AssetType = AssetTypeV;
+    meTypedAsset() : meAsset(MAID::Of<AssetTypeV>()) {}
+    meTypedAsset(const meAsset& other) : meAsset(other) 
+    {
+        ME_ASSERT(other.id.GetType() == AssetTypeV);
+    }
+    using meAsset::meAsset;
+};
+
 struct meAssetLoader
 {
     // called on asset threads

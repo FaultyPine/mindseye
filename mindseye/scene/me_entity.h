@@ -29,7 +29,7 @@ struct MEREFLECT(type) meEntity
     
     meTransform transform = {};
     MEREFLECT(tooltip = "The 'appearance' of the entity")
-    meAsset mesh = meAsset(MAID::Of<MAMesh>());
+    meTypedAsset<MAMesh> mesh = {};
 	// gameplay-focused bounds. Rendering bounds including anims may be different (stored on mesh)
     BoundingBox authoritativeBounds = {}; 
     EntityFlags flags = 0;
@@ -55,7 +55,7 @@ void InitializeEntitySystem(EngineContext* engine);
 void DeinitializeEntitySystem(EngineContext* engine);
 meEntityPool& meEntityGetPool();
 
-MEAPI meAsset meEntityCreateBlankInstance(
+MEAPI meTypedAsset<MAEntity> meEntityCreateBlankInstance(
 	StringView name = {});
 MEAPI bool meEntityDestroy(EntityRef ent);
 MEAPI meEntity& meEntityGet(EntityRef ent);

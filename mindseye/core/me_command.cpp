@@ -27,28 +27,26 @@ static void HandleChangeScene(const meCmdChangeScene& cmd)
 	engine->sceneSystem->ChangeCurrentScene(sceneFile);
 }
 
-static void HandleSaveCurrentScene(const meCmdSaveCurrentScene& cmd)
+static void HandleSaveAsset(const meCmdSaveAsset& cmd)
 {
-	EngineContext* engine = GetEngineCtx();
-	meScene* currentScene = &engine->sceneSystem->CurrentScene();
-
-	meAsset* asset = meAssetTryGet(currentScene->header);
+    MAID maid = cmd.asset;
+	meAsset* asset = meAssetTryGet(maid);
 	if (!asset)
 	{
         LOG_WARN("Tried to save current scene, but scene header doesn't point to a valid loaded asset");
 		return;
 	}
 
-    StringView sceneFile = cmd.path;
+    StringView sceneFile = meAssetIndexGetFilesystemPath(maid);
 	if (sceneFile)
 	{
 		meFsNormalizePathSeperators(sceneFile);
-		sceneFile = meAssetEnsurePathHasGoodExtension(sceneFile, MAScene);
+		sceneFile = meAssetEnsurePathHasGoodExtension(sceneFile, maid.GetType());
 		sceneFile = meAssetGetRelPathForResource(sceneFile);
-		meAssetIndexRegisterRelation(sceneFile, asset->id);
+		meAssetIndexRegisterRelation(sceneFile, maid);
 	}
 
-    meAssetRequestWrite(meSpanTyped<MAID>(&currentScene->header, 1));
+    meAssetRequestWrite(meSpanTyped<MAID>(&maid, 1));
 }
 
 static void HandlePickEntity(const meCmdPickEntity& cmd)
@@ -88,8 +86,8 @@ void meReceiveExternalCommand(meExternalCommand cmd)
 		case meExternalCommandType_ChangeScene:
 			HandleChangeScene(cmd.changeScene);
 			break;
-		case meExternalCommandType_SaveCurrentScene:
-			HandleSaveCurrentScene(cmd.saveCurrentScene);
+		case meExternalCommandType_SaveAsset:
+			HandleSaveAsset(cmd.saveAsset);
 			break;
 		case meExternalCommandType_CreateAsset:
 			HandleCreateAsset(cmd.createAsset);

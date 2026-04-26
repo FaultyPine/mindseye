@@ -47,7 +47,7 @@ bool meEntityIsFlag(EntityRef ent, EntityFlags flag)
     return meEntityIsFlag(meEntityGet(ent), flag);
 }
 
-meAsset meEntityCreateBlankInstance(
+meTypedAsset<MAEntity> meEntityCreateBlankInstance(
 	StringView name)
 {
     meAsset newEntityAsset = meAssetCreateNewInstanceAsset(MAEntity);

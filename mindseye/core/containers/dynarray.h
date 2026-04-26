@@ -111,9 +111,9 @@ void DynArrayPush(DynArray<T>& array, T* objs, u64 numObjs)
 // remove (and optionally return element) at specified index
 // popping at an index outside the range [0,length-1] does nothing and logs an error
 template <typename T>
-inline void DynArrayPopAt(DynArray<T>& array, u32 index, T& out)
+inline void DynArrayPopAt(DynArray<T>& array, u32 index, T* out = nullptr)
 {
-    __DynArrayPopAt(array, index, &out);
+    __DynArrayPopAt(array, index, out);
 }
 
 // remove (and optionally return) the last element
