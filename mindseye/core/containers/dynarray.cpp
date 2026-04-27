@@ -110,12 +110,12 @@ bool DynArrayPushAt(
     }
     u32 arrSize = header->size;
 	u32 stride = header->stride;
-	T* destination = array.data + index;
+	T* destination = (T*)((u8*)array.data + (u64)index * stride);
     // if inserting at a populated index, copy all elements to the right
     if (index < arrSize)
     {
 		u32 moveCount = arrSize - index;
-        T* moveTo = array.data + (index + numObjs);
+        T* moveTo = (T*)((u8*)array.data + (u64)(index + numObjs) * stride);
 		if constexpr (std::is_trivially_copyable_v<T>)
 		{
 			u32 moveSize = moveCount * stride;
@@ -143,7 +143,7 @@ bool DynArrayPushAt(
 	}
     // when pushing to a dynarray with an overridden stride (that != sizeof(T))
     // the "numObjs" being pushed may not be the number of T's
-    u32 numAddedObjs = header->stride != sizeof(T) ? numObjs / header->stride : numObjs;
+    u32 numAddedObjs = numObjs;
     header->size += numAddedObjs;
     return true;
 }

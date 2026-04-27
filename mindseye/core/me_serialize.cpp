@@ -732,7 +732,7 @@ void meAssetSerializerToStringFn(const meTypeDescriptor& td, SerializeContext& c
 bool meAssetDeserializerFromStringFn(const meTypeDescriptor& td, DeserializeContext& ctx)
 {
     meAsset* outAsset = (meAsset*)ctx.outputData.data;
-    *outAsset = meAsset();
+    //*outAsset = meAsset();
 
     StringView inText = StringView(ctx.inputData.data, ctx.inputData.size);
     json root;
