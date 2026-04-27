@@ -651,9 +651,9 @@ bool DynArrayDeserializerFromStringFn(
 	for (auto& element : root)
 	{
 		Allocation elementData = MEALLOC(ctx.externalDataAllocator, templateArg.size);
-		result &= JsonDeserializeWithTypeDescriptor(element, templateArg, elementData, ctx.externalDataAllocator, parentType);
 		templateArg.setToDefaultsFn(elementData);
-        DynArrayPush(*array, (u8*)elementData, elementData.size);
+		result &= JsonDeserializeWithTypeDescriptor(element, templateArg, elementData, ctx.externalDataAllocator, parentType);
+        DynArrayPush(*array, (u8*)elementData, 1);
 	}
 	return result;
 }
@@ -692,7 +692,8 @@ bool DynArrayEqualsFn(
 }
 
 
-void meAssetSerializerToStringFn(const meTypeDescriptor& td, SerializeContext& ctx) {
+void meAssetSerializerToStringFn(const meTypeDescriptor& td, SerializeContext& ctx) 
+{
     meAsset* asset = (meAsset*)ctx.data.data;
     json& out = *(json*)ctx.outputData.data;
 

@@ -27,12 +27,12 @@ struct meBlockList
     meBlockList(meAllocator* alloc = nullptr);
     ~meBlockList();
 
-    u32 push(const T& value);
-    void markDeleted(u32 index);
-    void clear();
-    const T& get(u32 index) const;
+    MEAPI u32 push(const T& value);
+    MEAPI void markDeleted(u32 index);
+    MEAPI void clear();
+    MEAPI const T& get(u32 index) const;
 	T& get(u32 index) { return const_cast<T&>(const_cast<const meBlockList*>(this)->get(index)); }
-	bool empty() const { return size == 0; }
+	MEAPI bool empty() const { return size == 0; }
 
     struct Iterator 
     {

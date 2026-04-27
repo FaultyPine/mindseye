@@ -20,6 +20,7 @@ void testbed_onsceneload(meEventPayload payload)
     meAsset newMesh = meAssetCreateNewInstanceAsset(MAMesh);
     GenPlaneMesh(newMesh, 2);
 	entity.mesh = newMesh;
+	entity.authoritativeBounds = meMeshPoolGet().Get(newMesh).meshBounds;
 }
 
 void testbed_init(EngineContext* engine)

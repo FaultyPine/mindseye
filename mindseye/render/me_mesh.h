@@ -88,7 +88,7 @@ struct meMeshPool : public meResourcePool<meMesh>
 
 void meMeshInitialize(EngineContext* engine);
 
-meMeshPool& meMeshPoolGet();
+MEAPI meMeshPool& meMeshPoolGet();
 
 MEAPI void GenCubeMesh(meMeshID outMeshHandle, u32 resolution, meMaterialID materialID = {});
 MEAPI void GenSphereMesh(meMeshID outMeshHandle, u32 resolution, meMaterialID materialID = {});
