@@ -54,12 +54,28 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
             OnResize(hWnd, (UINT)wParam, width, height);
         }
         break;
-		case WM_KEYDOWN: 
+		case WM_KILLFOCUS:
+		{
+			osState->keyboardState.keyStates.clear();
+			osState->keyboardState.prevKeyStates.clear();
+			osState->mouseState.buttons = 0;
+			osState->mouseState.prevButtons = 0;
+		} break;
+		case WM_CAPTURECHANGED:
+		{
+			// Windows has forcibly released our mouse capture
+			// If we were in CAPTURED mode we need to clean up
+			if (osState->useRawInput)
+			{
+				meOSSetCursorState(FREE, *osState);
+			}
+		} break;
+		case WM_KEYDOWN:
 		{
 			int virtualKeyCode = (int)wParam;
 			osState->keyboardState.keyStates.set(virtualKeyCode, true);
 		} break;
-		case WM_KEYUP: 
+		case WM_KEYUP:
 		{
 			int virtualKeyCode = (int)wParam;
 			osState->keyboardState.keyStates.set(virtualKeyCode, false);
