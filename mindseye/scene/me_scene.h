@@ -37,7 +37,7 @@ MEAPI meSceneRaycastHit meSceneRaycast(meScene& scene, const meRay& ray);
 
 struct meSceneManager
 {
-	MEAPI void ChangeCurrentScene(
+	MEAPI void ChangeCurrentSceneAsync(
 		StringView filename);
 
 	// -------- engine internal --------------------------

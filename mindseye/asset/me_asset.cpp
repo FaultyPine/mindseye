@@ -154,19 +154,34 @@ MAID::MAID(u64 id, meAssetType type)
 }
 
 meAssetLoadStage meAssetLoader::meAssetWaitForLoadstage(
+    meSpanTyped<MAID> assets, 
+    meAssetLoadStage loadStage)
+{
+    for (u32 i = 0; i < assets.size; i++)
+    {
+        MAID maid = assets[i];
+        meAsset* asset = meAssetTryGet(maid);
+        constexpr u32 maxAttempts = 1000;
+        u32 attempts = 0;
+        while (asset && asset->loadStage != loadStage && attempts++ < maxAttempts)
+        {
+            meThreadSleep(1); // TMP
+            //GetAssetSystem().assetCompilerJobs.WaitOnJob(assetJobId);
+            asset = meAssetTryGet(maid);
+        }
+        if (asset->loadStage != Loaded)
+        {
+            return Unloaded;
+        }
+    }
+    return Loaded;
+}
+
+meAssetLoadStage meAssetLoader::meAssetWaitForLoadstage(
 	const MAID& maid,
 	meAssetLoadStage loadStage)
 {
-	meAsset* asset = meAssetTryGet(maid);
-	constexpr u32 maxAttempts = 1000;
-	u32 attempts = 0;
-	while (asset && asset->loadStage != loadStage && attempts++ < maxAttempts)
-	{
-		meThreadSleep(1); // TMP
-		//GetAssetSystem().assetCompilerJobs.WaitOnJob(assetJobId);
-		asset = meAssetTryGet(maid);
-	}
-	return asset ? asset->loadStage : Unloaded;
+    return meAssetWaitForLoadstage({&maid, 1}, loadStage);
 }
 
 meJobId meAssetRequestLoad(
@@ -326,6 +341,26 @@ meJobId meAssetRequestWrite(
 	return {};
 }
 
+static DynArray<MAID> meAssetGetAllDependenciesFromDeserialized(
+    meTypeDescriptor& td,
+    u8* data,
+    meAllocator* allocator)
+{
+    // BOOKMARK: this needs to recurse into substructures, like DynArray
+    // but that's really annoying, so i think instead this func should be deleted and we should bubble up that info in the Deserialization funcs.
+    DynArray<MAID> assetDeps = DynArrayCreate<MAID>(allocator);
+    for (u32 i = 0; i < td.fields.size; i++)
+    {
+        const meTypeDescriptor& fieldDesc = td.fields[i];
+        if (&fieldDesc == &TD_MEASSET || fieldDesc.thisType == &TD_MEASSET)
+        {
+            meAsset* dep = (meAsset*)(data + (fieldDesc.offsetBits * 8));
+            DynArrayPush(assetDeps, dep->id);
+        }
+    }
+    return assetDeps;
+}
+
 void meAssetLoader::meAssetLoad(meAsset& asset)
 {
 	ME_ASSERT(asset.id.GetType() == assetType);
@@ -349,6 +384,17 @@ void meAssetLoader::meAssetLoad(meAsset& asset)
 	{
 		LOG_WARN("Failed to load asset " STRING_FMT, STRING_VAARGS(diskPath));
 	}
+    // after we deserialize, this is the moment we can know all the asset dependencies this asset has
+    // TODO: try reading from cached asset index for deps, if it's not there fallback to manually extracting them
+    DynArray<MAID> deps = meAssetGetAllDependenciesFromDeserialized(*assetTypeDesc, (u8*)outAsset, GetTLScratch());
+    // TODO: cache the dependencies in the asset index
+    // load the dependencies and wait for them all
+    u32 numDeps = DynArrayGetSize(deps);
+    LOG_INFO("Loading %i dependencies", numDeps);
+    meAssetRequestLoad(deps.data, numDeps);
+    // TODO: implement WaitForLoadstate for multiple meAssets at once
+    meAssetWaitForLoadstage({deps.data, numDeps}, Loaded);
+
 	asset.loadStage = result ? Loaded : Unloaded;
 }
 

@@ -185,6 +185,9 @@ struct meAssetLoader
 	virtual void meAssetWrite(meAsset&);
 	virtual void meAssetOnLoad(meAsset&) {}
 	meAssetLoadStage meAssetWaitForLoadstage(
+		meSpanTyped<MAID> assets, 
+		meAssetLoadStage);
+	meAssetLoadStage meAssetWaitForLoadstage(
 		const MAID&, 
 		meAssetLoadStage);
 

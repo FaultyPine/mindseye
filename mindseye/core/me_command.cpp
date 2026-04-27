@@ -24,7 +24,7 @@ static void HandleChangeScene(const meCmdChangeScene& cmd)
 	EngineContext* engine = GetEngineCtx();
 	StringView sceneFile = cmd.path;
 	meFsNormalizePathSeperators(sceneFile);
-	engine->sceneSystem->ChangeCurrentScene(sceneFile);
+	engine->sceneSystem->ChangeCurrentSceneAsync(sceneFile);
 }
 
 static void HandleSaveAsset(const meCmdSaveAsset& cmd)

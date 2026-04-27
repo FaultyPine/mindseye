@@ -44,7 +44,7 @@ void meSceneManager::UnloadCurrentScene()
 	sceneAllocator->meClear();
 }
 
-void meSceneManager::ChangeCurrentScene(StringView filename)
+void meSceneManager::ChangeCurrentSceneAsync(StringView filename)
 {
 	UnloadCurrentScene();
 	MAID sceneIdent = meAssetIndexGetMAIDFromPath(filename);
@@ -53,13 +53,15 @@ void meSceneManager::ChangeCurrentScene(StringView filename)
         LOG_WARN("Failed to change scene. Scene file " STRING_FMT " doesn't map to a asset", STRING_VAARGS(filename));
         return;
     }
-	meAssetRequestLoad(&sceneIdent, 1);
-    if (meAsset* asset = meAssetTryGet(sceneIdent))
+	meAssetRequestLoad(&sceneIdent, 1, [](const meAsset& sceneAsset)
     {
-        GetEngineCtx()->sceneSystem->rootScene = *asset;
-        meEventPayload payload = {asset};
-        GetEngineCtx()->appCallbacks.onSceneLoaded(payload);
-    }
+        if (meAsset* asset = meAssetTryGet(sceneAsset.id))
+        {
+            GetEngineCtx()->sceneSystem->rootScene = *asset;
+            meEventPayload payload = {asset};
+            GetEngineCtx()->appCallbacks.onSceneLoaded(payload);
+        }    
+    });
 }
 
 void meSceneManager::CopyToRenderInput(meScene& outScene)

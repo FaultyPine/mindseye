@@ -168,10 +168,9 @@ void InitializeEngine(s32 argc, char** argv)
     engine->appCallbacks.initFn(engine);
 
 	// default scene load
-	MAID sceneIdent = meAssetIndexGetMAIDFromPath(engine->appConfig.defaultSceneName);
-	if (sceneIdent)
+	if (engine->appConfig.defaultSceneName)
 	{
-		meAssetRequestLoad(&sceneIdent, 1);
+        engine->sceneSystem->ChangeCurrentSceneAsync(engine->appConfig.defaultSceneName);
 	}
 
     RunEngine(engine);
