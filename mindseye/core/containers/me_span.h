@@ -61,4 +61,5 @@ struct meSpanTyped : public meSpan
 		ME_ASSERT(idx < size);
 		return ((T*)data)[idx]; 
 	}
+    operator T*() { return (T*)data; }
 };

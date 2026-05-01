@@ -99,11 +99,15 @@ static void InitializeEngineConfig(EngineContext* engine)
 	}
 	else
 	{
-		DeserializeFromFileBlocking(userProjectConfigPath, &engine->engineArena, TD_MEUSERCONFIG, SPAN_FROM(engine->userConfig));
-		// "userApp" referring to a program that uses the mindseye engine
+        meSerializeResult result = {};
+		DeserializeFromFileBlocking(userProjectConfigPath, &engine->engineArena, TD_MEUSERCONFIG, SPAN_FROM(engine->userConfig), result);
+        ME_ASSERT(result.result == meSerializeResult::ResultType::SER_SUCCESS);
+        // "userApp" referring to a program that uses the mindseye engine
 		StringView userAppConfigFile = engine->userConfig.projectRootConfigFile;
 		String userAppConfigPathAbs = meOSResolveRelativeToAbsPath(GetTLScratch(), userAppConfigFile);
-		DeserializeFromFileBlocking(userAppConfigPathAbs, &engine->engineArena, TD_MEAPPCONFIG, SPAN_FROM(engine->appConfig));
+        result = {};
+		DeserializeFromFileBlocking(userAppConfigPathAbs, &engine->engineArena, TD_MEAPPCONFIG, SPAN_FROM(engine->appConfig), result);
+        ME_ASSERT(result.result == meSerializeResult::ResultType::SER_SUCCESS);
 
 		StringView userAppDllName = StringFormatTmp("%.*s.dll", STRING_VAARGS(engine->appConfig.appName));
 		void* gameLib = LoadDynamicLibrary(userAppDllName.cstr());

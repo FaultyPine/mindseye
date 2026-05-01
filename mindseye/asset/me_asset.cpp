@@ -352,7 +352,11 @@ void meAssetLoader::meAssetLoad(meAsset& asset)
 	void* outAsset = pool->GetOpaque(asset.runtimeHandle);
 	StringView diskPath = meAssetIndexGetFilesystemPath(asset.id);
 	StringView assetPath = meAssetGetAbsPathForResource(diskPath);
-	meSerializeResult result = DeserializeFromFileBlocking(assetPath, allocator, *assetTypeDesc, meSpan(outAsset, assetTypeDesc->size));
+	// Set ownerMaid before deserializing so that meAssetDeserializerFromStringFn
+	// registers any referenced asset MAIDs in the asset index under this asset's key.
+	meSerializeResult result;
+	result.ownerMaid = asset.id;
+	DeserializeFromFileBlocking(assetPath, allocator, *assetTypeDesc, meSpan(outAsset, assetTypeDesc->size), result);
 	if (result)
 	{
 		ME_ASSERT(assetTypeDesc->fields[0].thisType == &TD_MAID);
@@ -364,15 +368,16 @@ void meAssetLoader::meAssetLoad(meAsset& asset)
 	{
 		LOG_WARN("Failed to load asset " STRING_FMT, STRING_VAARGS(diskPath));
 	}
-    // Dependencies were collected during deserialization
-    // TODO: cache the dependencies in the asset index
-    DynArray<MAID>& deps = result.dependencies;
-    u32 numDeps = DynArrayGetSize(deps);
-    LOG_INFO("Loading %i dependencies", numDeps);
-    meAssetRequestLoad(deps.data, numDeps);
-    // TODO: implement WaitForLoadstate for multiple meAssets at once
-    meAssetWaitForLoadstage({deps.data, numDeps}, Loaded);
-
+	// Look up the dependencies that were recorded into the asset index during deserialization.
+	meSpanTyped<MAID> deps = meAssetIndexGetDependencies(asset.id);
+    if (deps)
+    {
+        LOG_INFO("Loading %llu dependencies", deps.size);
+        meAssetRequestLoad(deps, (u32)deps.size);
+        // TODO: implement WaitForLoadstate for multiple meAssets at once
+        meAssetWaitForLoadstage(deps, Loaded);
+    }
+	
 	asset.loadStage = result ? Loaded : Unloaded;
 }
 

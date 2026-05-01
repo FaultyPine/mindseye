@@ -5,6 +5,7 @@
 #include "core/me_math.h"
 #include "core/containers/dynarray.h"
 #include "asset/me_asset.h"
+#include "asset/me_asset_index.h"
 
 #include <external/json.hpp>
 using json = nlohmann::json;
@@ -387,12 +388,13 @@ meSerializeResult SerializeOverridesToTextBlocking(
 	return meSerializeResult::SER_SUCCESS;
 }
 
-meSerializeResult DeserializeOverridesFromTextBlocking(
+void DeserializeOverridesFromTextBlocking(
 	const meTypeDescriptor& typeDesc,
 	meAllocator* allocator,
 	StringView inText,
 	const void* templateData,
-	meSpan outBuffer)
+	meSpan outBuffer,
+	meSerializeResult& outResult)
 {
 	ME_ASSERT(outBuffer.size == typeDesc.size);
 	ME_ASSERT(templateData);
@@ -411,7 +413,8 @@ meSerializeResult DeserializeOverridesFromTextBlocking(
 	catch (const json::parse_error& e)
 	{
 		LOG_ERROR("JSON parse error: %s", e.what());
-		return meSerializeResult::SER_FAILURE;
+		outResult.result = meSerializeResult::SER_FAILURE;
+		return;
 	}
 
 	if (root.contains("type"))
@@ -422,7 +425,8 @@ meSerializeResult DeserializeOverridesFromTextBlocking(
 		{
 			LOG_ERROR("Type mismatch deserializing overrides. Expected %.*s but got %s",
 				STRING_VAARGS(typeDesc.name), typeStr.c_str());
-			return meSerializeResult::SER_FAILURE;
+			outResult.result = meSerializeResult::SER_FAILURE;
+			return;
 		}
 	}
 	if (root.contains("version"))
@@ -432,12 +436,10 @@ meSerializeResult DeserializeOverridesFromTextBlocking(
 		{
 			LOG_ERROR("Version mismatch deserializing overrides for %.*s: expected %d got %d",
 				STRING_VAARGS(typeDesc.name), typeDesc.version, version);
-			return meSerializeResult::SER_VERSION_MISMATCH;
+			outResult.result = meSerializeResult::SER_VERSION_MISMATCH;
+			return;
 		}
 	}
-
-	meSerializeResult result = meSerializeResult::SER_SUCCESS;
-	result.dependencies = DynArrayCreate<MAID>(allocator);
 
 	for (u64 i = 0; i < typeDesc.fields.size; i++)
 	{
@@ -451,18 +453,19 @@ meSerializeResult DeserializeOverridesFromTextBlocking(
 			continue;
 		}
 		void* fieldData = (u8*)outBuffer.data + (field.offsetBits / 8);
-		JsonDeserializeWithTypeDescriptor(root[fieldName], field, fieldData, allocator, &typeDesc, &result);
+		JsonDeserializeWithTypeDescriptor(root[fieldName], field, fieldData, allocator, &typeDesc, &outResult);
 	}
 
-	return result;
+	outResult.result = meSerializeResult::SER_SUCCESS;
 }
 
 
-meSerializeResult DeserializeFromFileBlocking(
+void DeserializeFromFileBlocking(
 	StringView filepath,
 	meAllocator* allocator,
 	const meTypeDescriptor& typeDescriptor,
-	meSpan outBuffer)
+	meSpan outBuffer,
+	meSerializeResult& outResult)
 {
 	// when debugging serialization, we might want to open the file being worked with, so we close the file handle before doing the Deserialize call
 	Allocation tempFileContent = {};
@@ -472,11 +475,10 @@ meSerializeResult DeserializeFromFileBlocking(
 		tempFileContent = MEALLOC(GetTLScratch(), meOSGetFileSize(file));
 		meOSReadFileContents(file, tempFileContent, tempFileContent.size);
 	}
-	
-	meSerializeResult res = DeserializeFromTextBlocking(typeDescriptor, allocator, StringView(tempFileContent), outBuffer);
+
+	DeserializeFromTextBlocking(typeDescriptor, allocator, StringView(tempFileContent), outBuffer, outResult);
 	// TODO: could/should be replaced with timestamp
-	res.serializedUniqueIdentifier = HashBytesL((u8*)tempFileContent.data, tempFileContent.size); 
-	return res;
+	outResult.serializedUniqueIdentifier = HashBytesL((u8*)tempFileContent.data, tempFileContent.size);
 }
 
 meSerializeResult SerializeToTextBlocking(
@@ -524,11 +526,12 @@ meSerializeResult SerializeToTextBlocking(
 	return meSerializeResult::SER_SUCCESS;
 }
 
-meSerializeResult DeserializeFromTextBlocking(
+void DeserializeFromTextBlocking(
 	const meTypeDescriptor& typeDesc,
 	meAllocator* allocator,
 	StringView inText,
-	meSpan outBuffer)
+	meSpan outBuffer,
+	meSerializeResult& outResult)
 {
 	// Parse JSON
 	json root;
@@ -539,7 +542,8 @@ meSerializeResult DeserializeFromTextBlocking(
 	catch (const json::parse_error& e)
 	{
 		LOG_ERROR("JSON parse error: %s", e.what());
-		return meSerializeResult::SER_FAILURE;
+		outResult.result = meSerializeResult::SER_FAILURE;
+		return;
 	}
 	// Check type
 	if (root.contains("type"))
@@ -551,7 +555,8 @@ meSerializeResult DeserializeFromTextBlocking(
 			LOG_ERROR("Type mismatch deserializing from JSON. Expected %.*s but got %s",
 				STRING_VAARGS(typeDesc.name),
 				typeStr.c_str());
-			return meSerializeResult::SER_FAILURE;
+			outResult.result = meSerializeResult::SER_FAILURE;
+			return;
 		}
 	}
 
@@ -565,13 +570,12 @@ meSerializeResult DeserializeFromTextBlocking(
 				STRING_VAARGS(typeDesc.name),
 				typeDesc.version,
 				version);
-			return meSerializeResult::SER_VERSION_MISMATCH;
+			outResult.result = meSerializeResult::SER_VERSION_MISMATCH;
+			return;
 		}
 	}
 
 	ME_ASSERT(outBuffer.size == typeDesc.size);
-	meSerializeResult result = meSerializeResult::SER_SUCCESS;
-	result.dependencies = DynArrayCreate<MAID>(allocator);
 
 	for (u64 i = 0; i < typeDesc.fields.size; i++)
 	{
@@ -588,10 +592,10 @@ meSerializeResult DeserializeFromTextBlocking(
 			continue;
 		}
 		void* fieldData = (u8*)outBuffer.data + (field.offsetBits / 8);
-		JsonDeserializeWithTypeDescriptor(root[fieldName], field, fieldData, allocator, &typeDesc, &result);
+		JsonDeserializeWithTypeDescriptor(root[fieldName], field, fieldData, allocator, &typeDesc, &outResult);
 	}
 
-	return result;
+	outResult.result = meSerializeResult::SER_SUCCESS;
 }
 
 
@@ -778,10 +782,10 @@ bool meAssetDeserializerFromStringFn(const meTypeDescriptor& td, DeserializeCont
         outAsset->id = MAID(id, (meAssetType)typeInt);
         outAsset->runtimeHandle = EYE_INVALID;
         outAsset->loadStage = Unloaded;
-        // Record this as a dependency so the caller knows to load it.
-        if (ctx.outResult && outAsset->id)
+        // Record as a dependency in the asset index so the owner can look it up after deserialization.
+        if (ctx.outResult)
         {
-            DynArrayPush(ctx.outResult->dependencies, outAsset->id);
+            meAssetIndexRecordDependency(ctx.outResult->ownerMaid, outAsset->id);
         }
         return true;
     }
@@ -827,13 +831,19 @@ bool meAssetDeserializerFromStringFn(const meTypeDescriptor& td, DeserializeCont
     void* instanceData = loader->resourcePool->GetOpaque(instanceEye);
     meSpan instanceBuffer = meSpan(instanceData, loader->assetTypeDesc->size);
 
-    meSerializeResult res = DeserializeOverridesFromTextBlocking(
+    // Reuse outResult so nested asset refs inside this override doc are
+    // recorded under the same owner. Fall back to a stack temp only if there's
+    // no outer result (deserialization called without a context).
+    meSerializeResult tempResult;
+    meSerializeResult& innerResult = ctx.outResult ? *ctx.outResult : tempResult;
+    DeserializeOverridesFromTextBlocking(
         *loader->assetTypeDesc,
         ctx.externalDataAllocator,
         inText,
         templateData,
-        instanceBuffer);
-    if (!res)
+        instanceBuffer,
+        innerResult);
+    if (!innerResult)
     {
         loader->resourcePool->Destroy(instanceEye);
         return false;
@@ -842,10 +852,10 @@ bool meAssetDeserializerFromStringFn(const meTypeDescriptor& td, DeserializeCont
     outAsset->id = templateMaid;
     outAsset->runtimeHandle = instanceEye;
     outAsset->loadStage = Loaded;
-    // Record the template MAID as a dependency. Not really necessary since caller already loaded it
+    // Record the template MAID in the asset index. This isn't really necessary
     if (ctx.outResult)
     {
-        DynArrayPush(ctx.outResult->dependencies, templateMaid);
+        meAssetIndexRecordDependency(ctx.outResult->ownerMaid, templateMaid);
     }
     return true;
 }

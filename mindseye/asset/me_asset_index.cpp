@@ -15,6 +15,38 @@ const meAssetIndex& meAssetIndexGetRO()
     return meAssetIndexGet();
 }
 
+void meAssetIndexRecordDependency(MAID owner, MAID dep)
+{
+	if (!owner || !dep)
+	{
+		return;
+	}
+	meAssetIndex& assetIndex = meAssetIndexGet();
+	auto it = assetIndex.dependencyMap.find(owner);
+	if (it == assetIndex.dependencyMap.end())
+	{
+		assetIndex.dependencyMap[owner] = DynArrayCreate<MAID>(GetDefaultAllocator());
+		it = assetIndex.dependencyMap.find(owner);
+	}
+	DynArrayPush(it->second, dep);
+}
+
+meSpanTyped<MAID> meAssetIndexGetDependencies(MAID owner)
+{
+	if (!owner)
+	{
+		return {};
+	}
+	meAssetIndex& assetIndex = meAssetIndexGet();
+	auto it = assetIndex.dependencyMap.find(owner);
+	if (it == assetIndex.dependencyMap.end())
+	{
+		return {};
+	}
+	DynArray<MAID>& deps = it->second;
+	return meSpanTyped<MAID>(deps.data, DynArrayGetSize(deps));
+}
+
 StringView meAssetIndexGetFilesystemPath(
 	const MAID& maid)
 {
@@ -109,7 +141,8 @@ void OnFoundAssetFile(
 	const meTypeDescriptor& typeDesc = *loader->assetTypeDesc;
 	u32 size = typeDesc.size;
 	Allocation outSerialized = MEALLOC(GetTLScratch(), size);
-	meSerializeResult result = DeserializeFromFileBlocking(assetPath, GetTLScratch(), typeDesc, outSerialized);
+	meSerializeResult result;
+	DeserializeFromFileBlocking(assetPath, GetTLScratch(), typeDesc, outSerialized, result);
 	if (result == meSerializeResult::SER_SUCCESS)
 	{
 		meSpan assetHeaderData = meSerializeTryGetAssetHeader(typeDesc, outSerialized);
