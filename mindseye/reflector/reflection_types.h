@@ -5,6 +5,10 @@
 #include "core/me_string.h"
 struct meTypeDescriptor;
 
+// Forward declaration so DeserializeContext can hold a pointer to the result
+// being built by the top-level Deserialize* functions.
+struct meSerializeResult;
+
 // TODO: instead of a "to string serialization" and equiv deserialization
 // function, just have 1 serialize and 1 deserialize per type
 // and in the ctxs, have an enum like "SERIALIZE_KIND_TEXT" "SERIALIZE_KIND_BINARY"
@@ -14,12 +18,17 @@ struct DeserializeContext
 	// data to be deserialized, I.E. a string like "0.1" or equivalent
 	meSpan inputData = {};
 	// POD, preallocated before deserialization functions are called
-	meSpan outputData = {}; 
+	meSpan outputData = {};
 	// external pointer buffer, allocated inside deserialization funcs with the following allocator
-	meSpan outputDataExternal = {}; 
+	meSpan outputDataExternal = {};
 	meAllocator* externalDataAllocator = {};
 	// for templated types, this is can be used to get the template params
 	const meTypeDescriptor* parentType = {};
+	// optional: pointer to the meSerializeResult being constructed by the top-level
+	// Deserialize* call. Custom deserializers (e.g. meAsset, DynArray) propagate this
+	// into sub-calls so any data they want to surface (e.g. asset dependencies) can be
+	// accumulated on the result and returned to the original caller.
+	meSerializeResult* outResult = nullptr;
 };
 
 struct SerializeContext

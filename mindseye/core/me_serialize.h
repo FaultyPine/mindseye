@@ -1,5 +1,9 @@
 #pragma once
 
+#include "core/containers/dynarray.h"
+
+struct MAID;
+
 struct meSerializeResult
 {
 	enum ResultType
@@ -10,6 +14,9 @@ struct meSerializeResult
 	};
 	ResultType result = SER_FAILURE;
 	u32 serializedUniqueIdentifier = 0;
+	// All asset MAIDs encountered while deserializing this document.
+	// Only populated on Deserialize* calls; empty for Serialize* calls.
+	DynArray<MAID> dependencies = {};
 
 	meSerializeResult() = default;
 	meSerializeResult(ResultType type) : result(type)

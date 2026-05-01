@@ -25,15 +25,16 @@ void sizedBufferSerializer(
 
 // Forward declarations
 static json JsonSerializeWithTypeDescriptor(
-	const meTypeDescriptor& td, 
-	void* data, 
+	const meTypeDescriptor& td,
+	void* data,
 	const meTypeDescriptor* parentType = nullptr);
 static bool JsonDeserializeWithTypeDescriptor(
-	const json& j, 
-	const meTypeDescriptor& td, 
-	void* outData, 
-	meAllocator* allocator, 
-	const meTypeDescriptor* parentType = nullptr);
+	const json& j,
+	const meTypeDescriptor& td,
+	void* outData,
+	meAllocator* allocator,
+	const meTypeDescriptor* parentType = nullptr,
+	meSerializeResult* outResult = nullptr);
 
 // Convert a meTypeDescriptor + data pointer to a JSON value
 static json JsonSerializeWithTypeDescriptor(
@@ -130,18 +131,18 @@ static json JsonSerializeWithTypeDescriptor(
 
 // Deserialize JSON into a data buffer using meTypeDescriptor
 static bool JsonDeserializeWithTypeDescriptor(
-	const json& j, 
-	const meTypeDescriptor& td, 
-	void* outData, 
-	meAllocator* allocator, 
-	const meTypeDescriptor* parentType)
+	const json& j,
+	const meTypeDescriptor& td,
+	void* outData,
+	meAllocator* allocator,
+	const meTypeDescriptor* parentType,
+	meSerializeResult* outResult)
 {
 	if (j.is_null() || !td.ShouldSerializeText())
 	{
 		return false;
 	}
 
-	// Custom deserializer override
 	if (td.deserializerFn)
 	{
 		std::string str;
@@ -158,6 +159,7 @@ static bool JsonDeserializeWithTypeDescriptor(
 		ctx.outputData = meSpan(outData, td.size);
 		ctx.externalDataAllocator = allocator;
 		ctx.parentType = parentType ? parentType : &td;
+		ctx.outResult = outResult;
 		return td.deserializerFn(td, ctx);
 	}
 
@@ -171,7 +173,7 @@ static bool JsonDeserializeWithTypeDescriptor(
 		for (u32 i = 0; i < count; i++)
 		{
 			void* elementData = (u8*)outData + (td.thisType->size * i);
-			JsonDeserializeWithTypeDescriptor(j[i], *td.thisType, elementData, allocator, &td);
+			JsonDeserializeWithTypeDescriptor(j[i], *td.thisType, elementData, allocator, &td, outResult);
 		}
 		return true;
 	}
@@ -179,7 +181,7 @@ static bool JsonDeserializeWithTypeDescriptor(
 	// Typedef/alias with underlying type but no fields
 	if (td.thisType && td.fields.size == 0)
 	{
-		return JsonDeserializeWithTypeDescriptor(j, *td.thisType, outData, allocator, &td);
+		return JsonDeserializeWithTypeDescriptor(j, *td.thisType, outData, allocator, &td, outResult);
 	}
 
 	// Primitive types
@@ -250,7 +252,7 @@ static bool JsonDeserializeWithTypeDescriptor(
 			continue;
 		}
 		void* fieldData = (u8*)outData + (field.offsetBits / 8);
-		JsonDeserializeWithTypeDescriptor(j[fieldName], field, fieldData, allocator, &td);
+		JsonDeserializeWithTypeDescriptor(j[fieldName], field, fieldData, allocator, &td, outResult);
 	}
 	return true;
 }
@@ -434,6 +436,9 @@ meSerializeResult DeserializeOverridesFromTextBlocking(
 		}
 	}
 
+	meSerializeResult result = meSerializeResult::SER_SUCCESS;
+	result.dependencies = DynArrayCreate<MAID>(allocator);
+
 	for (u64 i = 0; i < typeDesc.fields.size; i++)
 	{
 		const meTypeDescriptor& field = typeDesc.fields[i];
@@ -446,10 +451,10 @@ meSerializeResult DeserializeOverridesFromTextBlocking(
 			continue;
 		}
 		void* fieldData = (u8*)outBuffer.data + (field.offsetBits / 8);
-		JsonDeserializeWithTypeDescriptor(root[fieldName], field, fieldData, allocator, &typeDesc);
+		JsonDeserializeWithTypeDescriptor(root[fieldName], field, fieldData, allocator, &typeDesc, &result);
 	}
 
-	return meSerializeResult::SER_SUCCESS;
+	return result;
 }
 
 
@@ -543,8 +548,8 @@ meSerializeResult DeserializeFromTextBlocking(
 		StringView expectedType = typeDesc.name;
 		if (typeStr != std::string(expectedType.data, expectedType.len))
 		{
-			LOG_ERROR("Type mismatch deserializing from JSON. Expected %.*s but got %s", 
-				STRING_VAARGS(typeDesc.name), 
+			LOG_ERROR("Type mismatch deserializing from JSON. Expected %.*s but got %s",
+				STRING_VAARGS(typeDesc.name),
 				typeStr.c_str());
 			return meSerializeResult::SER_FAILURE;
 		}
@@ -556,16 +561,18 @@ meSerializeResult DeserializeFromTextBlocking(
 		s32 version = root["version"].get<s32>();
 		if (version != typeDesc.version)
 		{
-			LOG_ERROR("Version mismatch deserializing from JSON for type %.*s. Expected version %d but got version %d", 
-				STRING_VAARGS(typeDesc.name), 
+			LOG_ERROR("Version mismatch deserializing from JSON for type %.*s. Expected version %d but got version %d",
+				STRING_VAARGS(typeDesc.name),
 				typeDesc.version,
 				version);
 			return meSerializeResult::SER_VERSION_MISMATCH;
 		}
 	}
 
-	// Deserialize fields
 	ME_ASSERT(outBuffer.size == typeDesc.size);
+	meSerializeResult result = meSerializeResult::SER_SUCCESS;
+	result.dependencies = DynArrayCreate<MAID>(allocator);
+
 	for (u64 i = 0; i < typeDesc.fields.size; i++)
 	{
 		const meTypeDescriptor& field = typeDesc.fields[i];
@@ -581,10 +588,10 @@ meSerializeResult DeserializeFromTextBlocking(
 			continue;
 		}
 		void* fieldData = (u8*)outBuffer.data + (field.offsetBits / 8);
-		JsonDeserializeWithTypeDescriptor(root[fieldName], field, fieldData, allocator, &typeDesc);
+		JsonDeserializeWithTypeDescriptor(root[fieldName], field, fieldData, allocator, &typeDesc, &result);
 	}
 
-	return meSerializeResult::SER_SUCCESS;
+	return result;
 }
 
 
@@ -652,8 +659,8 @@ bool DynArrayDeserializerFromStringFn(
 	{
 		Allocation elementData = MEALLOC(ctx.externalDataAllocator, templateArg.size);
 		templateArg.setToDefaultsFn(elementData);
-		result &= JsonDeserializeWithTypeDescriptor(element, templateArg, elementData, ctx.externalDataAllocator, parentType);
-        DynArrayPush(*array, (u8*)elementData, 1);
+		result &= JsonDeserializeWithTypeDescriptor(element, templateArg, elementData, ctx.externalDataAllocator, parentType, ctx.outResult);
+		DynArrayPush(*array, (u8*)elementData, 1);
 	}
 	return result;
 }
@@ -761,7 +768,7 @@ bool meAssetDeserializerFromStringFn(const meTypeDescriptor& td, DeserializeCont
 
     if (!isOverrideDoc)
     {
-        // Template ref: just populate the MAID. 
+        // Template ref: just populate the MAID.
         if (!root.contains("id") || !root.contains("type"))
         {
             return false;
@@ -771,6 +778,11 @@ bool meAssetDeserializerFromStringFn(const meTypeDescriptor& td, DeserializeCont
         outAsset->id = MAID(id, (meAssetType)typeInt);
         outAsset->runtimeHandle = EYE_INVALID;
         outAsset->loadStage = Unloaded;
+        // Record this as a dependency so the caller knows to load it.
+        if (ctx.outResult && outAsset->id)
+        {
+            DynArrayPush(ctx.outResult->dependencies, outAsset->id);
+        }
         return true;
     }
 
@@ -830,6 +842,11 @@ bool meAssetDeserializerFromStringFn(const meTypeDescriptor& td, DeserializeCont
     outAsset->id = templateMaid;
     outAsset->runtimeHandle = instanceEye;
     outAsset->loadStage = Loaded;
+    // Record the template MAID as a dependency. Not really necessary since caller already loaded it
+    if (ctx.outResult)
+    {
+        DynArrayPush(ctx.outResult->dependencies, templateMaid);
+    }
     return true;
 }
 
