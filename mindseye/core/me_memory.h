@@ -6,7 +6,7 @@
 #include "mindseye/core/me_string.h"
 #include <new> // for placement new
 
-#define ME_MEM_DEBUG true
+#define ME_MEM_DEBUG false
 
 C_LINKAGE void* memcpy(void *_Dst, const void *_Src, size_t _Size);
 C_LINKAGE void* memmove(void *_Dst, const void *_Src, size_t _Size);
