@@ -82,6 +82,7 @@ meSceneRaycastHit meSceneRaycast(meScene& scene, const meRay& ray)
 	{
 		EntityRef entRef = entities[i];
 		meEntity& entData = meEntityGet(entRef);
+        // BOOKMARK: can't select loaded entity, these flags pass
 		if (meEntityIsFlag(entRef, EntityFlags_HIDDEN) || meEntityIsFlag(entRef, EntityFlags_DISABLED))
 			continue;
 

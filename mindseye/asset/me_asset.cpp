@@ -428,6 +428,10 @@ void meAssetLoader::meAssetWrite(meAsset& asset)
 
 meAsset* meAssetTryGet(MAID assetID)
 {
+    if (!assetID)
+    {
+        return nullptr;
+    }
 	meAssetSystem& assetSystem = meAssetSystemGet();
 	meAssetTypeRegistry& reg = assetSystem.registries[assetID.GetType()];
 	RWLockRead(reg.lock);
