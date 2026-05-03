@@ -361,8 +361,7 @@ void meAssetLoader::meAssetLoad(meAsset& asset)
 	{
 		ME_ASSERT(assetTypeDesc->fields[0].thisType == &TD_MAID);
 		MAID* header = (MAID*)outAsset;
-		ME_ASSERT(header->GetID() == asset.id.GetID());
-		header->SetType(asset.id.GetType());
+		ME_ASSERT(*header == asset.id);
 	}
 	else
 	{
@@ -375,7 +374,7 @@ void meAssetLoader::meAssetLoad(meAsset& asset)
         LOG_INFO("Loading %llu dependencies", deps.size);
         meAssetRequestLoad(deps, (u32)deps.size);
         // TODO: implement WaitForLoadstate for multiple meAssets at once
-        meAssetWaitForLoadstage(deps, Loaded);
+        // meAssetWaitForLoadstage(deps, Loaded);
     }
 	
 	asset.loadStage = result ? Loaded : Unloaded;

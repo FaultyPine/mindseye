@@ -14,10 +14,7 @@ STATIC_ASSERT(sizeof(DynArrayAny) == sizeof(DynArray<u64>));
 template<typename T>
 DynArrayHeader* GetHeaderPointer(const DynArray<T>& array)
 {
-    u32 headerSize = sizeof(DynArrayHeader);
-    // our header will always be 'behind' our array pointer.
-    DynArrayHeader* headerPtr = (DynArrayHeader*)(((u8*)array.data) - headerSize);
-    return headerPtr;
+    return const_cast<DynArrayHeader*>(&array.header);
 }
 
 // ===== Create & Destroy =====
@@ -34,26 +31,21 @@ void DynArrayInternalFree(meAllocator* allocator, Allocation data)
 
 template<typename T>
 DynArray<T> DynArrayCreate(
-	meAllocator* allocator, 
+	meAllocator* allocator,
 	u32 initialCapacity,
 	u32 strideOverride)
 {
 	u32 stride = strideOverride;
-    u32 headerSize = sizeof(DynArrayHeader);
     u32 arraySize = initialCapacity * stride;
-    u32 allocSize = headerSize + arraySize;
-    Allocation arrayBackingAlloc = DynArrayInternalAlloc(allocator, allocSize);
+    Allocation arrayBackingAlloc = DynArrayInternalAlloc(allocator, arraySize);
     u8* arrayBackingMem = (u8*)arrayBackingAlloc.data;
-    ME_MEMCLEAR(arrayBackingMem, allocSize);
-    // populate header
-    DynArrayHeader* headerPointer = (DynArrayHeader*)arrayBackingMem;
-    headerPointer->size = 0;
-    headerPointer->capacity = initialCapacity;
-    headerPointer->stride = stride;
-    headerPointer->allocator = allocator;
-	// our DynArray is a pointer to our array elements, and metadata about the array
-	// is stored just before that pointer
-	DynArray<T> result = { (T*)(arrayBackingMem + headerSize) };
+    ME_MEMCLEAR(arrayBackingMem, arraySize);
+    DynArray<T> result;
+    result.header.size = 0;
+    result.header.capacity = initialCapacity;
+    result.header.stride = stride;
+    result.header.allocator = allocator;
+    result.data = (T*)arrayBackingMem;
     return result;
 }
 
@@ -61,9 +53,7 @@ template<typename T>
 void DynArrayDestroy(DynArray<T>& array)
 {
     if (!array.data) return;
-    // since header info is stored before the array pointer, move back to the beginning of the allocation to free it
-    DynArrayHeader* baseArrayPtr = GetHeaderPointer(array);
-    DynArrayInternalFree(baseArrayPtr->allocator, Allocation(baseArrayPtr, baseArrayPtr->size));
+    DynArrayInternalFree(array.header.allocator, Allocation(array.data, array.header.size));
 	array = {};
 }
 
@@ -74,11 +64,9 @@ DynArray<T> DynArrayResize(DynArray<T> array, u32 newCapacity)
 #if ARRAY_CHECKS
     ME_ASSERT(header->capacity != 0 && "resize called on array with 0 capacity");
 #endif
-    DynArray<T> newArray = DynArrayCreate<T>(header->allocator, newCapacity);
-    DynArrayHeader* newArrayBasePtr = GetHeaderPointer(newArray);
-    u32 totalOldArraySize = (header->size * header->stride) + sizeof(DynArrayHeader);
-    ME_MEMCPY(newArrayBasePtr, header, totalOldArraySize);
-    newArrayBasePtr->capacity = newCapacity;
+    DynArray<T> newArray = DynArrayCreate<T>(header->allocator, newCapacity, header->stride);
+    newArray.header.size = header->size;
+    ME_MEMCPY((void*)newArray.data, array.data, header->size * header->stride);
     DynArrayDestroy(array);
     return newArray;
 }

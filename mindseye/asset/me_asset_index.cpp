@@ -142,6 +142,9 @@ void OnFoundAssetFile(
 	u32 size = typeDesc.size;
 	Allocation outSerialized = MEALLOC(GetTLScratch(), size);
 	meSerializeResult result;
+    // TODO: Don't deserialize just for the asset index.
+    // This should be able to JUST read the header to generate metadata about the asset
+    // without actually deserializing it. I.E. disk path, MAID, any searchable metadata tags
 	DeserializeFromFileBlocking(assetPath, GetTLScratch(), typeDesc, outSerialized, result);
 	if (result == meSerializeResult::SER_SUCCESS)
 	{

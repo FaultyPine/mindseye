@@ -7,7 +7,7 @@
 
 // "stretchy buffer" implementation
 // dynamic array that resizes itself when capacity is reached
-// stores capacity/size in a header section stored *before* the actual array pointer
+// stores capacity/size in a DynArrayHeader as the first member of DynArray
 
 #define DynArray_Foreach(array, iteratorVarName) u32 iteratorVarName = 0; !!(array) && iteratorVarName < DynArrayGetSize(array); iteratorVarName++
 #define DynArrayDefaultCapacity (10)
@@ -27,6 +27,7 @@ struct DynArrayHeader
 template <typename T>
 struct DynArray
 {
+	DynArrayHeader header = {};
 	T* data = nullptr;
 
 	operator bool() const
