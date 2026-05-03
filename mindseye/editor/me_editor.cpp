@@ -485,10 +485,10 @@ static void DrawAssetInspector(EditorContext& editor, InspectorWindow& inspector
 		return;
 	}
     MAID asset = inspector.currentAsset;
-    meAsset* loadedAsset = meAssetTryGet(asset);
+    meAsset* loadedAsset = meAssetTryGetTemplate(asset);
     if (!loadedAsset)
     {
-        meAssetRequestLoad(&asset, 1);
+        meAssetRequestLoadTemplate(&asset, 1);
         ImGui::Text("Loading asset...");
         ImGui::End();
         return;

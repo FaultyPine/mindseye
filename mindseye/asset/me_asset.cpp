@@ -57,7 +57,7 @@ void meAssetInitialize(EngineContext* engine)
     engine->assetSystem = MENEW(&engine->engineArena, meAssetSystem);
 	for (u32 i = 0; i < NUM_ASSET_TYPES; i++)
 	{
-		engine->assetSystem->registries[i].assets.reserve(100);
+		engine->assetSystem->registries[i].templateAssets.reserve(50);
 	}
     const CommandLineArgs& cmdline = GetCommandLineArgs();
 	if (cmdline.hasResourceDir)
@@ -98,7 +98,7 @@ void meAssetRegisterLoader(meAssetLoader* loader)
 	assetSystem.assetLoaders[type] = loader;
 }
 
-MAID meAssetCreateNewAssetID(meAssetType type)
+MAID sCreateNewAssetID(meAssetType type)
 {
 	// TODO: this shouldn't be random. Base it on an incrementing int in the asset index
 	f64 time = GetTimeUsec();
@@ -107,9 +107,9 @@ MAID meAssetCreateNewAssetID(meAssetType type)
 	return newMaid;
 }
 
-static meAsset meAssetCreateNewAsset(meAssetType type, meResourceType resourceType)
+static meAsset sCreateNewAsset(meAssetType type, meResourceType resourceType)
 {
-    MAID newMaid = meAssetCreateNewAssetID(type);
+    MAID newMaid = sCreateNewAssetID(type);
     meAssetSystem& assetSystem = meAssetSystemGet();
 	meAssetLoader* loader = assetSystem.assetLoaders[type];
 	ME_ASSERT(loader);
@@ -121,9 +121,12 @@ static meAsset meAssetCreateNewAsset(meAssetType type, meResourceType resourceTy
 	*assetHeader = newMaid;
 
 	meAsset newAsset = meAsset(newRuntimeResource, newMaid);
-	meAssetTypeRegistry& reg = assetSystem.registries[type];
-	RWLockWrite lock(reg.lock);
-	reg.assets[newMaid] = newAsset; // copy
+    if (resourceType == meResourceType_TemplateAsset)
+    {
+        meAssetTypeRegistry& reg = assetSystem.registries[type];
+        RWLockWrite lock(reg.lock);
+        reg.templateAssets[newMaid] = newAsset; // copy
+    }
 	return meMove(newAsset);
 }
 
@@ -131,7 +134,7 @@ meAsset meAssetCreateNewTemplateAsset(
 	meAssetType type,
 	StringView filename)
 {
-    meAsset newAsset = meAssetCreateNewAsset(type, meResourceType_TemplateAsset);
+    meAsset newAsset = sCreateNewAsset(type, meResourceType_TemplateAsset);
     if (filename)
     {
         meFsNormalizePathSeperators(filename);
@@ -144,7 +147,7 @@ meAsset meAssetCreateNewTemplateAsset(
 
 meAsset meAssetCreateNewInstanceAsset(meAssetType type)
 {
-    return meAssetCreateNewAsset(type, meResourceType_InstanceAsset);
+    return sCreateNewAsset(type, meResourceType_InstanceAsset);
 }
 
 MAID::MAID(u64 id, meAssetType type)
@@ -160,14 +163,14 @@ meAssetLoadStage meAssetLoader::meAssetWaitForLoadstage(
     for (u32 i = 0; i < assets.size; i++)
     {
         MAID maid = assets[i];
-        meAsset* asset = meAssetTryGet(maid);
+        meAsset* asset = meAssetTryGetTemplate(maid);
         constexpr u32 maxAttempts = 1000;
         u32 attempts = 0;
         while (asset && asset->loadStage != loadStage && attempts++ < maxAttempts)
         {
             meThreadSleep(1); // TMP
             //GetAssetSystem().assetCompilerJobs.WaitOnJob(assetJobId);
-            asset = meAssetTryGet(maid);
+            asset = meAssetTryGetTemplate(maid);
         }
         if (asset->loadStage != Loaded)
         {
@@ -184,7 +187,7 @@ meAssetLoadStage meAssetLoader::meAssetWaitForLoadstage(
     return meAssetWaitForLoadstage({&maid, 1}, loadStage);
 }
 
-meJobId meAssetRequestLoad(
+meJobId meAssetRequestLoadTemplate(
 	MAID* assetIdents, 
 	u32 numAssets,
     meAssetOnAssetLoadCb cb)
@@ -202,7 +205,7 @@ meJobId meAssetRequestLoad(
 			LOG_ERROR("Tried to load asset type that doesn't have an implemented loader");
 			return {}; // dev error, should never happen, unrecoverable
 		}
-		meAsset* asset = meAssetTryGet(assetIdent);
+		meAsset* asset = meAssetTryGetTemplate(assetIdent);
 		// if it's already loaded, noop
 		if (asset)
 		{
@@ -214,7 +217,7 @@ meJobId meAssetRequestLoad(
 				meAsset notYetLoadedData = meAsset(assetIdent, Loading);
 				meAssetTypeRegistry& reg = assetSystem.registries[assetType];
 				RWLockWrite lock(reg.lock);
-				reg.assets[assetIdent] = notYetLoadedData;
+				reg.templateAssets[assetIdent] = notYetLoadedData;
 			}
 			struct AssetCompilerJobData
 			{
@@ -229,7 +232,7 @@ meJobId meAssetRequestLoad(
 			jobData.cb = cb;
 			auto fn = [jobData, &assetSystem]() 
 			{
-				meAsset* asset = meAssetTryGet(jobData.ident);
+				meAsset* asset = meAssetTryGetTemplate(jobData.ident);
 				ME_ASSERT(asset);
 				jobData.loader->meAssetLoad(*asset);
 				ME_ASSERT(asset->id);
@@ -297,7 +300,7 @@ meJobId meAssetRequestWrite(
 			LOG_ERROR("Tried to write asset type that doesn't have an implemented loader");
 			return {}; // engine dev error, should never happen
 		}
-		meAsset* asset = meAssetTryGet(assetIdent);
+		meAsset* asset = meAssetTryGetTemplate(assetIdent);
 		// if it's already loaded, noop
 		if (asset)
 		{
@@ -318,7 +321,7 @@ meJobId meAssetRequestWrite(
 			jobData.cb = onWriteCb;
 			auto fn = [jobData, &assetSystem]() 
 			{
-				meAsset* asset = meAssetTryGet(jobData.ident);
+				meAsset* asset = meAssetTryGetTemplate(jobData.ident);
 				ME_ASSERT(asset && asset->loadStage == Loaded && asset->runtimeHandle && asset->id);
 				jobData.loader->meAssetWrite(*asset);
 				if (jobData.cb)
@@ -367,14 +370,15 @@ void meAssetLoader::meAssetLoad(meAsset& asset)
 	{
 		LOG_WARN("Failed to load asset " STRING_FMT, STRING_VAARGS(diskPath));
 	}
-	// Look up the dependencies that were recorded into the asset index during deserialization.
+	// we'll almost certainly need the (template) deps for this asset if we're loading it, so just start those now
 	meSpanTyped<MAID> deps = meAssetIndexGetDependencies(asset.id);
     if (deps)
     {
-        LOG_INFO("Loading %llu dependencies", deps.size);
-        meAssetRequestLoad(deps, (u32)deps.size);
-        // TODO: implement WaitForLoadstate for multiple meAssets at once
-        // meAssetWaitForLoadstage(deps, Loaded);
+        // BOOKMARK: we have a DynArray of meAsset<meEntity> in the meScene
+        // we deserialize it, and have the MAID part of the meAsset correct
+        // but the Eye part is still 0/uninitialized.
+        // 
+        meAssetRequestLoadTemplate(deps, (u32)deps.size);
     }
 	
 	asset.loadStage = result ? Loaded : Unloaded;
@@ -387,11 +391,14 @@ void meAssetUnloadBlocking(meSpanTyped<meAsset> assets)
     {
         meAsset& asset = assets[i];
         // modify registry first, so we don't have assets in the registry with invalid data
-        if (meAsset* registryAsset = meAssetTryGet(asset.id))
+        if (asset.IsTemplateAsset())
         {
-            RWLockWrite lock(assetSystem.registries[asset.id.GetType()].lock);
-            registryAsset->loadStage = Unloaded;
-            registryAsset->runtimeHandle = {};
+            if (meAsset* registryAsset = meAssetTryGetTemplate(asset.id))
+            {
+                RWLockWrite lock(assetSystem.registries[asset.id.GetType()].lock);
+                registryAsset->loadStage = Unloaded;
+                registryAsset->runtimeHandle = {};
+            }
         }
         meAssetLoader* loader = assetSystem.assetLoaders[asset.id.GetType()];
         ME_ASSERT(loader);
@@ -425,7 +432,7 @@ void meAssetLoader::meAssetWrite(meAsset& asset)
 	}
 }
 
-meAsset* meAssetTryGet(MAID assetID)
+meAsset* meAssetTryGetTemplate(MAID assetID)
 {
     if (!assetID)
     {
@@ -434,8 +441,8 @@ meAsset* meAssetTryGet(MAID assetID)
 	meAssetSystem& assetSystem = meAssetSystemGet();
 	meAssetTypeRegistry& reg = assetSystem.registries[assetID.GetType()];
 	RWLockRead(reg.lock);
-	auto it = reg.assets.find(assetID);
-	if (it == reg.assets.end())
+	auto it = reg.templateAssets.find(assetID);
+	if (it == reg.templateAssets.end())
 	{
 		return nullptr;
 	}

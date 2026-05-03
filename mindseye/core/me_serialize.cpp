@@ -724,9 +724,9 @@ void meAssetSerializerToStringFn(const meTypeDescriptor& td, SerializeContext& c
     ME_ASSERT(loader);
 
     MAID templateMaid = asset->id;
-    meAssetRequestLoad(&templateMaid, 1);
+    meAssetRequestLoadTemplate(&templateMaid, 1);
     meAssetWaitUntilLoadstage({ &templateMaid, 1 }, Loaded);
-    meAsset* tmpl = meAssetTryGet(templateMaid);
+    meAsset* tmpl = meAssetTryGetTemplate(templateMaid);
     ME_ASSERT(tmpl && tmpl->runtimeHandle.IsTemplateAsset());
 
     void* templateData = loader->resourcePool->GetOpaque(tmpl->runtimeHandle);
@@ -816,9 +816,9 @@ bool meAssetDeserializerFromStringFn(const meTypeDescriptor& td, DeserializeCont
     }
 
     MAID localMaid = templateMaid;
-    meAssetRequestLoad(&localMaid, 1);
+    meAssetRequestLoadTemplate(&localMaid, 1);
     meAssetWaitUntilLoadstage({ &localMaid, 1 }, Loaded);
-    meAsset* tmpl = meAssetTryGet(templateMaid);
+    meAsset* tmpl = meAssetTryGetTemplate(templateMaid);
     if (!tmpl || tmpl->loadStage != Loaded)
     {
         LOG_ERROR("Failed to load template asset for override deserialize");
@@ -852,7 +852,6 @@ bool meAssetDeserializerFromStringFn(const meTypeDescriptor& td, DeserializeCont
     outAsset->id = templateMaid;
     outAsset->runtimeHandle = instanceEye;
     outAsset->loadStage = Loaded;
-    // Record the template MAID in the asset index. This isn't really necessary
     if (ctx.outResult)
     {
         meAssetIndexRecordDependency(ctx.outResult->ownerMaid, templateMaid);

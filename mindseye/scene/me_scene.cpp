@@ -53,9 +53,9 @@ void meSceneManager::ChangeCurrentSceneAsync(StringView filename)
         LOG_WARN("Failed to change scene. Scene file " STRING_FMT " doesn't map to a asset", STRING_VAARGS(filename));
         return;
     }
-	meAssetRequestLoad(&sceneIdent, 1, [](const meAsset& sceneAsset)
+	meAssetRequestLoadTemplate(&sceneIdent, 1, [](const meAsset& sceneAsset)
     {
-        if (meAsset* asset = meAssetTryGet(sceneAsset.id))
+        if (meAsset* asset = meAssetTryGetTemplate(sceneAsset.id))
         {
             GetEngineCtx()->sceneSystem->rootScene = *asset;
             meEventPayload payload = {asset};

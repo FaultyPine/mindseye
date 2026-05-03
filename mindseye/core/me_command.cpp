@@ -30,7 +30,7 @@ static void HandleChangeScene(const meCmdChangeScene& cmd)
 static void HandleSaveAsset(const meCmdSaveAsset& cmd)
 {
     MAID maid = cmd.asset;
-	meAsset* asset = meAssetTryGet(maid);
+	meAsset* asset = meAssetTryGetTemplate(maid);
 	if (!asset)
 	{
         LOG_WARN("Tried to save current scene, but scene header doesn't point to a valid loaded asset");

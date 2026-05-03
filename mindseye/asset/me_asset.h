@@ -203,7 +203,7 @@ struct meAssetLoader
 struct meAssetTypeRegistry
 {
 	RWLock lock = {};
-	meMap<MAID, meAsset> assets = {};
+	meMap<MAID, meAsset> templateAssets = {};
 };
 
 struct meAssetSystem
@@ -227,8 +227,6 @@ void meAssetInitializeLate(EngineContext* engine);
 void meAssetTeardown(EngineContext* engine);
 void meAssetRegisterLoader(meAssetLoader* loader);
 
-MAID meAssetCreateNewAssetID(meAssetType type);
-
 // creates a default-constructed instance of an asset type on disk (and assigns it a proper guid and all that)
 MEAPI meAsset meAssetCreateNewTemplateAsset(
 	meAssetType type,
@@ -238,7 +236,7 @@ MEAPI meAsset meAssetCreateNewInstanceAsset(meAssetType type);
 
 typedef void(*meAssetOnAssetLoadCb)(const meAsset&);
 
-MEAPI meJobId meAssetRequestLoad(
+MEAPI meJobId meAssetRequestLoadTemplate(
 	MAID* assetIdents, 
 	u32 numAssets = 1,
     meAssetOnAssetLoadCb cb = nullptr);
@@ -256,7 +254,7 @@ MEAPI meJobId meAssetRequestWrite(
 	meSpanTyped<MAID> assetIdents,
 	meAssetOnAssetLoadCb onWriteCb = nullptr);
 
-MEAPI meAsset* meAssetTryGet(MAID assetID);
+MEAPI meAsset* meAssetTryGetTemplate(MAID assetID);
 
 MEAPI void meAssetSetResourceDir(StringView dir);
 
