@@ -405,7 +405,7 @@ void meAssetUnloadBlocking(meSpanTyped<meAsset> assets)
 void meAssetLoader::meAssetWrite(meAsset& asset)
 {
 	meResourcePoolBase* pool = resourcePool;
-	if (!asset.runtimeHandle || asset.loadStage != Loaded)
+	if (!asset.isLoaded())
 	{
 		LOG_WARN("Attempted to write an unloaded asset");
 		return;

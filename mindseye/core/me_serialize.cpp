@@ -804,43 +804,48 @@ bool meAssetDeserializerFromStringFn(const meTypeDescriptor& td, DeserializeCont
         return false;
     }
 
-    meAssetRequestLoadTemplate(&templateMaid, 1);
-    meAssetWaitUntilLoadstage({ &templateMaid, 1 }, Loaded);
-    meAsset* tmpl = meAssetTryGetTemplate(templateMaid);
-    if (!tmpl || !tmpl->isLoaded())
+    Eye instanceEye = EYE_INVALID;
+    if (templateMaid)
     {
-        LOG_ERROR("Failed to load template asset for deserialize");
-        return false;
-    }
-    void* templateData = loader->resourcePool->GetOpaque(tmpl->runtimeHandle);
 
-    Eye instanceEye = loader->resourcePool->Load({.resourceType = meResourceType_InstanceAsset});
-    void* instanceData = loader->resourcePool->GetOpaque(instanceEye);
-
-    if (isOverrideDoc)
-    {
-        // Reuse outResult so nested asset refs inside this override doc are
-        // recorded under the same owner. Fall back to a stack temp only if there's
-        // no outer result (deserialization called without a context).
-        meSerializeResult tempResult;
-        meSerializeResult& innerResult = ctx.outResult ? *ctx.outResult : tempResult;
-        DeserializeOverridesFromTextBlocking(
-            *loader->assetTypeDesc,
-            ctx.externalDataAllocator,
-            inText,
-            templateData,
-            meSpan(instanceData, loader->assetTypeDesc->size),
-            innerResult);
-        if (!innerResult)
+        meAssetRequestLoadTemplate(&templateMaid, 1);
+        meAssetWaitUntilLoadstage({ &templateMaid, 1 }, Loaded);
+        meAsset* tmpl = meAssetTryGetTemplate(templateMaid);
+        if (!tmpl || !tmpl->isLoaded())
         {
-            loader->resourcePool->Destroy(instanceEye);
+            LOG_ERROR("Failed to load template asset for deserialize");
             return false;
         }
-    }
-    else
-    {
-        // BOOKMARK: deep copy
-        ME_MEMCPY(instanceData, templateData, loader->assetTypeDesc->size);
+        void* templateData = loader->resourcePool->GetOpaque(tmpl->runtimeHandle);
+    
+        instanceEye = loader->resourcePool->Load({.resourceType = meResourceType_InstanceAsset});
+        void* instanceData = loader->resourcePool->GetOpaque(instanceEye);
+    
+        if (isOverrideDoc)
+        {
+            // Reuse outResult so nested asset refs inside this override doc are
+            // recorded under the same owner. Fall back to a stack temp only if there's
+            // no outer result (deserialization called without a context).
+            meSerializeResult tempResult;
+            meSerializeResult& innerResult = ctx.outResult ? *ctx.outResult : tempResult;
+            DeserializeOverridesFromTextBlocking(
+                *loader->assetTypeDesc,
+                ctx.externalDataAllocator,
+                inText,
+                templateData,
+                meSpan(instanceData, loader->assetTypeDesc->size),
+                innerResult);
+            if (!innerResult)
+            {
+                loader->resourcePool->Destroy(instanceEye);
+                return false;
+            }
+        }
+        else
+        {
+            // BOOKMARK: deep copy
+            ME_MEMCPY(instanceData, templateData, loader->assetTypeDesc->size);
+        }
     }
 
     outAsset->id = templateMaid;
