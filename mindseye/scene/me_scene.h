@@ -27,7 +27,7 @@ meScene
 
 struct meSceneRaycastHit
 {
-	EntityRef entity = {};
+	meTypedAsset<MAEntity> entity = {};
 	f32 distance = 0.0f;
 	glm::vec3 point = glm::vec3(0);
 	explicit operator bool() const { return entity != EYE_INVALID; }

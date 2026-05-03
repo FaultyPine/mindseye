@@ -156,6 +156,14 @@ meAsset
         id.SetType(type);
 	}
 	meAsset() = default;
+    bool operator==(const meAsset& other) const
+    {
+        return id == other.id && runtimeHandle == other.runtimeHandle;
+    }
+    bool operator!=(const meAsset& b) const
+    {
+        return !(*this == b);
+    }
 
 	bool isLoaded() const 
 	{

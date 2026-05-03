@@ -63,11 +63,11 @@ static void HandlePickEntity(const meCmdPickEntity& cmd)
 
 	meSceneRaycastHit hit = meSceneRaycast(*currentScene, ray);
 
-    if (editor.selectedEntity != hit.entity)
+    if (editor.editorSelectedObj != hit.entity)
     {
-        if (editor.selectedEntity)
+        if (editor.editorSelectedObj.isLoaded())
         {
-            meEntity& oldPickedEntity = meEntityGet(editor.selectedEntity);
+            meEntity& oldPickedEntity = meEntityGet(editor.editorSelectedObj);
             SET_BIT(oldPickedEntity.flags, EntityFlags_Selected, false);
         }
         if (hit)
@@ -76,7 +76,11 @@ static void HandlePickEntity(const meCmdPickEntity& cmd)
             SET_BIT(newlyPickedEntity.flags, EntityFlags_Selected, true);
         }
     }
-	editor.selectedEntity = hit.entity;
+	editor.editorSelectedObj = hit.entity;
+    InspectorWindow inspector = {};
+    inspector.active = true;
+    inspector.currentAsset = hit.entity.id;
+    editor.inspectors.push_back(inspector);
 }
 
 void meReceiveExternalCommand(meExternalCommand cmd)

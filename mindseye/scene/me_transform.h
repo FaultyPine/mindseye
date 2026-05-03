@@ -41,7 +41,8 @@ struct MEREFLECT(type) BoundingBox
     {
         return BoundingBox(center - halfExtents, center + halfExtents);
     }
-    glm::vec3 min, max = glm::vec3(0);
+    glm::vec3 min = glm::vec3(0);
+    glm::vec3 max = glm::vec3(1);
     glm::vec3 center()
     {
         glm::vec3 center = min + ((max - min) / 2.0f);

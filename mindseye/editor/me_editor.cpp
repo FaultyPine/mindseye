@@ -527,7 +527,7 @@ static void DrawAssetInspector(EditorContext& editor, InspectorWindow& inspector
 	if (ImGui::Button(ICON_FA_DIAGRAM_PROJECT " Open in Asset Editor"))
 	{
         ImGui::Text("Temporarily Disabled, TODO: better impl of the asset editor");
-		//meAssetEditorOpen(editor.assetEditor, editor.selectedEntity);
+		//meAssetEditorOpen(editor.assetEditor, editor.editorSelectedObj);
 	}
 
 	ImGui::Spacing();

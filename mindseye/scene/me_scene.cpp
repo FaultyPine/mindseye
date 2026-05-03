@@ -37,8 +37,11 @@ void meSceneManager::UnloadCurrentScene()
 {
     EngineContext* ctx = GetEngineCtx();
 
-    meAssetUnloadBlocking(SPAN_FROM_TYPED_SINGLE(rootScene));
-	rootScene = {};
+    if (rootScene.isLoaded())
+    {
+        meAssetUnloadBlocking(SPAN_FROM_TYPED_SINGLE(rootScene));
+        rootScene = {};
+    }
 
     meAllocator* sceneAllocator = &ctx->engineSceneAllocator;
 	sceneAllocator->meClear();
@@ -48,9 +51,9 @@ void meSceneManager::ChangeCurrentSceneAsync(StringView filename)
 {
 	UnloadCurrentScene();
 	MAID sceneIdent = meAssetIndexGetMAIDFromPath(filename);
-    if (!sceneIdent)
+    if (!sceneIdent || sceneIdent.GetType() != MAScene)
     {
-        LOG_WARN("Failed to change scene. Scene file " STRING_FMT " doesn't map to a asset", STRING_VAARGS(filename));
+        LOG_WARN("Failed to change scene. Scene file " STRING_FMT " doesn't map to a valid scene asset", STRING_VAARGS(filename));
         return;
     }
 	meAssetRequestLoadTemplate(&sceneIdent, 1, [](const meAsset& sceneAsset)
@@ -94,7 +97,7 @@ meSceneRaycastHit meSceneRaycast(meScene& scene, const meRay& ray)
 			if (t < closestT)
 			{
 				closestT = t;
-				result.entity = entRef;
+				result.entity = entities[i];
 				result.distance = t;
 				result.point = ray.origin + ray.direction * t;
 			}

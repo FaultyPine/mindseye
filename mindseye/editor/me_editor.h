@@ -15,7 +15,7 @@ struct EditorContext
 {
 	meCamera editorCamera = {};
 	HybridArray<InspectorWindow, 4> inspectors = {};
-    EntityRef selectedEntity = {}; // TODO: will be multiple in the future
+    meTypedAsset<MAEntity> editorSelectedObj = {}; // TODO: will be multiple in the future
 	AssetEditorContext assetEditor = {};
     meMap<MAID, bool> dirtyAssets = {};
 };

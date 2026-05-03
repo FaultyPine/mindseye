@@ -241,7 +241,6 @@ meJobId meAssetRequestLoadTemplate(
 				jobData.loader->meAssetOnLoad(*asset);
 				// globally, systems can also respond
 				assetSystem.assetFinishedLoadingEvent(meEventPayload((void*)&jobData.ident));
-				// individual callsites can also respond
 				if (jobData.cb)
 				{
 					jobData.cb(*asset);
@@ -257,6 +256,14 @@ meJobId meAssetRequestLoadTemplate(
 				return compilerJobId;
 			}
 		}
+        else if (stage == Loaded)
+        {
+            // if the asset was already loaded, still call the cb
+            if (cb)
+            {
+                cb(*asset);
+            }
+        }
 	}
 	return {};
 }
