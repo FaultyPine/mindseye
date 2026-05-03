@@ -107,8 +107,9 @@ MAID meAssetCreateNewAssetID(meAssetType type)
 	return newMaid;
 }
 
-static meAsset meAssetCreateNewAsset(meAssetType type, MAID newMaid, meResourceType resourceType)
+static meAsset meAssetCreateNewAsset(meAssetType type, meResourceType resourceType)
 {
+    MAID newMaid = meAssetCreateNewAssetID(type);
     meAssetSystem& assetSystem = meAssetSystemGet();
 	meAssetLoader* loader = assetSystem.assetLoaders[type];
 	ME_ASSERT(loader);
@@ -130,21 +131,20 @@ meAsset meAssetCreateNewTemplateAsset(
 	meAssetType type,
 	StringView filename)
 {
-	MAID newMaid = meAssetCreateNewAssetID(type);
+    meAsset newAsset = meAssetCreateNewAsset(type, meResourceType_TemplateAsset);
     if (filename)
     {
         meFsNormalizePathSeperators(filename);
         filename = meAssetEnsurePathHasGoodExtension(filename, type);
         filename = meAssetGetRelPathForResource(filename);
-        meAssetIndexRegisterRelation(filename, newMaid);
+        meAssetIndexRegisterRelation(filename, newAsset.id);
     }
-    return meAssetCreateNewAsset(type, newMaid, meResourceType_TemplateAsset);
+    return newAsset;
 }
 
 meAsset meAssetCreateNewInstanceAsset(meAssetType type)
 {
-	MAID newMaid = meAssetCreateNewAssetID(type);
-    return meAssetCreateNewAsset(type, newMaid, meResourceType_InstanceAsset);
+    return meAssetCreateNewAsset(type, meResourceType_InstanceAsset);
 }
 
 MAID::MAID(u64 id, meAssetType type)
