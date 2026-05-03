@@ -374,10 +374,6 @@ void meAssetLoader::meAssetLoad(meAsset& asset)
 	meSpanTyped<MAID> deps = meAssetIndexGetDependencies(asset.id);
     if (deps)
     {
-        // BOOKMARK: we have a DynArray of meAsset<meEntity> in the meScene
-        // we deserialize it, and have the MAID part of the meAsset correct
-        // but the Eye part is still 0/uninitialized.
-        // 
         meAssetRequestLoadTemplate(deps, (u32)deps.size);
     }
 	

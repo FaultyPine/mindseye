@@ -770,42 +770,31 @@ bool meAssetDeserializerFromStringFn(const meTypeDescriptor& td, DeserializeCont
     bool isOverrideDoc = root.contains("header")
         || (root.contains("type") && root["type"].is_string());
 
-    if (!isOverrideDoc)
+    MAID templateMaid = {};
+    if (isOverrideDoc)
     {
-        // Template ref: just populate the MAID.
-        if (!root.contains("id") || !root.contains("type"))
+        if (!root.contains("header"))
         {
+            LOG_ERROR("meAsset override doc missing 'header' field");
             return false;
         }
-        u64 id = root["id"].get<u64>();
-        u32 typeInt = root["type"].get<u32>();
-        outAsset->id = MAID(id, (meAssetType)typeInt);
-        outAsset->runtimeHandle = EYE_INVALID;
-        outAsset->loadStage = Unloaded;
-        // Record as a dependency in the asset index so the owner can look it up after deserialization.
-        if (ctx.outResult)
+        const json& headerJson = root["header"];
+        if (!headerJson.is_object() || !headerJson.contains("id") || !headerJson.contains("type"))
         {
-            meAssetIndexRecordDependency(ctx.outResult->ownerMaid, outAsset->id);
+            LOG_ERROR("meAsset override header malformed");
+            return false;
         }
-        return true;
+        templateMaid = MAID(headerJson["id"].get<u64>(), (meAssetType)headerJson["type"].get<u32>());
     }
-
-    // Override document: we need the template loaded, then allocate an
-    // instance asset and populate it
-    if (!root.contains("header"))
+    else
     {
-        LOG_ERROR("meAsset override doc missing 'header' field");
-        return false;
+        if (!root.contains("id") || !root.contains("type"))
+        {
+            LOG_ERROR("meAsset reference malformed");
+            return false;
+        }
+        templateMaid = MAID(root["id"].get<u64>(), (meAssetType)root["type"].get<u32>());
     }
-    const json& headerJson = root["header"];
-    if (!headerJson.is_object() || !headerJson.contains("id") || !headerJson.contains("type"))
-    {
-        LOG_ERROR("meAsset override header malformed");
-        return false;
-    }
-    u64 headerId = headerJson["id"].get<u64>();
-    u32 headerType = headerJson["type"].get<u32>();
-    MAID templateMaid = MAID(headerId, (meAssetType)headerType);
 
     meAssetSystem& assetSystem = meAssetSystemGet();
     meAssetLoader* loader = assetSystem.assetLoaders[templateMaid.GetType()];
@@ -815,38 +804,43 @@ bool meAssetDeserializerFromStringFn(const meTypeDescriptor& td, DeserializeCont
         return false;
     }
 
-    MAID localMaid = templateMaid;
-    meAssetRequestLoadTemplate(&localMaid, 1);
-    meAssetWaitUntilLoadstage({ &localMaid, 1 }, Loaded);
+    meAssetRequestLoadTemplate(&templateMaid, 1);
+    meAssetWaitUntilLoadstage({ &templateMaid, 1 }, Loaded);
     meAsset* tmpl = meAssetTryGetTemplate(templateMaid);
-    if (!tmpl || tmpl->loadStage != Loaded)
+    if (!tmpl || !tmpl->isLoaded())
     {
-        LOG_ERROR("Failed to load template asset for override deserialize");
+        LOG_ERROR("Failed to load template asset for deserialize");
         return false;
     }
     void* templateData = loader->resourcePool->GetOpaque(tmpl->runtimeHandle);
 
-    // Allocate the instance and fill it in with (template + overrides).
     Eye instanceEye = loader->resourcePool->Load({.resourceType = meResourceType_InstanceAsset});
     void* instanceData = loader->resourcePool->GetOpaque(instanceEye);
-    meSpan instanceBuffer = meSpan(instanceData, loader->assetTypeDesc->size);
 
-    // Reuse outResult so nested asset refs inside this override doc are
-    // recorded under the same owner. Fall back to a stack temp only if there's
-    // no outer result (deserialization called without a context).
-    meSerializeResult tempResult;
-    meSerializeResult& innerResult = ctx.outResult ? *ctx.outResult : tempResult;
-    DeserializeOverridesFromTextBlocking(
-        *loader->assetTypeDesc,
-        ctx.externalDataAllocator,
-        inText,
-        templateData,
-        instanceBuffer,
-        innerResult);
-    if (!innerResult)
+    if (isOverrideDoc)
     {
-        loader->resourcePool->Destroy(instanceEye);
-        return false;
+        // Reuse outResult so nested asset refs inside this override doc are
+        // recorded under the same owner. Fall back to a stack temp only if there's
+        // no outer result (deserialization called without a context).
+        meSerializeResult tempResult;
+        meSerializeResult& innerResult = ctx.outResult ? *ctx.outResult : tempResult;
+        DeserializeOverridesFromTextBlocking(
+            *loader->assetTypeDesc,
+            ctx.externalDataAllocator,
+            inText,
+            templateData,
+            meSpan(instanceData, loader->assetTypeDesc->size),
+            innerResult);
+        if (!innerResult)
+        {
+            loader->resourcePool->Destroy(instanceEye);
+            return false;
+        }
+    }
+    else
+    {
+        // BOOKMARK: deep copy
+        ME_MEMCPY(instanceData, templateData, loader->assetTypeDesc->size);
     }
 
     outAsset->id = templateMaid;
