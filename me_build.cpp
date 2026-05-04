@@ -270,8 +270,9 @@ int main(int argc, char** argv)
 		nob_temp_sprintf("-L%s/build", root),
 		nob_temp_sprintf("-L%s/tools/clang/lib/clang/21/lib/windows", root),
 		"-lclang_rt.builtins-x86_64",
+        (mode != RELEASE ? "-Wl,/DYNAMICBASE:NO" : ""), // No ASLR in non-shipping builds
 	};
-	
+    
 	const char* compilerFlagsCommon[] =
 	{
 		// general flags
@@ -283,6 +284,7 @@ int main(int argc, char** argv)
 		"-Wall", "-Wextra", "-Wno-unused-parameter", "-Wno-microsoft-include", "-ferror-limit=500",
 		// 	for /f %%i in ('call git describe --always --dirty')   do set compile_flags_common=%compile_flags_common% -DBUILD_GIT_HASH=\"%%i\"
         (mode == DEBUG ? "-D_DEBUG" : "-DNDEBUG"),
+        (mode != RELEASE ? "-fno-pie" : ""), // No ASLR in non-shipping builds
 
 		// app flags
 		"-DSHIPPING_BUILD=0", 

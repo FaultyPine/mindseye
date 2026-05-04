@@ -282,8 +282,6 @@ bool meAssetWaitUntilLoadstage(
 	return true;
 }
 
-// BOOKMARK: we should be able to write instance assets
-// so this should take a meAsset
 meJobId meAssetRequestWrite(
 	meSpanTyped<MAID> assetIdents,
 	meAssetOnAssetLoadCb onWriteCb)
