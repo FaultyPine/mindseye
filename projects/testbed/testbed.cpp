@@ -17,7 +17,7 @@ void testbed_onsceneload(meEventPayload payload)
 	meEntity& entity = meEntityGet(testEntity);
 	entity.transform = meTransform(glm::vec3(sin(GetTimeUsec()) * 5.0, cos(GetTimeUsec()) * 5.0, 0.0));
 	//meEntitySetFlag(entity, EntityFlags_NoSer, true);
-    meAsset newMesh = meAssetCreateNewInstanceAsset(MAMesh);
+    meAsset newMesh = meAssetCreateNewAsset(MAMesh, meResourceType_InstanceAsset);
     GenPlaneMesh(newMesh, 2);
 	entity.mesh = newMesh;
 	entity.authoritativeBounds = meMeshPoolGet().Get(newMesh).meshBounds;
