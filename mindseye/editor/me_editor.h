@@ -7,7 +7,7 @@
 
 struct InspectorWindow
 {
-    MAID currentAsset = MAID_INVALID;
+    meAsset currentAsset = {};
     bool active = false;
 };
 
@@ -17,7 +17,7 @@ struct EditorContext
 	HybridArray<InspectorWindow, 4> inspectors = {};
     meTypedAsset<MAEntity> editorSelectedObj = {}; // TODO: will be multiple in the future
 	AssetEditorContext assetEditor = {};
-    meMap<MAID, bool> dirtyAssets = {};
+    meMap<meAsset, bool> dirtyAssets = {};
 };
 
 EditorContext& meEditorGetCtx();

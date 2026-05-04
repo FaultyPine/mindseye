@@ -173,6 +173,13 @@ meAsset
 	operator const MAID() const { return id; }
 };
 
+MEMAP_BEGIN_CUSTOM_HASHER(meAsset, obj) 
+{
+    size_t h1 = std::hash<u64>{}(obj.id);
+	size_t h2 = std::hash<u64>{}(obj.runtimeHandle.GetIndex());
+	return HashCombine(h1, h2);
+} MEMAP_END_CUSTOM_HASHER
+
 template <meAssetType AssetTypeV>
 struct meTypedAsset : public meAsset
 {

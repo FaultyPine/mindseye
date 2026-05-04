@@ -26,7 +26,7 @@ struct meCmdChangeScene
 
 struct meCmdSaveAsset
 {
-	MAID asset;
+	meAsset asset;
 };
 
 struct meCmdPickEntity

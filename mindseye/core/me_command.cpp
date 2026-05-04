@@ -29,6 +29,10 @@ static void HandleChangeScene(const meCmdChangeScene& cmd)
 
 static void HandleSaveAsset(const meCmdSaveAsset& cmd)
 {
+    if (!cmd.asset.IsTemplateAsset())
+    {
+        LOG_WARN("Support for saving non-template assets isn't fully done");
+    }
     MAID maid = cmd.asset;
 	meAsset* asset = meAssetTryGetTemplate(maid);
 	if (!asset)
@@ -79,7 +83,7 @@ static void HandlePickEntity(const meCmdPickEntity& cmd)
 	editor.editorSelectedObj = hit.entity;
     InspectorWindow inspector = {};
     inspector.active = true;
-    inspector.currentAsset = hit.entity.id;
+    inspector.currentAsset = hit.entity;
     editor.inspectors.push_back(inspector);
 }
 

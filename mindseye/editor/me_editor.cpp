@@ -484,19 +484,19 @@ static void DrawAssetInspector(EditorContext& editor, InspectorWindow& inspector
         ImGui::End();
 		return;
 	}
-    MAID asset = inspector.currentAsset;
-    meAsset* loadedAsset = meAssetTryGetTemplate(asset);
-    if (!loadedAsset)
+
+    meAsset& asset = inspector.currentAsset;
+    if (!asset.isLoaded())
     {
-        meAssetRequestLoadTemplate(&asset, 1);
+        meAssetRequestLoadTemplate(&asset.id, 1);
         ImGui::Text("Loading asset...");
         ImGui::End();
         return;
     }
 
-
     if (editor.dirtyAssets.find(asset) != editor.dirtyAssets.end())
     {
+        ImGui::BeginChild("#InspectorToolbar", ImVec2(0, ImGui::GetFrameHeightWithSpacing()), false);
         if (ImGui::Button("Save") || (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_S)))
         {
             meExternalCommand cmd = {};
@@ -505,6 +505,7 @@ static void DrawAssetInspector(EditorContext& editor, InspectorWindow& inspector
             meReceiveExternalCommand(cmd);
             editor.dirtyAssets[asset] = false;
         }
+        ImGui::EndChild();
     }
 
 	ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.13f, 0.14f, 0.18f, 1.00f));
@@ -542,8 +543,8 @@ static void DrawAssetInspector(EditorContext& editor, InspectorWindow& inspector
 	{
 		ImGui::TableSetupColumn("Property", ImGuiTableColumnFlags_WidthStretch, 0.4f);
 		ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch, 0.6f);
-        meTypeDescriptor* assetTypeDesc = meAssetSystemGet().assetLoaders[asset.GetType()]->assetTypeDesc;
-        void* assetData = meAssetSystemGet().assetLoaders[asset.GetType()]->resourcePool->GetOpaque(*loadedAsset);
+        meTypeDescriptor* assetTypeDesc = meAssetSystemGet().assetLoaders[asset.id.GetType()]->assetTypeDesc;
+        void* assetData = meAssetSystemGet().assetLoaders[asset.id.GetType()]->resourcePool->GetOpaque(asset.runtimeHandle);
 		bool didUserChangeSomething = DrawStructFields(*assetTypeDesc, (u8*)assetData);
         if (didUserChangeSomething)
         {
@@ -640,8 +641,11 @@ void meEditorTick(EngineContext* engine)
                             if (asset.GetType() != assetType) continue;
                             if (ImGui::MenuItem(path.cstr()))
                             {
-                                InspectorWindow inspector{ .currentAsset = asset, .active = true  };
-                                editor.inspectors.push_back(inspector);
+                                if (meAsset* tmplAsset = meAssetTryGetTemplate(asset))
+                                {
+                                    InspectorWindow inspector{ .currentAsset = *tmplAsset, .active = true  };
+                                    editor.inspectors.push_back(inspector);
+                                }
                             }
                         }
                         ImGui::EndMenu();
