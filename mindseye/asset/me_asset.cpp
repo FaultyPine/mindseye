@@ -282,7 +282,7 @@ bool meAssetWaitUntilLoadstage(
 	return true;
 }
 
-meJobId meAssetRequestWrite(
+meJobId meAssetRequestWriteTemplate(
 	meSpanTyped<MAID> assetIdents,
 	meAssetOnAssetLoadCb onWriteCb)
 {

@@ -264,7 +264,7 @@ MEAPI bool meAssetWaitUntilLoadstage(
 	meSpanTyped<MAID> assetIdents,
 	meAssetLoadStage loadStage);
 
-MEAPI meJobId meAssetRequestWrite(
+MEAPI meJobId meAssetRequestWriteTemplate(
 	meSpanTyped<MAID> assetIdents,
 	meAssetOnAssetLoadCb onWriteCb = nullptr);
 

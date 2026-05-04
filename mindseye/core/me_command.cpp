@@ -15,7 +15,7 @@
 static void HandleCreateAsset(const meCmdCreateNewAsset& cmd)
 {
 	meAsset newAsset = meAssetCreateNewAsset(cmd.type, meResourceType_TemplateAsset, cmd.path);
-	meJobId writeReq = meAssetRequestWrite(meSpanTyped<MAID>(&newAsset.id, 1));
+	meJobId writeReq = meAssetRequestWriteTemplate(meSpanTyped<MAID>(&newAsset.id, 1));
 	UNUSED(writeReq);
 }
 
@@ -50,7 +50,7 @@ static void HandleSaveAsset(const meCmdSaveAsset& cmd)
 		meAssetIndexRegisterRelation(sceneFile, maid);
 	}
 
-    meAssetRequestWrite(meSpanTyped<MAID>(&maid, 1));
+    meAssetRequestWriteTemplate(meSpanTyped<MAID>(&maid, 1));
 }
 
 static void HandlePickEntity(const meCmdPickEntity& cmd)
