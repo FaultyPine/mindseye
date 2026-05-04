@@ -19,7 +19,7 @@ void meSceneInitialize(EngineContext* engine)
 void meSceneInitializeLate(EngineContext* engine)
 {
 	// start with a "blank" new scene
-	engine->sceneSystem->rootScene = meAssetCreateNewInstanceAsset(MAScene);
+	engine->sceneSystem->rootScene = meAssetCreateNewAsset(MAScene, meResourceType_InstanceAsset);
 	// CLEANUP: we're "leaking" this first blank scene, but who cares
 }
 

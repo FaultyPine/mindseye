@@ -50,7 +50,7 @@ bool meEntityIsFlag(EntityRef ent, EntityFlags flag)
 meTypedAsset<MAEntity> meEntityCreateBlankInstance(
 	StringView name)
 {
-    meAsset newEntityAsset = meAssetCreateNewInstanceAsset(MAEntity);
+    meAsset newEntityAsset = meAssetCreateNewAsset(MAEntity, meResourceType_InstanceAsset);
     meEntityPool& entityPool = meEntityGetPool();
     meEntity& ent = entityPool.Get(newEntityAsset);
     if (name)

@@ -107,7 +107,10 @@ MAID sCreateNewAssetID(meAssetType type)
 	return newMaid;
 }
 
-static meAsset sCreateNewAsset(meAssetType type, meResourceType resourceType)
+meAsset meAssetCreateNewAsset(
+    meAssetType type, 
+    meResourceType resourceType,
+    StringView templateFilename)
 {
     MAID newMaid = sCreateNewAssetID(type);
     meAssetSystem& assetSystem = meAssetSystemGet();
@@ -123,31 +126,19 @@ static meAsset sCreateNewAsset(meAssetType type, meResourceType resourceType)
 	meAsset newAsset = meAsset(newRuntimeResource, newMaid);
     if (resourceType == meResourceType_TemplateAsset)
     {
+        if (templateFilename)
+        {
+            meFsNormalizePathSeperators(templateFilename);
+            templateFilename = meAssetEnsurePathHasGoodExtension(templateFilename, type);
+            templateFilename = meAssetGetRelPathForResource(templateFilename);
+            meAssetIndexRegisterRelation(templateFilename, newAsset.id);
+        }
+
         meAssetTypeRegistry& reg = assetSystem.registries[type];
         RWLockWrite lock(reg.lock);
         reg.templateAssets[newMaid] = newAsset; // copy
     }
 	return meMove(newAsset);
-}
-
-meAsset meAssetCreateNewTemplateAsset(
-	meAssetType type,
-	StringView filename)
-{
-    meAsset newAsset = sCreateNewAsset(type, meResourceType_TemplateAsset);
-    if (filename)
-    {
-        meFsNormalizePathSeperators(filename);
-        filename = meAssetEnsurePathHasGoodExtension(filename, type);
-        filename = meAssetGetRelPathForResource(filename);
-        meAssetIndexRegisterRelation(filename, newAsset.id);
-    }
-    return newAsset;
-}
-
-meAsset meAssetCreateNewInstanceAsset(meAssetType type)
-{
-    return sCreateNewAsset(type, meResourceType_InstanceAsset);
 }
 
 MAID::MAID(u64 id, meAssetType type)
@@ -291,6 +282,8 @@ bool meAssetWaitUntilLoadstage(
 	return true;
 }
 
+// BOOKMARK: we should be able to write instance assets
+// so this should take a meAsset
 meJobId meAssetRequestWrite(
 	meSpanTyped<MAID> assetIdents,
 	meAssetOnAssetLoadCb onWriteCb)

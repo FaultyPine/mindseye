@@ -242,12 +242,11 @@ void meAssetInitializeLate(EngineContext* engine);
 void meAssetTeardown(EngineContext* engine);
 void meAssetRegisterLoader(meAssetLoader* loader);
 
-// creates a default-constructed instance of an asset type on disk (and assigns it a proper guid and all that)
-MEAPI meAsset meAssetCreateNewTemplateAsset(
-	meAssetType type,
-	StringView filename = {});
-
-MEAPI meAsset meAssetCreateNewInstanceAsset(meAssetType type);
+// creates a default-constructed instance of an asset type (and assigns it a proper guid and all that)
+MEAPI meAsset meAssetCreateNewAsset(
+    meAssetType type, 
+    meResourceType resourceType,
+    StringView templateFilename = {});
 
 typedef void(*meAssetOnAssetLoadCb)(const meAsset&);
 

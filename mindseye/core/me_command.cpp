@@ -14,7 +14,7 @@
 
 static void HandleCreateAsset(const meCmdCreateNewAsset& cmd)
 {
-	meAsset newAsset = meAssetCreateNewTemplateAsset(cmd.type, cmd.path);
+	meAsset newAsset = meAssetCreateNewAsset(cmd.type, meResourceType_TemplateAsset, cmd.path);
 	meJobId writeReq = meAssetRequestWrite(meSpanTyped<MAID>(&newAsset.id, 1));
 	UNUSED(writeReq);
 }
