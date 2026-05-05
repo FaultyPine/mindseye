@@ -44,6 +44,8 @@
 #endif
 
 // SOURCE
+#if !defined(ME_REFLECTING) // reflector doesn't need to parse source files
+
 #include "platform/me_os.cpp"
 #include "platform/me_input.cpp"
 #include "core/me_log.cpp"
@@ -73,6 +75,12 @@
 #include "asset/me_asset_index.cpp"
 
 #include "generatedtypes/generatedtypes_unity_sources.generated.cpp"
+#endif // ME_CORE_ONLY
+
+#endif
+
+
+#ifndef ME_CORE_ONLY
 
 // SUBMODULES
 #include "render/renderer_unity.cpp"

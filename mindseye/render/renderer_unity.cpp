@@ -13,6 +13,7 @@
 #include "bgfx_backend/bgfx_backend.h"
 
 
+#if !defined(ME_REFLECTING) 
 
 #include "renderer_frontend.cpp"
 //#include "vulkan_backend/vulkan_backend.cpp"
@@ -24,3 +25,4 @@
 #include "me_texture.cpp"
 #include "me_camera.cpp"
 
+#endif

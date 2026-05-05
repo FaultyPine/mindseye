@@ -4,6 +4,7 @@
 #include "me_gpu.h"
 #include "core/me_resourcepool.h"
 #include "render/me_material.h"
+#include "scene/me_transform.h"
 
 struct cgltf_mesh;
 
