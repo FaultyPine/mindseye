@@ -649,7 +649,6 @@ void meEditorTick(EngineContext* engine)
                             }
                         }
                         ImGui::EndMenu();
-                        break;
                     }
                 }
                 ImGui::EndMenu();
