@@ -65,6 +65,10 @@ MAID
 		meAssetType type = (meAssetType)GetType();
 		return GetID() != U32_INVALID_ID && type < NUM_ASSET_TYPES && type > MABadData; 
 	}
+    operator u64() const
+    {
+        return *(u64*)&id;
+    }
     bool operator==(const MAID& other) const { return GetType() == other.GetType() && GetID() == other.GetID(); }
 	inline meAssetType GetType() const
 	{
@@ -169,6 +173,10 @@ meAsset
 	{
 		return runtimeHandle != EYE_INVALID && loadStage == Loaded; 
 	}
+    bool isValid() const
+    {
+        return id;
+    }
 	operator const Eye() const { return runtimeHandle; }
 	operator const MAID() const { return id; }
 };
