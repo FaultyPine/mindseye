@@ -167,6 +167,7 @@ int main(int argc, char** argv)
 	g_compilerExe = argv[1];
 	NOB_GO_REBUILD_URSELF_PLUS(argc, argv, "mindseye/core/me_defines.h", "tools/nob.h");
 	root = argv[2];
+	uint64_t buildStartNs = nob_nanos_since_unspecified_epoch();
 	const char* command = argc > 3 ? argv[3] : nullptr;
 	if (command && strcmp(command, "clean") == 0)
     {
@@ -265,8 +266,8 @@ int main(int argc, char** argv)
 	}
 	
 	const char* linkerFlagsCommon[] =
-	{ 
-		"-luser32", "-lgdi32", "-fuse-ld=lld-link", (mode == DEBUG ? "-lmsvcrtd" : "-lmsvcrt"),
+	{
+        "-luser32", "-lgdi32", "-fuse-ld=lld-link", (mode == DEBUG ? "-lmsvcrtd" : "-lmsvcrt"),
 		nob_temp_sprintf("-L%s/build", root),
 		nob_temp_sprintf("-L%s/tools/clang/lib/clang/21/lib/windows", root),
 		"-lclang_rt.builtins-x86_64",
@@ -682,5 +683,8 @@ int main(int argc, char** argv)
 	CHECK_BUILD_RESULT(builtMindseye);
 	CHECK_BUILD_RESULT(testbedBuild.build(builtMindseye == BUILD_SUCCEEDED));
 	CHECK_BUILD_RESULT(driver.build());
+	uint64_t buildEndNs = nob_nanos_since_unspecified_epoch();
+	double buildElapsedSec = (buildEndNs - buildStartNs) / 1e9;
+	nob_log(NOB_INFO, "Build finished in %.2fs", buildElapsedSec);
 	return 0;
 }
