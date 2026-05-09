@@ -46,3 +46,10 @@ struct meExternalCommand
 };
 
 MEAPI void meReceiveExternalCommand(meExternalCommand cmd);
+
+// Thread-safe queue of work to run on the main thread. Enqueue from any thread,
+// flush once per frame from the main thread.
+typedef void(*meMainThreadCommandFn)(void* data);
+MEAPI void meInitMainThreadCommandQueue();
+MEAPI void meEnqueueMainThreadCommand(meMainThreadCommandFn fn, void* data);
+MEAPI void meFlushMainThreadCommands();

@@ -1,4 +1,5 @@
 #include "me_command.h"
+#include "external/concurrentqueue/concurrentqueue.h"
 
 #include "core/me_app.h"
 #include "core/me_log.h"
@@ -85,6 +86,28 @@ static void HandlePickEntity(const meCmdPickEntity& cmd)
     inspector.active = true;
     inspector.currentAsset = hit.entity;
     editor.inspectors.push_back(inspector);
+}
+
+struct meCommandEntry
+{
+    meMainThreadCommandFn fn;
+    void* data;
+};
+
+static moodycamel::ConcurrentQueue<meCommandEntry> g_commandQueue;
+
+void meInitMainThreadCommandQueue() {}
+
+void meEnqueueMainThreadCommand(meMainThreadCommandFn fn, void* data)
+{
+    g_commandQueue.enqueue({ fn, data });
+}
+
+void meFlushMainThreadCommands()
+{
+    meCommandEntry entry;
+    while (g_commandQueue.try_dequeue(entry))
+        entry.fn(entry.data);
 }
 
 void meReceiveExternalCommand(meExternalCommand cmd)

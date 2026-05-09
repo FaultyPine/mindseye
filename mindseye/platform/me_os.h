@@ -66,7 +66,10 @@ MEAPI void* LoadDynamicLibrary(const char* name);
 MEAPI void  UnloadDynamicLibrary(void* module);
 MEAPI void* GetFunctionPtr(void* module, StringView functionName);
 MEAPI bool  meOSCopyFile(const char* src, const char* dst);
-MEAPI void* meOSRunProcessAsync(const char* workingDir, StringView command);
+typedef void(*meProcessExitCallback)(s32 exitCode, void* userData);
+// onExit = nullptr: returns process handle, call meOSWaitForProcess to block.
+// onExit provided:  fires callback on a background thread when done, returns nullptr.
+MEAPI void* meOSRunProcessAsync(const char* workingDir, StringView command, meProcessExitCallback onExit = nullptr, void* userData = nullptr);
 MEAPI s32   meOSWaitForProcess(void* processHandle);
 
 MEAPI void meOSInitializeLogging();

@@ -319,7 +319,26 @@ bool meOSCopyFile(const char* src, const char* dst)
     return CopyFileA(src, dst, FALSE) != 0;
 }
 
-void* meOSRunProcessAsync(const char* workingDir, StringView command)
+struct meProcessWatchData
+{
+    HANDLE                waitHandle;
+    HANDLE                processHandle;
+    meProcessExitCallback callback;
+    void*                 userData;
+};
+
+static VOID CALLBACK ProcessExitCallback(PVOID param, BOOLEAN)
+{
+    auto* wd = (meProcessWatchData*)param;
+    UnregisterWaitEx(wd->waitHandle, nullptr);
+    DWORD exitCode = 1;
+    GetExitCodeProcess(wd->processHandle, &exitCode);
+    CloseHandle(wd->processHandle);
+    wd->callback((s32)exitCode, wd->userData);
+    delete wd;
+}
+
+void* meOSRunProcessAsync(const char* workingDir, StringView command, meProcessExitCallback onExit, void* userData)
 {
     STARTUPINFOA si = {};
     si.cb = sizeof(si);
@@ -333,11 +352,19 @@ void* meOSRunProcessAsync(const char* workingDir, StringView command)
     BOOL ok = CreateProcessA(nullptr, cmdBuf, nullptr, nullptr, FALSE, 0, nullptr, workingDir, &si, &pi);
     if (!ok)
     {
-        LOG_ERROR("[meOS] Failed to spawn '%s' (err=%lu)", command, GetLastError());
+        LOG_ERROR("[meOS] Failed to spawn process (err=%lu)", GetLastError());
         return nullptr;
     }
 
     CloseHandle(pi.hThread);
+
+    if (onExit)
+    {
+        auto* wd = new meProcessWatchData{ nullptr, pi.hProcess, onExit, userData };
+        RegisterWaitForSingleObject(&wd->waitHandle, pi.hProcess, ProcessExitCallback, wd, INFINITE, WT_EXECUTEONLYONCE);
+        return nullptr;
+    }
+
     return (void*)pi.hProcess;
 }
 

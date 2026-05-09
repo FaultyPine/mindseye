@@ -65,9 +65,18 @@ struct meLoadedUserApp
     MindseyeAppCallbacks& ActiveCallbacks() { return slots[activeSlot].callbacks; }
 };
 
+struct HotReloadData
+{
+    s32 newCounter = 0;
+    s32 newSlot    = 0;
+    char builtDllPath[ME_PATH_MAX] = {};
+    char newDllPath[ME_PATH_MAX]   = {};
+};
+
 struct EngineContext
 {
     meLoadedUserApp userApp = {};
+    HotReloadData hotReload = {};
 
 	StringView appRootConfig = STRING_LIT(".");
     // allocators

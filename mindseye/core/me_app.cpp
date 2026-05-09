@@ -18,6 +18,7 @@
 #include "render/me_shader.h"
 #include "scene/me_entity.h"
 #include "core/me_serialize.h"
+#include "core/me_command.h"
 
 #include "generatedtypes/me_app.generated.h"
 
@@ -57,69 +58,77 @@ void CopyToRenderInput(
 	renderInput.editorCtx = *engine->editor;
 }
 
-void CheckForUserAppReload(EngineContext* engine)
+// runs on main thread — load new dll, swap slot, unload old
+static void DoUserAppDllSwap(void*)
 {
-    // VK_F5
-    if (!engine->osData->keyboardState.IsKeyJustPressed(0x74))
-        return;
-
-    StringView exeFolder  = meOSGetExeFileFolder();
-    String buildBatPath   = StringFormatTmp("%.*s\\..\\build.bat", STRING_VAARGS(exeFolder));
-    #ifdef OS_WINDOWS
-    String command        = StringFormatTmp("cmd.exe /C \"%s\" app-only", buildBatPath.cstr());
-    #else
-    String command = {};
-    LOG_ERROR("Hot reload not yet supported on non-windows platforms");
-    return;
-    #endif
-
-    LOG_INFO("[HotReload] Building...");
-    void* buildProc = meOSRunProcessAsync(nullptr, command);
-    if (!buildProc)
-    {
-        LOG_ERROR("[HotReload] Failed to spawn build process.");
-        return;
-    }
-    s32 exitCode = meOSWaitForProcess(buildProc);
-
-    // 0 = rebuilt, 2 = nothing changed, 1 = error
-    // this is implicitly dependent on me_build returning these
-    if (exitCode == 2) { LOG_INFO("[HotReload] No changes."); return; }
-    if (exitCode != 0) { LOG_ERROR("[HotReload] Build failed (%d).", exitCode); return; }
-
+    EngineContext* engine = GetEngineCtx();
+    HotReloadData& data = engine->hotReload;
     meLoadedUserApp& app = engine->userApp;
-    int newCounter = app.dllCounter + 1;
-    int newSlot    = 1 - app.activeSlot;
 
-    String builtDllPath = StringFormatTmp("%.*s/%.*s.dll",
-        STRING_VAARGS(exeFolder), STRING_VAARGS(engine->appConfig.appName));
-    String newDllPath = StringFormatTmp("%.*s/%.*s-%d.dll",
-        STRING_VAARGS(exeFolder), STRING_VAARGS(engine->appConfig.appName), newCounter);
-
-    if (!meOSCopyFile(builtDllPath.cstr(), newDllPath.cstr()))
-    {
-        LOG_ERROR("[HotReload] Failed to copy dll to %.*s", STRING_VAARGS(newDllPath));
-        return;
-    }
-
-    app.pendingSlot = newSlot;
-    void* newHandle = LoadDynamicLibrary(newDllPath.cstr());
+    app.pendingSlot = data.newSlot;
+    void* newHandle = LoadDynamicLibrary(data.newDllPath);
     app.pendingSlot = 0;
 
     if (!newHandle)
     {
-        LOG_ERROR("[HotReload] Failed to load %.*s", STRING_VAARGS(newDllPath));
+        LOG_ERROR("[HotReload] Failed to load %s", data.newDllPath);
         return;
     }
 
     UnloadDynamicLibrary(app.slots[app.activeSlot].dllHandle);
     app.slots[app.activeSlot] = {};
 
-    app.slots[newSlot].dllHandle = newHandle;
-    app.dllCounter = newCounter;
-    app.activeSlot = newSlot;
+    app.slots[data.newSlot].dllHandle = newHandle;
+    app.dllCounter = data.newCounter;
+    app.activeSlot = data.newSlot;
 
-    LOG_INFO("[HotReload] Reloaded -> %.*s", STRING_VAARGS(newDllPath));
+    LOG_INFO("[HotReload] Reloaded -> %s", data.newDllPath);
+}
+
+// fires on the process watcher thread when the build exits
+static void OnHotReloadBuildComplete(s32 exitCode, void*)
+{
+    HotReloadData& data = GetEngineCtx()->hotReload;
+
+    // 0 = rebuilt, 2 = nothing changed, 1 = error
+    if (exitCode == 2) { LOG_INFO("[HotReload] No changes."); return; }
+    if (exitCode != 0) { LOG_ERROR("[HotReload] Build failed (%d).", exitCode); return; }
+
+    if (!meOSCopyFile(data.builtDllPath, data.newDllPath))
+    {
+        LOG_ERROR("[HotReload] Failed to copy dll to %s", data.newDllPath);
+        return;
+    }
+
+    meEnqueueMainThreadCommand(DoUserAppDllSwap, nullptr);
+}
+
+void CheckForUserAppReload(EngineContext* engine)
+{
+    // VK_F5
+    if (!engine->osData->keyboardState.IsKeyJustPressed(0x74))
+        return;
+
+    StringView exeFolder = meOSGetExeFileFolder();
+    String buildBatPath  = StringFormatTmp("%.*s\\..\\build.bat", STRING_VAARGS(exeFolder));
+    #ifdef OS_WINDOWS
+    String command = StringFormatTmp("cmd.exe /C \"%s\" app-only", buildBatPath.cstr());
+    #else
+    LOG_ERROR("Hot reload not supported on this platform");
+    return;
+    #endif
+
+    meLoadedUserApp& app = engine->userApp;
+    HotReloadData& data  = engine->hotReload;
+    data.newCounter = app.dllCounter + 1;
+    data.newSlot    = 1 - app.activeSlot;
+    snprintf(data.builtDllPath, ME_PATH_MAX, "%.*s/%.*s.dll",
+        (int)exeFolder.len, exeFolder.data, STRING_VAARGS(engine->appConfig.appName));
+    snprintf(data.newDllPath, ME_PATH_MAX, "%.*s/%.*s-%d.dll",
+        (int)exeFolder.len, exeFolder.data, STRING_VAARGS(engine->appConfig.appName), data.newCounter);
+
+    LOG_INFO("[HotReload] Building...");
+    meOSRunProcessAsync(nullptr, command, OnHotReloadBuildComplete, nullptr);
 }
 
 void RunEngine(EngineContext* engine)
@@ -130,6 +139,7 @@ void RunEngine(EngineContext* engine)
 		engine->deltaTime = time - engine->lastFrameTime;
 		engine->renderer->BeginImguiContext();
         meOSTick(engine);
+        meFlushMainThreadCommands();
         CheckForUserAppReload(engine);
 		engine->userApp.ActiveCallbacks().updateFn(engine);
 		engine->sceneSystem->Tick(engine);
@@ -221,6 +231,7 @@ void InitializeEngine(s32 argc, char** argv)
     EngineContext* engine = GetEngineCtx();
     engine->isRunning = true;
 
+    meInitMainThreadCommandQueue();
     InitializeLogger();
 	StringView workingDir = meOSGetWorkingDir();
 	LOG_INFO("Working dir: %.*s", STRING_VAARGS(workingDir));
