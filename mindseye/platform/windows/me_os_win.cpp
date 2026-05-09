@@ -325,10 +325,10 @@ void* meOSRunProcessAsync(const char* workingDir, StringView command)
     si.cb = sizeof(si);
     PROCESS_INFORMATION pi = {};
 
-    ME_ASSERT(command.count < 4096);
+    ME_ASSERT(command.len < 4096);
     char cmdBuf[4096];
-    memcpy(cmdBuf, command.data, command.count);
-    cmdBuf[command.count] = '\0';
+    memcpy(cmdBuf, command.data, command.len);
+    cmdBuf[command.len] = '\0';
 
     BOOL ok = CreateProcessA(nullptr, cmdBuf, nullptr, nullptr, FALSE, 0, nullptr, workingDir, &si, &pi);
     if (!ok)

@@ -719,7 +719,7 @@ int main(int argc, char** argv)
 			if (sv.count <= prefix.count + ext.count) continue;
 			if (memcmp(sv.data, prefix.data, prefix.count) != 0) continue;
 			if (memcmp(sv.data + sv.count - ext.count, ext.data, ext.count) != 0) continue;
-			Nob_String_View mid = { sv.data + prefix.count, sv.count - prefix.count - ext.count };
+			Nob_String_View mid = { sv.count - prefix.count - ext.count, sv.data + prefix.count };
 			bool allDigits = mid.count > 0;
 			for (size_t j = 0; j < mid.count && allDigits; j++)
 				allDigits = isdigit((unsigned char)mid.data[j]);
