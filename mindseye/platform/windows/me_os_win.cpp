@@ -304,10 +304,51 @@ void* LoadDynamicLibrary(const char* name)
     return (void*)LoadLibraryA(name);
 }
 
+void UnloadDynamicLibrary(void* module)
+{
+    FreeLibrary((HMODULE)module);
+}
 
 void* GetFunctionPtr(void* module, StringView functionName)
 {
     return (void*)GetProcAddress((HMODULE)module, functionName.cstr());
+}
+
+bool meOSCopyFile(const char* src, const char* dst)
+{
+    return CopyFileA(src, dst, FALSE) != 0;
+}
+
+void* meOSRunProcessAsync(const char* workingDir, StringView command)
+{
+    STARTUPINFOA si = {};
+    si.cb = sizeof(si);
+    PROCESS_INFORMATION pi = {};
+
+    ME_ASSERT(command.count < 4096);
+    char cmdBuf[4096];
+    memcpy(cmdBuf, command.data, command.count);
+    cmdBuf[command.count] = '\0';
+
+    BOOL ok = CreateProcessA(nullptr, cmdBuf, nullptr, nullptr, FALSE, 0, nullptr, workingDir, &si, &pi);
+    if (!ok)
+    {
+        LOG_ERROR("[meOS] Failed to spawn '%s' (err=%lu)", command, GetLastError());
+        return nullptr;
+    }
+
+    CloseHandle(pi.hThread);
+    return (void*)pi.hProcess;
+}
+
+s32 meOSWaitForProcess(void* processHandle)
+{
+    HANDLE h = (HANDLE)processHandle;
+    WaitForSingleObject(h, INFINITE);
+    DWORD exitCode = 1;
+    GetExitCodeProcess(h, &exitCode);
+    CloseHandle(h);
+    return (s32)exitCode;
 }
 
 

@@ -8,9 +8,12 @@
 
 void testbed_onsceneload(meEventPayload payload)
 {
-    meAsset* sceneAsset = (meAsset*)payload.payload;
-    UNUSED(sceneAsset);
-    EngineContext* engine = GetEngineCtx();
+
+}
+
+void testbed_init(EngineContext* engine)
+{
+    meEventSubscribe(engine->userApp.ActiveCallbacks().onSceneLoaded, testbed_onsceneload);
     //GameGlobals& globals = *MENEW(&engine->gameArena, GameGlobals);
 	meTypedAsset<MAEntity> testEntity = meEntityCreateBlankInstance(STRING_LIT("bruh"));
 	DynArrayPush(engine->sceneSystem->CurrentScene().entities, testEntity);
@@ -23,17 +26,19 @@ void testbed_onsceneload(meEventPayload payload)
 	entity.authoritativeBounds = meMeshPoolGet().Get(newMesh).meshBounds;
 }
 
-void testbed_init(EngineContext* engine)
-{
-    meEventSubscribe(engine->appCallbacks.onSceneLoaded, testbed_onsceneload);
-}
-
 void testbed_update(EngineContext* engine)
 {
 	//GameGlobals& globals = *((GameGlobals*)engine->gameArena.backing_mem);
 	//ME_ASSERT(globals.IsValid());
 	//meEntity& entity = meEntityGet(globals.testEntity);
 	//entity.transform.position.x += sin(GetTimeSec());
+    auto entities = engine->sceneSystem->CurrentScene().entities;
+    for (DynArray_Foreach(entities, i))
+    {
+        auto& entityAsset = entities[i];
+        auto& entity = engine->entityPool->Get(entityAsset.runtimeHandle);
+        entity.transform.position.x = sinf(GetTimeSec()) * 5.0f;
+    }
 }
 void testbed_shutdown(EngineContext* engine)
 {

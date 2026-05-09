@@ -45,7 +45,7 @@ f32 meGetRandomf(f32 start, f32 end)
 void InternalRegisterApp(MindseyeAppCallbacks appCallbacks)
 {
     EngineContext* engine = GetEngineCtx();
-    engine->appCallbacks = appCallbacks;
+    engine->userApp.slots[engine->userApp.pendingSlot].callbacks = appCallbacks;
 }
 
 void CopyToRenderInput(
@@ -57,6 +57,71 @@ void CopyToRenderInput(
 	renderInput.editorCtx = *engine->editor;
 }
 
+void CheckForUserAppReload(EngineContext* engine)
+{
+    // VK_F5
+    if (!engine->osData->keyboardState.IsKeyJustPressed(0x74))
+        return;
+
+    StringView exeFolder  = meOSGetExeFileFolder();
+    String buildBatPath   = StringFormatTmp("%.*s\\..\\build.bat", STRING_VAARGS(exeFolder));
+    #ifdef OS_WINDOWS
+    String command        = StringFormatTmp("cmd.exe /C \"%s\" app-only", buildBatPath.cstr());
+    #else
+    String command = {};
+    LOG_ERROR("Hot reload not yet supported on non-windows platforms");
+    return;
+    #endif
+
+    LOG_INFO("[HotReload] Building...");
+    void* buildProc = meOSRunProcessAsync(nullptr, command);
+    if (!buildProc)
+    {
+        LOG_ERROR("[HotReload] Failed to spawn build process.");
+        return;
+    }
+    s32 exitCode = meOSWaitForProcess(buildProc);
+
+    // 0 = rebuilt, 2 = nothing changed, 1 = error
+    // this is implicitly dependent on me_build returning these
+    if (exitCode == 2) { LOG_INFO("[HotReload] No changes."); return; }
+    if (exitCode != 0) { LOG_ERROR("[HotReload] Build failed (%d).", exitCode); return; }
+
+    meLoadedUserApp& app = engine->userApp;
+    int newCounter = app.dllCounter + 1;
+    int newSlot    = 1 - app.activeSlot;
+
+    String builtDllPath = StringFormatTmp("%.*s/%.*s.dll",
+        STRING_VAARGS(exeFolder), STRING_VAARGS(engine->appConfig.appName));
+    String newDllPath = StringFormatTmp("%.*s/%.*s-%d.dll",
+        STRING_VAARGS(exeFolder), STRING_VAARGS(engine->appConfig.appName), newCounter);
+
+    if (!meOSCopyFile(builtDllPath.cstr(), newDllPath.cstr()))
+    {
+        LOG_ERROR("[HotReload] Failed to copy dll to %.*s", STRING_VAARGS(newDllPath));
+        return;
+    }
+
+    app.pendingSlot = newSlot;
+    void* newHandle = LoadDynamicLibrary(newDllPath.cstr());
+    app.pendingSlot = 0;
+
+    if (!newHandle)
+    {
+        LOG_ERROR("[HotReload] Failed to load %.*s", STRING_VAARGS(newDllPath));
+        return;
+    }
+
+    UnloadDynamicLibrary(app.slots[app.activeSlot].dllHandle);
+    app.slots[app.activeSlot] = {};
+
+    app.slots[newSlot].dllHandle = newHandle;
+    app.dllCounter = newCounter;
+    app.activeSlot = newSlot;
+
+    LOG_INFO("[HotReload] Reloaded -> %.*s", STRING_VAARGS(newDllPath));
+}
+
 void RunEngine(EngineContext* engine)
 {
     while (engine->isRunning)
@@ -65,7 +130,8 @@ void RunEngine(EngineContext* engine)
 		engine->deltaTime = time - engine->lastFrameTime;
 		engine->renderer->BeginImguiContext();
         meOSTick(engine);
-		engine->appCallbacks.updateFn(engine);
+        CheckForUserAppReload(engine);
+		engine->userApp.ActiveCallbacks().updateFn(engine);
 		engine->sceneSystem->Tick(engine);
 		meEditorTick(engine);
         RenderInput renderInput = {};
@@ -109,12 +175,19 @@ static void InitializeEngineConfig(EngineContext* engine)
 		DeserializeFromFileBlocking(userAppConfigPathAbs, &engine->engineArena, TD_MEAPPCONFIG, SPAN_FROM(engine->appConfig), result);
         ME_ASSERT(result.result == meSerializeResult::ResultType::SER_SUCCESS);
 
-		StringView userAppDllName = StringFormatTmp("%.*s.dll", STRING_VAARGS(engine->appConfig.appName));
-		void* gameLib = LoadDynamicLibrary(userAppDllName.cstr());
+        StringView exeFolder = meOSGetExeFileFolder();
+        String userAppDllPath = StringFormatTmp("%.*s/%.*s-1.dll",
+            STRING_VAARGS(exeFolder), STRING_VAARGS(engine->appConfig.appName));
+        engine->userApp.pendingSlot = 0;
+		void* gameLib = LoadDynamicLibrary(userAppDllPath.cstr());
 		if (!gameLib)
 		{
-			LOG_ERROR("Failed to load game library %.*s", STRING_VAARGS(userAppDllName));
+			LOG_ERROR("Failed to load game library %.*s", STRING_VAARGS(userAppDllPath));
+            return;
 		}
+        engine->userApp.slots[0].dllHandle = gameLib;
+        engine->userApp.activeSlot = 0;
+        engine->userApp.dllCounter = 1;
 	}
 }
 
@@ -169,7 +242,7 @@ void InitializeEngine(s32 argc, char** argv)
 
 	meOSSetCursorState(CAPTURED, *engine->osData);
 	
-    engine->appCallbacks.initFn(engine);
+    engine->userApp.ActiveCallbacks().initFn(engine);
 
 	// default scene load
 	if (engine->appConfig.defaultSceneName)
@@ -178,6 +251,6 @@ void InitializeEngine(s32 argc, char** argv)
 	}
 
     RunEngine(engine);
-	engine->appCallbacks.shutdownFn(engine);
+	engine->userApp.ActiveCallbacks().shutdownFn(engine);
     DeinitializeEngineSystems(engine);
 }

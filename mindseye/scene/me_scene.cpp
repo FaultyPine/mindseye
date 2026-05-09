@@ -62,7 +62,7 @@ void meSceneManager::ChangeCurrentSceneAsync(StringView filename)
         {
             GetEngineCtx()->sceneSystem->rootScene = *asset;
             meEventPayload payload = {asset};
-            GetEngineCtx()->appCallbacks.onSceneLoaded(payload);
+            GetEngineCtx()->userApp.ActiveCallbacks().onSceneLoaded(payload);
         }    
     });
 }

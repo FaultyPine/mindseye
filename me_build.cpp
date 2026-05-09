@@ -180,6 +180,7 @@ int main(int argc, char** argv)
 	meBuildMode mode = DEBUG;
 	meSanitizerMode sanitizerMode = SANITIZER_NONE;
 	bool forceBuildLibs = false;
+	bool appOnly = false;
 	for (int i = 1; i < argc; i++)
 	{
 		Nob_String_View argvSv = nob_sv_from_cstr(argv[i]);
@@ -211,6 +212,11 @@ int main(int argc, char** argv)
 			}
 			sanitizerMode = SANITIZER_TSAN;
 			nob_log(NOB_INFO, "[ThreadSanitizer enabled]");
+		}
+		else if (nob_sv_eq(argvSv, nob_sv_from_cstr("app-only")))
+		{
+			appOnly = true;
+			nob_log(NOB_INFO, "[app-only: rebuilding user app DLL only]");
 		}
 	}
 	const char* sanitizerFlag = nullptr;
@@ -614,7 +620,22 @@ int main(int argc, char** argv)
 	testbedBuild.addOutput("testbed.dll");
 	// =====================================================================================
 
-	
+	// ======================== App-Only Hot Reload Path ==================================
+	// Invoked by the engine at runtime to rebuild only the user app DLL.
+	//   0 = rebuilt successfully
+	//   1 = build error
+	//   2 = nothing changed
+	if (appOnly)
+	{
+		nob_set_current_dir("build");
+		BuildResult result = testbedBuild.build();
+		if (result == BUILD_FAILED)   return 1;
+		if (result == DID_NOT_BUILD)  return 2;
+		return 0; // BUILD_SUCCEEDED
+	}
+	// =====================================================================================
+
+
 	// ======================== Invoke Build ==============================================
 	Nob_Procs procs = {};
 
@@ -681,7 +702,32 @@ int main(int argc, char** argv)
 	// the link needs ext libs and the mindseye objs, so is dependent on the above stuff
 	BuildResult builtMindseye = mindseyeDll.build(builtMindseyeObj);
 	CHECK_BUILD_RESULT(builtMindseye);
-	CHECK_BUILD_RESULT(testbedBuild.build(builtMindseye == BUILD_SUCCEEDED));
+	BuildResult builtTestbed = testbedBuild.build(builtMindseye == BUILD_SUCCEEDED);
+	CHECK_BUILD_RESULT(builtTestbed);
+	// The engine always loads "testbed-1.dll" so that hot-reload can load a
+	// fresh copy alongside without Windows blocking an overwrite of a mapped DLL.
+	// A full build always resets the chain back to -1.
+	if (builtTestbed == BUILD_SUCCEEDED)
+	{
+		Nob_File_Paths buildEntries = {};
+		nob_read_entire_dir(".", &buildEntries);
+		Nob_String_View prefix = nob_sv_from_cstr("testbed-");
+		Nob_String_View ext    = nob_sv_from_cstr(".dll");
+		for (int i = 0; i < buildEntries.count; i++)
+		{
+			Nob_String_View sv = nob_sv_from_cstr(buildEntries.items[i]);
+			if (sv.count <= prefix.count + ext.count) continue;
+			if (memcmp(sv.data, prefix.data, prefix.count) != 0) continue;
+			if (memcmp(sv.data + sv.count - ext.count, ext.data, ext.count) != 0) continue;
+			Nob_String_View mid = { sv.data + prefix.count, sv.count - prefix.count - ext.count };
+			bool allDigits = mid.count > 0;
+			for (size_t j = 0; j < mid.count && allDigits; j++)
+				allDigits = isdigit((unsigned char)mid.data[j]);
+			if (allDigits)
+				nob_delete_file(buildEntries.items[i]);
+		}
+		nob_copy_file("testbed.dll", "testbed-1.dll");
+	}
 	CHECK_BUILD_RESULT(driver.build());
 	uint64_t buildEndNs = nob_nanos_since_unspecified_epoch();
 	double buildElapsedSec = (buildEndNs - buildStartNs) / 1e9;

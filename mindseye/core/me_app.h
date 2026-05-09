@@ -49,9 +49,26 @@ struct MindseyeAppCallbacks
     meEvent onSceneLoaded;
 };
 
+struct AppDllSlot
+{
+    MindseyeAppCallbacks callbacks = {};
+    void* dllHandle = nullptr;
+};
+
+struct meLoadedUserApp
+{
+    AppDllSlot slots[2] = {};
+    s32 activeSlot  = 0;
+    s32 dllCounter  = 1; // matches the -N suffix of the currently loaded dll
+    s32 pendingSlot = 0; // slot InternalRegisterApp writes into during LoadDynamicLibrary
+
+    MindseyeAppCallbacks& ActiveCallbacks() { return slots[activeSlot].callbacks; }
+};
+
 struct EngineContext
 {
-    MindseyeAppCallbacks appCallbacks = {};
+    meLoadedUserApp userApp = {};
+
 	StringView appRootConfig = STRING_LIT(".");
     // allocators
     Arena gameArena = {};
@@ -97,14 +114,13 @@ MEAPI s32 meGetRandom(s32 start, s32 end);
 MEAPI f32 meGetRandomf(f32 start, f32 end);
 
 
-// register a program
 MEAPI void InternalRegisterApp(MindseyeAppCallbacks callbacks);
-// pass parameters to MindseyeAppCallbacks constructor
 #define REGISTER_MINDSEYE_APP(...) \
     struct ME_APPREG_STRUCT { \
 	ME_APPREG_STRUCT() { InternalRegisterApp(MindseyeAppCallbacks(__VA_ARGS__)); } \
     }; \
     static ME_APPREG_STRUCT globalAppRegistrationHolder = {};
 
+MEAPI void CheckForUserAppReload(EngineContext* engine);
 
 MEAPI void InitializeEngine(s32 argc, char** argv);

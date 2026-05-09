@@ -63,7 +63,11 @@ struct OSFileReference;
 
 MEAPI void ConsolePrint(StringView text);
 MEAPI void* LoadDynamicLibrary(const char* name);
+MEAPI void  UnloadDynamicLibrary(void* module);
 MEAPI void* GetFunctionPtr(void* module, StringView functionName);
+MEAPI bool  meOSCopyFile(const char* src, const char* dst);
+MEAPI void* meOSRunProcessAsync(const char* workingDir, StringView command);
+MEAPI s32   meOSWaitForProcess(void* processHandle);
 
 MEAPI void meOSInitializeLogging();
 MEAPI s32 meOSMain(s32 argc, char** argv);
