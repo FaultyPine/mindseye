@@ -222,25 +222,28 @@ static void DrawAssetNode(meAsset asset, meSpanTyped<MAIDFieldInfo> maidFields)
     else
         ImGui::TextDisabled("(no file)");
 
-    ImGui::Separator();
-
-    if (ImGui::BeginTable("##fields", 2,
-        ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingStretchProp))
+    if (ed::IsNodeSelected(MakeAssetNodeId(asset.id)))
     {
-        ImGui::TableSetupColumn("Field", ImGuiTableColumnFlags_WidthFixed, 120.0f);
-        ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
-        DrawStructFields(typeDesc, dataPtr);
-        ImGui::EndTable();
-    }
+        ImGui::Separator();
 
-    for (u32 i = 0; i < maidFields.size; i++)
-    {
-        const char* fieldName = maidFields[i].field->editorName.data
-            ? maidFields[i].field->editorName.cstr()
-            : maidFields[i].field->name.cstr();
-        ed::BeginPin(MakeAssetFieldOutputPin(asset, maidFields[i].fieldIndex), ed::PinKind::Output);
-        ImGui::Text(ICON_FA_CIRCLE_RIGHT " %s", fieldName);
-        ed::EndPin();
+        if (ImGui::BeginTable("##fields", 2,
+            ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingFixedFit))
+        {
+            ImGui::TableSetupColumn("Field", ImGuiTableColumnFlags_WidthFixed, 120.0f);
+            ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthFixed, 180.0f);
+            DrawStructFields(typeDesc, dataPtr);
+            ImGui::EndTable();
+        }
+
+        for (u32 i = 0; i < maidFields.size; i++)
+        {
+            const char* fieldName = maidFields[i].field->editorName.data
+                ? maidFields[i].field->editorName.cstr()
+                : maidFields[i].field->name.cstr();
+            ed::BeginPin(MakeAssetFieldOutputPin(asset, maidFields[i].fieldIndex), ed::PinKind::Output);
+            ImGui::Text(ICON_FA_CIRCLE_RIGHT " %s", fieldName);
+            ed::EndPin();
+        }
     }
 
     ed::EndNode();
@@ -309,7 +312,7 @@ void meAssetEditorTick(AssetEditorContext& ctx)
 	MAIDFieldInfo maidFields[MAX_MAID_FIELDS] = {};
 	u32 maidFieldCount = 0;
 	
-	CollectMAIDFields(TD_MEENTITY, dataPtr, maidFields, &maidFieldCount, MAX_MAID_FIELDS);
+	CollectMAIDFields(*loader->assetTypeDesc, dataPtr, maidFields, &maidFieldCount, MAX_MAID_FIELDS);
 	
 	DrawAssetNode(asset, {maidFields, maidFieldCount});
 
@@ -319,7 +322,8 @@ void meAssetEditorTick(AssetEditorContext& ctx)
 		MAID maid = *info.maidPtr;
 		
 		if (!maid) continue;
-		
+		if (maid == asset.id) continue;
+
 		DrawAssetReference(maid);
 		
 		ed::Link(
@@ -587,7 +591,7 @@ bool DrawPrimitiveValue(const meTypeDescriptor& type, u8* data, const meTypeDesc
 		if (ImGui::BeginTable("##dynarray_table", 2, ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingStretchProp))
 		{
 			ImGui::TableSetupColumn("#", ImGuiTableColumnFlags_WidthFixed, 32.0f);
-			ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
+			ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthFixed, 120.0f);
 			for (u32 i = 0; i < DynArrayGetSize(arr); ++i)
 			{
 				ImGui::TableNextRow();

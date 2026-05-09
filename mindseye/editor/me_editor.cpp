@@ -203,8 +203,11 @@ static void DrawAssetInspector(EditorContext& editor, InspectorWindow& inspector
 		ImGui::SameLine();
 
         StringView assetName = meAssetIndexGetFilesystemPath(asset);
-		ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-		ImGui::InputText("##entity_name", (char*)assetName.cstr(), assetName.len, ImGuiInputTextFlags_ReadOnly);
+        if (assetName)
+        {
+            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+            ImGui::InputText("##entity_name", (char*)assetName.cstr(), assetName.len, ImGuiInputTextFlags_ReadOnly);
+        }
 	}
 	ImGui::EndChild();
 	ImGui::PopStyleColor();
@@ -221,13 +224,13 @@ static void DrawAssetInspector(EditorContext& editor, InspectorWindow& inspector
 	const ImGuiTableFlags tableFlags =
 		ImGuiTableFlags_BordersInnerH |
 		ImGuiTableFlags_Resizable |
-		ImGuiTableFlags_SizingStretchProp |
+		ImGuiTableFlags_SizingFixedFit |
 		ImGuiTableFlags_PadOuterX;
 
 	if (ImGui::BeginTable("##inspector_props", 2, tableFlags))
 	{
-		ImGui::TableSetupColumn("Property", ImGuiTableColumnFlags_WidthStretch, 0.4f);
-		ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch, 0.6f);
+		ImGui::TableSetupColumn("Property", ImGuiTableColumnFlags_WidthFixed, 120.0f);
+		ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthFixed, 180.0f);
         meTypeDescriptor* assetTypeDesc = meAssetSystemGet().assetLoaders[asset.id.GetType()]->assetTypeDesc;
         void* assetData = meAssetSystemGet().assetLoaders[asset.id.GetType()]->resourcePool->GetOpaque(asset.runtimeHandle);
 		bool didUserChangeSomething = DrawStructFields(*assetTypeDesc, (u8*)assetData);
@@ -326,7 +329,9 @@ void meEditorTick(EngineContext* engine)
                             if (asset.GetType() != assetType) continue;
                             if (ImGui::MenuItem(path.cstr()))
                             {
-                                if (meAsset* tmplAsset = meAssetTryGetTemplate(asset))
+                                MAID maid = asset;
+                                meAssetRequestLoadTemplate(&maid, 1);
+                                if (meAsset* tmplAsset = meAssetTryGetTemplate(maid))
                                 {
                                     InspectorWindow inspector{ .currentAsset = *tmplAsset, .active = true  };
                                     editor.inspectors.push_back(inspector);
