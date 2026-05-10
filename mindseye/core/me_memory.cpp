@@ -102,22 +102,16 @@ bool BufferCopy(meSpan dst, meSpan src)
 
 void InitializeAllocatorSystem(EngineContext* engine)
 {
-    // One large pagefile-backed root arena
-    bool mapped = meOSMapFile(engine->rootMapping, nullptr, ROOT_ARENA_SIZE, meMapFileFlags_ReserveOnly);
-    ME_ASSERT(mapped);
-    ArenaInitFromMemory(engine->rootArena, engine->rootMapping.ptr, ROOT_ARENA_SIZE, "Root");
+    // One large write-watch-tracked virtual allocation (reserved + committed).
+    // Dirty pages can be queried each frame for the rewind/delta-savestate system.
+    void* mem = meOSAllocWriteTracked(ROOT_ARENA_SIZE);
+    ME_ASSERT(mem);
+    ArenaInitFromMemory(engine->rootArena, mem, ROOT_ARENA_SIZE, "Root");
 
     ArenaInit(engine->engineArena,          ENGINE_ARENA_SIZE,       "Engine",       &engine->rootArena);
-    meOSCommitMappedRange(engine->engineArena.backing_mem,          ENGINE_ARENA_SIZE);
-
     ArenaInit(engine->engineFrameAllocator, ENGINE_FRAME_ARENA_SIZE, "Engine Frame", &engine->rootArena);
-    meOSCommitMappedRange(engine->engineFrameAllocator.backing_mem, ENGINE_FRAME_ARENA_SIZE);
-
     ArenaInit(engine->engineSceneAllocator, ENGINE_SCENE_ARENA_SIZE, "Engine Scene", &engine->rootArena);
-    meOSCommitMappedRange(engine->engineSceneAllocator.backing_mem, ENGINE_SCENE_ARENA_SIZE);
-
     ArenaInit(engine->gameArena,            GAME_ARENA_SIZE,         "Game",         &engine->rootArena);
-    meOSCommitMappedRange(engine->gameArena.backing_mem,            GAME_ARENA_SIZE);
 }
 
 #endif

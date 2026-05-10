@@ -702,7 +702,9 @@ int main(int argc, char** argv)
 	// the link needs ext libs and the mindseye objs, so is dependent on the above stuff
 	BuildResult builtMindseye = mindseyeDll.build(builtMindseyeObj);
 	CHECK_BUILD_RESULT(builtMindseye);
-	BuildResult builtTestbed = testbedBuild.build(builtMindseye == BUILD_SUCCEEDED);
+    // since testbed links mindseye (dll) at runtime, we don't need to rebuild testbed if mindseye implementation files change
+    // testbed already has logic to rebuild if mindseye *headers* change
+	BuildResult builtTestbed = testbedBuild.build(); 
 	CHECK_BUILD_RESULT(builtTestbed);
 	// The engine always loads "testbed-1.dll" so that hot-reload can load a
 	// fresh copy alongside without Windows blocking an overwrite of a mapped DLL.

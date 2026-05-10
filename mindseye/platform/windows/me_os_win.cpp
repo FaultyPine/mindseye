@@ -370,9 +370,28 @@ void meOSUnmapFile(meMemoryMappedFile& mapping)
     mapping = {};
 }
 
-void meOSCommitMappedRange(void* ptr, u64 size)
+void meOSCommitMemory(void* ptr, u64 size)
 {
     VirtualAlloc(ptr, size, MEM_COMMIT, PAGE_READWRITE);
+}
+
+void* meOSAllocWriteTracked(u64 size)
+{
+    return VirtualAlloc(nullptr, size, MEM_RESERVE | MEM_COMMIT | MEM_WRITE_WATCH, PAGE_READWRITE);
+}
+
+void meOSGetWrittenAddresses(void* base, u64 size, void** pagesOut, u64* countInOut, u64* pageSize)
+{
+    ULONG_PTR count = (ULONG_PTR)*countInOut;
+    ULONG ps = 0;
+    GetWriteWatch(0, base, (SIZE_T)size, pagesOut, &count, &ps);
+    *countInOut = (u64)count;
+    *pageSize   = (u64)ps;
+}
+
+void meOSResetWrittenAddresses(void* base, u64 size)
+{
+    ResetWriteWatch(base, (SIZE_T)size);
 }
 
 struct meProcessWatchData

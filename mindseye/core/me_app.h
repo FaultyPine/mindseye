@@ -78,7 +78,6 @@ struct EngineContext
     meLoadedUserApp userApp = {};
     HotReloadData hotReload = {};
 
-    meMemoryMappedFile rootMapping = {};
     Arena rootArena = {};
 
 	StringView appRootConfig = STRING_LIT(".");

@@ -223,7 +223,7 @@ void InitializeEngineSystems(EngineContext* engine)
 void DeinitializeEngineSystems(EngineContext* engine)
 {
     DeinitializeEntitySystem(engine);
-    meOSUnmapFile(engine->rootMapping);
+    meOSFreeVirtualMemory(engine->rootArena.backing_mem);
 }
 
 void InitializeEngine(s32 argc, char** argv)
