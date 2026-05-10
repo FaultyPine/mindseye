@@ -66,9 +66,34 @@ MEAPI void* LoadDynamicLibrary(const char* name);
 MEAPI void  UnloadDynamicLibrary(void* module);
 MEAPI void* GetFunctionPtr(void* module, StringView functionName);
 MEAPI bool  meOSCopyFile(const char* src, const char* dst);
+
+typedef u32 meMapFileFlags;
+enum meMapFileFlags_
+{
+    meMapFileFlags_None        = 0,
+    // Reserve address space without committing backing storage
+    // Pages must be committed via meOSCommitMappedRange before use
+    meMapFileFlags_ReserveOnly = NTH_BIT(0),
+};
+
+struct meMemoryMappedFile
+{
+    void* ptr  = nullptr;
+    u64   size = 0;
+#ifdef OS_WINDOWS
+    void* fileHandle    = nullptr;
+    void* mappingHandle = nullptr;
+#endif
+};
+// if path == nullptr it's backed by system pagefile
+MEAPI bool meOSMapFile(meMemoryMappedFile& out, const char* path, u64 size, meMapFileFlags flags = meMapFileFlags_None);
+MEAPI void meOSUnmapFile(meMemoryMappedFile& mapping);
+// Commit a sub-range of a ReserveOnly mapping so it can be read/written.
+MEAPI void meOSCommitMappedRange(void* ptr, u64 size);
+
 typedef void(*meProcessExitCallback)(s32 exitCode, void* userData);
-// onExit = nullptr: returns process handle, call meOSWaitForProcess to block.
-// onExit provided:  fires callback on a background thread when done, returns nullptr.
+// onExit = nullptr: returns process handle
+// onExit provided: fires callback when done, returns nullptr.
 MEAPI void* meOSRunProcessAsync(const char* workingDir, StringView command, meProcessExitCallback onExit = nullptr, void* userData = nullptr);
 MEAPI s32   meOSWaitForProcess(void* processHandle);
 

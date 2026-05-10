@@ -319,6 +319,61 @@ bool meOSCopyFile(const char* src, const char* dst)
     return CopyFileA(src, dst, FALSE) != 0;
 }
 
+bool meOSMapFile(meMemoryMappedFile& out, const char* path, u64 size, meMapFileFlags flags)
+{
+    HANDLE fileHandle = INVALID_HANDLE_VALUE;
+    if (path != nullptr)
+    {
+        fileHandle = CreateFileA(path, GENERIC_READ | GENERIC_WRITE, 0, nullptr,
+                                 OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (fileHandle == INVALID_HANDLE_VALUE)
+        {
+            LOG_ERROR("meOSMapFile: failed to open %s (%lu)", path, GetLastError());
+            return false;
+        }
+        out.fileHandle = fileHandle;
+    }
+
+    DWORD protect = (flags & meMapFileFlags_ReserveOnly) ? PAGE_READWRITE | SEC_RESERVE : PAGE_READWRITE;
+    HANDLE mapping = CreateFileMappingA(fileHandle, nullptr, protect,
+                                        (DWORD)(size >> 32), (DWORD)(size & 0xFFFFFFFF), nullptr);
+    if (!mapping)
+    {
+        LOG_ERROR("meOSMapFile: CreateFileMappingA failed%s%s (%lu)",
+                  path ? " for " : "", path ? path : "", GetLastError());
+        if (path) CloseHandle(fileHandle);
+        return false;
+    }
+
+    void* ptr = MapViewOfFile(mapping, FILE_MAP_ALL_ACCESS, 0, 0, size);
+    if (!ptr)
+    {
+        LOG_ERROR("meOSMapFile: MapViewOfFile failed%s%s (%lu)",
+                  path ? " for " : "", path ? path : "", GetLastError());
+        CloseHandle(mapping);
+        if (path) CloseHandle(fileHandle);
+        return false;
+    }
+
+    out.mappingHandle = mapping;
+    out.ptr           = ptr;
+    out.size          = size;
+    return true;
+}
+
+void meOSUnmapFile(meMemoryMappedFile& mapping)
+{
+    if (mapping.ptr)            UnmapViewOfFile(mapping.ptr);
+    if (mapping.mappingHandle)  CloseHandle((HANDLE)mapping.mappingHandle);
+    if (mapping.fileHandle)     CloseHandle((HANDLE)mapping.fileHandle);
+    mapping = {};
+}
+
+void meOSCommitMappedRange(void* ptr, u64 size)
+{
+    VirtualAlloc(ptr, size, MEM_COMMIT, PAGE_READWRITE);
+}
+
 struct meProcessWatchData
 {
     HANDLE                waitHandle;

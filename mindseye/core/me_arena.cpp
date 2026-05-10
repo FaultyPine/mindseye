@@ -69,6 +69,16 @@ void ArenaInit(
 	a.name = StringFromCString(name);
 }
 
+void ArenaInitFromMemory(Arena& a, void* mem, size_t size, const char* name)
+{
+    a.backingAllocator = nullptr; // caller owns this memory
+    a.backing_mem      = (unsigned char*)mem;
+    a.backing_mem_size = size;
+    a.offset           = 0;
+    a.prev_offset      = 0;
+    a.name             = name ? StringFromCString(name) : STRING_LIT("Arena");
+}
+
 const char* ArenaGetName(Arena* arena) 
 {
     const char* possible_string = (const char*)arena->backing_mem;
@@ -153,7 +163,10 @@ void ArenaFreeAll(Arena* arena)
 {
     ArenaClear(arena);
     arena->backing_mem_size = 0;
-    MEFREE(arena->backingAllocator, arena->backing_mem);
+    if (arena->backingAllocator)
+    {
+        MEFREE(arena->backingAllocator, arena->backing_mem);
+    }
 	#if ME_MEM_DEBUG
     ME_MEMCLEAR(arena->backing_mem, arena->backing_mem_size);
 	#endif

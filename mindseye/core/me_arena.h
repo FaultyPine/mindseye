@@ -46,14 +46,17 @@ struct ArenaTLScratch : public Arena
 };
 
 MEAPI Arena ArenaInit(
-	size_t arenaSize, 
-	const char* name = nullptr, 
+	size_t arenaSize,
+	const char* name = nullptr,
 	meAllocator* backingAllocator = nullptr);
 MEAPI void ArenaInit(
 	Arena& a,
-	size_t arenaSize, 
-	const char* name = nullptr, 
+	size_t arenaSize,
+	const char* name = nullptr,
 	meAllocator* backingAllocator = nullptr);
+// Initialise an arena over memory you already own (e.g. a memory-mapped file).
+// The arena does NOT free this memory — the caller is responsible for its lifetime.
+MEAPI void ArenaInitFromMemory(Arena& a, void* mem, size_t size, const char* name = nullptr);
 MEAPI void* ArenaAlloc(Arena* arena, size_t allocSize);
 MEAPI void* ArenaResize(Arena* arena, void* oldMem, size_t oldSize, size_t newSize);
 MEAPI void ArenaClear(Arena* arena);

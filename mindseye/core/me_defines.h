@@ -71,9 +71,9 @@ typedef wchar_t wchar;
 #define MELIKELY [[likely]]
 #define MEUNLIKELY [[unlikely]]
 
-#define KILOBYTES_BYTES(kb) (kb*1024)
-#define MEGABYTES_BYTES(mb) (mb*KILOBYTES_BYTES(1024))
-#define GIGABYTES_BYTES(gb) (gb*MEGABYTES_BYTES(1024))
+#define KILOBYTES_BYTES(kb) ((u64)(kb)*1024ULL)
+#define MEGABYTES_BYTES(mb) ((u64)(mb)*1024ULL*1024ULL)
+#define GIGABYTES_BYTES(gb) ((u64)(gb)*1024ULL*1024ULL*1024ULL)
 
 #ifndef ARRAY_SIZE
 #define ARRAY_SIZE(arr) ( sizeof((arr))/sizeof((arr)[0]) )

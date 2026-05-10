@@ -94,15 +94,30 @@ bool BufferCopy(meSpan dst, meSpan src)
 
 #ifndef ME_CORE_ONLY
 
-#define ENGINE_INITIAL_RESERVED_MEMSIZE GIGABYTES_BYTES(1)
+#define ROOT_ARENA_SIZE              GIGABYTES_BYTES(2)
+#define ENGINE_ARENA_SIZE            MEGABYTES_BYTES(512)
+#define ENGINE_FRAME_ARENA_SIZE      MEGABYTES_BYTES(64)
+#define ENGINE_SCENE_ARENA_SIZE      MEGABYTES_BYTES(128)
+#define GAME_ARENA_SIZE              MEGABYTES_BYTES(512)
 
 void InitializeAllocatorSystem(EngineContext* engine)
 {
-    meAllocator* allocator = GetDefaultAllocator();
-    engine->engineArena = ArenaInit(ENGINE_INITIAL_RESERVED_MEMSIZE, "Engine", allocator);
-    engine->engineFrameAllocator = ArenaInit(ENGINE_INITIAL_RESERVED_MEMSIZE, "Engine Frame", allocator);
-    engine->engineSceneAllocator = ArenaInit(ENGINE_INITIAL_RESERVED_MEMSIZE, "Engine Scene", allocator);
-    engine->gameArena = ArenaInit(ENGINE_INITIAL_RESERVED_MEMSIZE, "Game", allocator);
+    // One large pagefile-backed root arena
+    bool mapped = meOSMapFile(engine->rootMapping, nullptr, ROOT_ARENA_SIZE, meMapFileFlags_ReserveOnly);
+    ME_ASSERT(mapped);
+    ArenaInitFromMemory(engine->rootArena, engine->rootMapping.ptr, ROOT_ARENA_SIZE, "Root");
+
+    ArenaInit(engine->engineArena,          ENGINE_ARENA_SIZE,       "Engine",       &engine->rootArena);
+    meOSCommitMappedRange(engine->engineArena.backing_mem,          ENGINE_ARENA_SIZE);
+
+    ArenaInit(engine->engineFrameAllocator, ENGINE_FRAME_ARENA_SIZE, "Engine Frame", &engine->rootArena);
+    meOSCommitMappedRange(engine->engineFrameAllocator.backing_mem, ENGINE_FRAME_ARENA_SIZE);
+
+    ArenaInit(engine->engineSceneAllocator, ENGINE_SCENE_ARENA_SIZE, "Engine Scene", &engine->rootArena);
+    meOSCommitMappedRange(engine->engineSceneAllocator.backing_mem, ENGINE_SCENE_ARENA_SIZE);
+
+    ArenaInit(engine->gameArena,            GAME_ARENA_SIZE,         "Game",         &engine->rootArena);
+    meOSCommitMappedRange(engine->gameArena.backing_mem,            GAME_ARENA_SIZE);
 }
 
 #endif
