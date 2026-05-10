@@ -321,6 +321,7 @@ bool meOSCopyFile(const char* src, const char* dst)
 
 bool meOSMapFile(meMemoryMappedFile& out, const char* path, u64 size, meMapFileFlags flags)
 {
+    ME_ASSERT(!out.ptr);
     HANDLE fileHandle = INVALID_HANDLE_VALUE;
     if (path != nullptr)
     {
