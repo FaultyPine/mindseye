@@ -18,8 +18,7 @@ void testbed_init(EngineContext* engine)
 	meTypedAsset<MAEntity> testEntity = meEntityCreateBlankInstance(STRING_LIT("bruh"));
 	DynArrayPush(engine->sceneSystem->CurrentScene().entities, testEntity);
 	meEntity& entity = meEntityGet(testEntity);
-	entity.transform = meTransform(glm::vec3(sin(GetTimeUsec()) * 5.0, cos(GetTimeUsec()) * 5.0, 0.0));
-	//meEntitySetFlag(entity, EntityFlags_NoSer, true);
+	entity.transform = meTransform(glm::vec3(0.0));
     meAsset newMesh = meAssetCreateNewAsset(MAMesh, meResourceType_InstanceAsset);
     GenPlaneMesh(newMesh, 2);
 	entity.mesh = newMesh;
@@ -37,7 +36,7 @@ void testbed_update(EngineContext* engine)
     {
         auto& entityAsset = entities[i];
         auto& entity = engine->entityPool->Get(entityAsset.runtimeHandle);
-        entity.transform.position.x = sinf(GetTimeSec()) * 5.0f;
+        entity.transform.position.x = sinf(GetTimeSec() * 1.5f) * 10.0f;
     }
 }
 void testbed_shutdown(EngineContext* engine)

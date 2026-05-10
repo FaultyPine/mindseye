@@ -623,7 +623,7 @@ bool DrawPrimitiveValue(const meTypeDescriptor& type, u8* data, const meTypeDesc
             // blank allocation with defaults, since it'll get copied into the correct asset memory anyway
             Allocation elementData = MECALLOC(GetTLScratch(), elemType.size);
             elemType.setToDefaultsFn(elementData);
-            DynArrayPush(arr, (u8*)elementData, elementData.size);
+            DynArrayPush(arr, (u8*)elementData, 1);
 			changed = true;
 		}
 		return changed;
