@@ -12,9 +12,9 @@
 typedef u32 meSceneID;
 
 struct MEREFLECT(type, Description="Scene Description")
-meScene
+meScene : public meBaseAsset
 {
-	ME_ASSET_STRUCTURE(meScene);
+    using meBaseAsset::meBaseAsset;
 
 	// an external file that represents the scene - i.e. gltf
 	String externalScenePath = {};

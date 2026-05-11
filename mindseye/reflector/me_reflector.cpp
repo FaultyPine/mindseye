@@ -133,6 +133,9 @@ struct ClangParsingContext
     // header id -> file reflection info
     meMap<u32, meReflectedFile> reflectedFiles = {};
     CXTranslationUnit *tu = nullptr;
+    // When non-null, field insertion targets this cursor's reflected type instead of the
+    // field's lexical parent. Used to inject base class fields into derived types.
+    CXCursor childrenTargetOverride = clang_getNullCursor();
 
     static ClangParsingContext &GetSingleInstance()
     {
@@ -496,16 +499,19 @@ void StoreReflectedTypeInfo(
             SET_BIT(fieldMemberRefl.flags, meTypeDescriptorFlag_ConstantArray, true);
         }
 
-        if (parentReflType)
+        meReflectedType* childrenTarget = (!clang_Cursor_isNull(ctx.childrenTargetOverride))
+            ? GetReflectedType(ctx.childrenTargetOverride, allocator, ctx)
+            : parentReflType;
+        if (childrenTarget)
         {
-            for (DynArray_Foreach(parentReflType->children, childIdx))
+            for (DynArray_Foreach(childrenTarget->children, childIdx))
             {
-                if (parentReflType->children[childIdx]->name == cursorName)
+                if (childrenTarget->children[childIdx]->name == cursorName)
                 {
                     return;
                 }
             }
-            DynArrayPush(parentReflType->children, &fieldMemberRefl);
+            DynArrayPush(childrenTarget->children, &fieldMemberRefl);
         }
 
         fieldMemberRefl.innerType = fieldInnerTypeRefl;
@@ -777,6 +783,20 @@ void OnFindInterestingDecl(CXCursor cr, CXCursor parent, CXClientData clientData
         CXCursorKind parentKind = clang_getCursorKind(parent);
         if (parentKind == CXCursor_StructDecl || parentKind == CXCursor_ClassDecl)
         {
+            // Inject base class fields FIRST so they precede direct fields in the children list.
+            // Offsets are computed against the base class type (correct for standard-layout structs
+            // where the base subobject is always at offset 0 in the derived class).
+            clang_visitChildren(parent, +[](CXCursor cr, CXCursor parent, CXClientData clientData) -> CXChildVisitResult {
+                if (clang_getCursorKind(cr) != CXCursor_CXXBaseSpecifier)
+                    return CXChildVisit_Continue;
+                ClangParsingContext& ctx = *(ClangParsingContext*)clientData;
+                CXType baseType = clang_getCursorType(cr);
+                ctx.childrenTargetOverride = parent;
+                clang_Type_visitFields(baseType, VisitStructureFields, clientData);
+                ctx.childrenTargetOverride = clang_getNullCursor();
+                return CXChildVisit_Continue;
+            }, clientData);
+
             CXType parentType = clang_getCursorType(parent);
             clang_Type_visitFields(parentType, VisitStructureFields, clientData);
         }

@@ -111,10 +111,12 @@ enum meAssetLoadStage
 
 #define ME_ASSET_HEADER_FIELDNAME "header"
 
-#define ME_ASSET_STRUCTURE(typeName) \
-MAID header = {}; \
-typeName(const MAID& ident) : typeName() { header = ident; } \
-typeName() = default;
+struct meBaseAsset
+{
+    MAID header = {};
+    meBaseAsset() = default;
+    meBaseAsset(const MAID& ident) : header(ident) {}
+};
 
 
 // storing both the "load-time" and "usage-time" information, this is meant to be
@@ -294,9 +296,9 @@ MEAPI StringView meAssetGetRelPathForResource(StringView resourcePath);
 
 
 // takes a buffer that has been deserialized from an asset (I.E. SerializeFromFile)
-// and attempts to find a member field that matches what is declared by
-// ME_ASSET_STRUCTURE. Use this to get the asset ident out of any asset type's deserialized buffer
-// returns a buffer pointing to the asset ident field data if present, otherwise an invalid mespan 
+// and attempts to find the "header" field inherited from meBaseAsset.
+// Use this to get the asset ident out of any asset type's deserialized buffer.
+// returns a buffer pointing to the asset ident field data if present, otherwise an invalid mespan
 meSpan meSerializeTryGetAssetHeader(
 	const meTypeDescriptor& typeDesc,
 	meSpan serializedBuffer);

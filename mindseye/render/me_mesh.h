@@ -23,9 +23,9 @@ enum meMeshVertexLayoutType_
 	meMeshVertexLayoutType_Weights,
 };
 
-struct MEREFLECT(type) meMesh
+struct MEREFLECT(type) meMesh : public meBaseAsset
 {
-    ME_ASSET_STRUCTURE(meMesh);
+    using meBaseAsset::meBaseAsset;
 
 	String name;
     MEREFLECT(exclude)

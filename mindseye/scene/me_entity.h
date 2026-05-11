@@ -22,10 +22,10 @@ STATIC_ASSERT(EntityFlags_NUM_ENTITY_FLAGS < 32);
 
 typedef Eye EntityRef;
 
-struct MEREFLECT(type) meEntity
+struct MEREFLECT(type) meEntity : public meBaseAsset
 {
-    ME_ASSET_STRUCTURE(meEntity);
-    
+    using meBaseAsset::meBaseAsset;
+
     meTransform transform = {};
     MEREFLECT(tooltip = "The 'appearance' of the entity")
     meTypedAsset<MAMesh> mesh = {};

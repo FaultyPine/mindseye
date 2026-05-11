@@ -92,8 +92,8 @@ void meAssetRegisterLoader(meAssetLoader* loader)
 	ME_ASSERT(type != MABadData);
 	ME_ASSERT(loader->resourcePool != nullptr);
 	ME_ASSERT(loader->assetTypeDesc != nullptr);
-    // any "asset" must have a header with it's own asset id
-    // if you hit this assert, make sure your asset struct has ME_ASSET_STRUCTURE as the first field
+    // any "asset" must have a header with its own asset id
+    // if you hit this assert, make sure your asset struct inherits from meBaseAsset
 	ME_ASSERT(loader->assetTypeDesc->fields[0].thisType == &TD_MAID);
 	assetSystem.assetLoaders[type] = loader;
 }
