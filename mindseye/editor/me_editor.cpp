@@ -324,17 +324,16 @@ void meEditorTick(EngineContext* engine)
                     if (ImGui::BeginMenu(assetTypeStr.cstr()))
                     {
                         // simple stupid thing for now, in the future: a typical asset browser or maybe something else
-                        for (const auto& [path, asset] : meAssetIndexGetRO().pathToAssetsMap)
+                        for (const auto& [path, assetID] : meAssetIndexGetRO().pathToAssetsMap)
                         {
-                            if (asset.GetType() != assetType) continue;
+                            if (assetID.GetType() != assetType) continue;
                             if (ImGui::MenuItem(path.cstr()))
                             {
-                                MAID maid = asset;
+                                MAID maid = assetID;
                                 meAssetRequestLoadTemplate(&maid, 1);
                                 if (meAsset* tmplAsset = meAssetTryGetTemplate(maid))
                                 {
-                                    InspectorWindow inspector{ .currentAsset = *tmplAsset, .active = true  };
-                                    editor.inspectors.push_back(inspector);
+                                    meAssetEditorOpen(editor.assetEditor, *tmplAsset);
                                 }
                             }
                         }
