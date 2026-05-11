@@ -27,7 +27,7 @@ struct MEREFLECT(type) meTransform
 		glm::decompose(mat, scale, rotation, position, skew, perspective);
 	}
 
-    glm::mat4 ToModelMatrix() const 
+    glm::mat4 ToWorldFromModelMatrix() const 
     {
         return Math::Position3DToModelMat(position, scale, rotation);
     }

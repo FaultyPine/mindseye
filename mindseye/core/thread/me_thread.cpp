@@ -3,7 +3,7 @@
 #include "core/me_defines.h"
 
 #ifdef _WIN32
-#include <windows.h>
+//#include <windows.h> // pch
 const DWORD MS_VC_EXCEPTION=0x406D1388;
 
 #pragma pack(push,8)

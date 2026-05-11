@@ -61,8 +61,8 @@ static void HandlePickEntity(const meCmdPickEntity& cmd)
 	meScene* currentScene = &engine->sceneSystem->CurrentScene();
 
 	meCamera& cam = editor.editorCamera;
-	glm::mat4 view = cam.GetViewMatrix();
-	glm::mat4 proj = cam.GetProjectionMatrix();
+	glm::mat4 view = cam.GetViewFromWorldMatrix();
+	glm::mat4 proj = cam.GetProjectionFromViewMatrix();
 
 	meRay ray = meScreenPointToRay(cmd.screenPos, engine->osData->windowWidth, engine->osData->windowHeight, view, proj);
 

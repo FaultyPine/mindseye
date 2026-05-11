@@ -30,10 +30,10 @@ struct MEREFLECT(type) meCamera
     Projection projection = PERSPECTIVE;
 
 	MEAPI glm::vec3 GetNormalizedLookDir();
-    MEAPI glm::mat4 GetProjectionMatrix() const;
+    MEAPI glm::mat4 GetProjectionFromViewMatrix() const;
     MEAPI glm::mat4 GetOrthographicProjection() const;
     MEAPI glm::mat4 GetPerspectiveProjection() const;
-    MEAPI glm::mat4 GetViewMatrix() const;
+    MEAPI glm::mat4 GetViewFromWorldMatrix() const;
     MEAPI void LookAt(glm::vec3 pos);
 
     MEAPI void UpdateCameraWithUserInput(OSStateView& osState);

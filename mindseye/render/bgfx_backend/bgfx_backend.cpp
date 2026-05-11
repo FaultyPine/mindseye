@@ -392,9 +392,9 @@ void* BgfxRendererBackend::RenderScene(RenderInput* input)
     //const meCamera& cam = input->scene.mainCamera;
 	const meCamera& cam = input->editorCtx.editorCamera;
 
-    glm::mat4 proj = cam.GetProjectionMatrix();
-    glm::mat4 view = cam.GetViewMatrix();
-	bgfx::setViewTransform(0, glm::value_ptr(view), glm::value_ptr(proj));
+    glm::mat4 projectionFromView = cam.GetProjectionFromViewMatrix();
+    glm::mat4 viewFromWorld = cam.GetViewFromWorldMatrix();
+	bgfx::setViewTransform(0, glm::value_ptr(viewFromWorld), glm::value_ptr(projectionFromView));
 
 	const meTexturePool& texturePool = meTextureGetPool();
 	const meMaterialPool& materialPool = meMaterialGetPool();
@@ -426,8 +426,8 @@ void* BgfxRendererBackend::RenderScene(RenderInput* input)
 			bgfx::ProgramHandle program = bgfx::ProgramHandle(shader.program);
 			//renderScreenSpaceQuad(proj, 0, program, 0, 0, 256, 256, bgfxDiffuseTex);
 
-			glm::mat4 modelMat = entity.transform.ToModelMatrix();
-			bgfx::setTransform(&modelMat[0]);
+			glm::mat4 worldFromModel = entity.transform.ToWorldFromModelMatrix();
+			bgfx::setTransform(&worldFromModel[0]);
 
 			bgfx::setVertexBuffer(0, bgfx::VertexBufferHandle { static_cast<u16>(mesh.vertBuffer.bufferHandle) });
 			if (mesh.idxBuffer.IsValid())

@@ -15,7 +15,7 @@ glm::vec3 meCamera::GetNormalizedLookDir()
 }
 
 
-glm::mat4 meCamera::GetProjectionMatrix() const 
+glm::mat4 meCamera::GetProjectionFromViewMatrix() const 
 {
     if (projection == PERSPECTIVE) 
 	{
@@ -62,7 +62,7 @@ glm::mat4 meCamera::GetPerspectiveProjection() const
     return glm::perspective(glm::radians(FOV), aspect, nearClip, farClip);
 }
 
-glm::mat4 meCamera::GetViewMatrix() const 
+glm::mat4 meCamera::GetViewFromWorldMatrix() const 
 {
     return glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
 }
