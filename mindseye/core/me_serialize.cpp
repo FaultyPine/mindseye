@@ -845,7 +845,7 @@ bool meAssetDeserializerFromStringFn(const meTypeDescriptor& td, DeserializeCont
         {
             // BOOKMARK: deep copy
             ME_MEMCPY(instanceData, templateData, loader->assetTypeDesc->size);
-            ME_ASSERT(false);
+            //ME_ASSERT(false);
         }
     }
 

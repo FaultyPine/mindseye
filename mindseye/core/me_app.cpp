@@ -58,7 +58,7 @@ void CopyToRenderInput(
 	renderInput.editorCtx = *engine->editor;
 }
 
-// runs on main thread — load new dll, swap slot, unload old
+// runs on the main thread — loads new dll, swaps slot, unloads old
 static void DoUserAppDllSwap(void*)
 {
     EngineContext* engine = GetEngineCtx();
@@ -100,7 +100,10 @@ static void OnHotReloadBuildComplete(s32 exitCode, void*)
         return;
     }
 
-    meEnqueueMainThreadCommand(DoUserAppDllSwap, nullptr);
+    meExternalCommand cmd = {};
+    cmd.type = meExternalCommandType_MainThreadCmd;
+    cmd.mainThreadCmd = { DoUserAppDllSwap, nullptr };
+    meSendExternalCommand(cmd);
 }
 
 void CheckForUserAppReload(EngineContext* engine)
@@ -203,6 +206,7 @@ static void InitializeEngineConfig(EngineContext* engine)
 
 void InitializeEngineSystems(EngineContext* engine)
 {
+    meInitMainThreadCommandQueue();
 	InitializeEngineConfig(engine);
 	RendererInitialize(engine);
 	meAssetInitialize(engine);
@@ -223,6 +227,7 @@ void InitializeEngineSystems(EngineContext* engine)
 void DeinitializeEngineSystems(EngineContext* engine)
 {
     DeinitializeEntitySystem(engine);
+    meShutdownMainThreadCommandQueue();
     meOSFreeVirtualMemory(engine->rootArena.backing_mem);
 }
 
@@ -232,7 +237,6 @@ void InitializeEngine(s32 argc, char** argv)
     EngineContext* engine = GetEngineCtx();
     engine->isRunning = true;
 
-    meInitMainThreadCommandQueue();
     InitializeLogger();
 	StringView workingDir = meOSGetWorkingDir();
 	LOG_INFO("Working dir: %.*s", STRING_VAARGS(workingDir));

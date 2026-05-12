@@ -12,6 +12,10 @@
 #include "core/me_filesystem.h"
 #include "editor/me_editor.h"
 
+struct meCommandQueues
+{
+    moodycamel::ConcurrentQueue<meExternalCommand> externalCommandQueue;
+};
 
 static void HandleCreateAsset(const meCmdCreateNewAsset& cmd)
 {
@@ -88,29 +92,7 @@ static void HandlePickEntity(const meCmdPickEntity& cmd)
     editor.inspectors.push_back(inspector);
 }
 
-struct meCommandEntry
-{
-    meMainThreadCommandFn fn;
-    void* data;
-};
-
-static moodycamel::ConcurrentQueue<meCommandEntry> g_commandQueue;
-
-void meInitMainThreadCommandQueue() {}
-
-void meEnqueueMainThreadCommand(meMainThreadCommandFn fn, void* data)
-{
-    g_commandQueue.enqueue({ fn, data });
-}
-
-void meFlushMainThreadCommands()
-{
-    meCommandEntry entry;
-    while (g_commandQueue.try_dequeue(entry))
-        entry.fn(entry.data);
-}
-
-void meReceiveExternalCommand(meExternalCommand cmd)
+static void DispatchExternalCommand(const meExternalCommand& cmd)
 {
 	switch (cmd.type)
 	{
@@ -126,5 +108,34 @@ void meReceiveExternalCommand(meExternalCommand cmd)
 		case meExternalCommandType_PickEntity:
 			HandlePickEntity(cmd.pickEntity);
 			break;
+		case meExternalCommandType_MainThreadCmd:
+			cmd.mainThreadCmd.fn(cmd.mainThreadCmd.userdata);
+			break;
 	}
+}
+
+void meInitMainThreadCommandQueue()
+{
+    EngineContext* engine = GetEngineCtx();
+    engine->commandQueues = MENEW(&engine->engineArena, meCommandQueues);
+}
+
+void meShutdownMainThreadCommandQueue()
+{
+    EngineContext* engine = GetEngineCtx();
+    MEDELETE(&engine->engineArena, meCommandQueues, engine->commandQueues);
+    engine->commandQueues = nullptr;
+}
+
+void meSendExternalCommand(meExternalCommand cmd)
+{
+    GetEngineCtx()->commandQueues->externalCommandQueue.enqueue(cmd);
+}
+
+void meFlushMainThreadCommands()
+{
+    meCommandQueues& queues = *GetEngineCtx()->commandQueues;
+    meExternalCommand cmd;
+    while (queues.externalCommandQueue.try_dequeue(cmd))
+        DispatchExternalCommand(cmd);
 }

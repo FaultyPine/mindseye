@@ -174,6 +174,8 @@ static void DrawAssetInspector(EditorContext& editor, InspectorWindow& inspector
     meAsset& asset = inspector.currentAsset;
     if (!asset.isLoaded() && asset.isValid())
     {
+        // if it's not loaded, assume we want to inspect the template asset
+        // if it's an instance, it must already be loaded by definition
         meAssetRequestLoadTemplate(&asset.id, 1);
         ImGui::Text("Loading asset...");
         ImGui::End();
@@ -188,7 +190,7 @@ static void DrawAssetInspector(EditorContext& editor, InspectorWindow& inspector
             meExternalCommand cmd = {};
             cmd.type = meExternalCommandType_SaveAsset;
             cmd.saveAsset.asset = asset;
-            meReceiveExternalCommand(cmd);
+            meSendExternalCommand(cmd);
             editor.dirtyAssets[asset] = false;
         }
         ImGui::EndChild();
@@ -206,7 +208,7 @@ static void DrawAssetInspector(EditorContext& editor, InspectorWindow& inspector
         if (assetName)
         {
             ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-            ImGui::InputText("##entity_name", (char*)assetName.cstr(), assetName.len, ImGuiInputTextFlags_ReadOnly);
+            ImGui::InputText("##asset_name", (char*)assetName.cstr(), assetName.len, ImGuiInputTextFlags_ReadOnly);
         }
 	}
 	ImGui::EndChild();
@@ -259,7 +261,7 @@ void meEditorTick(EngineContext* engine)
 		meExternalCommand cmd = {};
 		cmd.type = meExternalCommandType_PickEntity;
 		cmd.pickEntity.screenPos = engine->osData->mouseState.mousePosScreen;
-		meReceiveExternalCommand(cmd);
+		meSendExternalCommand(cmd);
 	}
 
     // TODO: debug draw main scene camera
@@ -310,7 +312,7 @@ void meEditorTick(EngineContext* engine)
                 if (cmd.createAsset.type != MABadData)
                 {
                     PopulatePathFromUserInputIfNotValid(cmd.createAsset.path);
-                    meReceiveExternalCommand(cmd);
+                    meSendExternalCommand(cmd);
                 }
                 ImGui::EndMenu();
 			}
@@ -349,7 +351,7 @@ void meEditorTick(EngineContext* engine)
             meExternalCommand cmd = {};
             cmd.type = meExternalCommandType_ChangeScene;
             PopulatePathFromUserInputIfNotValid(cmd.changeScene.path);
-            meReceiveExternalCommand(cmd);
+            meSendExternalCommand(cmd);
         }
 
         StringView scenePath = STRING_LIT("No Scene Loaded");
