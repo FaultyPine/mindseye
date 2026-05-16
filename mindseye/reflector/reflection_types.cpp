@@ -89,11 +89,42 @@ meTypeDescriptor TD_WCHAR = { .name = STRING_LIT("wchar_t"), .size = 4, .align =
 meTypeDescriptor TD_SPAN = { .name = STRING_LIT("span"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(meSpan), .align = alignof(meSpan), .serializerFn = sizedBufferSerializer, .deserializerFn = sizedBufferDeserializer, .equalsFn = &sizedBufferEquals };
 meTypeDescriptor TD_STRINGVIEW = { .name = STRING_LIT("StringView"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(StringView), .align = alignof(StringView), .serializerFn = sizedBufferSerializer, .deserializerFn = sizedBufferDeserializer, .equalsFn = &sizedBufferEquals };
 meTypeDescriptor TD_STRING = { .name = STRING_LIT("String"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(String), .align = alignof(String), .serializerFn = sizedBufferSerializer, .deserializerFn = stringDeserializer, .equalsFn = &sizedBufferEquals };
+static void DynArrayIterateContent(void* containerPtr, const meTypeDescriptor* fieldDesc,
+                                   meTypeIterateElementFn visitor, void* userData)
+{
+    if (!fieldDesc->templatedTypes) return;
+    const meTypeDescriptor* elemType = fieldDesc->templatedTypes[0];
+    if (!elemType) return;
+    DynArrayAny& arr = *(DynArrayAny*)containerPtr;
+    if (!arr.data) return;
+    u32 count = arr.header.size;
+    for (u32 i = 0; i < count; i++)
+    {
+        u8* elemPtr = (u8*)arr.data + (i * elemType->size);
+        visitor(elemPtr, elemType, (meContainerKey)i, userData);
+    }
+}
+
+static void DynArrayPushElement(void* containerPtr, const meTypeDescriptor* /*fieldDesc*/, void* elemData)
+{
+    DynArrayAny& arr = *(DynArrayAny*)containerPtr;
+    DynArrayPush(arr, (u8*)elemData, 1);
+}
+
+static void DynArrayRemoveElement(void* containerPtr, const meTypeDescriptor* /*fieldDesc*/, meContainerKey key)
+{
+    DynArrayAny& arr = *(DynArrayAny*)containerPtr;
+    DynArrayPopAt(arr, (u32)key);
+}
+
 meTypeDescriptor TD_DYNARRAY = { .name = STRING_LIT("DynArray"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(DynArray<int>), .align = alignof(DynArray<int>),
 #ifndef ME_CORE_ONLY
     .serializerFn = DynArraySerializerToStringFn, .deserializerFn = DynArrayDeserializerFromStringFn,
     .equalsFn = DynArrayEqualsFn,
 #endif
+    .iterateContentFn = DynArrayIterateContent,
+    .pushElementFn    = DynArrayPushElement,
+    .removeElementFn  = DynArrayRemoveElement,
 };
 
 

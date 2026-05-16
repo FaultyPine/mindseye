@@ -7,6 +7,7 @@
 #include "core/me_core.h"
 #include "core/me_app.h"
 #include "core/me_log.h"
+#include "core/me_command.h"
 #include "scene/me_entity.h"
 #include "asset/me_asset.h"
 #include "asset/me_asset_index.h"
@@ -52,44 +53,85 @@ static ed::LinkId MakeLinkId(EntityRef ref, u32 fieldIdx)
 struct MAIDFieldInfo
 {
 	const meTypeDescriptor* field;
-	MAID* maidPtr;
+	meAsset asset;
 	u32 fieldIndex;
 };
 
-static void CollectMAIDFields(const meTypeDescriptor& typeDesc, u8* basePtr, 
-                               MAIDFieldInfo* outFields, u32* outCount, u32 maxFields, u32 baseFieldIdx = 0)
+static void CollectMAIDFields(const meTypeDescriptor& typeDesc, u8* basePtr,
+                               MAIDFieldInfo* outFields, u32* outCount, u32 maxFields)
 {
-	extern meTypeDescriptor TD_MAID;
-	extern meTypeDescriptor TD_MEASSET;
 	for (u32 i = 0; i < typeDesc.fields.size && *outCount < maxFields; i++)
 	{
 		const meTypeDescriptor& field = typeDesc.fields[i];
 		if (TEST_BIT(field.flags, meTypeDescriptorFlag_PaddingMember)) continue;
 		if (TEST_BIT(field.flags, meTypeDescriptorFlag_Excluded)) continue;
-		
+
 		u8* fieldData = basePtr + (field.offsetBits / 8);
 		const meTypeDescriptor* fieldType = field.thisType;
 		if (!fieldType) continue;
 
 		if (fieldType == &TD_MAID)
 		{
+            MAID* maid = (MAID*)fieldData;
 			MAIDFieldInfo info = {};
 			info.field = &field;
-			info.maidPtr = (MAID*)fieldData;
-			info.fieldIndex = baseFieldIdx + i;
+			info.asset = meAsset(*maid);
+			info.fieldIndex = *outCount;
 			outFields[(*outCount)++] = info;
 		}
 		else if (fieldType == &TD_MEASSET)
 		{
 			MAIDFieldInfo info = {};
 			info.field = &field;
-			info.maidPtr = &((meAsset*)fieldData)->id;
-			info.fieldIndex = baseFieldIdx + i;
+			meAsset* assetField = (meAsset*)fieldData;
+			info.asset = *assetField;
+			info.fieldIndex = *outCount;
 			outFields[(*outCount)++] = info;
+		}
+		else if (fieldType->iterateContentFn)
+		{
+			struct CollectCtx
+			{
+				const meTypeDescriptor* parentField;
+				MAIDFieldInfo*          outFields;
+				u32*                    outCount;
+				u32                     maxFields;
+			};
+			CollectCtx ctx = { &field, outFields, outCount, maxFields };
+
+			fieldType->iterateContentFn(fieldData, &field,
+				+[](void* elemPtr, const meTypeDescriptor* elemType, meContainerKey elemKey, void* userData)
+				{
+					CollectCtx& ctx = *(CollectCtx*)userData;
+					if (*ctx.outCount >= ctx.maxFields) return;
+
+					if (elemType == &TD_MEASSET || elemType->thisType == &TD_MEASSET)
+					{
+						MAIDFieldInfo info = {};
+						info.field = ctx.parentField;
+						info.asset = *(meAsset*)elemPtr;
+						info.fieldIndex = *ctx.outCount;
+						ctx.outFields[(*(ctx.outCount))++] = info;
+					}
+					else if (elemType == &TD_MAID)
+					{
+						MAIDFieldInfo info = {};
+						info.field      = ctx.parentField;
+						info.asset      = meAsset(*(MAID*)elemPtr);
+						info.fieldIndex = *ctx.outCount;
+						ctx.outFields[(*(ctx.outCount))++] = info;
+					}
+					else if (elemType->fields.size > 0)
+					{
+						CollectMAIDFields(*elemType, (u8*)elemPtr,
+						                  ctx.outFields, ctx.outCount, ctx.maxFields);
+					}
+				},
+				&ctx);
 		}
 		else if (fieldType->fields.size > 0)
 		{
-			CollectMAIDFields(*fieldType, fieldData, outFields, outCount, maxFields, baseFieldIdx + i * 100);
+			CollectMAIDFields(*fieldType, fieldData, outFields, outCount, maxFields);
 		}
 	}
 }
@@ -123,11 +165,12 @@ static void DrawAssetReference(MAID maid)
 	ed::EndNode();
 }
 
-static void DrawAssetPickerPopup(AssetEditorContext& ctx)
+static bool DrawAssetPickerPopup(AssetEditorContext& ctx)
 {
 	AssetEditorPendingLink& pendingLink = ctx.pendingLink;
-	if (!pendingLink.active) return;
-	
+	if (!pendingLink.active) return false;
+
+	bool selectionMade = false;
 	ImGui::SetNextWindowSize(ImVec2(350, 400), ImGuiCond_FirstUseEver);
 	if (ImGui::BeginPopup("AssetPicker"))
 	{
@@ -141,9 +184,10 @@ static void DrawAssetPickerPopup(AssetEditorContext& ctx)
 		
 		if (ImGui::Selectable("(none)"))
 		{
-			pendingLink.sourceMaidPtr->SetID(U32_INVALID_ID);
+			pendingLink.sourceAsset.id.SetID(U32_INVALID_ID);
 			pendingLink.active = false;
 			ctx.searchBuf[0] = '\0';
+			selectionMade = true;
 			ImGui::CloseCurrentPopup();
 		}
 		
@@ -175,11 +219,12 @@ static void DrawAssetPickerPopup(AssetEditorContext& ctx)
 				if (!matched) continue;
 			}
 			
-			if (ImGui::Selectable(path.cstr(), *pendingLink.sourceMaidPtr == id))
+			if (ImGui::Selectable(path.cstr(), pendingLink.sourceAsset.id == id))
 			{
-				*pendingLink.sourceMaidPtr = id;
+				pendingLink.sourceAsset.id = id;
 				pendingLink.active = false;
 				ctx.searchBuf[0] = '\0';
+				selectionMade = true;
 				ImGui::CloseCurrentPopup();
 			}
 		}
@@ -191,19 +236,21 @@ static void DrawAssetPickerPopup(AssetEditorContext& ctx)
 		pendingLink.active = false;
 		ctx.searchBuf[0] = '\0';
 	}
+	return selectionMade;
 }
 
-static void DrawAssetNode(meAsset asset, meSpanTyped<MAIDFieldInfo> maidFields)
+enum HasInputPin : bool;
+static bool DrawAssetNode(meAsset asset, meSpanTyped<MAIDFieldInfo> maidFields, HasInputPin hasInputPin = HasInputPin(false))
 {
     meAssetType assetType = asset.id.GetType();
-    if (assetType == MABadData || assetType >= NUM_ASSET_TYPES) return;
+    if (assetType == MABadData || assetType >= NUM_ASSET_TYPES) return false;
 
     meAssetSystem& sys = meAssetSystemGet();
     meAssetLoader* loader = sys.assetLoaders[assetType];
-    if (!loader || !loader->assetTypeDesc || !loader->resourcePool) return;
+    if (!loader || !loader->assetTypeDesc || !loader->resourcePool) return false;
 
     void* dataOpaque = loader->resourcePool->GetOpaque(asset.runtimeHandle);
-    if (!dataOpaque) return;
+    if (!dataOpaque) return false;
 
     u8* dataPtr = (u8*)dataOpaque;
     const meTypeDescriptor& typeDesc = *loader->assetTypeDesc;
@@ -212,6 +259,14 @@ static void DrawAssetNode(meAsset asset, meSpanTyped<MAIDFieldInfo> maidFields)
     StringView path = meAssetIndexGetFilesystemPath(asset.id);
 
     ed::BeginNode(MakeAssetNodeId(asset.id));
+
+    if (hasInputPin)
+    {
+        ed::BeginPin(MakeAssetInputPin(asset.id), ed::PinKind::Input);
+        ImGui::Text(ICON_FA_CIRCLE_LEFT);
+        ed::EndPin();
+        ImGui::SameLine();
+    }
 
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.31f, 0.98f, 0.48f, 1.00f));
     ImGui::Text(ICON_FA_FILE " %s", typeName.cstr());
@@ -222,6 +277,7 @@ static void DrawAssetNode(meAsset asset, meSpanTyped<MAIDFieldInfo> maidFields)
     else
         ImGui::TextDisabled("(no file)");
 
+    bool changed = false;
     if (ed::IsNodeSelected(MakeAssetNodeId(asset.id)))
     {
         ImGui::Separator();
@@ -231,7 +287,7 @@ static void DrawAssetNode(meAsset asset, meSpanTyped<MAIDFieldInfo> maidFields)
         {
             ImGui::TableSetupColumn("Field", ImGuiTableColumnFlags_WidthFixed, 120.0f);
             ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthFixed, 180.0f);
-            DrawStructFields(typeDesc, dataPtr);
+            changed = DrawStructFields(typeDesc, dataPtr);
             ImGui::EndTable();
         }
 
@@ -247,6 +303,7 @@ static void DrawAssetNode(meAsset asset, meSpanTyped<MAIDFieldInfo> maidFields)
     }
 
     ed::EndNode();
+    return changed;
 }
 
 void meAssetEditorInitialize(AssetEditorContext& ctx)
@@ -276,17 +333,17 @@ void meAssetEditorOpen(AssetEditorContext& ctx, meAsset asset)
 	ctx.needsNavigateToContent = true;
 }
 
-void meAssetEditorTick(AssetEditorContext& ctx)
+bool meAssetEditorTick(AssetEditorContext& ctx)
 {
-	if (!ctx.isOpen) return;
-	
+	if (!ctx.isOpen) return false;
+
 	ImGui::SetNextWindowSize(ImVec2(800, 600), ImGuiCond_FirstUseEver);
 	if (!ImGui::Begin(ICON_FA_DIAGRAM_PROJECT " Asset Editor", &ctx.isOpen))
 	{
 		ImGui::End();
-		return;
+		return false;
 	}
-	
+
     meAsset& asset = ctx.rootAsset;
 	if (!asset.isValid())
 	{
@@ -294,47 +351,119 @@ void meAssetEditorTick(AssetEditorContext& ctx)
 		ImGui::TextWrapped("No entity selected.");
 		ImGui::PopStyleColor();
 		ImGui::End();
-		return;
+		return false;
 	}
-		
+
+    meMap<meAsset, bool> dirtyAssets = ctx.dirtyAssets;
+	bool hasDirtyAssets = false;
+	for (auto& [dirtyAsset, dirty] : dirtyAssets)
+		if (dirty) { hasDirtyAssets = true; break; }
+
+	if (hasDirtyAssets)
+	{
+		if (ImGui::Button("Save All"))
+		{
+            // TOOD: parallel
+			for (auto& [dirtyAsset, dirty] : dirtyAssets)
+			{
+				if (!dirty) continue;
+				meExternalCommand cmd = {};
+				cmd.type = meExternalCommandType_SaveAsset;
+				cmd.saveAsset.asset = dirtyAsset;
+				meSendExternalCommand(cmd);
+				dirty = false;
+			}
+		}
+		ImGui::Separator();
+	}
+
 	ed::SetCurrentEditor(ctx.nodeEditorCtx);
 	ed::Begin("AssetEditor");
-	
+
     meAssetSystem& sys = meAssetSystemGet();
     meAssetLoader* loader = sys.assetLoaders[asset.id.GetType()];
-    if (!loader || !loader->assetTypeDesc || !loader->resourcePool) return;
+    if (!loader || !loader->assetTypeDesc || !loader->resourcePool)
+    {
+        ed::End(); ed::SetCurrentEditor(nullptr); ImGui::End();
+        return false;
+    }
 
     void* dataOpaque = loader->resourcePool->GetOpaque(asset.runtimeHandle);
-    if (!dataOpaque) return;
+    if (!dataOpaque)
+    {
+        ed::End(); ed::SetCurrentEditor(nullptr); ImGui::End();
+        return false;
+    }
     u8* dataPtr = (u8*)dataOpaque;
 
 	static constexpr u32 MAX_MAID_FIELDS = 32;
 	MAIDFieldInfo maidFields[MAX_MAID_FIELDS] = {};
 	u32 maidFieldCount = 0;
-	
+
 	CollectMAIDFields(*loader->assetTypeDesc, dataPtr, maidFields, &maidFieldCount, MAX_MAID_FIELDS);
-	
-	DrawAssetNode(asset, {maidFields, maidFieldCount});
+
+	bool anyChanged = false;
+
+	anyChanged |= DrawAssetNode(asset, {maidFields, maidFieldCount});
 
 	for (u32 i = 0; i < maidFieldCount; i++)
 	{
 		MAIDFieldInfo& info = maidFields[i];
-		MAID maid = *info.maidPtr;
-		
-		if (!maid) continue;
-		if (maid == asset.id) continue;
+		// If this is a loaded meAsset field, expand it to a full editable node with its own sub-fields.
+		// Otherwise fall back to the read-only DrawAssetReference.
+		bool drawnAsFullNode = false;
+		if (info.asset.isValid() && info.asset.isLoaded())
+		{
+			meAsset& subAsset = info.asset;
+			meAssetSystem& subSys = meAssetSystemGet();
+			meAssetLoader* subLoader = subSys.assetLoaders[subAsset.id.GetType()];
+			if (subLoader && subLoader->assetTypeDesc && subLoader->resourcePool)
+			{
+				void* subDataOpaque = subLoader->resourcePool->GetOpaque(subAsset.runtimeHandle);
+				if (subDataOpaque)
+				{
+					static constexpr u32 MAX_SUB_MAID_FIELDS = 32;
+					MAIDFieldInfo subMaidFields[MAX_SUB_MAID_FIELDS] = {};
+					u32 subMaidFieldCount = 0;
+					CollectMAIDFields(*subLoader->assetTypeDesc, (u8*)subDataOpaque,
+					                  subMaidFields, &subMaidFieldCount, MAX_SUB_MAID_FIELDS);
 
-		DrawAssetReference(maid);
-		
+					// Sub-asset field edits are embedded in the parent, so they also mark the root dirty.
+					anyChanged |= DrawAssetNode(subAsset, {subMaidFields, subMaidFieldCount}, HasInputPin(true));
+
+					// Draw any further-nested references the sub-asset itself holds.
+					for (u32 j = 0; j < subMaidFieldCount; j++)
+					{
+						MAIDFieldInfo& subInfo = subMaidFields[j];
+						MAID subMaid = subInfo.asset.id;
+						if (!subMaid || subMaid == subAsset.id) continue;
+						DrawAssetReference(subMaid);
+						ed::Link(
+							MakeLinkId(subAsset, subInfo.fieldIndex),
+							MakeAssetFieldOutputPin(subAsset, subInfo.fieldIndex),
+							MakeAssetInputPin(subMaid),
+							ImVec4(0.74f, 0.58f, 0.98f, 1.00f),
+							2.0f
+						);
+					}
+
+					drawnAsFullNode = true;
+				}
+			}
+		}
+
+		if (!drawnAsFullNode)
+			DrawAssetReference(info.asset.id);
+
 		ed::Link(
 			MakeLinkId(asset, info.fieldIndex),
 			MakeAssetFieldOutputPin(asset, info.fieldIndex),
-			MakeAssetInputPin(maid),
+			MakeAssetInputPin(info.asset.id),
 			ImVec4(0.74f, 0.58f, 0.98f, 1.00f),
 			2.0f
 		);
 	}
-	
+
 	// Dragging from an output pin into empty space opens the asset picker
 	if (ed::BeginCreate())
 	{
@@ -352,9 +481,8 @@ void meAssetEditorTick(AssetEditorContext& ctx)
 						ctx.pendingLink.sourcePinId = startPinId.Get();
 						ctx.pendingLink.sourceAsset = asset;
 						ctx.pendingLink.sourceFieldIndex = maidFields[i].fieldIndex;
-						ctx.pendingLink.sourceMaidPtr = maidFields[i].maidPtr;
-						ctx.pendingLink.expectedType = maidFields[i].maidPtr->GetType();
-						
+						ctx.pendingLink.expectedType = maidFields[i].asset.id.GetType();
+
 						ed::Suspend();
 						ImGui::OpenPopup("AssetPicker");
 						ed::Resume();
@@ -365,7 +493,7 @@ void meAssetEditorTick(AssetEditorContext& ctx)
 		}
 	}
 	ed::EndCreate();
-	
+
 	if (ed::BeginDelete())
 	{
 		ed::LinkId deletedLinkId;
@@ -378,7 +506,8 @@ void meAssetEditorTick(AssetEditorContext& ctx)
 					ed::LinkId expectedLink = MakeLinkId(asset, maidFields[i].fieldIndex);
 					if (expectedLink == deletedLinkId)
 					{
-						maidFields[i].maidPtr->SetID(U32_INVALID_ID);
+						maidFields[i].asset.id.SetID(U32_INVALID_ID);
+						anyChanged = true;
 						break;
 					}
 				}
@@ -386,27 +515,28 @@ void meAssetEditorTick(AssetEditorContext& ctx)
 		}
 	}
 	ed::EndDelete();
-	
+
 	// Must be drawn inside ed context but suspended (ImGui popups need screen-space coords)
 	if (ctx.pendingLink.active)
 	{
 		ed::Suspend();
-		DrawAssetPickerPopup(ctx);
+		anyChanged |= DrawAssetPickerPopup(ctx);
 		ed::Resume();
 	}
-	
+
 	if (ctx.needsNavigateToContent)
 	{
 		ed::NavigateToContent();
 		ctx.needsNavigateToContent = false;
 	}
-	
+
 	ed::End();
 	ed::SetCurrentEditor(nullptr);
 
     ctx.isFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
 
 	ImGui::End();
+	return anyChanged;
 }
 
 
@@ -577,56 +707,75 @@ bool DrawPrimitiveValue(const meTypeDescriptor& type, u8* data, const meTypeDesc
         }
         ImGui::PopID();
 	}
-	else if (&type == &TD_DYNARRAY)
+	else if (type.iterateContentFn)
 	{
-		bool changed = false;
-		// Assume DynArray<T> layout: struct { T* data; u32 size; u32 capacity; }
-		struct DynArrayHeader { void* data; u32 size; u32 capacity; };
-		DynArrayAny& arr = *(DynArrayAny*)data;
-        ME_ASSERT(arr); // we expect the asset loader to initialize these sorts of internal things
-		if (!parentType->templatedTypes)
-			return false;
-		const meTypeDescriptor& elemType = *parentType->templatedTypes[0];
+		if (!parentType) return false;
 
-		if (ImGui::BeginTable("##dynarray_table", 2, ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingStretchProp))
+		struct DrawCtx
 		{
-			ImGui::TableSetupColumn("#", ImGuiTableColumnFlags_WidthFixed, 32.0f);
+			const meTypeDescriptor* parentType;
+			bool           changed   = false;
+			bool           doRemove  = false;
+			meContainerKey removeKey = 0;
+		};
+		DrawCtx ctx = { parentType };
+
+		if (ImGui::BeginTable("##container_table", 2,
+			ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingStretchProp))
+		{
+			ImGui::TableSetupColumn("#",     ImGuiTableColumnFlags_WidthFixed, 32.0f);
 			ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthFixed, 120.0f);
-			for (u32 i = 0; i < DynArrayGetSize(arr); ++i)
-			{
-				ImGui::TableNextRow();
-				ImGui::TableSetColumnIndex(0);
-				ImGui::Text("%u", i);
-				ImGui::SameLine();
-				// Remove button
-				ImGui::PushID(i);
-				if (ImGui::SmallButton("-"))
+
+			type.iterateContentFn(data, parentType,
+				+[](void* elemPtr, const meTypeDescriptor* elemType, meContainerKey elemKey, void* userData)
 				{
-					// Shift elements down
-					DynArrayPopAt(arr, i);
-					changed = true;
+					DrawCtx& ctx = *(DrawCtx*)userData;
+
+					ImGui::TableNextRow();
+					ImGui::TableSetColumnIndex(0);
+					ImGui::Text("%llu", (unsigned long long)elemKey);
+					ImGui::SameLine();
+					ImGui::PushID((int)elemKey);
+					if (ImGui::SmallButton("-") && !ctx.doRemove)
+					{
+						ctx.doRemove  = true;
+						ctx.removeKey = elemKey;
+					}
 					ImGui::PopID();
-					break; // Only one change per frame
-				}
-				ImGui::PopID();
-				ImGui::TableSetColumnIndex(1);
-				u8* elemPtr = (u8*)arr.data + (i * elemType.size);
-				ImGui::PushID((int)i);
-				changed |= DrawPrimitiveValue(elemType, elemPtr, parentType);
-				ImGui::PopID();
-			}
+
+					ImGui::TableSetColumnIndex(1);
+					ImGui::PushID((int)elemKey);
+					ctx.changed |= DrawPrimitiveValue(*elemType, (u8*)elemPtr, ctx.parentType);
+					ImGui::PopID();
+				},
+				&ctx);
+
 			ImGui::EndTable();
 		}
-		// Add button
-		if (ImGui::Button("Add"))
+
+		// Defer removal until after iteration so the array stays valid while we draw.
+		if (ctx.doRemove && type.removeElementFn)
 		{
-            // blank allocation with defaults, since it'll get copied into the correct asset memory anyway
-            Allocation elementData = MECALLOC(GetTLScratch(), elemType.size);
-            elemType.setToDefaultsFn(elementData);
-            DynArrayPush(arr, (u8*)elementData, 1);
-			changed = true;
+			type.removeElementFn(data, parentType, ctx.removeKey);
+			ctx.changed = true;
 		}
-		return changed;
+
+		if (type.pushElementFn && ImGui::Button("Add"))
+		{
+			if (parentType->templatedTypes)
+			{
+				const meTypeDescriptor* elemType = parentType->templatedTypes[0];
+				if (elemType)
+				{
+					Allocation elementData = MECALLOC(GetTLScratch(), elemType->size);
+					if (elemType->setToDefaultsFn) elemType->setToDefaultsFn(elementData);
+					type.pushElementFn(data, parentType, elementData);
+					ctx.changed = true;
+				}
+			}
+		}
+
+		return ctx.changed;
 	}
     else if (&type == &TD_MEASSET || type.thisType == &TD_MEASSET)
     {

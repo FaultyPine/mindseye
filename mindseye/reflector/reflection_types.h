@@ -86,6 +86,23 @@ typedef void (*SetToDefaults)(void* objData);
 
 typedef bool (*EqualsFn)(const meTypeDescriptor& td, const void* a, const void* b);
 
+// Opaque key that identifies an element within a container.
+// index for arrays, hash/id for maps, etc
+typedef u64 meContainerKey;
+
+typedef void (*meTypeIterateElementFn)(void* elemPtr, const meTypeDescriptor* elemType, meContainerKey elemKey, void* userData);
+
+// calls visitor once per logical element
+// fieldDesc is the FIELD descriptor (carries templatedTypes etc.) NOT the global type descriptor (e.g. TD_DYNARRAY)
+typedef void (*meTypeIterateContentFn)(void* containerPtr, const meTypeDescriptor* fieldDesc,
+                                       meTypeIterateElementFn visitor, void* userData);
+
+// Push one element (pre-allocated and default-constructed by the caller) to the end of the container.
+typedef void (*meTypePushElementFn)(void* containerPtr, const meTypeDescriptor* fieldDesc, void* elemData);
+
+// Remove the element identified by key from the container.
+typedef void (*meTypeRemoveElementFn)(void* containerPtr, const meTypeDescriptor* fieldDesc, meContainerKey key);
+
 struct meTypeDescriptor
 {
 	String name = {};
@@ -125,6 +142,10 @@ struct meTypeDescriptor
     EditorRenderFn editorRenderFn = nullptr;
     // invoke default constructor on an arbitrary buffer
     SetToDefaults setToDefaultsFn = nullptr;
+    // if this is valid, that implies this type is an iterable container
+    meTypeIterateContentFn iterateContentFn = nullptr;
+    meTypePushElementFn pushElementFn = nullptr;
+    meTypeRemoveElementFn removeElementFn = nullptr;
 
 	bool operator==(const meTypeDescriptor& other) const
 	{
@@ -205,7 +226,7 @@ bool meTypeDescriptorEquals(
     const void* a, 
     const void* b)
 {
-    constexpr bool isPOD = std::is_trivially_destructible_v<T> &&
+    constexpr bool isPOD = !std::is_same_v<T, void> && std::is_trivially_destructible_v<T> &&
         //std::is_trivial_v<T> && // not using this check, because it flags types that use unions as nontrivial. In this situation, that's fine.
         std::is_standard_layout_v<T>;
     if constexpr (isPOD && requires(const T& x, const T& y)
@@ -215,15 +236,12 @@ bool meTypeDescriptorEquals(
     {
         return (*(const T*)a) == (*(const T*)b);
     }
-    else
+    if (td.thisType)
     {
-        // if a type descriptor was made without an equalsFn that also isn't POD, 
-        // you need to implement this. See DynArray's equalsFn for reference
-        // If this typedescriptor doesn't have an internal type (it is an unknown non-reflected structure)
-        // and that unknown struct isn't POD, we can't do a proper comparison on it. Need to reflect that struct, or exclude it, or make it POD.
-        ME_ASSERT(td.thisType);
-        ME_ASSERT(td.fields.size > 0);
-        ME_ASSERT(td.equalsFn); 
+        return meTypeDescriptorEquals<void>(*td.thisType, a, b);
+    }
+    else if (td.fields.size > 0)
+    {
         for (u32 i = 0; i < td.fields.size; i++)
         {
             const meTypeDescriptor& field = td.fields[i];
@@ -234,13 +252,24 @@ bool meTypeDescriptorEquals(
             u64 offset = field.offsetBits * 8;
             const void* aField = ((char*)a)+offset;
             const void* bField = ((char*)b)+offset;
-            // see above comment
-            ME_ASSERT(field.equalsFn);
-            if (!field.equalsFn(field, aField, bField))
+            if (!meTypeDescriptorEquals<void>(field, aField, bField))
             {
                 return false;
             }
         }
-        return true;
     }
+    // NOTE: by having this here it means structures can't use custom equalsFn, which i think is fine.
+    else if (td.equalsFn)
+    {
+        return td.equalsFn(td, a, b);
+    }
+    if constexpr (isPOD)
+    {
+        // fallback to memcmp
+        return ME_MEMCMP(a, b, td.size);
+    }
+    // if a type descriptor was made without an equalsFn that also isn't POD, 
+    // you need to implement the equalsFn or make it pod. See DynArray's equalsFn for reference
+    ME_ASSERT(false);
+    return false;
 }

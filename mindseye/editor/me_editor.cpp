@@ -182,20 +182,7 @@ static void DrawAssetInspector(EditorContext& editor, InspectorWindow& inspector
         return;
     }
 
-    if (editor.dirtyAssets.find(asset) != editor.dirtyAssets.end())
-    {
-        ImGui::BeginChild("#InspectorToolbar", ImVec2(0, ImGui::GetFrameHeightWithSpacing()), false);
-        if (ImGui::Button("Save") || (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_S)))
-        {
-            meExternalCommand cmd = {};
-            cmd.type = meExternalCommandType_SaveAsset;
-            cmd.saveAsset.asset = asset;
-            meSendExternalCommand(cmd);
-            editor.dirtyAssets[asset] = false;
-        }
-        ImGui::EndChild();
-    }
-
+    StringView assetName = meAssetIndexGetFilesystemPath(asset);
 	ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.13f, 0.14f, 0.18f, 1.00f));
 	ImGui::BeginChild("##inspector_header", ImVec2(0, 56), ImGuiChildFlags_Borders);
 	{
@@ -204,7 +191,6 @@ static void DrawAssetInspector(EditorContext& editor, InspectorWindow& inspector
 		ImGui::PopStyleColor();
 		ImGui::SameLine();
 
-        StringView assetName = meAssetIndexGetFilesystemPath(asset);
         if (assetName)
         {
             ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
@@ -238,7 +224,11 @@ static void DrawAssetInspector(EditorContext& editor, InspectorWindow& inspector
 		bool didUserChangeSomething = DrawStructFields(*assetTypeDesc, (u8*)assetData);
         if (didUserChangeSomething)
         {
-            editor.dirtyAssets[asset] = true;
+            // Not supporting template asset editing in the inspector - it's only for runtime stuff 
+            if (assetName)
+            {
+                LOG_INFO("User edited runtime object " STRING_FMT, STRING_VAARGS(assetName));
+            }
         }
 
 		ImGui::EndTable();

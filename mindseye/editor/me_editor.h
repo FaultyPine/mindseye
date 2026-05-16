@@ -17,7 +17,6 @@ struct EditorContext
 	HybridArray<InspectorWindow, 4> inspectors = {};
     meTypedAsset<MAEntity> editorSelectedObj = {}; // TODO: will be multiple in the future
 	AssetEditorContext assetEditor = {};
-    meMap<meAsset, bool> dirtyAssets = {};
 };
 
 EditorContext& meEditorGetCtx();

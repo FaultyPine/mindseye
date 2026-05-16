@@ -2,6 +2,7 @@
 
 #include "scene/me_entity.h"
 #include "asset/me_asset.h"
+#include "core/containers/me_map.h"
 
 namespace ax { namespace NodeEditor { struct EditorContext; }}
 
@@ -11,7 +12,6 @@ struct AssetEditorPendingLink
 	uintptr_t sourcePinId = 0;
 	meAsset sourceAsset = {};
 	u32 sourceFieldIndex = 0;
-	MAID* sourceMaidPtr = nullptr;
 	meAssetType expectedType = MABadData;
 };
 
@@ -24,12 +24,13 @@ struct AssetEditorContext
 	bool needsNavigateToContent = false;
 	AssetEditorPendingLink pendingLink = {};
 	char searchBuf[256] = {};
+    meMap<meAsset, bool> dirtyAssets = {};
 };
 
 void meAssetEditorInitialize(AssetEditorContext& ctx);
 void meAssetEditorShutdown(AssetEditorContext& ctx);
 void meAssetEditorOpen(AssetEditorContext& ctx, meAsset asset);
-void meAssetEditorTick(AssetEditorContext& ctx);
+bool meAssetEditorTick(AssetEditorContext& ctx);
 
 // Generic editor type drawing
 
