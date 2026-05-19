@@ -89,6 +89,20 @@ meTypeDescriptor TD_WCHAR = { .name = STRING_LIT("wchar_t"), .size = 4, .align =
 meTypeDescriptor TD_SPAN = { .name = STRING_LIT("span"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(meSpan), .align = alignof(meSpan), .serializerFn = sizedBufferSerializer, .deserializerFn = sizedBufferDeserializer, .equalsFn = &sizedBufferEquals };
 meTypeDescriptor TD_STRINGVIEW = { .name = STRING_LIT("StringView"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(StringView), .align = alignof(StringView), .serializerFn = sizedBufferSerializer, .deserializerFn = sizedBufferDeserializer, .equalsFn = &sizedBufferEquals };
 meTypeDescriptor TD_STRING = { .name = STRING_LIT("String"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(String), .align = alignof(String), .serializerFn = sizedBufferSerializer, .deserializerFn = stringDeserializer, .equalsFn = &sizedBufferEquals };
+
+void DynArraySerializerToStringFn(
+	const meTypeDescriptor& typeDescriptor,
+	SerializeContext& ctx);
+
+bool DynArrayDeserializerFromStringFn(
+	const meTypeDescriptor& typeDescriptor,
+	DeserializeContext& ctx);
+
+bool DynArrayEqualsFn(
+    const meTypeDescriptor& td,
+    const void* a,
+    const void* b);
+
 static void DynArrayIterateContent(void* containerPtr, const meTypeDescriptor* fieldDesc,
                                    meTypeIterateElementFn visitor, void* userData)
 {

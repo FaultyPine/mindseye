@@ -3,6 +3,7 @@
 #include "core/me_defines.h"
 #include "core/me_memory.h"
 #include "core/me_string.h"
+#include "core/containers/dynarray.h"
 struct meTypeDescriptor;
 
 // Forward declaration so DeserializeContext can hold a pointer to the result

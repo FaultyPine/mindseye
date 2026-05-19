@@ -3,7 +3,6 @@
 
 #include "core/me_defines.h"
 #include "core/me_memory.h"
-#include "reflector/reflection_types.h"
 
 // "stretchy buffer" implementation
 // dynamic array that resizes itself when capacity is reached
@@ -50,19 +49,6 @@ struct DynArray
 typedef DynArray<u8> DynArrayAny;
 template<typename T>
 DynArrayHeader* GetHeaderPointer(const DynArray<T>& array);
-
-void DynArraySerializerToStringFn(
-	const meTypeDescriptor& typeDescriptor,
-	SerializeContext& ctx);
-
-bool DynArrayDeserializerFromStringFn(
-	const meTypeDescriptor& typeDescriptor,
-	DeserializeContext& ctx);
-
-bool DynArrayEqualsFn(
-    const meTypeDescriptor& td,
-    const void* a,
-    const void* b);
 
 // Create an array with an optional initial capacity (number of elements)
 // optionally, can override the array stride to not use sizeof(T) - useful for type erasure I.E. during deserialization
