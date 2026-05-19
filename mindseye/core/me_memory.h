@@ -112,6 +112,24 @@ do { \
 #error need manual support for MSB on non clang compiler
 #endif
 
+struct meCursorBuffer
+{
+    const u8* data = nullptr;
+    u32 size = 0;
+    u32 cursor = 0;
+
+    bool read(void* out, u32 len)
+    {
+        if (cursor + len > size) return false;
+        ME_MEMCPY(out, data + cursor, len);
+        cursor += len;
+        return true;
+    }
+    template<typename T> bool readT(T& out) { return read(&out, sizeof(T)); }
+    void skip(u32 n) { cursor += n; }
+    bool eof() const { return cursor >= size; }
+};
+
 #ifndef ME_CORE_ONLY
 
 // TODO: allocator handles

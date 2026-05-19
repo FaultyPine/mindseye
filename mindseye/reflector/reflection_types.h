@@ -5,14 +5,7 @@
 #include "core/me_string.h"
 #include "core/containers/dynarray.h"
 struct meTypeDescriptor;
-
-// Forward declaration so DeserializeContext can hold a pointer to the result
-// being built by the top-level Deserialize* functions.
 struct meSerializeResult;
-
-// TODO: instead of a "to string serialization" and equiv deserialization
-// function, just have 1 serialize and 1 deserialize per type
-// and in the ctxs, have an enum like "SERIALIZE_KIND_TEXT" "SERIALIZE_KIND_BINARY"
 
 struct DeserializeContext
 {
