@@ -18,10 +18,6 @@ struct DeserializeContext
 	meAllocator* externalDataAllocator = {};
 	// for templated types, this is can be used to get the template params
 	const meTypeDescriptor* parentType = {};
-	// optional: pointer to the meSerializeResult being constructed by the top-level
-	// Deserialize* call. Custom deserializers (e.g. meAsset, DynArray) propagate this
-	// into sub-calls so any data they want to surface (e.g. asset dependencies) can be
-	// accumulated on the result and returned to the original caller.
 	meSerializeResult* outResult = nullptr;
 };
 
