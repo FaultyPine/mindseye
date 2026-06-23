@@ -4,6 +4,8 @@
 // save, load, measure, and verify by switching the mode on the wrap object.
 // inspired by Dolphin Emulator's PointerWrap
 
+// TODO: Use this for binary serialization
+
 #include "core/me_defines.h"
 #include "core/me_memory.h"
 #include "core/me_core.h"

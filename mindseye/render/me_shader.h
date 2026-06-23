@@ -5,8 +5,9 @@
 
 struct meShaderUniform;
 typedef Eye meShaderID;
-struct meShader
+struct meShader : public meBaseAsset
 {
+    using meBaseAsset::meBaseAsset;
 	DynArray<meShaderUniform> uniformHandles;
 	u64 program;
 };

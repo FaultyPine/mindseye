@@ -10,51 +10,22 @@ run `build.bat`
 
 Finishing the asset system todo:
 
-- ~~implement "asset templates" and "asset instances" separate resource pools~~
-    - this also now means a meAsset can refer to a asset template OR an instance asset, which i think is a good thing
-- "asset instances" should start as copies of their asset template
-    -  i have no actual use for this rn, but i will need it later.
+
+- BOOKMARK: implement reflection & asset loader registration for other asset types (texture, mesh, material, shader)
 - enforce some read-only-ness to asset templates, unless it's explicitly specified that we're in "live edit" mode
-
-
-In other engines, there's a "disk asset" structure, that is loaded, and is typically read-only(ish). Then when you want an *instance* of that asset in the world, you copy that disk asset structure into a completely different structure which is your "runtime" asset, and can have different data than the disk one.
-In those engines, you can only save the disk assets, you never "save" the runtime ones.
-In this engine, i'm trying out what it would b like to not have that separation - to have disk & runtime assets share the same type.
-So, that means i'll need at least 2 instances of the asset type in memory. One read-only which is the representation of the asset on disk, and can be saved... and N "runtime" instances of that type, all of which start off as copies of the disk asset.
-This can be implemented as 2 internal pools per resource pool, one for readonly editor stuff, and one for the runtime stuff.
-That way, i can "load" the ro editor resource, then copy it for multiple instances of that resource in the scene
-
-Editor thoughts:
-Editor should never be able to "edit" runtime resources - only disk assets.
-Tricky piece: what happens when you click to edit an Entity in the world? Since that could be an instance of an Entity on disk... 
-    In this case, there needs to be a way to distinguish user intention - do you want to edit the actual Entity definition, which may affect all instances? Or do you want to edit just this instance in the current scene?
-    If you want just this instance, we need a way to serialize "overridden" parts of a type - so like a Scene would have a reference to an Entity on disk, but it could "override" the position - different than the position that's on disk.
-
-
-- Serializing separate files
-    - like rn, when we serialize an Entity, it's content is put in the scene file.
-        BOOKMARK: it should be in a separate test.ent.masset, and the scene one should just have an id that refers to that one
-            scene now holds id. Need to ensure referenced entity is serialized
-                Instead of "save scene" button, it should be a "save all" button. assetindex should track "dirty" assets, and save em all
-    - implement reflection & asset loader registration for other asset types (texture, mesh, material, shader)
-    - i'd like to be able to create a mesh asset, and assign it to an entity
-    - I'd like to be able to create a Sprite asset, and assign it to an entity
-- opening a saved scene that is the same scene as the current open one doesnt work
-- put some text in the toolbar or something for the Current Open Scene Name
+- Prove out a workflow of "create a mesh asset, assign it to an entity, see it rendered, saved, loaded in the scene"
 - implement "scoped asset locks" on an arbitrary MAID/meAsset
+    - ref count meAssets, LRU cache?
+- binary serialization 
+    - use meChunker
+    - start on a "asset compilation" pipeline. 
 
 TODO: get rid of portable-file-dialogs. It pulls in a bunch of stl stuff.
 
 - refactor so instead of straight loading gltf, we "import" gltf and turn it into massets, then load(/compile) those
 	- meAssetCreate would do the check for .gltf in the filename, and do it there
 
-- TODO: look into https://github.com/microsoft/Xbox-ATG-Samples/blob/main/XDKSamples/System/MemoryBanks/MemoryBank.h#L49
-        for use with the asset system. The ideas i've had about multiple virtual addresses mapped to the same physical addr are implemented there
-
 - renderer:
-	- ~~fix plane mesh generation~~
-	- ~~render a texture on the plane~~
-	- ~~put a shader on the plane~~
 	- 2d Sprites
     - 3d lit geo
     - shadows
@@ -83,14 +54,8 @@ Scene architecture???
 
 ### General Roadmap
 - render 2d squares and have em move around
-- flesh out custom serialization format, implement for all current assets, like meshes, shaders, textures, and have them load through that data
-    - i.e. a meScene asset on disk refers to a collection of "serialized entities" which contain materials, meshes, transforms
-    - for this, need to be able to serialize a reference to another asset. This is equivalent to axe's .type system having a sno in it
-    - after this, we will have the foundation to build a proper "asset compiler", so game just reads in compiled stuff
-        - stretch idea: have compilation be a separate process (literally) that the game client asks for compiled stuff, I.E. bill + compilation server
+- flesh out asset system
 - scene graph
-- NVRHI renderer backend & slang?
-
 - engine-wide savestates
 	- user can only "request" a save, that gets serviced at a fixed point after the frame (can't save in middle of frame)
 	- stuff that needs to be saved/delt with:
@@ -110,32 +75,33 @@ Scene architecture???
                     from savestate -> current point in time, all those opened file handles are known, and are wiped out when we restore a savestate
                     then when we read from that virtual file handle again (or maybe a lazy check on all file operations), we re-open the file from the cached path
             - threads:
-                - Disallow one-off threads. Only threadpool threads allowed. With this rule, don't need to worry about threads in savestates at all
+                - Disallow one-off threads. Only threadpool threads allowed. savestates are always "requested" and will be serviced when threadpool is done with all current work
             - mappings (shared mem, etc)
                 - same as files maybe? Have a engine structure we use instead of the raw os primitives (which i would've done anyway) which always does a lazy "am i valid" check on all operations and can reinitialize from some cached metadata about the mapping
             - graphics: all handled by "stateless" renderer, rendering-related memory should not be included in regular savestate stuff
+- NVRHI renderer backend & slang?
 
 				
 					
 
 
-savestate-related thought experiment:
-*everything* in the engine is serializable, so we can write the entire state of the engine to disk and load it back up again
-Relative data structures:
-	- use {((s64)&this) - (s64)this } pointer trick
-	- https://jorenjoestar.github.io/post/serialization_for_games/
-	- taking this concept further: 
-		instead of an arbitrary offset in all of the program's memory, a relative ptr/data structure can be
-		relative to itself, but ALSO relative to some other pre-defined "allocator root" or something
-		So like, you could have a RelPtr<SomeType>(myPointer) which by default is relative to itself, see trick above
-		But one could specialize RelPtr<SomeType> if we know SomeType should always be allocated from a dedicated pool,
-		and in that case the "offset" would be relative to the start of that pool.
-    - simpler idea: for development engine configs (non-shipping), just disable ALSR
-        then, need a way to "contain" all engine state = system allocations (base arenas) + os state (open handles?)
-
-
-
 - game/engine hot reloading
+    - engine should load <user dll>-X.dll
+    - reload = compile <user dll>.dll -> rename to <user dll>-(X+1).dll -> tell engine -> engine increments hot-reload count (X) and loads the new <user dll>-X.dll
+    - with below savestate memory trick, don't need to do any pointer fixup or anything
+- savestates:
+    - TODO: make sure meMap is allocator-aware. Rn it's using std which does system allocs
+    - Pass a single GameMemory* to user app. Internally that's just a memory-mapped file at a fixed VA.
+        - investigate how to create a huge "virtual" memory-mapped file. I.E. 50gb virtual mapping, but we only use some, and only that used first portion is committed
+    - all allocators sub-allocate from that one
+    - maybe *everything* in the engine is serializable, so we can write the entire state of the engine to disk and load it back up again
+- enforce user dll can't use system allocator, enforce user dll can't use any static memory... all memory must be sourced from the engine.
+    - back this with a static analyzer? runtime analyzer on the loaded user module?
+-Relative data structures?
+	- {((s64)&this) - (s64)this } pointer trick
+	- https://jorenjoestar.github.io/post/serialization_for_games/
+
+
 - general purpose allocators
 	- string allocator
 	- tcmalloc or rpmalloc as "default" allocator

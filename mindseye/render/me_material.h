@@ -24,8 +24,10 @@ enum meMaterialTextureType : u32
 	#undef X
 };
 
-struct meMaterial
+struct meMaterial : public meBaseAsset
 {
+    using meBaseAsset::meBaseAsset;
+    
 	static constexpr u32 MEMATERIAL_MAX_NAME_LEN = 50;
 	char name[MEMATERIAL_MAX_NAME_LEN];
 	Eye shaderHandle = {};
