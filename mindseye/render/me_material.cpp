@@ -49,7 +49,7 @@ meMaterialID meMaterialPool::Load(
 		StringView diffuseTexUniformName = meMaterialGetTextureTypeName(texType);
 
 		texture.sampler = renderer->CreateShaderUniform(diffuseTexUniformName, meUniformDataType::UNIFORM_SAMPLER);
-		material.textureHandles[texType] = textureHdl;
+		material.textureHandles[texType] = meTypedAsset<MATexture>(meAsset(textureHdl, MATexture));
 
 		meGPUBuffer diffuseTextureMem = {};
 		if (gltfMaterial.pbr_metallic_roughness.base_color_texture.texture)
@@ -89,7 +89,20 @@ meMaterialID meMaterialPool::Load(
 		DynArrayPush(shader.uniformHandles, timeU);
 		shader.program = litProgram;
 
-		material.shaderHandle = shaderHandle;
+		material.shaderHandle = meTypedAsset<MAShader>(meAsset(shaderHandle, MAShader));
 	}
 	return materialHdl;
 }
+
+struct meMaterialAssetLoader : public meAssetLoader
+{
+	using meAssetLoader::meAssetLoader;
+
+	static void RegisterAssetLoader(meEventPayload payload)
+	{
+		meAllocator* allocator = (meAllocator*)payload.payload;
+		meAssetRegisterLoader(MENEW(allocator, meMaterialAssetLoader, &TD_MEMATERIAL, &meMaterialGetPool(), meAssetType::MAMaterial));
+	}
+};
+
+MEEVENT_REGISTER_STATIC(registerAssetLoader, meMaterialAssetLoader::RegisterAssetLoader);

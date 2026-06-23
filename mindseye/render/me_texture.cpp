@@ -202,3 +202,16 @@ meGPUBuffer meTexturePool::Load(
 
 	return resultGPUBuff;
 }
+
+struct meTextureAssetLoader : public meAssetLoader
+{
+	using meAssetLoader::meAssetLoader;
+
+	static void RegisterAssetLoader(meEventPayload payload)
+	{
+		meAllocator* allocator = (meAllocator*)payload.payload;
+		meAssetRegisterLoader(MENEW(allocator, meTextureAssetLoader, &TD_METEXTURE, &meTextureGetPool(), meAssetType::MATexture));
+	}
+};
+
+MEEVENT_REGISTER_STATIC(registerAssetLoader, meTextureAssetLoader::RegisterAssetLoader);

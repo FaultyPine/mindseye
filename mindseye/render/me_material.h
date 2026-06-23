@@ -24,14 +24,14 @@ enum meMaterialTextureType : u32
 	#undef X
 };
 
-struct meMaterial : public meBaseAsset
+struct MEREFLECT(type) meMaterial : public meBaseAsset
 {
     using meBaseAsset::meBaseAsset;
     
 	static constexpr u32 MEMATERIAL_MAX_NAME_LEN = 50;
 	char name[MEMATERIAL_MAX_NAME_LEN];
-	Eye shaderHandle = {};
-	Eye textureHandles[NUM_MATERIAL_TEXTURE_TYPES];
+	meTypedAsset<MAShader> shaderHandle = {};
+	meTypedAsset<MATexture> textureHandles[NUM_MATERIAL_TEXTURE_TYPES];
 
 	meMaterial()
 	{

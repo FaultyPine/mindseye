@@ -38,3 +38,16 @@ u32 UniformDataTypeToSize(meUniformDataType type)
 	};
 	return UniformDataTypeSizes[(s32)type];
 }
+
+struct meShaderAssetLoader : public meAssetLoader
+{
+	using meAssetLoader::meAssetLoader;
+
+	static void RegisterAssetLoader(meEventPayload payload)
+	{
+		meAllocator* allocator = (meAllocator*)payload.payload;
+		meAssetRegisterLoader(MENEW(allocator, meShaderAssetLoader, &TD_MESHADER, &meShaderGetPool(), meAssetType::MAShader));
+	}
+};
+
+MEEVENT_REGISTER_STATIC(registerAssetLoader, meShaderAssetLoader::RegisterAssetLoader);

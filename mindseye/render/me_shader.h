@@ -1,16 +1,11 @@
 #pragma once
 
 #include "core/me_defines.h"
+#include "core/me_resourcepool.h"
 #include "core/containers/dynarray.h"
+#include "asset/me_asset.h"
 
-struct meShaderUniform;
 typedef Eye meShaderID;
-struct meShader : public meBaseAsset
-{
-    using meBaseAsset::meBaseAsset;
-	DynArray<meShaderUniform> uniformHandles;
-	u64 program;
-};
 
 enum meUniformDataType
 {
@@ -39,6 +34,7 @@ enum meShaderFlags_
 	meShaderFlags_Count,
 };
 
+struct meShaderUniform;
 typedef void(*meShaderUniformUpdateCb)(meShaderUniform* uniform, void* userData);
 
 struct meShaderUniform
@@ -67,6 +63,15 @@ struct meShaderUniform
 		}
 		return false;
 	}
+};
+
+struct MEREFLECT(type) meShader : public meBaseAsset
+{
+    using meBaseAsset::meBaseAsset;
+	MEREFLECT(exclude)
+	DynArray<meShaderUniform> uniformHandles;
+	MEREFLECT(exclude)
+	u64 program;
 };
 
 struct meShaderPool : public meResourcePool<meShader>

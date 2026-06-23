@@ -1,17 +1,20 @@
 #pragma once
 
 #include "core/me_resourcepool.h"
+#include "asset/me_asset.h"
 #include "me_gpu.h"
 struct cgltf_image;
 
 typedef Eye meTextureID;
-struct meTexture : public meBaseAsset
+struct MEREFLECT(type) meTexture : public meBaseAsset
 {
     using meBaseAsset::meBaseAsset;
 
 	static constexpr u32 METEXTURE_MAX_NAME_LEN = 50;
 	char name[METEXTURE_MAX_NAME_LEN];
+	MEREFLECT(exclude)
 	meGPUBuffer buffer = {};
+	MEREFLECT(exclude)
 	u64 sampler = U64_INVALID_ID;
 	u32 samplingFlags = ME_UINT_MAX;
 	// will likely also put tex format, width/height, etc
