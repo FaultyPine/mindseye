@@ -6,6 +6,11 @@
 Must be on windows.
 run `build.bat`
 
+### Current features / cool stuff
+- clang reflection
+- asset system (uses reflection data)
+- compile-time arbitrary code execution
+
 ### Current focus
 
 Finishing the asset system todo:

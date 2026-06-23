@@ -18,6 +18,7 @@
 #include "platform/me_os.h"
 #include "platform/me_input.h"
 #include "core/me_log.h"
+#include "core/me_compile_run_smoke_test.h"
 #include "core/me_string.h"
 #include "core/me_arena.h"
 #include "core/me_math.h"

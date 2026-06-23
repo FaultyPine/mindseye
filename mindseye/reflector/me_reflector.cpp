@@ -11,9 +11,18 @@
 
 #include "clang/AST/AST.h"
 #include "clang/AST/Type.h"
+#include "clang/Frontend/CompilerInstance.h"
+#include "clang/Interpreter/Interpreter.h"
 #include "clang-c/Index.h"
+#include "llvm/ExecutionEngine/Orc/LLJIT.h"
+#include "llvm/Support/Error.h"
+#include "llvm/Support/TargetSelect.h"
 
+#include "me_compile_run_api.h"
 #include "reflection_types.h"
+
+#include <memory>
+#include <vector>
 
 #pragma comment(lib, "user32.lib")
 #pragma comment(lib, "kernel32.lib")
@@ -126,12 +135,36 @@ struct meReflectedFile
     meMap<u32, meReflectedType> reflectedTypes = {};
 };
 
+// a function tagged as CompileRun
+struct meCompileRunDecl
+{
+    CXCursor cursor = clang_getNullCursor();
+    StringView functionName = {};
+    StringView functionSource = {};
+    String sourceFile = {};
+    u32 line = 0;
+};
+
+// any decl with MEREFLECT
+struct meAnnotatedDecl
+{
+    CXCursor cursor = clang_getNullCursor();
+    StringView op = {};
+    StringView macroContent = {};
+    String sourceFile = {};
+    u32 line = 0;
+};
+
 struct ClangParsingContext
 {
     Arena *allocator = nullptr;
     String projectRootDir = {};
+    String headerOutputFolder = {};
     // header id -> file reflection info
     meMap<u32, meReflectedFile> reflectedFiles = {};
+    DynArray<meCompileRunDecl> compileRunDecls = {};
+    DynArray<meAnnotatedDecl> annotatedDecls = {};
+    DynArray<const char *> clangArgs = {};
     CXTranslationUnit *tu = nullptr;
     // When non-null, field insertion targets this cursor's reflected type instead of the
     // field's lexical parent. Used to inject base class fields into derived types.
@@ -167,6 +200,14 @@ inline StringView GetCursorDisplayName(const CXCursor &cr, meAllocator *allocato
     StringView result = StringView(strMem, CStringLength(strMem));
     // result.CopyOfCStr(strMem, allocator);
     // clang_disposeString(displayName);
+    return result;
+}
+
+inline StringView GetCursorSpellingName(const CXCursor& cr, meAllocator *allocator)
+{
+    auto spelling = clang_getCursorSpelling(cr);
+    const char *strMem = clang_getCString(spelling);
+    StringView result = StringView(strMem, CStringLength(strMem));
     return result;
 }
 
@@ -763,6 +804,99 @@ StringView ParseReflectionMacroContent(CXCursor cr, CXTranslationUnit &tu)
     return macroContents;
 }
 
+StringView ParseReflectionMacroOp(StringView macroContent)
+{
+    u64 start = 0;
+    while (start < macroContent.len && (macroContent[start] == ' ' || macroContent[start] == '\t' || macroContent[start] == '\n' || macroContent[start] == '\r'))
+    {
+        start++;
+    }
+    u64 end = start;
+    while (end < macroContent.len && macroContent[end] != ',' && macroContent[end] != ' ' && macroContent[end] != '\t' && macroContent[end] != '\n' && macroContent[end] != '\r')
+    {
+        end++;
+    }
+    return macroContent.OffsetView(start, end - start);
+}
+
+void StoreAnnotatedDecl(CXCursor declCursor, ClangParsingContext& ctx, StringView macroContent)
+{
+    meAnnotatedDecl decl = {};
+    decl.cursor = declCursor;
+    decl.op = ParseReflectionMacroOp(macroContent);
+    decl.macroContent = macroContent;
+    decl.sourceFile = GetHeaderPathForCursor(declCursor, ctx.allocator);
+    decl.line = GetLineNumberForCursor(declCursor);
+    DynArrayPush(ctx.annotatedDecls, decl);
+}
+
+StringView ExtractCursorSource(CXCursor cr, CXTranslationUnit& tu)
+{
+    CXSourceRange range = clang_getCursorExtent(cr);
+    CXSourceLocation start = clang_getRangeStart(range);
+    CXSourceLocation end = clang_getRangeEnd(range);
+
+    CXFile startFile;
+    CXFile endFile;
+    unsigned startLine;
+    unsigned startCol;
+    unsigned startOffset;
+    unsigned endLine;
+    unsigned endCol;
+    unsigned endOffset;
+    clang_getExpansionLocation(start, &startFile, &startLine, &startCol, &startOffset);
+    clang_getExpansionLocation(end, &endFile, &endLine, &endCol, &endOffset);
+    if (startFile != endFile || endOffset <= startOffset)
+    {
+        return {};
+    }
+
+    u64 filesize = 0;
+    const char *filecontentCStr = clang_getFileContents(tu, startFile, &filesize);
+    if (!filecontentCStr || endOffset > filesize)
+    {
+        return {};
+    }
+
+    return StringView(filecontentCStr + startOffset, endOffset - startOffset);
+}
+
+bool StoreCompileRunDecl(CXCursor functionCursor, ClangParsingContext& ctx)
+{
+    CXCursorKind kind = clang_getCursorKind(functionCursor);
+    if (kind != CXCursor_FunctionDecl)
+    {
+        LOG_ERROR("MEREFLECT(CompileRun) is only supported on free functions for now");
+        return false;
+    }
+
+    meCompileRunDecl decl = {};
+    decl.cursor = functionCursor;
+    decl.functionName = GetCursorSpellingName(functionCursor, ctx.allocator);
+    decl.functionSource = ExtractCursorSource(functionCursor, *ctx.tu);
+    decl.sourceFile = GetHeaderPathForCursor(functionCursor, ctx.allocator);
+    decl.line = GetLineNumberForCursor(functionCursor);
+    if (!decl.functionSource)
+    {
+        LOG_ERROR("Failed to extract source for compile-run function %.*s", STRING_VAARGS(decl.functionName));
+        return false;
+    }
+
+    DynArrayPush(ctx.compileRunDecls, decl);
+    return true;
+}
+
+bool LogLLVMError(llvm::Error err, const char *context)
+{
+    if (!err)
+    {
+        return false;
+    }
+    std::string msg = llvm::toString(std::move(err));
+    LOG_ERROR("%s: %s", context, msg.c_str());
+    return true;
+}
+
 CXVisitorResult VisitStructureFields(CXCursor cr, CXClientData clientData);
 
 // a decl we care about parsing/storing in the reflection data
@@ -777,6 +911,13 @@ void OnFindInterestingDecl(CXCursor cr, CXCursor parent, CXClientData clientData
     if (cursorName == STRING_LIT(ME_REFLECT_ATTR_STR))
     {
         StringView macroContents = ParseReflectionMacroContent(parent, *ctx.tu);
+        StoreAnnotatedDecl(parent, ctx, macroContents);
+        if (ParseReflectionMacroOp(macroContents) == STRING_LIT("CompileRun"))
+        {
+            StoreCompileRunDecl(parent, ctx);
+            return;
+        }
+
         StoreReflectedTypeInfo(parent, ctx, macroContents);
 
         // since this is called for a structure decl, OR on a fielddecl...
@@ -931,6 +1072,7 @@ DynArray<CompileCommand> CompileDatabaseToCommandsList(
 }
 
 void GeneratedReflectionHeaders(ClangParsingContext &ctx, const char *headerOutputFolder);
+bool RunCompileRunDecls(ClangParsingContext& ctx);
 
 // ============================================================================
 // ABOVE: Parsing the clang translation unit for reflection-annotated types & gathering the data
@@ -972,11 +1114,16 @@ int main(int argc, char *argv[])
         DynArrayPush(reflectorFilePath, '/');
     DynArrayPush(reflectorFilePath, (char *)reflectorHeaderFilename, CStringLength(reflectorHeaderFilename));
     auto idx = clang_createIndex(0, 0);
-    u32 clangOptions = 0 | CXTranslationUnit_DetailedPreprocessingRecord | CXTranslationUnit_SkipFunctionBodies | CXTranslationUnit_IncludeBriefCommentsInCodeCompletion | CXTranslationUnit_KeepGoing
+    u32 clangOptions = 0 | CXTranslationUnit_DetailedPreprocessingRecord | CXTranslationUnit_IncludeBriefCommentsInCodeCompletion | CXTranslationUnit_KeepGoing
         //| CXTranslationUnit_SingleFileParse
         ;
 
     DynArray<const char *> clangArgs = DynArrayCreate<const char *>(&reflectorArena, 20);
+    String absProjectRootPath = meOSResolveRelativeToAbsPath(&reflectorArena, StringFromCString(projectRootDir));
+    meFsNormalizePathSeperators(absProjectRootPath);
+    StringView clangIncludePath = StringFormatNew(&reflectorArena, "-I%s/../tools/clang/include", absProjectRootPath.cstr());
+    DynArrayPush(clangArgs, clangIncludePath.cstr());
+
     u32 numCompileCommands = DynArrayGetSize(compileCommands);
     for (u32 i = 0; i < numCompileCommands; i++)
     {
@@ -1018,15 +1165,21 @@ int main(int argc, char *argv[])
     ClangParsingContext &ctx = ClangParsingContext::GetSingleInstance();
     ctx.tu = &tu;
     ctx.allocator = &reflectorArena;
-    String absProjectRootPath = meOSResolveRelativeToAbsPath(&reflectorArena, StringFromCString(projectRootDir));
+    ctx.compileRunDecls = DynArrayCreate<meCompileRunDecl>(&reflectorArena);
+    ctx.annotatedDecls = DynArrayCreate<meAnnotatedDecl>(&reflectorArena);
+    ctx.clangArgs = clangArgs;
     ctx.projectRootDir = absProjectRootPath;
-    meFsNormalizePathSeperators(ctx.projectRootDir);
+    ctx.headerOutputFolder.CopyOfCStr(headerOutputFolder, &reflectorArena);
     // clang_checkDiagnostics(tu);
     if (result == CXError_Success)
     {
         auto cursor = clang_getTranslationUnitCursor(tu);
         // populates the parsingcontext with info about all reflected types
         clang_visitChildren(cursor, visitTranslationUnit, &ctx);
+        if (!RunCompileRunDecls(ctx))
+        {
+            return 1;
+        }
         GeneratedReflectionHeaders(ctx, headerOutputFolder);
     }
     else
@@ -1570,3 +1723,156 @@ bool ProcessReflectedFile(
     }
     return generatedAny;
 }
+
+// ========= CompileRun system ======================
+
+using CompileRunEntryFn = void (*)(meCompileRunContext *);
+
+bool CreateCompileRunInterpreter(
+    ClangParsingContext& ctx,
+    std::unique_ptr<clang::Interpreter>& outInterpreter,
+    std::vector<CompileRunEntryFn>& outEntryFns)
+{
+    std::vector<const char *> interpreterArgs;
+    for (u32 i = 0; i < DynArrayGetSize(ctx.clangArgs); i++)
+    {
+        interpreterArgs.push_back(ctx.clangArgs[i]);
+    }
+    //interpreterArgs.push_back("-DME_REFLECTING");
+    interpreterArgs.push_back("-DME_COMPILE_RUN");
+
+    clang::IncrementalCompilerBuilder builder;
+    builder.SetCompilerArgs(interpreterArgs);
+
+    auto ciExpected = builder.CreateCpp();
+    if (!ciExpected)
+    {
+        LogLLVMError(ciExpected.takeError(), "Failed to create compile-run compiler instance");
+        return false;
+    }
+
+    auto interpExpected = clang::Interpreter::create(std::move(*ciExpected));
+    if (!interpExpected)
+    {
+        LogLLVMError(interpExpected.takeError(), "Failed to create compile-run interpreter");
+        return false;
+    }
+    std::unique_ptr<clang::Interpreter> interpreter = std::move(*interpExpected);
+
+    StringBuilder code(ctx.allocator, MEGABYTES_BYTES(1));
+    code.Append(STRING_LIT(
+        "#ifndef ME_REFLECTING\n"
+        "#define ME_REFLECTING\n"
+        "#endif\n"
+        "#ifndef ME_COMPILE_RUN\n"
+        "#define ME_COMPILE_RUN\n"
+        "#endif\n"
+        "#ifndef ME_CORE_ONLY\n"
+        "#define ME_CORE_ONLY\n"
+        "#endif\n"
+        "#include \"mindseye/me_unity.cpp\"\n"
+        "#include \"mindseye/reflector/me_compile_run_api.h\"\n\n"));
+    u32 numCompileRunDecls = DynArrayGetSize(ctx.compileRunDecls);
+    for (u32 i = 0; i < numCompileRunDecls; i++)
+    {
+        code.Append(ctx.compileRunDecls[i].functionSource);
+        code.Append(STRING_LIT("\n\n"));
+    }
+    for (u32 i = 0; i < numCompileRunDecls; i++)
+    {
+        const meCompileRunDecl &decl = ctx.compileRunDecls[i];
+        code.AppendFormat(
+            "extern \"C\" void me_compile_run_entry_%u(meCompileRunContext* ctx)\n"
+            "{\n"
+            "    %.*s(ctx);\n"
+            "}\n\n",
+            i,
+            STRING_VAARGS(decl.functionName));
+    }
+
+    //LOG_INFO(STRING_FMT, STRING_VAARGS(code)); // for debugging - prints the string passed to the interpreter
+    llvm::StringRef codeRef(code.data, code.len);
+    if (LogLLVMError(interpreter->ParseAndExecute(codeRef), "Compile-run ParseAndExecute failed"))
+    {
+        return false;
+    }
+
+    for (u32 i = 0; i < numCompileRunDecls; i++)
+    {
+        StringView entryName = StringFormatTmp("me_compile_run_entry_%u", i);
+        auto entryAddr = interpreter->getSymbolAddressFromLinkerName(entryName.cstr());
+        if (!entryAddr)
+        {
+            LogLLVMError(entryAddr.takeError(), "Failed to find compile-run entry point");
+            return false;
+        }
+        outEntryFns.push_back(entryAddr->toPtr<CompileRunEntryFn>());
+    }
+
+    outInterpreter = std::move(interpreter);
+    return true;
+}
+
+void FillCompileRunContextCommon(meCompileRunContext& runCtx, ClangParsingContext& ctx)
+{
+    runCtx.translationUnit = *ctx.tu;
+    runCtx.projectRoot = ctx.projectRootDir.cstr();
+    runCtx.outputDir = ctx.headerOutputFolder.cstr();
+}
+
+void RunCompileRunStageForDecl(
+    ClangParsingContext& ctx,
+    const meAnnotatedDecl& decl,
+    meCompileRunStage stage,
+    const std::vector<CompileRunEntryFn>& entryFns)
+{
+    meCompileRunContext runCtx = {};
+    FillCompileRunContextCommon(runCtx, ctx);
+    runCtx.stage = stage;
+    runCtx.cursor = decl.cursor;
+    runCtx.reflectOp = decl.op;
+    runCtx.macroContent = decl.macroContent;
+    runCtx.sourceFile = decl.sourceFile ? decl.sourceFile.cstr() : nullptr;
+    for (CompileRunEntryFn entry : entryFns)
+    {
+        entry(&runCtx);
+    }
+}
+
+bool RunCompileRunDecls(ClangParsingContext& ctx)
+{
+    u32 numCompileRunDecls = DynArrayGetSize(ctx.compileRunDecls);
+    if (numCompileRunDecls == 0)
+    {
+        LOG_INFO("No compile-run work to do");
+        return true;
+    }
+
+    LLVMInitializeX86TargetInfo();
+    LLVMInitializeX86Target();
+    LLVMInitializeX86TargetMC();
+    LLVMInitializeX86AsmPrinter();
+    LLVMInitializeX86AsmParser();
+
+    //LOG_INFO("[Mindseye Reflector] running %u compile-run function(s)", numCompileRunDecls);
+    std::unique_ptr<clang::Interpreter> interpreter;
+    std::vector<CompileRunEntryFn> entryFns;
+    if (!CreateCompileRunInterpreter(ctx, interpreter, entryFns))
+    {
+        return false;
+    }
+
+    u32 numAnnotatedDecls = DynArrayGetSize(ctx.annotatedDecls);
+    for (u32 declIdx = 0; declIdx < numAnnotatedDecls; declIdx++)
+    {
+        RunCompileRunStageForDecl(ctx, ctx.annotatedDecls[declIdx], meCompileRunStage_VisitDecl, entryFns);
+    }
+    meAnnotatedDecl decl = {};
+    decl.cursor = clang_getNullCursor();
+    RunCompileRunStageForDecl(ctx, decl, meCompileRunStage_Finalize, entryFns);
+    return true;
+}
+
+// =======================================================
+
+
