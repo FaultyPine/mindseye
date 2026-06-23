@@ -375,9 +375,12 @@ meTypeDescriptor *MapClangPrimitiveTypeToTypeDescriptor(
         // and the size of the type is the actual byte size of the array.
         // if you want the number of elements in the array, take the total type size and divide by the inner type's size
         CXType internalArrayType = clang_getArrayElementType(type);
+        if (clangToMePrimitiveType.count(internalArrayType.kind))
+        {
+            return clangToMePrimitiveType.at(internalArrayType.kind);
+        }
         CXCursor internalArrayCursor = clang_getTypeDeclaration(internalArrayType);
         meTypeDescriptor *internalArrayDescriptor = MapClangPrimitiveTypeToTypeDescriptor(internalArrayCursor);
-        ME_ASSERT(internalArrayDescriptor);
         return internalArrayDescriptor;
     }
     else if (clangToMePrimitiveType.count(kind))
@@ -565,19 +568,24 @@ void StoreReflectedTypeInfo(
 
         // keep an optional list of template types inside each type.
         // I.E. map<int, char> would have TD_INT and TD_CHAR entries in the templated types list
-        int numTemplateArgs = clang_Type_getNumTemplateArguments(crType);
+        CXType templateArgSourceType = crType;
+        if (crType.kind == CXType_ConstantArray)
+        {
+            templateArgSourceType = clang_getArrayElementType(crType);
+        }
+        int numTemplateArgs = clang_Type_getNumTemplateArguments(templateArgSourceType);
         if (numTemplateArgs != -1)
         {
             // The type is a template specialization (e.g., std::vector<int>)
             for (s32 i = 0; i < numTemplateArgs; i++)
             {
-                CXType templateType = clang_Type_getTemplateArgumentAsType(crType, i);
+                CXType templateType = clang_Type_getTemplateArgumentAsType(templateArgSourceType, i);
                 if (templateType.kind == CXType_Invalid)
                 {
                     // Non-type template arg (e.g. an enum value like MAMesh in meTypedAsset<MAMesh>).
                     // clang_Type_getTemplateArgumentAsType can't handle these, but the cursor-level
                     // API can extract integral values directly from the specialisation cursor.
-                    CXCursor specialCr = clang_getTypeDeclaration(crType);
+                    CXCursor specialCr = clang_getTypeDeclaration(templateArgSourceType);
                     int numCursorArgs = clang_Cursor_getNumTemplateArguments(specialCr);
                     bool handledAsIntegral = false;
                     if (i < (u32)numCursorArgs &&
