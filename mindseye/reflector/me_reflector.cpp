@@ -1239,14 +1239,12 @@ void GeneratedReflectionHeaders(
 
     StringBuilder sb(ctx.allocator);
 
-    u32 numReflectedFiles = ctx.reflectedFiles.size();
     u32 numProcessedFiles = 0;
     for (const auto &[headerID, fileReflection] : ctx.reflectedFiles)
     {
         // TODO: this is ripe for super easy parallelism here
         // chunk up allocators for each thread, and have them all generate & write out each header
-        Arena fileArena = ArenaInit(ArenaGetFreeSpace(ctx.allocator) / numReflectedFiles, "File Reflection Arena", ctx.allocator);
-        bool didGenerate = ProcessReflectedFile(fileReflection, headerOutputFolder, &fileArena);
+        bool didGenerate = ProcessReflectedFile(fileReflection, headerOutputFolder, ctx.allocator);
         numProcessedFiles += didGenerate ? 1 : 0;
 
         if (!fileReflection.reflectedTypes.empty() /*&& didGenerate*/)
