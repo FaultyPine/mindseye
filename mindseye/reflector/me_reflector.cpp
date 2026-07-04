@@ -576,15 +576,14 @@ void StoreReflectedTypeInfo(
         int numTemplateArgs = clang_Type_getNumTemplateArguments(templateArgSourceType);
         if (numTemplateArgs != -1)
         {
-            // The type is a template specialization (e.g., std::vector<int>)
+            // The type is a template specialization  myType<something>
             for (s32 i = 0; i < numTemplateArgs; i++)
             {
                 CXType templateType = clang_Type_getTemplateArgumentAsType(templateArgSourceType, i);
                 if (templateType.kind == CXType_Invalid)
                 {
-                    // Non-type template arg (e.g. an enum value like MAMesh in meTypedAsset<MAMesh>).
-                    // clang_Type_getTemplateArgumentAsType can't handle these, but the cursor-level
-                    // API can extract integral values directly from the specialisation cursor.
+                    // Non-type template arg (ex: an enum value like MAMesh in meTypedAsset<MAMesh>).
+                    // clang_Type_getTemplateArgumentAsType can't handle these, but we can extract integral values directly
                     CXCursor specialCr = clang_getTypeDeclaration(templateArgSourceType);
                     int numCursorArgs = clang_Cursor_getNumTemplateArguments(specialCr);
                     bool handledAsIntegral = false;
