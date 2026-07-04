@@ -932,9 +932,7 @@ void OnFindInterestingDecl(CXCursor cr, CXCursor parent, CXClientData clientData
         CXCursorKind parentKind = clang_getCursorKind(parent);
         if (parentKind == CXCursor_StructDecl || parentKind == CXCursor_ClassDecl)
         {
-            // Inject base class fields FIRST so they precede direct fields in the children list.
-            // Offsets are computed against the base class type (correct for standard-layout structs
-            // where the base subobject is always at offset 0 in the derived class).
+            // Inject base class fields FIRST so they precede direct fields in the children list
             clang_visitChildren(parent, +[](CXCursor cr, CXCursor parent, CXClientData clientData) -> CXChildVisitResult {
                 if (clang_getCursorKind(cr) != CXCursor_CXXBaseSpecifier)
                     return CXChildVisit_Continue;
