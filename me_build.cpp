@@ -695,7 +695,7 @@ int main(int argc, char** argv)
 	// copy tools/clang/bin/libclang.dll to reflector/ with nob_copy_file
 	const char* libclangSource = nob_temp_sprintf("%s/tools/clang/bin/libclang.dll", root);
 	const char* libclangDest = nob_temp_sprintf("%s/mindseye/reflector/libclang.dll", root);
-	if (!nob_file_exists(libclangDest))
+	if (!nob_file_exists(libclangDest) || nob_needs_rebuild(libclangDest, &libclangSource, 1) > 0)
 	{
 		nob_copy_file(libclangSource, libclangDest);
 	}
