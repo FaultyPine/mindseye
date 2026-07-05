@@ -411,7 +411,7 @@ void* BgfxRendererBackend::RenderScene(RenderInput* input)
 		const meMesh& mesh = meMeshPoolGet().Get(meshHandle);
 		if (mesh.IsLoaded())
 		{
-			const meMaterial& material = materialPool.Get(mesh.materialHandle);
+			const meMaterial& material = materialPool.Get(mesh.material);
 			meTextureID diffuseTextureHdl = material.textureHandles[meMaterialTextureType::Diffuse];
 			const meTexture& diffuseTex = texturePool.Get(diffuseTextureHdl);
 			bgfx::TextureHandle bgfxDiffuseTex = bgfx::TextureHandle { static_cast<u16>(diffuseTex.buffer.bufferHandle) };

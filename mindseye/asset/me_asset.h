@@ -199,6 +199,7 @@ struct meTypedAsset : public meAsset
     {
         ME_ASSERT(other.id.GetType() == AssetTypeV);
     }
+    meTypedAsset(const Eye& eye) : meAsset(eye, AssetTypeV) {}
     using meAsset::meAsset;
 };
 

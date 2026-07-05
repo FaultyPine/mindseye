@@ -39,8 +39,7 @@ struct MEREFLECT(type) meMesh : public meBaseAsset
 
     BoundingBox meshBounds = {};
     
-    MEREFLECT(exclude)
-	meMaterialID materialHandle = {};
+	meTypedAsset<MAMaterial> material = {};
 
 	bool IsLoaded() const { return vertBuffer.IsValid(); }
 };

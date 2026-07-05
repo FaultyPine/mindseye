@@ -58,7 +58,7 @@ void meMeshPool::Load(
 		outMesh.texcoordBuffer.bufferHandle = renderer.CreateVertexBuffer(outMesh.texcoordBuffer.cpuData, NTH_BIT(meMeshVertexLayoutType_TexCoord0));
 	}
 
-	outMesh.materialHandle = materialIDOpt;
+	outMesh.material = meTypedAsset<MAMaterial>(materialIDOpt);
 	outMesh.name = nameOpt;
 }
 
@@ -78,7 +78,7 @@ meMeshID meMeshPool::Load(
 	for (u64 meshPrimIdx = 0; meshPrimIdx < inMesh.primitives_count; meshPrimIdx++)
 	{
 		const cgltf_primitive& prim = inMesh.primitives[meshPrimIdx];
-		outMesh.materialHandle = materialPool.Load(renderer, gltfResPath, prim.material ? *prim.material : GenerateDummyGLTFMaterial());
+		outMesh.material = meTypedAsset<MAMaterial>(materialPool.Load(renderer, gltfResPath, prim.material ? *prim.material : GenerateDummyGLTFMaterial()));
 		// attribs like position, texcoords, normals
 		for (u64 attributeIdx = 0; attributeIdx < prim.attributes_count; attributeIdx++)
 		{
