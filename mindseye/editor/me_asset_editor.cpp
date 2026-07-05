@@ -15,232 +15,49 @@
 namespace ed = ax::NodeEditor;
 
 // ID encoding: bases occupy distinct high bits so ranges don't overlap.
-// Asset node:   ASSET_NODE_BASE  + (type << 32) + id
-// Entity pin:   PIN_BASE + ref + (fieldIdx << 32) + (1 << 40)
-// Asset pin:    PIN_BASE + ASSET_NODE_BASE + (type << 32) + id
-// Link:         LINK_BASE + ref + (fieldIdx << 32)
+// Asset node: ASSET_NODE_BASE + (type << 32) + id
 
 STATIC_ASSERT(sizeof(((MAID*)0)->id)   == sizeof(u32));
 STATIC_ASSERT(sizeof(((MAID*)0)->type) == sizeof(u32));
 STATIC_ASSERT(NUM_ASSET_TYPES < 256);
 
 static constexpr u64 ASSET_NODE_BASE  = 0x2000000000ULL;
-static constexpr u64 PIN_BASE         = 0x4000000000ULL;
-static constexpr u64 LINK_BASE        = 0x8000000000ULL;
+static constexpr float ASSET_NODE_INSPECTOR_WIDTH = 560.0f;
+static constexpr float ASSET_NODE_LABEL_WIDTH = 120.0f;
 
 static ed::NodeId MakeAssetNodeId(MAID maid)
 {
 	return ed::NodeId(ASSET_NODE_BASE + ((u64)maid.type << 32) + (u64)maid.id);
 }
 
-static ed::PinId MakeAssetFieldOutputPin(meAsset ref, u32 fieldIdx)
+static bool AssetEditorHasOpenAsset(const AssetEditorContext& ctx, MAID id)
 {
-	u64 v = PIN_BASE + (u64)ref.id + ((u64)fieldIdx << 32) + (1ULL << 40);
-	return ed::PinId(v);
+	for (u32 i = 0; i < ctx.openAssetCount; i++)
+		if (ctx.openAssets[i].id == id)
+			return true;
+	return false;
 }
 
-static ed::PinId MakeAssetInputPin(MAID maid)
+static void AssetEditorAddOpenAsset(AssetEditorContext& ctx, meAsset asset)
 {
-	u64 v = PIN_BASE + ASSET_NODE_BASE + ((u64)maid.type << 32) + (u64)maid.id;
-	return ed::PinId(v);
+	if (!asset.isValid() || AssetEditorHasOpenAsset(ctx, asset.id)) return;
+	if (ctx.openAssetCount >= sizeof(ctx.openAssets) / sizeof(ctx.openAssets[0])) return;
+
+	ctx.openAssets[ctx.openAssetCount++] = asset;
+	ctx.needsNavigateToContent = true;
 }
 
-static ed::LinkId MakeLinkId(EntityRef ref, u32 fieldIdx)
+static meAsset AssetEditorGetLoadedAsset(MAID id)
 {
-	return ed::LinkId(LINK_BASE + (u64)ref + ((u64)fieldIdx << 32));
+	meAsset* tmplAsset = meAssetTryGetTemplate(id);
+	if (tmplAsset) return *tmplAsset;
+
+	meAssetRequestLoadTemplate(&id, 1);
+	tmplAsset = meAssetTryGetTemplate(id);
+	return tmplAsset ? *tmplAsset : meAsset(id);
 }
 
-struct MAIDFieldInfo
-{
-	const meTypeDescriptor* field;
-	meAsset asset;
-	u32 fieldIndex;
-};
-
-static void CollectMAIDFields(const meTypeDescriptor& typeDesc, u8* basePtr,
-                               MAIDFieldInfo* outFields, u32* outCount, u32 maxFields)
-{
-	for (u32 i = 0; i < typeDesc.fields.size && *outCount < maxFields; i++)
-	{
-		const meTypeDescriptor& field = typeDesc.fields[i];
-		if (TEST_BIT(field.flags, meTypeDescriptorFlag_PaddingMember)) continue;
-		if (TEST_BIT(field.flags, meTypeDescriptorFlag_Excluded)) continue;
-
-		u8* fieldData = basePtr + (field.offsetBits / 8);
-		const meTypeDescriptor* fieldType = field.thisType;
-		if (!fieldType) continue;
-
-		if (fieldType == &TD_MAID)
-		{
-            MAID* maid = (MAID*)fieldData;
-			MAIDFieldInfo info = {};
-			info.field = &field;
-			info.asset = meAsset(*maid);
-			info.fieldIndex = *outCount;
-			outFields[(*outCount)++] = info;
-		}
-		else if (fieldType == &TD_MEASSET)
-		{
-			MAIDFieldInfo info = {};
-			info.field = &field;
-			meAsset* assetField = (meAsset*)fieldData;
-			info.asset = *assetField;
-			info.fieldIndex = *outCount;
-			outFields[(*outCount)++] = info;
-		}
-		else if (fieldType->iterateContentFn)
-		{
-			struct CollectCtx
-			{
-				const meTypeDescriptor* parentField;
-				MAIDFieldInfo*          outFields;
-				u32*                    outCount;
-				u32                     maxFields;
-			};
-			CollectCtx ctx = { &field, outFields, outCount, maxFields };
-
-			fieldType->iterateContentFn(fieldData, &field,
-				+[](void* elemPtr, const meTypeDescriptor* elemType, meContainerKey elemKey, void* userData)
-				{
-					CollectCtx& ctx = *(CollectCtx*)userData;
-					if (*ctx.outCount >= ctx.maxFields) return;
-
-					if (elemType == &TD_MEASSET || elemType->thisType == &TD_MEASSET)
-					{
-						MAIDFieldInfo info = {};
-						info.field = ctx.parentField;
-						info.asset = *(meAsset*)elemPtr;
-						info.fieldIndex = *ctx.outCount;
-						ctx.outFields[(*(ctx.outCount))++] = info;
-					}
-					else if (elemType == &TD_MAID)
-					{
-						MAIDFieldInfo info = {};
-						info.field      = ctx.parentField;
-						info.asset      = meAsset(*(MAID*)elemPtr);
-						info.fieldIndex = *ctx.outCount;
-						ctx.outFields[(*(ctx.outCount))++] = info;
-					}
-					else if (elemType->fields.size > 0)
-					{
-						CollectMAIDFields(*elemType, (u8*)elemPtr,
-						                  ctx.outFields, ctx.outCount, ctx.maxFields);
-					}
-				},
-				&ctx);
-		}
-		else if (fieldType->fields.size > 0)
-		{
-			CollectMAIDFields(*fieldType, fieldData, outFields, outCount, maxFields);
-		}
-	}
-}
-
-static void DrawAssetReference(MAID maid)
-{
-	StringView path = meAssetIndexGetFilesystemPath(maid);
-	const char* typeName = meAssetTypeToString(maid.GetType()).cstr();
-	
-	ed::BeginNode(MakeAssetNodeId(maid));
-	
-	ed::BeginPin(MakeAssetInputPin(maid), ed::PinKind::Input);
-	ImGui::Text(ICON_FA_CIRCLE_LEFT);
-	ed::EndPin();
-	
-	ImGui::SameLine();
-	
-	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.31f, 0.98f, 0.48f, 1.00f));
-	ImGui::Text(ICON_FA_FILE " %s", typeName);
-	ImGui::PopStyleColor();
-	
-	if (path.data && path.len)
-	{
-		ImGui::Text(STRING_FMT, STRING_VAARGS(path));
-	}
-	else
-	{
-		ImGui::TextDisabled("(no file)");
-	}
-	
-	ed::EndNode();
-}
-
-static bool DrawAssetPickerPopup(AssetEditorContext& ctx)
-{
-	AssetEditorPendingLink& pendingLink = ctx.pendingLink;
-	if (!pendingLink.active) return false;
-
-	bool selectionMade = false;
-	ImGui::SetNextWindowSize(ImVec2(350, 400), ImGuiCond_FirstUseEver);
-	if (ImGui::BeginPopup("AssetPicker"))
-	{
-		ImGui::Text("Select %s asset:", meAssetTypeToString(pendingLink.expectedType).cstr());
-		ImGui::Separator();
-		
-		ImGui::SetNextItemWidth(-FLT_MIN);
-		ImGui::InputTextWithHint("##search", "Search...", ctx.searchBuf, sizeof(ctx.searchBuf));
-		
-		ImGui::Separator();
-		
-		if (ImGui::Selectable("(none)"))
-		{
-			pendingLink.sourceAsset.id.SetID(U32_INVALID_ID);
-			pendingLink.active = false;
-			ctx.searchBuf[0] = '\0';
-			selectionMade = true;
-			ImGui::CloseCurrentPopup();
-		}
-		
-		const meAssetIndex& index = meAssetIndexGetRO();
-		for (auto& [id, path] : index.assetToPathMap)
-		{
-			if (id.GetType() != pendingLink.expectedType) continue;
-			
-			if (ctx.searchBuf[0] != '\0')
-			{
-				bool matched = false;
-				const char* pathCstr = path.cstr();
-				const char* found = pathCstr;
-				while (*found)
-				{
-					const char* s = ctx.searchBuf;
-					const char* p = found;
-					bool ok = true;
-					while (*s && *p)
-					{
-						char a = (*s >= 'A' && *s <= 'Z') ? *s + 32 : *s;
-						char b = (*p >= 'A' && *p <= 'Z') ? *p + 32 : *p;
-						if (a != b) { ok = false; break; }
-						s++; p++;
-					}
-					if (ok && *s == '\0') { matched = true; break; }
-					found++;
-				}
-				if (!matched) continue;
-			}
-			
-			if (ImGui::Selectable(path.cstr(), pendingLink.sourceAsset.id == id))
-			{
-				pendingLink.sourceAsset.id = id;
-				pendingLink.active = false;
-				ctx.searchBuf[0] = '\0';
-				selectionMade = true;
-				ImGui::CloseCurrentPopup();
-			}
-		}
-		
-		ImGui::EndPopup();
-	}
-	else
-	{
-		pendingLink.active = false;
-		ctx.searchBuf[0] = '\0';
-	}
-	return selectionMade;
-}
-
-enum HasInputPin : bool;
-static bool DrawAssetNode(meAsset asset, meSpanTyped<MAIDFieldInfo> maidFields, HasInputPin hasInputPin = HasInputPin(false))
+static bool DrawAssetNode(meAsset asset, AssetEditorContext& ctx)
 {
     meAssetType assetType = asset.id.GetType();
     if (assetType == MABadData || assetType >= NUM_ASSET_TYPES) return false;
@@ -260,14 +77,6 @@ static bool DrawAssetNode(meAsset asset, meSpanTyped<MAIDFieldInfo> maidFields, 
 
     ed::BeginNode(MakeAssetNodeId(asset.id));
 
-    if (hasInputPin)
-    {
-        ed::BeginPin(MakeAssetInputPin(asset.id), ed::PinKind::Input);
-        ImGui::Text(ICON_FA_CIRCLE_LEFT);
-        ed::EndPin();
-        ImGui::SameLine();
-    }
-
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.31f, 0.98f, 0.48f, 1.00f));
     ImGui::Text(ICON_FA_FILE " %s", typeName.cstr());
     ImGui::PopStyleColor();
@@ -283,23 +92,15 @@ static bool DrawAssetNode(meAsset asset, meSpanTyped<MAIDFieldInfo> maidFields, 
         ImGui::Separator();
 
         if (ImGui::BeginTable("##fields", 2,
-            ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingFixedFit))
+            ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingStretchProp,
+            ImVec2(ASSET_NODE_INSPECTOR_WIDTH, 0.0f)))
         {
-            ImGui::TableSetupColumn("Field", ImGuiTableColumnFlags_WidthFixed, 120.0f);
-            ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthFixed, 180.0f);
-            changed = DrawStructFields(typeDesc, dataPtr);
+            ImGui::TableSetupColumn("Field", ImGuiTableColumnFlags_WidthFixed, ASSET_NODE_LABEL_WIDTH);
+            ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
+            changed = DrawStructFields(typeDesc, dataPtr, &ctx);
             ImGui::EndTable();
         }
 
-        for (u32 i = 0; i < maidFields.size; i++)
-        {
-            const char* fieldName = maidFields[i].field->editorName.data
-                ? maidFields[i].field->editorName.cstr()
-                : maidFields[i].field->name.cstr();
-            ed::BeginPin(MakeAssetFieldOutputPin(asset, maidFields[i].fieldIndex), ed::PinKind::Output);
-            ImGui::Text(ICON_FA_CIRCLE_RIGHT " %s", fieldName);
-            ed::EndPin();
-        }
     }
 
     ed::EndNode();
@@ -329,6 +130,8 @@ void meAssetEditorShutdown(AssetEditorContext& ctx)
 void meAssetEditorOpen(AssetEditorContext& ctx, meAsset asset)
 {
 	ctx.rootAsset = asset;
+	ctx.openAssetCount = 0;
+	AssetEditorAddOpenAsset(ctx, asset);
 	ctx.isOpen = true;
 	ctx.needsNavigateToContent = true;
 }
@@ -338,7 +141,7 @@ bool meAssetEditorTick(AssetEditorContext& ctx)
 	if (!ctx.isOpen) return false;
 
 	ImGui::SetNextWindowSize(ImVec2(800, 600), ImGuiCond_FirstUseEver);
-	if (!ImGui::Begin(ICON_FA_DIAGRAM_PROJECT " Asset Editor", &ctx.isOpen))
+	if (!ImGui::Begin(ICON_FA_DIAGRAM_PROJECT " Asset Editor###Asset Editor", &ctx.isOpen))
 	{
 		ImGui::End();
 		return false;
@@ -354,7 +157,7 @@ bool meAssetEditorTick(AssetEditorContext& ctx)
 		return false;
 	}
 
-    meMap<meAsset, bool> dirtyAssets = ctx.dirtyAssets;
+    meMap<meAsset, bool>& dirtyAssets = ctx.dirtyAssets;
 	bool hasDirtyAssets = false;
 	for (auto& [dirtyAsset, dirty] : dirtyAssets)
 		if (dirty) { hasDirtyAssets = true; break; }
@@ -380,148 +183,27 @@ bool meAssetEditorTick(AssetEditorContext& ctx)
 	ed::SetCurrentEditor(ctx.nodeEditorCtx);
 	ed::Begin("AssetEditor");
 
-    meAssetSystem& sys = meAssetSystemGet();
-    meAssetLoader* loader = sys.assetLoaders[asset.id.GetType()];
-    if (!loader || !loader->assetTypeDesc || !loader->resourcePool)
-    {
-        ed::End(); ed::SetCurrentEditor(nullptr); ImGui::End();
-        return false;
-    }
-
-    void* dataOpaque = loader->resourcePool->GetOpaque(asset.runtimeHandle);
-    if (!dataOpaque)
-    {
-        ed::End(); ed::SetCurrentEditor(nullptr); ImGui::End();
-        return false;
-    }
-    u8* dataPtr = (u8*)dataOpaque;
-
-	static constexpr u32 MAX_MAID_FIELDS = 32;
-	MAIDFieldInfo maidFields[MAX_MAID_FIELDS] = {};
-	u32 maidFieldCount = 0;
-
-	CollectMAIDFields(*loader->assetTypeDesc, dataPtr, maidFields, &maidFieldCount, MAX_MAID_FIELDS);
-
 	bool anyChanged = false;
+	bool rootChanged = false;
 
-	anyChanged |= DrawAssetNode(asset, {maidFields, maidFieldCount});
-
-	for (u32 i = 0; i < maidFieldCount; i++)
+	for (u32 i = 0; i < ctx.openAssetCount; i++)
 	{
-		MAIDFieldInfo& info = maidFields[i];
-		// If this is a loaded meAsset field, expand it to a full editable node with its own sub-fields.
-		// Otherwise fall back to the read-only DrawAssetReference.
-		bool drawnAsFullNode = false;
-		if (info.asset.isValid() && info.asset.isLoaded())
+		meAsset& openAsset = ctx.openAssets[i];
+		if (!openAsset.isLoaded())
 		{
-			meAsset& subAsset = info.asset;
-			meAssetSystem& subSys = meAssetSystemGet();
-			meAssetLoader* subLoader = subSys.assetLoaders[subAsset.id.GetType()];
-			if (subLoader && subLoader->assetTypeDesc && subLoader->resourcePool)
-			{
-				void* subDataOpaque = subLoader->resourcePool->GetOpaque(subAsset.runtimeHandle);
-				if (subDataOpaque)
-				{
-					static constexpr u32 MAX_SUB_MAID_FIELDS = 32;
-					MAIDFieldInfo subMaidFields[MAX_SUB_MAID_FIELDS] = {};
-					u32 subMaidFieldCount = 0;
-					CollectMAIDFields(*subLoader->assetTypeDesc, (u8*)subDataOpaque,
-					                  subMaidFields, &subMaidFieldCount, MAX_SUB_MAID_FIELDS);
-
-					// Sub-asset field edits are embedded in the parent, so they also mark the root dirty.
-					anyChanged |= DrawAssetNode(subAsset, {subMaidFields, subMaidFieldCount}, HasInputPin(true));
-
-					// Draw any further-nested references the sub-asset itself holds.
-					for (u32 j = 0; j < subMaidFieldCount; j++)
-					{
-						MAIDFieldInfo& subInfo = subMaidFields[j];
-						MAID subMaid = subInfo.asset.id;
-						if (!subMaid || subMaid == subAsset.id) continue;
-						DrawAssetReference(subMaid);
-						ed::Link(
-							MakeLinkId(subAsset, subInfo.fieldIndex),
-							MakeAssetFieldOutputPin(subAsset, subInfo.fieldIndex),
-							MakeAssetInputPin(subMaid),
-							ImVec4(0.74f, 0.58f, 0.98f, 1.00f),
-							2.0f
-						);
-					}
-
-					drawnAsFullNode = true;
-				}
-			}
+			meAsset* loadedAsset = meAssetTryGetTemplate(openAsset.id);
+			if (loadedAsset)
+				openAsset = *loadedAsset;
 		}
 
-		if (!drawnAsFullNode)
-			DrawAssetReference(info.asset.id);
-
-		ed::Link(
-			MakeLinkId(asset, info.fieldIndex),
-			MakeAssetFieldOutputPin(asset, info.fieldIndex),
-			MakeAssetInputPin(info.asset.id),
-			ImVec4(0.74f, 0.58f, 0.98f, 1.00f),
-			2.0f
-		);
-	}
-
-	// Dragging from an output pin into empty space opens the asset picker
-	if (ed::BeginCreate())
-	{
-		ed::PinId startPinId, endPinId;
-		if (ed::QueryNewNode(&startPinId))
+		bool assetChanged = DrawAssetNode(openAsset, ctx);
+		anyChanged |= assetChanged;
+		if (assetChanged)
 		{
-			if (ed::AcceptNewItem())
-			{
-				for (u32 i = 0; i < maidFieldCount; i++)
-				{
-					ed::PinId expectedPin = MakeAssetFieldOutputPin(asset, maidFields[i].fieldIndex);
-					if (expectedPin == startPinId)
-					{
-						ctx.pendingLink.active = true;
-						ctx.pendingLink.sourcePinId = startPinId.Get();
-						ctx.pendingLink.sourceAsset = asset;
-						ctx.pendingLink.sourceFieldIndex = maidFields[i].fieldIndex;
-						ctx.pendingLink.expectedType = maidFields[i].asset.id.GetType();
-
-						ed::Suspend();
-						ImGui::OpenPopup("AssetPicker");
-						ed::Resume();
-						break;
-					}
-				}
-			}
+			ctx.dirtyAssets[openAsset] = true;
+			if (openAsset.id == asset.id)
+				rootChanged = true;
 		}
-	}
-	ed::EndCreate();
-
-	if (ed::BeginDelete())
-	{
-		ed::LinkId deletedLinkId;
-		while (ed::QueryDeletedLink(&deletedLinkId))
-		{
-			if (ed::AcceptDeletedItem())
-			{
-				for (u32 i = 0; i < maidFieldCount; i++)
-				{
-					ed::LinkId expectedLink = MakeLinkId(asset, maidFields[i].fieldIndex);
-					if (expectedLink == deletedLinkId)
-					{
-						maidFields[i].asset.id.SetID(U32_INVALID_ID);
-						anyChanged = true;
-						break;
-					}
-				}
-			}
-		}
-	}
-	ed::EndDelete();
-
-	// Must be drawn inside ed context but suspended (ImGui popups need screen-space coords)
-	if (ctx.pendingLink.active)
-	{
-		ed::Suspend();
-		anyChanged |= DrawAssetPickerPopup(ctx);
-		ed::Resume();
 	}
 
 	if (ctx.needsNavigateToContent)
@@ -532,6 +214,9 @@ bool meAssetEditorTick(AssetEditorContext& ctx)
 
 	ed::End();
 	ed::SetCurrentEditor(nullptr);
+
+	if (rootChanged)
+		ctx.dirtyAssets[asset] = true;
 
     ctx.isFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
 
@@ -548,8 +233,6 @@ bool meAssetEditorTick(AssetEditorContext& ctx)
 // Generic editor type drawing
 
 
-// Label helper: draw a left-aligned label in a two-column table row.
-// The caller must be inside a BeginTable() with at least 2 columns.
 static void InspectorLabel(const char* label)
 {
 	ImGui::TableNextRow();
@@ -562,7 +245,8 @@ static void InspectorLabel(const char* label)
 
 bool DrawAssetField(
     const meTypeDescriptor& field,
-    MAID* maid)
+    MAID* maid,
+	AssetEditorContext* ctx)
 {
     if (!maid)
     {
@@ -577,53 +261,97 @@ bool DrawAssetField(
         ? (meAssetType)field.templatedTypes[0]->value
         : maid->GetType();
 
-    if ((u32)assetType == U32_INVALID_ID)
+    if (assetType <= MABadData || assetType >= NUM_ASSET_TYPES)
     {
         return false;
     }
 
-    ImGui::TableNextRow();
-    ImGui::TableSetColumnIndex(0);
-    ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted(displayName);
-    if (field.tooltip.data && field.tooltip.len > 0 && ImGui::IsItemHovered())
-        ImGui::SetTooltip(STRING_FMT, STRING_VAARGS(field.tooltip));
-    ImGui::TableSetColumnIndex(1);
-    ImGui::SetNextItemWidth(-FLT_MIN);
+	ImGui::TableNextRow();
+	ImGui::TableSetColumnIndex(0);
+	ImGui::AlignTextToFramePadding();
+	ImGui::TextUnformatted(displayName);
+	if (field.tooltip.data && field.tooltip.len > 0 && ImGui::IsItemHovered())
+		ImGui::SetTooltip(STRING_FMT, STRING_VAARGS(field.tooltip));
+	ImGui::TableSetColumnIndex(1);
+	ImGui::SetNextItemWidth(-FLT_MIN);
 
     StringView currentPath = meAssetIndexGetFilesystemPath(*maid);
     const char* preview = (currentPath.data && currentPath.len)
         ? currentPath.cstr()
         : ((*maid) ? "(unknown asset)" : "(none)");
 
-    if (ImGui::BeginCombo("##v", preview))
-    {
-        if (ImGui::Selectable("(none)", !(*maid)))
-        {
-            maid->SetID(U32_INVALID_ID);
-            changed = true;
-        }
+	float openButtonWidth = ctx ? ImGui::GetFrameHeight() : 0.0f;
+	float spacing = ctx ? ImGui::GetStyle().ItemInnerSpacing.x : 0.0f;
+	float comboWidth = ImGui::GetContentRegionAvail().x - openButtonWidth - spacing;
+	if (comboWidth < 60.0f) comboWidth = 60.0f;
 
-        const meAssetIndex& index = meAssetIndexGetRO();
-        for (auto& [id, path] : index.assetToPathMap)
-        {
-            if (id.GetType() != assetType || !path) continue;
+	ImGui::PushItemWidth(comboWidth);
+	bool popupOpened = false;
+	if (ImGui::Button(preview, ImVec2(comboWidth, 0.0f)))
+	{
+		ImGui::OpenPopup("##asset_picker");
+		popupOpened = true;
+	}
+	ImGui::PopItemWidth();
 
-            bool isSelected = (*maid == id);
-            if (ImGui::Selectable(path.cstr(), isSelected))
-            {
-                *maid = id;
-                changed = true;
-            }
-            if (isSelected)
-                ImGui::SetItemDefaultFocus();
-        }
-        ImGui::EndCombo();
-    }
+	ImVec2 popupPos = ImVec2(ImGui::GetItemRectMin().x, ImGui::GetItemRectMax().y);
+	bool popupOpen = popupOpened || ImGui::IsPopupOpen("##asset_picker");
+	if (ctx && popupOpen)
+		ed::Suspend();
+
+	if (popupOpen)
+	{
+		ImGui::SetNextWindowPos(popupPos, ImGuiCond_Always);
+		ImGui::SetNextWindowSize(ImVec2(comboWidth, 0.0f), ImGuiCond_Appearing);
+		if (ImGui::BeginPopup("##asset_picker"))
+		{
+			if (ImGui::Selectable("(none)", !(*maid)))
+			{
+				maid->SetID(U32_INVALID_ID);
+				changed = true;
+			}
+
+			const meAssetIndex& index = meAssetIndexGetRO();
+			for (auto& [id, path] : index.assetToPathMap)
+			{
+				if (id.GetType() != assetType || !path) continue;
+
+				bool isSelected = (*maid == id);
+				if (ImGui::Selectable(path.cstr(), isSelected))
+				{
+					*maid = id;
+					changed = true;
+				}
+				if (isSelected)
+					ImGui::SetItemDefaultFocus();
+			}
+			ImGui::EndPopup();
+		}
+	}
+
+	if (ctx && popupOpen)
+		ed::Resume();
+
+	if (ctx)
+	{
+		ImGui::SameLine();
+		bool canOpen = *maid;
+		if (!canOpen)
+			ImGui::BeginDisabled();
+
+		if (ImGui::SmallButton("+"))
+		{
+			meAsset referencedAsset = AssetEditorGetLoadedAsset(*maid);
+			AssetEditorAddOpenAsset(*ctx, referencedAsset);
+		}
+
+		if (!canOpen)
+			ImGui::EndDisabled();
+	}
     return changed;
 }
 
-bool DrawPrimitiveValue(const meTypeDescriptor& type, u8* data, const meTypeDescriptor* parentType)
+bool DrawPrimitiveValue(const meTypeDescriptor& type, u8* data, const meTypeDescriptor* parentType, AssetEditorContext* ctx)
 {
 	bool changed = false;
 
@@ -684,28 +412,37 @@ bool DrawPrimitiveValue(const meTypeDescriptor& type, u8* data, const meTypeDesc
 			changed = true;
 		}
 	}
-	else if (&type == &TD_STRING)
+    else if (&type == &TD_STRING)
 	{
 		String* str = (String*)data;
-		const char* preview = (str->data && str->len) ? str->cstr() : "";
-        ImGui::PushID(preview);
-        bool textChangedAtAll = ImGui::InputTextWithHint("##MyInput", "Enter text here...", s_textEditIntermediateBuf, IM_ARRAYSIZE(s_textEditIntermediateBuf));
-        if (ImGui::IsItemDeactivatedAfterEdit())
-        {
-            changed |= textChangedAtAll;
-        }
-        ImGui::PopID();
+		s_textEditIntermediateBuf[0] = '\0';
+		if (str->data && str->len)
+		{
+			u32 copyLen = (u32)Math::Min(str->len, (u64)IM_ARRAYSIZE(s_textEditIntermediateBuf) - 1);
+			ME_MEMCPY(s_textEditIntermediateBuf, str->data, copyLen);
+			s_textEditIntermediateBuf[copyLen] = '\0';
+		}
+        if (ImGui::InputTextWithHint("##v", "Enter text here...", s_textEditIntermediateBuf, IM_ARRAYSIZE(s_textEditIntermediateBuf)))
+		{
+			*str = StringFromCString(s_textEditIntermediateBuf);
+			changed = true;
+		}
 	}
 	else if (&type == &TD_STRINGVIEW)
 	{
 		StringView* sv = (StringView*)data;
-        ImGui::PushID(sv->cstr());
-		bool textChangedAtAll = ImGui::InputTextWithHint("##MyInput", "Enter text here...", s_textEditIntermediateBuf, IM_ARRAYSIZE(s_textEditIntermediateBuf));
-        if (ImGui::IsItemDeactivatedAfterEdit())
-        {
-            changed |= textChangedAtAll;
-        }
-        ImGui::PopID();
+		s_textEditIntermediateBuf[0] = '\0';
+		if (sv->data && sv->len)
+		{
+			u32 copyLen = (u32)Math::Min(sv->len, (u64)IM_ARRAYSIZE(s_textEditIntermediateBuf) - 1);
+			ME_MEMCPY(s_textEditIntermediateBuf, sv->data, copyLen);
+			s_textEditIntermediateBuf[copyLen] = '\0';
+		}
+		if (ImGui::InputTextWithHint("##v", "Enter text here...", s_textEditIntermediateBuf, IM_ARRAYSIZE(s_textEditIntermediateBuf)))
+		{
+			*sv = StringFormatNew(GetDefaultAllocator(), "%s", s_textEditIntermediateBuf);
+			changed = true;
+		}
 	}
 	else if (type.iterateContentFn)
 	{
@@ -714,17 +451,23 @@ bool DrawPrimitiveValue(const meTypeDescriptor& type, u8* data, const meTypeDesc
 		struct DrawCtx
 		{
 			const meTypeDescriptor* parentType;
+			AssetEditorContext* editorCtx;
 			bool           changed   = false;
 			bool           doRemove  = false;
 			meContainerKey removeKey = 0;
 		};
-		DrawCtx ctx = { parentType };
+		DrawCtx drawCtx = { parentType, ctx };
+
+		float tableWidth = ImGui::GetContentRegionAvail().x;
+		if (tableWidth < 120.0f)
+			tableWidth = 120.0f;
 
 		if (ImGui::BeginTable("##container_table", 2,
-			ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingStretchProp))
+			ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingStretchProp,
+			ImVec2(tableWidth, 0.0f)))
 		{
-			ImGui::TableSetupColumn("#",     ImGuiTableColumnFlags_WidthFixed, 32.0f);
-			ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthFixed, 120.0f);
+			ImGui::TableSetupColumn("#",     ImGuiTableColumnFlags_WidthFixed, 40.0f);
+			ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
 
 			type.iterateContentFn(data, parentType,
 				+[](void* elemPtr, const meTypeDescriptor* elemType, meContainerKey elemKey, void* userData)
@@ -745,19 +488,19 @@ bool DrawPrimitiveValue(const meTypeDescriptor& type, u8* data, const meTypeDesc
 
 					ImGui::TableSetColumnIndex(1);
 					ImGui::PushID((int)elemKey);
-					ctx.changed |= DrawPrimitiveValue(*elemType, (u8*)elemPtr, ctx.parentType);
+					ctx.changed |= DrawPrimitiveValue(*elemType, (u8*)elemPtr, ctx.parentType, ctx.editorCtx);
 					ImGui::PopID();
 				},
-				&ctx);
+				&drawCtx);
 
 			ImGui::EndTable();
 		}
 
 		// Defer removal until after iteration so the array stays valid while we draw.
-		if (ctx.doRemove && type.removeElementFn)
+		if (drawCtx.doRemove && type.removeElementFn)
 		{
-			type.removeElementFn(data, parentType, ctx.removeKey);
-			ctx.changed = true;
+			type.removeElementFn(data, parentType, drawCtx.removeKey);
+			drawCtx.changed = true;
 		}
 
 		if (type.pushElementFn && ImGui::Button("Add"))
@@ -770,12 +513,12 @@ bool DrawPrimitiveValue(const meTypeDescriptor& type, u8* data, const meTypeDesc
 					Allocation elementData = MECALLOC(GetTLScratch(), elemType->size);
 					if (elemType->setToDefaultsFn) elemType->setToDefaultsFn(elementData);
 					type.pushElementFn(data, parentType, elementData);
-					ctx.changed = true;
+					drawCtx.changed = true;
 				}
 			}
 		}
 
-		return ctx.changed;
+		return drawCtx.changed;
 	}
     else if (&type == &TD_MEASSET || type.thisType == &TD_MEASSET)
     {
@@ -784,12 +527,12 @@ bool DrawPrimitiveValue(const meTypeDescriptor& type, u8* data, const meTypeDesc
         // which have .thisType == &TD_MEASSET and carry the enum value in templatedTypes[0].
         meAsset& asset = *(meAsset*)data;
         MAID& maid = asset.id;
-	    changed = DrawAssetField(type, &maid);
+	    changed = DrawAssetField(type, &maid, ctx);
     }
     else if (&type == &TD_MAID)
     {
         MAID* maid = (MAID*)data;
-        changed = DrawAssetField(type, maid);
+        changed = DrawAssetField(type, maid, ctx);
     }
 	else
 	{
@@ -798,7 +541,7 @@ bool DrawPrimitiveValue(const meTypeDescriptor& type, u8* data, const meTypeDesc
 	return changed;
 }
 
-bool DrawStructFields(const meTypeDescriptor& type, u8* dataPtr)
+bool DrawStructFields(const meTypeDescriptor& type, u8* dataPtr, AssetEditorContext* ctx)
 {
 	bool anyChanged = false;
 	for (u32 i = 0; i < type.fields.size; i++)
@@ -808,7 +551,7 @@ bool DrawStructFields(const meTypeDescriptor& type, u8* dataPtr)
 		if (TEST_BIT(field.flags, meTypeDescriptorFlag_Excluded)) continue;
 
 		ImGui::PushID((int)i);
-		if (DrawTypeDescriptorField(field, dataPtr))
+		if (DrawTypeDescriptorField(field, dataPtr, ctx))
 			anyChanged = true;
 		ImGui::PopID();
 	}
@@ -817,7 +560,7 @@ bool DrawStructFields(const meTypeDescriptor& type, u8* dataPtr)
 
 
 // dataPtr is the base address of the parent struct
-bool DrawTypeDescriptorField(const meTypeDescriptor& field, u8* dataPtr)
+bool DrawTypeDescriptorField(const meTypeDescriptor& field, u8* dataPtr, AssetEditorContext* ctx)
 {
 	u8* fieldData = dataPtr + (field.offsetBits / 8);
 	const meTypeDescriptor* fieldType = field.thisType;
@@ -827,8 +570,16 @@ bool DrawTypeDescriptorField(const meTypeDescriptor& field, u8* dataPtr)
 
 	const char* displayName = field.editorName.data ? field.editorName.cstr() : field.name.cstr();
 
-	// it's a struct -> show as tree node
-	if (fieldType->fields.size > 0)
+	if (fieldType == &TD_MEASSET || fieldType->thisType == &TD_MEASSET)
+	{
+		meAsset& asset = *(meAsset*)fieldData;
+		changed = DrawAssetField(field, &asset.id, ctx);
+	}
+	else if (fieldType == &TD_MAID)
+	{
+		changed = DrawAssetField(field, (MAID*)fieldData, ctx);
+	}
+	else if (fieldType->fields.size > 0)
 	{
 		ImGui::TableNextRow();
 		ImGui::TableSetColumnIndex(0);
@@ -848,7 +599,7 @@ bool DrawTypeDescriptorField(const meTypeDescriptor& field, u8* dataPtr)
 
 		if (nodeOpen)
 		{
-			changed = DrawStructFields(*fieldType, fieldData);
+			changed = DrawStructFields(*fieldType, fieldData, ctx);
 			ImGui::TreePop();
 		}
 	}
@@ -856,7 +607,7 @@ bool DrawTypeDescriptorField(const meTypeDescriptor& field, u8* dataPtr)
 	{
 		InspectorLabel(displayName);
 		ImGui::PushID(displayName);
-		changed = DrawPrimitiveValue(*fieldType, fieldData, &field);
+		changed = DrawPrimitiveValue(*fieldType, fieldData, &field, ctx);
 		ImGui::PopID();
 
 		if (field.tooltip.data && field.tooltip.len > 0 && ImGui::IsItemHovered())

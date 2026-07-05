@@ -6,24 +6,15 @@
 
 namespace ax { namespace NodeEditor { struct EditorContext; }}
 
-struct AssetEditorPendingLink
-{
-	bool active = false;
-	uintptr_t sourcePinId = 0;
-	meAsset sourceAsset = {};
-	u32 sourceFieldIndex = 0;
-	meAssetType expectedType = MABadData;
-};
-
 struct AssetEditorContext
 {
 	ax::NodeEditor::EditorContext* nodeEditorCtx = nullptr;
 	meAsset rootAsset = {};
+	meAsset openAssets[16] = {};
+	u32 openAssetCount = 0;
 	bool isOpen = false;
     bool isFocused = false;
 	bool needsNavigateToContent = false;
-	AssetEditorPendingLink pendingLink = {};
-	char searchBuf[256] = {};
     meMap<meAsset, bool> dirtyAssets = {};
 };
 
@@ -36,17 +27,21 @@ bool meAssetEditorTick(AssetEditorContext& ctx);
 
 bool DrawTypeDescriptorField(
     const meTypeDescriptor& field, 
-    u8* dataPtr);
+    u8* dataPtr,
+	AssetEditorContext* ctx = nullptr);
 
 bool DrawStructFields(
     const meTypeDescriptor& type, 
-    u8* dataPtr);
+    u8* dataPtr,
+	AssetEditorContext* ctx = nullptr);
 
 bool DrawPrimitiveValue(
     const meTypeDescriptor& type, 
     u8* data, 
-    const meTypeDescriptor* parentType = nullptr);
+    const meTypeDescriptor* parentType = nullptr,
+	AssetEditorContext* ctx = nullptr);
 
 bool DrawAssetField(
     const meTypeDescriptor& field,
-    MAID* maid);
+    MAID* maid,
+	AssetEditorContext* ctx = nullptr);
