@@ -1053,7 +1053,7 @@ DynArray<CompileCommand> CompileDatabaseToCommandsList(
 {
     DynArray<CompileCommand> cmds = DynArrayCreate<CompileCommand>(allocator);
     OSFileReference compileCmdsFile = {};
-    if (!meOSOpenFile(compileCmdsFile, compileDatabasePath, OSFileFlags_OnlyIfExists))
+    if (!meOSOpenFile(compileCmdsFile, compileDatabasePath, OSFileFlags_OnlyIfExists | OSFileFlags_ScopedFile))
     {
         LOG_ERROR("Failed to open compile commands database file %s", compileDatabasePath.data);
         return cmds;
