@@ -164,14 +164,19 @@ static void PopulatePathFromUserInputIfNotValid(String& path)
 
 static void DrawAssetInspector(EditorContext& editor, InspectorWindow& inspector)
 {
+    meAsset& asset = inspector.currentAsset;
+    StringView title = StringFormatTmp(
+        ICON_FA_CIRCLE_INFO " Inspector###Inspector_%u_%u",
+        asset.id.GetType(),
+        (u32)asset.id.GetID());
+
 	ImGui::SetNextWindowSize(ImVec2(340, 500), ImGuiCond_FirstUseEver);
-	if (!ImGui::Begin(ICON_FA_CIRCLE_INFO " Inspector", &inspector.active))
+	if (!ImGui::Begin(title.cstr(), &inspector.active))
 	{
         ImGui::End();
 		return;
 	}
 
-    meAsset& asset = inspector.currentAsset;
     if (!asset.isLoaded() && asset.isValid())
     {
         // if it's not loaded, assume we want to inspect the template asset

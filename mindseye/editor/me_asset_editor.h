@@ -15,6 +15,7 @@ struct AssetEditorContext
 	bool isOpen = false;
     bool isFocused = false;
 	bool needsNavigateToContent = false;
+    meMap<MAID, bool> expandedAssets = {};
     meMap<meAsset, bool> dirtyAssets = {};
 };
 
@@ -43,5 +44,5 @@ bool DrawPrimitiveValue(
 
 bool DrawAssetField(
     const meTypeDescriptor& field,
-    MAID* maid,
+    meAsset* asset,
 	AssetEditorContext* ctx = nullptr);

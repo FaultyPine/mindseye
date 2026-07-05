@@ -44,6 +44,7 @@ static void AssetEditorAddOpenAsset(AssetEditorContext& ctx, meAsset asset)
 	if (ctx.openAssetCount >= sizeof(ctx.openAssets) / sizeof(ctx.openAssets[0])) return;
 
 	ctx.openAssets[ctx.openAssetCount++] = asset;
+	ctx.expandedAssets[asset.id] = true;
 	ctx.needsNavigateToContent = true;
 }
 
@@ -76,8 +77,13 @@ static bool DrawAssetNode(meAsset asset, AssetEditorContext& ctx)
     StringView path = meAssetIndexGetFilesystemPath(asset.id);
 
     ed::BeginNode(MakeAssetNodeId(asset.id));
+    ImGui::PushID((int)(u64)asset.id);
 
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.31f, 0.98f, 0.48f, 1.00f));
+    bool& expanded = ctx.expandedAssets[asset.id];
+    if (ImGui::SmallButton(expanded ? "-" : "+"))
+        expanded = !expanded;
+    ImGui::SameLine();
     ImGui::Text(ICON_FA_FILE " %s", typeName.cstr());
     ImGui::PopStyleColor();
 
@@ -87,7 +93,7 @@ static bool DrawAssetNode(meAsset asset, AssetEditorContext& ctx)
         ImGui::TextDisabled("(no file)");
 
     bool changed = false;
-    if (ed::IsNodeSelected(MakeAssetNodeId(asset.id)))
+    if (expanded)
     {
         ImGui::Separator();
 
@@ -103,6 +109,7 @@ static bool DrawAssetNode(meAsset asset, AssetEditorContext& ctx)
 
     }
 
+    ImGui::PopID();
     ed::EndNode();
     return changed;
 }
@@ -131,6 +138,7 @@ void meAssetEditorOpen(AssetEditorContext& ctx, meAsset asset)
 {
 	ctx.rootAsset = asset;
 	ctx.openAssetCount = 0;
+	ctx.expandedAssets.clear();
 	AssetEditorAddOpenAsset(ctx, asset);
 	ctx.isOpen = true;
 	ctx.needsNavigateToContent = true;
@@ -245,13 +253,10 @@ static void InspectorLabel(const char* label)
 
 bool DrawAssetField(
     const meTypeDescriptor& field,
-    MAID* maid,
+    meAsset* asset,
 	AssetEditorContext* ctx)
 {
-    if (!maid)
-    {
-        return false;
-    } 
+    MAID& maid = asset->id;
     bool changed = false;
     const char* displayName = field.editorName.data ? field.editorName.cstr() : field.name.cstr();
     // For meTypedAsset<T> fields the reflector stores the enum value as an integral stub
@@ -259,7 +264,7 @@ bool DrawAssetField(
     // combo is correctly filtered even when the MAID is default-constructed ("none").
     meAssetType assetType = (field.templatedTypes.size > 0)
         ? (meAssetType)field.templatedTypes[0]->value
-        : maid->GetType();
+        : maid.GetType();
 
     if (assetType <= MABadData || assetType >= NUM_ASSET_TYPES)
     {
@@ -275,10 +280,10 @@ bool DrawAssetField(
 	ImGui::TableSetColumnIndex(1);
 	ImGui::SetNextItemWidth(-FLT_MIN);
 
-    StringView currentPath = meAssetIndexGetFilesystemPath(*maid);
+    StringView currentPath = meAssetIndexGetFilesystemPath(maid);
     const char* preview = (currentPath.data && currentPath.len)
         ? currentPath.cstr()
-        : ((*maid) ? "(unknown asset)" : "(none)");
+        : (maid ? "(unknown asset)" : "(none)");
 
 	float openButtonWidth = ctx ? ImGui::GetFrameHeight() : 0.0f;
 	float spacing = ctx ? ImGui::GetStyle().ItemInnerSpacing.x : 0.0f;
@@ -305,9 +310,11 @@ bool DrawAssetField(
 		ImGui::SetNextWindowSize(ImVec2(comboWidth, 0.0f), ImGuiCond_Appearing);
 		if (ImGui::BeginPopup("##asset_picker"))
 		{
-			if (ImGui::Selectable("(none)", !(*maid)))
+			if (ImGui::Selectable("(none)", !maid))
 			{
-				maid->SetID(U32_INVALID_ID);
+				maid.SetID(U32_INVALID_ID);
+				asset->runtimeHandle = EYE_INVALID;
+				asset->loadStage = Unloaded;
 				changed = true;
 			}
 
@@ -316,10 +323,12 @@ bool DrawAssetField(
 			{
 				if (id.GetType() != assetType || !path) continue;
 
-				bool isSelected = (*maid == id);
+				bool isSelected = (maid == id);
 				if (ImGui::Selectable(path.cstr(), isSelected))
 				{
-					*maid = id;
+					maid = id;
+					asset->runtimeHandle = EYE_INVALID;
+					asset->loadStage = Unloaded;
 					changed = true;
 				}
 				if (isSelected)
@@ -335,13 +344,17 @@ bool DrawAssetField(
 	if (ctx)
 	{
 		ImGui::SameLine();
-		bool canOpen = *maid;
+		bool canOpen = maid;
 		if (!canOpen)
 			ImGui::BeginDisabled();
 
 		if (ImGui::SmallButton("+"))
 		{
-			meAsset referencedAsset = AssetEditorGetLoadedAsset(*maid);
+            // if we're drawing a loaded asset, it could be an instance asset
+            // if it's unloaded, it's likely just a reference to a template asset
+			meAsset referencedAsset = (asset->isLoaded() && asset->id == maid)
+				? *asset
+				: AssetEditorGetLoadedAsset(maid);
 			AssetEditorAddOpenAsset(*ctx, referencedAsset);
 		}
 
@@ -526,13 +539,14 @@ bool DrawPrimitiveValue(const meTypeDescriptor& type, u8* data, const meTypeDesc
         // (e.g. g_typearg_entities_0 for DynArray<meTypedAsset<MAEntity>> elements),
         // which have .thisType == &TD_MEASSET and carry the enum value in templatedTypes[0].
         meAsset& asset = *(meAsset*)data;
-        MAID& maid = asset.id;
-	    changed = DrawAssetField(type, &maid, ctx);
+	    changed = DrawAssetField(type, &asset, ctx);
     }
     else if (&type == &TD_MAID)
     {
         MAID* maid = (MAID*)data;
-        changed = DrawAssetField(type, maid, ctx);
+        meAsset asset = *maid;
+        changed = DrawAssetField(type, &asset, ctx);
+        *maid = asset.id;
     }
 	else
 	{
@@ -573,11 +587,14 @@ bool DrawTypeDescriptorField(const meTypeDescriptor& field, u8* dataPtr, AssetEd
 	if (fieldType == &TD_MEASSET || fieldType->thisType == &TD_MEASSET)
 	{
 		meAsset& asset = *(meAsset*)fieldData;
-		changed = DrawAssetField(field, &asset.id, ctx);
+		changed = DrawAssetField(field, &asset, ctx);
 	}
 	else if (fieldType == &TD_MAID)
 	{
-		changed = DrawAssetField(field, (MAID*)fieldData, ctx);
+		MAID* maid = (MAID*)fieldData;
+		meAsset asset = *maid;
+		changed = DrawAssetField(field, &asset, ctx);
+		*maid = asset.id;
 	}
 	else if (fieldType->fields.size > 0)
 	{

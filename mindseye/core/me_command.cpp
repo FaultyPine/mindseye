@@ -58,6 +58,17 @@ static void HandleSaveAsset(const meCmdSaveAsset& cmd)
     meAssetRequestWriteTemplate(meSpanTyped<MAID>(&maid, 1));
 }
 
+static InspectorWindow* FindInspectorForAsset(EditorContext& editor, MAID assetID)
+{
+    for (u32 i = 0; i < editor.inspectors.size(); i++)
+    {
+        if (editor.inspectors[i].currentAsset.id == assetID)
+            return &editor.inspectors[i];
+    }
+
+    return nullptr;
+}
+
 static void HandlePickEntity(const meCmdPickEntity& cmd)
 {
 	EngineContext* engine = GetEngineCtx();
@@ -84,8 +95,18 @@ static void HandlePickEntity(const meCmdPickEntity& cmd)
             meEntity& newlyPickedEntity = meEntityGet(hit.entity);
             SET_BIT(newlyPickedEntity.flags, EntityFlags_Selected, true);
         }
-    }
+	}
 	editor.editorSelectedObj = hit.entity;
+
+    if (!hit) return;
+
+    if (InspectorWindow* inspector = FindInspectorForAsset(editor, hit.entity.id))
+    {
+        inspector->active = true;
+        inspector->currentAsset = hit.entity;
+        return;
+    }
+
     InspectorWindow inspector = {};
     inspector.active = true;
     inspector.currentAsset = hit.entity;
