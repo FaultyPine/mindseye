@@ -6,7 +6,7 @@
 Must be on windows.
 run `build.bat`
 
-### Current features / cool stuff
+### Current features
 - clang reflection
 - asset system (uses reflection data)
 - compile-time arbitrary code execution
@@ -24,42 +24,18 @@ Finishing the asset system todo:
 - binary serialization 
     - use meChunker
     - start on a "asset compilation" pipeline. 
+- console command system - use CompileRun to codegen function<->console command bindings
 
 TODO: get rid of portable-file-dialogs. It pulls in a bunch of stl stuff.
 
 - refactor so instead of straight loading gltf, we "import" gltf and turn it into massets, then load(/compile) those
 	- meAssetCreate would do the check for .gltf in the filename, and do it there
 
-- renderer:
-	- 2d Sprites
-    - 3d lit geo
-    - shadows
-    - dbg render modes
-
-
-Scene architecture???
-    - mmm ecs....
-    - "scene graph"
-
-=== Frame Architecture ===
-
-	- Create a "Frame" object that stores all data that is scoped per-frame
-		- there'll also be a "frame" arena.
-		- Set up an asset so the game & engine is forbidden to use the scene allocator *during* a frame
-		- This means all loading, and any operations that need to persist stuff across frames needs to happen at the end/beginning of the frame
-	- FrameSimInput structure that holds all inputs used for the simulation of 1 tick
-		- recorded
-	- FrameSimOutput structure that holds the "state" of a frame that has been ticked
-		- this structure, and the "frame arena" should hold all per-frame data.
-		- for savestates, this is all we'd need to save. The engine should be able to re-construct the rest (loaded assets)
-	- FrameSimOutput is the input to a Render frame, and the renderer should be able to arbitrarily render any FrameSimOutput
-	- 
-
 ============================
 
-### General Roadmap
-- render 2d squares and have em move around
-- flesh out asset system
+### Roadmap
+- asset system
+- renderer
 - scene graph
 - engine-wide savestates
 	- user can only "request" a save, that gets serviced at a fixed point after the frame (can't save in middle of frame)
@@ -124,7 +100,7 @@ Scene architecture???
 - gamepad input 
 - using blender as the editor - exporting to my format
 - UI (Clay?)
-- physics
+- physics (Box3d)
 - audio
 
 ## R&R
