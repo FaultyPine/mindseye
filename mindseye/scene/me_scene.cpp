@@ -129,10 +129,6 @@ struct meSceneAssetLoader : public meAssetLoader
 		meAssetLoader::meAssetLoad(asset);
 		meAllocator* allocator = resourcePool->GetPayloadAllocator();
 		meScene& outScene = *(meScene*)resourcePool->GetOpaque(asset.runtimeHandle);
-		// if (!outScene.entities)
-		// {
-		// 	outScene.entities = DynArrayCreate<meAsset>(allocator);
-		// }
 		if (FindInString(outScene.externalScenePath, STRING_LIT(".gltf")) != -1 ||
 			FindInString(outScene.externalScenePath, STRING_LIT(".glb")) != -1)
 		{
@@ -167,9 +163,10 @@ void meScenePool::Load(
     cgltf_options options = {};
     cgltf_data* gltfData = nullptr;
 
-    ME_ON_SCOPE_EXIT([gltfData]()
+    ME_ON_SCOPE_EXIT([sceneAllocator, gltfData, &gltfBuffer]()
 	{
 		cgltf_free(gltfData);
+        MEFREE(sceneAllocator, gltfBuffer);
 	});
 	// parses the gltf json metadata
     cgltf_result parseResult = cgltf_parse(&options, gltfBuffer.data, gltfBuffer.size, &gltfData);

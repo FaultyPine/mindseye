@@ -41,6 +41,9 @@ struct MEREFLECT(type) meMesh : public meBaseAsset
     
 	meTypedAsset<MAMaterial> material = {};
 
+    MEREFLECT(Path)
+    String externalMeshPath = {};
+
 	bool IsLoaded() const { return vertBuffer.IsValid(); }
 };
 

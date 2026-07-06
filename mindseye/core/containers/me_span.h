@@ -31,7 +31,12 @@ struct meSpan
     }
 
     template<typename T>
-    operator T*() const 
+    operator const T*() const 
+    {
+        return (const T*)data; 
+    }
+    template<typename T>
+    operator T*() 
     {
         return (T*)data; 
     }

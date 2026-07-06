@@ -1819,8 +1819,6 @@ bool CreateCompileRunInterpreter(
 void FillCompileRunContextCommon(meCompileRunContext& runCtx, ClangParsingContext& ctx)
 {
     runCtx.translationUnit = *ctx.tu;
-    runCtx.projectRoot = ctx.projectRootDir.cstr();
-    runCtx.outputDir = ctx.headerOutputFolder.cstr();
 }
 
 void RunCompileRunStageForDecl(

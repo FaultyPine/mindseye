@@ -80,8 +80,8 @@ MEAPI bool BufferCopy(meSpan dst, meSpan src);
 #define MERESERVE(allocator, size) ((allocator)->meReserve(size))
 #define MEFREE(allocator, ptr) \
 	do { \
-		if (ptr != nullptr) { \
-			(allocator)->meFree(ptr); \
+		if ((void*)ptr != nullptr) { \
+			(allocator)->meFree((void*)ptr); \
 			ptr = {}; \
 		} \
 	} while(0)

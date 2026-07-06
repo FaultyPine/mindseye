@@ -610,6 +610,10 @@ void StringBuilderCheckGrow(StringBuilder& sb, const StringView& sv)
 
 void StringBuilder::Append(StringView str)
 {
+    if (!str)
+    {
+        return;
+    }
 	ME_ASSERT(allocator);
 	StringBuilderCheckGrow(*this, str);
 	ME_MEMCPY(data + len, str.data, str.len);

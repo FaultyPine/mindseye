@@ -48,12 +48,5 @@ struct meCompileRunContext
     CXTranslationUnit translationUnit = {};
     StringView reflectOp = {};
     StringView macroContent = {};
-
-    clang::Decl *decl = nullptr;
-    clang::ASTContext *ast = nullptr;
-    clang::SourceManager *sourceManager = nullptr;
-
-    const char *projectRoot = nullptr;
-    const char *outputDir = nullptr;
-    const char *sourceFile = nullptr;
+    const char* sourceFile = nullptr;
 };
