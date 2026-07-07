@@ -19,9 +19,7 @@
 #include "asset/me_asset_index.h"
 #include "scene/me_scene.h"
 #include "core/me_scope_exit.h"
-
-// TODO: remove this, replace with something lighter weight. this brings in a lot of STL stuff
-#include "external/potable-file-dialogs.h"
+#include "core/me_filesystem.h"
 
 EditorContext& meEditorGetCtx()
 {
@@ -149,16 +147,7 @@ static void PopulatePathFromUserInputIfNotValid(String& path)
 {
     // if the scene has no disk path yet, ask the user for one
     // kept in outer scope so the string data outlives the command dispatch
-    std::vector<std::string> openFileResult;
-    openFileResult = pfd::open_file("Location to save the file", ".").result();
-    if (!openFileResult.empty())
-    {
-        ME_ASSERT(openFileResult.size() == 1);
-        const char* fileCstr = openFileResult[0].c_str();
-        ME_ASSERT(CStringLength(fileCstr) <= ME_PATH_MAX);
-        StringView userPath = StringFromCString(fileCstr);
-        path = userPath;
-    }
+    FilesystemPathPicker("Location to save the file", path);
 }
 
 

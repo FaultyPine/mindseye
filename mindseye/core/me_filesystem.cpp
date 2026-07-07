@@ -3,6 +3,43 @@
 #include "mindseye/platform/me_os.h"
 #include "mindseye/core/me_log.h"
 
+// TODO: remove this, replace with something lighter weight. this brings in a lot of STL stuff
+#include "external/potable-file-dialogs.h"
+
+bool FilesystemPathPicker(const char* title, String& out)
+{
+    std::vector<std::string> openFileResult;
+    openFileResult = pfd::open_file(title, ".").result();
+    if (!openFileResult.empty())
+    {
+        ME_ASSERT(openFileResult.size() == 1);
+        const char* fileCstr = openFileResult[0].c_str();
+        ME_ASSERT(CStringLength(fileCstr) <= ME_PATH_MAX);
+        StringView userPath = StringFromCString(fileCstr);
+        out = userPath;
+        return true;
+    }
+    return false;
+}
+
+bool meFsPathEditorRender(EditorRenderContext& ctx)
+{
+    meFsPath& fieldData = *(meFsPath*)ctx.data;
+    if (fieldData)
+    {
+        ImGui::TextUnformatted(fieldData.cstr());
+		ImGui::SameLine();
+    }
+    if (ImGui::SmallButton("+"))
+    {
+        if (FilesystemPathPicker("Select a path", fieldData))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 
 StringView meFsGetDirectorySeperator()
 {

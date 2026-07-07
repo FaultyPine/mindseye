@@ -5,6 +5,7 @@
 #include "core/me_resourcepool.h"
 #include "render/me_material.h"
 #include "scene/me_transform.h"
+#include "core/me_filesystem.h"
 
 struct cgltf_mesh;
 
@@ -41,8 +42,7 @@ struct MEREFLECT(type) meMesh : public meBaseAsset
     
 	meTypedAsset<MAMaterial> material = {};
 
-    MEREFLECT(Path)
-    String externalMeshPath = {};
+    meFsPath externalMeshPath = {};
 
 	bool IsLoaded() const { return vertBuffer.IsValid(); }
 };

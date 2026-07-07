@@ -17,8 +17,7 @@ meScene : public meBaseAsset
     using meBaseAsset::meBaseAsset;
 
 	// an external file that represents the scene - i.e. gltf
-    MEREFLECT(Path)
-	String externalScenePath = {};
+	meFsPath externalScenePath = {};
 	meCamera mainCamera = {};
 
 	DynArray<meTypedAsset<MAEntity>> entities = {};

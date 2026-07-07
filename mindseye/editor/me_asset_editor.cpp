@@ -584,7 +584,19 @@ bool DrawTypeDescriptorField(const meTypeDescriptor& field, u8* dataPtr, AssetEd
 
 	const char* displayName = field.editorName.data ? field.editorName.cstr() : field.name.cstr();
 
-	if (fieldType == &TD_MEASSET || fieldType->thisType == &TD_MEASSET)
+    if (fieldType->editorRenderFn)
+    {
+        InspectorLabel(displayName);
+		if (field.tooltip.data && field.tooltip.len > 0 && ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip(STRING_FMT, STRING_VAARGS(field.tooltip));
+		}
+		ImGui::PushID(displayName);
+        EditorRenderContext ctx{fieldData};
+        changed = fieldType->editorRenderFn(ctx);
+		ImGui::PopID();
+    }
+	else if (fieldType == &TD_MEASSET || fieldType->thisType == &TD_MEASSET)
 	{
 		meAsset& asset = *(meAsset*)fieldData;
 		changed = DrawAssetField(field, &asset, ctx);

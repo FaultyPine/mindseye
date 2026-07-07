@@ -69,7 +69,7 @@ typedef bool(*DeserializerFn)(
 	const meTypeDescriptor& typeDescriptor,
 	DeserializeContext& ctx);
 
-typedef void (*EditorRenderFn)(
+typedef bool (*EditorRenderFn)(
     EditorRenderContext& ctx);
 
 typedef void (*SetToDefaults)(void* objData);

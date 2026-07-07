@@ -4,6 +4,17 @@
 #include "mindseye/core/me_memory.h"
 
 
+struct MEREFLECT(type, EditorRender=meFsPathEditorRender) 
+meFsPath : public String
+{
+
+};
+
+// populates `out` with result of OS path picker window
+bool FilesystemPathPicker(const char* title, String& out);
+
+bool meFsPathEditorRender(EditorRenderContext& ctx);
+
 MEAPI StringView meFsGetDirectorySeperator();
 
 // NOTE: will NormalizePathSeperators on the passed in path

@@ -72,6 +72,14 @@ sorta like how naughty dog's engine is broken up pretty fine into small jobs on 
 what if we took the ECS idea of defining in data the dependencies of a "system" (job, in this case) and submitting to a graph resolver to schedule parallel work automatically
 So like - engine is really comprised of loads of smallish jobs, all of which need to data-define what data they touch - globals and also local params (automatically discovered?)
 Potential CON: more annoying to debug, because it's not just stepping through regular functions. Would ideally have a way to make sure "step into" on a job spawn defaults to putting a breakpoint in the actual job funcptr being passed in. I don't think there's any debuggers out there that can do this.
+
+Might be best to first implement better thread context structures
+- move threadlocal scratch arenas into this threadlocal omega structure
+- thread should be able to trivially get it's "global index"
+- Instead of the paradigm: "here's a task, put it on a thread", and if you want multiple tasks that divide up some work, the caller thread has to chunk that up and pass context into a task function.
+    - better to do it more GPU-esc. Like, "here's a function, run it on N threads". And all N threads get a context structure with their "group index" and the "group threadcount (N)". Then like gpu programming, it's just about having the task itself mask out the work it shouldn't care about. Use barriers to syncronize and threadgroup indexing like i wrote above for "distributing" the work.
+        - Really great post about this concept: https://www.dgtlgrove.com/p/multi-core-by-default
+
 Example 1:
 ```
 engine needs to load a scene. pushes 'scene load job', dependencies are
