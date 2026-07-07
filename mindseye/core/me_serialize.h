@@ -74,3 +74,8 @@ void DeserializeOverridesFromTextBlocking(
 	const void* templateData,
 	meSpan outBuffer,
 	meSerializeResult& outResult);
+
+
+void sizedBufferSerializer(
+    const meTypeDescriptor& typedescriptor,
+    SerializeContext& ctx);

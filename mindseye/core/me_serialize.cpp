@@ -845,7 +845,7 @@ bool meAssetDeserializerFromStringFn(const meTypeDescriptor& td, DeserializeCont
         {
             // BOOKMARK: deep copy
             ME_MEMCPY(instanceData, templateData, loader->assetTypeDesc->size);
-            //ME_ASSERT(false);
+            LOG_WARN("Using shallow copy for deserialization of overridden fields may result in bad data. This is an important TODO!");
         }
     }
 

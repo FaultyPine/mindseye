@@ -39,6 +39,26 @@ void meEditorOnAssetFinishedWriting(meEventPayload payload)
 	ImGui::InsertNotification({ImGuiToastType::Info, 3000, StringFormatTmp("Finished writing " STRING_FMT, STRING_VAARGS(diskPath)).cstr()});
 }
 
+// editor render override for meFsPath
+bool meFsPathEditorRender(EditorRenderContext& ctx)
+{
+    meFsPath& fieldData = *(meFsPath*)ctx.data;
+    if (fieldData)
+    {
+        ImGui::TextUnformatted(fieldData.cstr());
+		ImGui::SameLine();
+    }
+    if (ImGui::SmallButton("+"))
+    {
+        if (FilesystemPathPicker("Select a path", fieldData))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+
 static void SetupImGuiDraculaStyle()
 {
 	ImGuiStyle& style = ImGui::GetStyle();

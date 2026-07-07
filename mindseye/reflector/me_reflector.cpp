@@ -328,6 +328,7 @@ static std::unordered_map<CXTypeKind, meTypeDescriptor *> clangToMePrimitiveType
 // TD_MEASSET is a generated type and is not available in the reflector binary.
 // Only the .name field matters here: TransferRelevantReflectedTypeInfoToTypeDescriptor copies it,
 // and SanitizeAndCopyTypeDescriptorName then uppercases it to produce "TD_MEASSET" in emitted code.
+// TODO: we wouldn't need this if we had proper support for inheritance
 static meTypeDescriptor s_meAssetBuiltinStub = {.name = STRING_LIT("meAsset")};
 
 static std::unordered_map<StringView, meTypeDescriptor *> builtinStructs =

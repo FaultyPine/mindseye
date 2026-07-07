@@ -42,17 +42,17 @@ static void HandleSaveAsset(const meCmdSaveAsset& cmd)
 	meAsset* asset = meAssetTryGetTemplate(maid);
 	if (!asset)
 	{
-        LOG_WARN("Tried to save current scene, but scene header doesn't point to a valid loaded asset");
+        LOG_WARN("Tried to save asset, but the header doesn't point to a valid loaded asset");
 		return;
 	}
 
-    StringView sceneFile = meAssetIndexGetFilesystemPath(maid);
-	if (sceneFile)
+    StringView filePath = meAssetIndexGetFilesystemPath(maid);
+	if (filePath)
 	{
-		meFsNormalizePathSeperators(sceneFile);
-		sceneFile = meAssetEnsurePathHasGoodExtension(sceneFile, maid.GetType());
-		sceneFile = meAssetGetRelPathForResource(sceneFile);
-		meAssetIndexRegisterRelation(sceneFile, maid);
+		meFsNormalizePathSeperators(filePath);
+		filePath = meAssetEnsurePathHasGoodExtension(filePath, maid.GetType());
+		filePath = meAssetGetRelPathForResource(filePath);
+		meAssetIndexRegisterRelation(filePath, maid);
 	}
 
     meAssetRequestWriteTemplate(meSpanTyped<MAID>(&maid, 1));

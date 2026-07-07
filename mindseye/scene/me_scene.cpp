@@ -150,7 +150,7 @@ void meScenePool::Load(
 	StringView resourcePathRel,
 	meScene& outScene)
 {
-	StringView resourcePathAbs = meAssetGetAbsPathForResource(resourcePathRel);
+	String resourcePathAbs = meAssetGetAbsPathForResource(resourcePathRel);
 	OSFileReference file;
     meOSOpenFile(file, resourcePathAbs, (OSFileFlags_OnlyIfExists | OSFileFlags_ScopedFile));
 	u64 filesize = meOSGetFileSize(file);

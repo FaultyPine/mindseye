@@ -4,7 +4,8 @@
 #include "mindseye/core/me_memory.h"
 
 
-struct MEREFLECT(type, EditorRender=meFsPathEditorRender) 
+// TODO: if the reflector respected inherited types somehow, we wouldn't need to manually specify the string serializer/deserializer
+struct MEREFLECT(type, EditorRender=meFsPathEditorRender, Serializer=sizedBufferSerializer, Deserializer=sizedBufferDeserializer, Equals=sizedBufferEquals) 
 meFsPath : public String
 {
 

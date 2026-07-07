@@ -22,14 +22,7 @@ StringView meTypeDescriptorFlagToString(meTypeDescriptorFlags flag)
 void sizedBufferSerializer(
 	const meTypeDescriptor& typedescriptor,
 	SerializeContext& ctx)
-{
-	meSpan fieldData = ctx.data;
-	meAllocator* allocator = ctx.allocator;
-	meSpan dereferencedData = *(meSpan*)fieldData.data;
-	Allocation mem = MEALLOC(allocator, dereferencedData.size);
-	BufferCopy(mem, dereferencedData);
-	ctx.outputData = mem;
-}
+{ UNIMPLEMENTED(); }
 #endif
 
 bool sizedBufferDeserializer(

@@ -22,25 +22,6 @@ bool FilesystemPathPicker(const char* title, String& out)
     return false;
 }
 
-bool meFsPathEditorRender(EditorRenderContext& ctx)
-{
-    meFsPath& fieldData = *(meFsPath*)ctx.data;
-    if (fieldData)
-    {
-        ImGui::TextUnformatted(fieldData.cstr());
-		ImGui::SameLine();
-    }
-    if (ImGui::SmallButton("+"))
-    {
-        if (FilesystemPathPicker("Select a path", fieldData))
-        {
-            return true;
-        }
-    }
-    return false;
-}
-
-
 StringView meFsGetDirectorySeperator()
 {
     return meOSFsDirectorySeperator();
