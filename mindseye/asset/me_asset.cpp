@@ -57,7 +57,7 @@ void meAssetInitialize(EngineContext* engine)
     engine->assetSystem = MENEW(&engine->engineArena, meAssetSystem);
 	for (u32 i = 0; i < NUM_ASSET_TYPES; i++)
 	{
-		engine->assetSystem->registries[i].templateAssets.reserve(50);
+		engine->assetSystem->registries[i].assets.reserve(50);
 	}
     const CommandLineArgs& cmdline = GetCommandLineArgs();
 	if (cmdline.hasResourceDir)
@@ -124,20 +124,17 @@ meAsset meAssetCreateNewAsset(
 	*assetHeader = newMaid;
 
 	meAsset newAsset = meAsset(newRuntimeResource, newMaid);
-    if (resourceType == meResourceType_TemplateAsset)
+    if (templateFilename)
     {
-        if (templateFilename)
-        {
-            meFsNormalizePathSeperators(templateFilename);
-            templateFilename = meAssetEnsurePathHasGoodExtension(templateFilename, type);
-            templateFilename = meAssetGetRelPathForResource(templateFilename);
-            meAssetIndexRegisterRelation(templateFilename, newAsset.id);
-        }
-
-        meAssetTypeRegistry& reg = assetSystem.registries[type];
-        RWLockWrite lock(reg.lock);
-        reg.templateAssets[newMaid] = newAsset; // copy
+        meFsNormalizePathSeperators(templateFilename);
+        templateFilename = meAssetEnsurePathHasGoodExtension(templateFilename, type);
+        templateFilename = meAssetGetRelPathForResource(templateFilename);
+        meAssetIndexRegisterRelation(templateFilename, newAsset.id);
     }
+
+    meAssetTypeRegistry& reg = assetSystem.registries[type];
+    RWLockWrite lock(reg.lock);
+    reg.assets[newMaid] = newAsset; // copy
 	return meMove(newAsset);
 }
 
@@ -208,7 +205,7 @@ meJobId meAssetRequestLoadTemplate(
 				meAsset notYetLoadedData = meAsset(assetIdent, Loading);
 				meAssetTypeRegistry& reg = assetSystem.registries[assetType];
 				RWLockWrite lock(reg.lock);
-				reg.templateAssets[assetIdent] = notYetLoadedData;
+				reg.assets[assetIdent] = notYetLoadedData;
 			}
 			struct AssetCompilerJobData
 			{
@@ -435,8 +432,8 @@ meAsset* meAssetTryGetTemplate(MAID assetID)
 	meAssetSystem& assetSystem = meAssetSystemGet();
 	meAssetTypeRegistry& reg = assetSystem.registries[assetID.GetType()];
 	RWLockRead(reg.lock);
-	auto it = reg.templateAssets.find(assetID);
-	if (it == reg.templateAssets.end())
+	auto it = reg.assets.find(assetID);
+	if (it == reg.assets.end())
 	{
 		return nullptr;
 	}

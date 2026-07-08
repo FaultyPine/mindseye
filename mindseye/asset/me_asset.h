@@ -229,7 +229,7 @@ struct meAssetLoader
 struct meAssetTypeRegistry
 {
 	RWLock lock = {};
-	meMap<MAID, meAsset> templateAssets = {};
+	meMap<MAID, meAsset> assets = {};
 };
 
 struct meAssetSystem
