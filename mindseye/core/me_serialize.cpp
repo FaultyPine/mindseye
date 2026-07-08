@@ -720,7 +720,14 @@ void meAssetSerializerToStringFn(const meTypeDescriptor& td, SerializeContext& c
     meAssetRequestLoadTemplate(&templateMaid, 1);
     meAssetWaitUntilLoadstage({ &templateMaid, 1 }, Loaded);
     meAsset* tmpl = meAssetTryGetTemplate(templateMaid);
-    ME_ASSERT(tmpl && tmpl->runtimeHandle.IsTemplateAsset());
+    ME_ASSERT(tmpl);
+    if (!tmpl->runtimeHandle.IsTemplateAsset())
+    {
+        // an instance asset *created from a template* will have the template asset MAID
+        // an instance asset *created at runtime* (and therefore NOT derived from a template asset)
+        // shouldn't be serialized at all
+        return;
+    }
 
     void* templateData = loader->resourcePool->GetOpaque(tmpl->runtimeHandle);
     void* instanceData = loader->resourcePool->GetOpaque(asset->runtimeHandle);
