@@ -29,7 +29,8 @@ bool meAssetEditorTick(AssetEditorContext& ctx);
 bool DrawTypeDescriptorField(
     const meTypeDescriptor& field, 
     u8* dataPtr,
-	AssetEditorContext* ctx = nullptr);
+	AssetEditorContext* ctx = nullptr,
+	const meTypeDescriptor* parentType = nullptr);
 
 bool DrawStructFields(
     const meTypeDescriptor& type, 
@@ -45,4 +46,5 @@ bool DrawPrimitiveValue(
 bool DrawAssetField(
     const meTypeDescriptor& field,
     meAsset* asset,
+	const meTypeDescriptor* parentType = nullptr,
 	AssetEditorContext* ctx = nullptr);

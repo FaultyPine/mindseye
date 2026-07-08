@@ -241,24 +241,161 @@ bool meAssetEditorTick(AssetEditorContext& ctx)
 // Generic editor type drawing
 
 
-static void InspectorLabel(const char* label)
+static bool ResetTypedAssetToDefault(const meTypeDescriptor& type, void* data)
 {
+	if (!(type.thisType == &TD_MEASSET && type.templatedTypes.size > 0 && type.templatedTypes[0]))
+		return false;
+
+	meAsset& asset = *(meAsset*)data;
+	asset = {};
+	asset.id.SetID(U32_INVALID_ID);
+	asset.id.SetType((meAssetType)type.templatedTypes[0]->value);
+	asset.runtimeHandle = EYE_INVALID;
+	asset.loadStage = Unloaded;
+	return true;
+}
+
+static bool ResetValueWithOwnDefault(const meTypeDescriptor& type, void* data)
+{
+	if (!data || type.size == 0) return true;
+
+    if (ResetTypedAssetToDefault(type, data))
+    {
+        return true;
+    }
+
+	if (type.setToDefaultsFn)
+	{
+		type.setToDefaultsFn(data);
+		return true;
+	}
+
+	if (type.thisType && type.thisType->setToDefaultsFn)
+	{
+		type.thisType->setToDefaultsFn(data);
+		return true;
+	}
+
+	return false;
+}
+
+static bool ResetValueFromParentDefault(
+	const meTypeDescriptor& field,
+	void* fieldData,
+	const meTypeDescriptor* parentType)
+{
+	if (!fieldData || !parentType || !parentType->setToDefaultsFn)
+		return false;
+
+	if (field.offsetBits < 0 || (field.offsetBits % 8) != 0)
+		return false;
+
+	u64 fieldOffset = (u64)field.offsetBits / 8;
+	if (fieldOffset + field.size > parentType->size)
+		return false;
+
+	Allocation parentData = MECALLOC(GetTLScratch(), parentType->size);
+	parentType->setToDefaultsFn(parentData);
+	void* defaultFieldData = (u8*)parentData.data + fieldOffset;
+	ME_MEMCPY(fieldData, defaultFieldData, field.size);
+	return true;
+}
+
+static void ResetValueToDefault(
+	const meTypeDescriptor& type,
+	void* data,
+	const meTypeDescriptor* parentType)
+{
+	if (!data || type.size == 0) return;
+
+    // Prefer parent defaults for fields: a child type may have different defaults
+    // when it appears inside a containing type EX: meTransform::scale
+	if (ResetValueFromParentDefault(type, data, parentType))
+		return;
+
+	if (ResetValueWithOwnDefault(type, data))
+		return;
+
+	if (type.thisType && TEST_BIT(type.flags, meTypeDescriptorFlag_ConstantArray))
+	{
+		u32 elemSize = type.thisType->size;
+		if (elemSize == 0)
+		{
+			LOG_WARN("Zero-sized element in a constant array cannot be set to a default value");
+			return;
+		}
+
+		u32 elemCount = type.size / elemSize;
+		for (u32 i = 0; i < elemCount; i++)
+		{
+			void* elemData = (u8*)data + (i * elemSize);
+			if (!ResetTypedAssetToDefault(type, elemData))
+				ResetValueToDefault(*type.thisType, elemData, nullptr);
+		}
+		return;
+	}
+
+    LOG_WARN("Type without a setToDefaultsFn, this isn't expected. " STRING_FMT, STRING_VAARGS(type.name));
+	ME_MEMCLEAR(data, type.size);
+}
+
+static bool DrawTypeDescriptorFieldContextMenu(
+	const char* popupId,
+	const meTypeDescriptor& field,
+	void* fieldData,
+	const meTypeDescriptor* parentType,
+	AssetEditorContext* ctx)
+{
+	if (ImGui::IsItemHovered() && ImGui::IsMouseReleased(ImGuiMouseButton_Right))
+		ImGui::OpenPopup(popupId);
+
+	bool changed = false;
+	bool popupOpen = ImGui::IsPopupOpen(popupId);
+	if (ctx && popupOpen)
+		ed::Suspend();
+
+	if (ImGui::BeginPopup(popupId))
+	{
+		if (ImGui::MenuItem("Reset to Default"))
+		{
+			ResetValueToDefault(field, fieldData, parentType);
+			changed = true;
+		}
+		ImGui::EndPopup();
+	}
+
+	if (ctx && popupOpen)
+		ed::Resume();
+	return changed;
+}
+
+static bool InspectorLabel(
+	const meTypeDescriptor& field,
+	void* fieldData,
+	const meTypeDescriptor* parentType,
+	AssetEditorContext* ctx)
+{
+	const char* label = field.editorName.data ? field.editorName.cstr() : field.name.cstr();
 	ImGui::TableNextRow();
 	ImGui::TableSetColumnIndex(0);
 	ImGui::AlignTextToFramePadding();
 	ImGui::TextUnformatted(label);
+	if (field.tooltip.data && field.tooltip.len > 0 && ImGui::IsItemHovered())
+		ImGui::SetTooltip(STRING_FMT, STRING_VAARGS(field.tooltip));
+	bool changed = DrawTypeDescriptorFieldContextMenu("##field_context_label", field, fieldData, parentType, ctx);
 	ImGui::TableSetColumnIndex(1);
 	ImGui::SetNextItemWidth(-FLT_MIN);
+	return changed;
 }
 
 bool DrawAssetField(
     const meTypeDescriptor& field,
     meAsset* asset,
+	const meTypeDescriptor* parentType,
 	AssetEditorContext* ctx)
 {
     MAID& maid = asset->id;
     bool changed = false;
-    const char* displayName = field.editorName.data ? field.editorName.cstr() : field.name.cstr();
     // For meTypedAsset<T> fields the reflector stores the enum value as an integral stub
     // in field.templatedTypes[0]. Prefer that over the MAID's stored type so that the
     // combo is correctly filtered even when the MAID is default-constructed ("none").
@@ -269,16 +406,9 @@ bool DrawAssetField(
     if (assetType <= MABadData || assetType >= NUM_ASSET_TYPES)
     {
         return false;
-    }
+	}
 
-	ImGui::TableNextRow();
-	ImGui::TableSetColumnIndex(0);
-	ImGui::AlignTextToFramePadding();
-	ImGui::TextUnformatted(displayName);
-	if (field.tooltip.data && field.tooltip.len > 0 && ImGui::IsItemHovered())
-		ImGui::SetTooltip(STRING_FMT, STRING_VAARGS(field.tooltip));
-	ImGui::TableSetColumnIndex(1);
-	ImGui::SetNextItemWidth(-FLT_MIN);
+	changed |= InspectorLabel(field, asset, parentType, ctx);
 
     StringView currentPath = meAssetIndexGetFilesystemPath(maid);
     const char* preview = (currentPath.data && currentPath.len)
@@ -361,6 +491,7 @@ bool DrawAssetField(
 		if (!canOpen)
 			ImGui::EndDisabled();
 	}
+	changed |= DrawTypeDescriptorFieldContextMenu("##field_context_value", field, asset, parentType, ctx);
     return changed;
 }
 
@@ -539,13 +670,13 @@ bool DrawPrimitiveValue(const meTypeDescriptor& type, u8* data, const meTypeDesc
         // (e.g. g_typearg_entities_0 for DynArray<meTypedAsset<MAEntity>> elements),
         // which have .thisType == &TD_MEASSET and carry the enum value in templatedTypes[0].
         meAsset& asset = *(meAsset*)data;
-	    changed = DrawAssetField(type, &asset, ctx);
+	    changed = DrawAssetField(type, &asset, nullptr, ctx);
     }
     else if (&type == &TD_MAID)
     {
         MAID* maid = (MAID*)data;
         meAsset asset = *maid;
-        changed = DrawAssetField(type, &asset, ctx);
+        changed = DrawAssetField(type, &asset, nullptr, ctx);
         *maid = asset.id;
     }
 	else
@@ -565,7 +696,7 @@ bool DrawStructFields(const meTypeDescriptor& type, u8* dataPtr, AssetEditorCont
 		if (TEST_BIT(field.flags, meTypeDescriptorFlag_Excluded)) continue;
 
 		ImGui::PushID((int)i);
-		if (DrawTypeDescriptorField(field, dataPtr, ctx))
+		if (DrawTypeDescriptorField(field, dataPtr, ctx, &type))
 			anyChanged = true;
 		ImGui::PopID();
 	}
@@ -574,7 +705,11 @@ bool DrawStructFields(const meTypeDescriptor& type, u8* dataPtr, AssetEditorCont
 
 
 // dataPtr is the base address of the parent struct
-bool DrawTypeDescriptorField(const meTypeDescriptor& field, u8* dataPtr, AssetEditorContext* ctx)
+bool DrawTypeDescriptorField(
+	const meTypeDescriptor& field,
+	u8* dataPtr,
+	AssetEditorContext* ctx,
+	const meTypeDescriptor* parentType)
 {
 	u8* fieldData = dataPtr + (field.offsetBits / 8);
 	const meTypeDescriptor* fieldType = field.thisType;
@@ -586,26 +721,24 @@ bool DrawTypeDescriptorField(const meTypeDescriptor& field, u8* dataPtr, AssetEd
 
     if (fieldType->editorRenderFn)
     {
-        InspectorLabel(displayName);
-		if (field.tooltip.data && field.tooltip.len > 0 && ImGui::IsItemHovered())
-		{
-			ImGui::SetTooltip(STRING_FMT, STRING_VAARGS(field.tooltip));
-		}
+        changed |= InspectorLabel(field, fieldData, parentType, ctx);
 		ImGui::PushID(displayName);
-        EditorRenderContext ctx{fieldData};
-        changed = fieldType->editorRenderFn(ctx);
+		ImGui::BeginGroup();
+        EditorRenderContext editorRenderCtx{fieldData};
+        changed |= fieldType->editorRenderFn(editorRenderCtx);
+		ImGui::EndGroup();
 		ImGui::PopID();
     }
 	else if (fieldType == &TD_MEASSET || fieldType->thisType == &TD_MEASSET)
 	{
 		meAsset& asset = *(meAsset*)fieldData;
-		changed = DrawAssetField(field, &asset, ctx);
+		changed = DrawAssetField(field, &asset, parentType, ctx);
 	}
 	else if (fieldType == &TD_MAID)
 	{
 		MAID* maid = (MAID*)fieldData;
 		meAsset asset = *maid;
-		changed = DrawAssetField(field, &asset, ctx);
+		changed = DrawAssetField(field, &asset, parentType, ctx);
 		*maid = asset.id;
 	}
 	else if (fieldType->fields.size > 0)
@@ -621,6 +754,7 @@ bool DrawTypeDescriptorField(const meTypeDescriptor& field, u8* dataPtr, AssetEd
 		{
 			ImGui::SetTooltip(STRING_FMT, STRING_VAARGS(field.tooltip));
 		}
+		changed |= DrawTypeDescriptorFieldContextMenu("##field_context_label", field, fieldData, parentType, ctx);
 		ImGui::TableSetColumnIndex(1);
 		ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
 		ImGui::Text(STRING_FMT, STRING_VAARGS(fieldType->name));
@@ -628,15 +762,15 @@ bool DrawTypeDescriptorField(const meTypeDescriptor& field, u8* dataPtr, AssetEd
 
 		if (nodeOpen)
 		{
-			changed = DrawStructFields(*fieldType, fieldData, ctx);
+			changed |= DrawStructFields(*fieldType, fieldData, ctx);
 			ImGui::TreePop();
 		}
 	}
 	else
 	{
-		InspectorLabel(displayName);
+		changed |= InspectorLabel(field, fieldData, parentType, ctx);
 		ImGui::PushID(displayName);
-		changed = DrawPrimitiveValue(*fieldType, fieldData, &field, ctx);
+		changed |= DrawPrimitiveValue(*fieldType, fieldData, &field, ctx);
 		ImGui::PopID();
 
 		if (field.tooltip.data && field.tooltip.len > 0 && ImGui::IsItemHovered())
@@ -644,6 +778,7 @@ bool DrawTypeDescriptorField(const meTypeDescriptor& field, u8* dataPtr, AssetEd
 			ImGui::SetTooltip(STRING_FMT, STRING_VAARGS(field.tooltip));
 		}
 	}
+	changed |= DrawTypeDescriptorFieldContextMenu("##field_context_value", field, fieldData, parentType, ctx);
 	return changed;
 }
 
