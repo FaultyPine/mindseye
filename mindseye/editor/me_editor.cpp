@@ -43,11 +43,20 @@ void meEditorOnAssetFinishedWriting(meEventPayload payload)
 bool meFsPathEditorRender(EditorRenderContext& ctx)
 {
     meFsPath& fieldData = *(meFsPath*)ctx.data;
-    if (fieldData)
-    {
-        ImGui::TextUnformatted(fieldData.cstr());
-		ImGui::SameLine();
-    }
+
+	float buttonWidth = ImGui::GetFrameHeight();
+	float spacing = ImGui::GetStyle().ItemInnerSpacing.x;
+	float pathWidth = ImGui::GetContentRegionAvail().x - buttonWidth - spacing;
+	if (pathWidth < 60.0f) pathWidth = 60.0f;
+
+	char emptyPath[] = "";
+	char* pathData = fieldData ? fieldData.data : emptyPath;
+	u64 pathDataSize = fieldData ? fieldData.len + 1 : sizeof(emptyPath);
+
+	ImGui::SetNextItemWidth(pathWidth);
+	ImGui::InputTextWithHint("##path", "(none)", pathData, pathDataSize, ImGuiInputTextFlags_ReadOnly);
+	ImGui::SameLine();
+
     if (ImGui::SmallButton("+"))
     {
         if (FilesystemPathPicker("Select a path", fieldData))

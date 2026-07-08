@@ -15,7 +15,6 @@ run `build.bat`
 
 Finishing the asset system todo:
 
-- BOOKMARK: path selector for fields tagged MEREFLECT(Path) for mesh asset path
 - enforce some read-only-ness to asset templates, unless it's explicitly specified that we're in "live edit" mode
 - Prove out a workflow of "create a mesh asset, assign it to an entity, see it rendered, saved, loaded in the scene"
 - implement "scoped asset locks" on an arbitrary MAID/meAsset
