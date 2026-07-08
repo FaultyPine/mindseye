@@ -126,7 +126,7 @@ String& String::operator=(String&& other)
 	return *this;
 }
 
-static meAllocator* GetStringAllocator()
+meAllocator* GetStringAllocator()
 {
 	// TODO
 	return GetDefaultAllocator();

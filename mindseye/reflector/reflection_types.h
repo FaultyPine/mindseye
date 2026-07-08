@@ -196,8 +196,9 @@ extern meTypeDescriptor TD_STRING;
 // Serializer/Deserializer functions for sized buffer types
 void sizedBufferSerializer(const meTypeDescriptor&, SerializeContext& ctx);
 bool sizedBufferDeserializer(const meTypeDescriptor&, DeserializeContext& ctx);
+void stringSerializer(const meTypeDescriptor&, SerializeContext& ctx);
 bool stringDeserializer(const meTypeDescriptor&, DeserializeContext& ctx);
-bool sizedBufferEquals(const void* a, const void* b);
+bool sizedBufferEquals(const meTypeDescriptor& td, const void* a, const void* b);
 
 // NOTE: there are static maps mapping between reflected types and their type descriptors
 // in me_reflector.cpp

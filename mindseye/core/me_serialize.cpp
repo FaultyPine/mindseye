@@ -20,6 +20,15 @@ void sizedBufferSerializer(
 	out = std::string(dereferencedData.data, dereferencedData.size);
 }
 
+void stringSerializer(
+	const meTypeDescriptor& typedescriptor,
+	SerializeContext& ctx)
+{
+	StringView str = *(StringView*)ctx.data.data;
+	json& out = *(json*)ctx.outputData.data;
+	out = str.data ? std::string(str.data, str.len) : std::string();
+}
+
 // =========================================================
 // JSON Serialization Helpers
 // =========================================================
@@ -103,11 +112,6 @@ static json JsonSerializeWithTypeDescriptor(
 		{
 			float* v = (float*)data;
 			return json::array({v[0], v[1], v[2], v[3]});
-		}
-		if (&td == &TD_STRINGVIEW)
-		{
-			StringView* sv = (StringView*)data;
-			return std::string(sv->data, sv->len);
 		}
 		// Unknown primitive
 		return json();
@@ -216,17 +220,6 @@ static bool JsonDeserializeWithTypeDescriptor(
 			v[1] = j[1].get<float>();
 			v[2] = j[2].get<float>();
 			v[3] = j[3].get<float>();
-			return true;
-		}
-		if (&td == &TD_STRINGVIEW)
-		{
-			// StringView deserialization needs external allocation
-			std::string str = j.get<std::string>();
-			Allocation mem = MEALLOC(allocator, str.size());
-			memcpy(mem.data, str.data(), str.size());
-			StringView* sv = (StringView*)outData;
-			sv->data = (char*)mem.data;
-			sv->len = (u32)str.size();
 			return true;
 		}
 		return false;

@@ -8,6 +8,9 @@
 struct meAllocator;
 struct StringView;
 struct StringBuilder;
+
+MEAPI meAllocator* GetStringAllocator();
+
 struct String
 {
     char* data = nullptr;

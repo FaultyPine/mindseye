@@ -79,3 +79,7 @@ void DeserializeOverridesFromTextBlocking(
 void sizedBufferSerializer(
     const meTypeDescriptor& typedescriptor,
     SerializeContext& ctx);
+
+void stringSerializer(
+    const meTypeDescriptor& typedescriptor,
+    SerializeContext& ctx);

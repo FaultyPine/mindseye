@@ -23,6 +23,11 @@ void sizedBufferSerializer(
 	const meTypeDescriptor& typedescriptor,
 	SerializeContext& ctx)
 { UNIMPLEMENTED(); }
+
+void stringSerializer(
+	const meTypeDescriptor& typedescriptor,
+	SerializeContext& ctx)
+{ UNIMPLEMENTED(); }
 #endif
 
 bool sizedBufferDeserializer(
@@ -37,12 +42,19 @@ bool sizedBufferDeserializer(
 	return true;
 }
 
+static meAllocator* meStringDeserializerAllocatorOrDefault(const DeserializeContext& ctx)
+{
+	return ctx.externalDataAllocator ? ctx.externalDataAllocator : GetStringAllocator();
+}
+
 bool stringDeserializer(
 	const meTypeDescriptor& typedescriptor,
 	DeserializeContext& ctx)
 {
+	meAllocator* allocator = meStringDeserializerAllocatorOrDefault(ctx);
 	String* ownedStr = (String*)ctx.outputData.data;
-	ownedStr->CopyOf(StringView::FromSpan(ctx.inputData), ctx.externalDataAllocator);
+	ownedStr->CopyOf(StringView::FromSpan(ctx.inputData), allocator);
+	ownedStr->allocator = allocator;
 	ctx.outputDataExternal = meSpan(ownedStr->data, ownedStr->len);
 	ctx.outputData = meSpan(ownedStr, sizeof(String));
 	return true;
@@ -76,12 +88,13 @@ meTypeDescriptor TD_CHAR = { .name = STRING_LIT("char"), .size = 1, .align = 1, 
 meTypeDescriptor TD_UNSIGNED_CHAR = {.name = STRING_LIT("unsigned char"), .size = 1, .align = 1, .equalsFn = &meTypeDescriptorEquals<unsigned char> };
 meTypeDescriptor TD_WCHAR = { .name = STRING_LIT("wchar_t"), .size = 4, .align = 4, .equalsFn = &meTypeDescriptorEquals<wchar_t> };
 
-// NOTE: We can reuse the sizedbufferserializer ONLY because meSpan, StringView, and String follow a similar pattern internally
-// where the first param is a data pointer and the second is the 64bit size.
+// NOTE: We can reuse sizedBufferEquals because meSpan, StringView, and String follow a similar pattern internally
+// where the first param is a data pointer and the second is the 64-bit size.
 // equalsFn uses sizedBufferEquals for the same reason - we compare the referenced bytes instead of the raw struct.
 meTypeDescriptor TD_SPAN = { .name = STRING_LIT("span"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(meSpan), .align = alignof(meSpan), .serializerFn = sizedBufferSerializer, .deserializerFn = sizedBufferDeserializer, .equalsFn = &sizedBufferEquals };
-meTypeDescriptor TD_STRINGVIEW = { .name = STRING_LIT("StringView"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(StringView), .align = alignof(StringView), .serializerFn = sizedBufferSerializer, .deserializerFn = sizedBufferDeserializer, .equalsFn = &sizedBufferEquals };
-meTypeDescriptor TD_STRING = { .name = STRING_LIT("String"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(String), .align = alignof(String), .serializerFn = sizedBufferSerializer, .deserializerFn = stringDeserializer, .equalsFn = &sizedBufferEquals };
+// NOTE: stringview is intentionally NOT serializable. If you want to serialize a string, use an owning String
+meTypeDescriptor TD_STRINGVIEW = { .name = STRING_LIT("StringView"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(StringView), .align = alignof(StringView), .equalsFn = &sizedBufferEquals };
+meTypeDescriptor TD_STRING = { .name = STRING_LIT("String"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(String), .align = alignof(String), .serializerFn = stringSerializer, .deserializerFn = stringDeserializer, .equalsFn = &sizedBufferEquals };
 
 void DynArraySerializerToStringFn(
 	const meTypeDescriptor& typeDescriptor,
