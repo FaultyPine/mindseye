@@ -5,6 +5,8 @@
 #include "render/renderer_frontend.h"
 #include "core/me_math.h"
 #include "core/me_scope_exit.h"
+#include "core/me_filesystem.h"
+#include "platform/me_os.h"
 
 #define PAR_SHAPES_IMPLEMENTATION
 #include "external/par_shapes.h"
@@ -367,6 +369,54 @@ void GenSphereMesh(
 struct meMeshAssetLoader : public meAssetLoader
 {
 	using meAssetLoader::meAssetLoader;
+
+	virtual void meAssetLoad(meAsset& asset) override
+	{
+		meAssetLoader::meAssetLoad(asset);
+		meAllocator* allocator = resourcePool->GetPayloadAllocator();
+		meMesh& outMesh = *(meMesh*)resourcePool->GetOpaque(asset.runtimeHandle);
+		if (FindInString(outMesh.externalMeshPath, STRING_LIT(".gltf")) != -1 ||
+			FindInString(outMesh.externalMeshPath, STRING_LIT(".glb")) != -1)
+		{
+            StringView resourcePathAbs = meAssetGetAbsPathForResource(outMesh.externalMeshPath);
+            OSFileReference file;
+            meOSOpenFile(file, resourcePathAbs, (OSFileFlags_OnlyIfExists | OSFileFlags_ScopedFile));
+            u64 filesize = meOSGetFileSize(file);
+            Allocation gltfBuffer = MEALLOC(allocator, filesize);
+            if (!meOSReadFileContents(file, gltfBuffer.data, gltfBuffer.size))
+            {
+                LOG_ERROR("[meScene] failed to load gltf scene %.*s", STRING_VAARGS(resourcePathAbs));
+            }
+            cgltf_options options = {};
+            cgltf_data* gltfData = nullptr;
+
+            ME_ON_SCOPE_EXIT([allocator, gltfData, &gltfBuffer]()
+            {
+                cgltf_free(gltfData);
+                MEFREE(allocator, gltfBuffer);
+            });
+            cgltf_result parseResult = cgltf_parse(&options, gltfBuffer.data, gltfBuffer.size, &gltfData);
+            if (parseResult == cgltf_result_success)
+            {
+                parseResult = cgltf_load_buffers(&options, gltfData, resourcePathAbs.cstr());
+                if (parseResult != cgltf_result_success)
+                {
+                    LOG_WARN("Failed to load gltf buffers from %.*s", STRING_VAARGS(resourcePathAbs));
+                }
+            }
+            else
+            {
+                LOG_WARN("Failed to parse gltf from %.*s", STRING_VAARGS(resourcePathAbs));
+            }
+            ME_ASSERT(gltfData->meshes_count);
+            if (gltfData->meshes_count > 1)
+            {
+                LOG_WARN("Loading a gltf mesh which contains multiple meshes will ignore all but the first mesh");
+            }
+            StringView gltfResPath = msFsGetDirFromPath(resourcePathAbs);
+			meMeshPoolGet().Load(GetEngineCtx()->renderer, gltfResPath, gltfData->meshes[0]);
+		}
+	}
 
 	static void RegisterAssetLoader(meEventPayload payload)
 	{
