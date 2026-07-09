@@ -79,14 +79,14 @@ meTypeDescriptor TD_UNSIGNED_SHORT = { .name = STRING_LIT("unsigned short"), .si
 meTypeDescriptor TD_SHORT = { .name = STRING_LIT("short"), .size = 2, .align = 2, .equalsFn = &meTypeDescriptorEquals<short> };
 meTypeDescriptor TD_UNSIGNED_LONG = { .name = STRING_LIT("unsigned long"), .size = 8, .align = 8, .equalsFn = &meTypeDescriptorEquals<unsigned long> };
 meTypeDescriptor TD_LONG = { .name = STRING_LIT("long"), .size = 8, .align = 8, .equalsFn = &meTypeDescriptorEquals<long> };
-meTypeDescriptor TD_LONGLONG = { .name = STRING_LIT("long long"), .size = 8, .align = 8, .equalsFn = &meTypeDescriptorEquals<long long> };
+meTypeDescriptor TD_LONG_LONG = { .name = STRING_LIT("long long"), .size = 8, .align = 8, .equalsFn = &meTypeDescriptorEquals<long long> };
 meTypeDescriptor TD_UNSIGNED_LONG_LONG = { .name = STRING_LIT("unsigned long long"), .size = 8, .align = 8, .equalsFn = &meTypeDescriptorEquals<unsigned long long> };
 meTypeDescriptor TD_FLOAT = { .name = STRING_LIT("float"), .size = 4, .align = 4, .equalsFn = &meTypeDescriptorEquals<float> };
 meTypeDescriptor TD_DOUBLE = { .name = STRING_LIT("double"), .size = 8, .align = 8, .equalsFn = &meTypeDescriptorEquals<double> };
 meTypeDescriptor TD_BOOL = { .name = STRING_LIT("bool"), .size = 1, .align = 1, .equalsFn = &meTypeDescriptorEquals<bool> };
 meTypeDescriptor TD_CHAR = { .name = STRING_LIT("char"), .size = 1, .align = 1, .equalsFn = &meTypeDescriptorEquals<char> };
 meTypeDescriptor TD_UNSIGNED_CHAR = {.name = STRING_LIT("unsigned char"), .size = 1, .align = 1, .equalsFn = &meTypeDescriptorEquals<unsigned char> };
-meTypeDescriptor TD_WCHAR = { .name = STRING_LIT("wchar_t"), .size = 4, .align = 4, .equalsFn = &meTypeDescriptorEquals<wchar_t> };
+meTypeDescriptor TD_WCHAR_T = { .name = STRING_LIT("wchar_t"), .size = 4, .align = 4, .equalsFn = &meTypeDescriptorEquals<wchar_t> };
 
 // NOTE: We can reuse sizedBufferEquals because meSpan, StringView, and String follow a similar pattern internally
 // where the first param is a data pointer and the second is the 64-bit size.

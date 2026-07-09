@@ -525,7 +525,7 @@ bool DrawPrimitiveValue(const meTypeDescriptor& type, u8* data, const meTypeDesc
 	{
 		changed = ImGui::DragScalar("##v", ImGuiDataType_U16, data);
 	}
-	else if (&type == &TD_LONG || &type == &TD_LONGLONG)
+	else if (&type == &TD_LONG || &type == &TD_LONG_LONG)
 	{
 		changed = ImGui::DragScalar("##v", ImGuiDataType_S64, data);
 	}

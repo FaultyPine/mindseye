@@ -316,11 +316,11 @@ static std::unordered_map<CXTypeKind, meTypeDescriptor *> clangToMePrimitiveType
         {CXType_ULongLong, &TD_UNSIGNED_LONG_LONG},
         {CXType_Char_S, &TD_CHAR},
         {CXType_SChar, &TD_CHAR},
-        {CXType_WChar, &TD_WCHAR},
+        {CXType_WChar, &TD_WCHAR_T},
         {CXType_Short, &TD_SHORT},
         {CXType_Int, &TD_INT},
         {CXType_Long, &TD_LONG},
-        {CXType_LongLong, &TD_LONGLONG},
+        {CXType_LongLong, &TD_LONG_LONG},
         {CXType_Float, &TD_FLOAT},
         {CXType_Double, &TD_DOUBLE},
 };

@@ -94,7 +94,7 @@ static json JsonSerializeWithTypeDescriptor(
 	{
 		if (&td == &TD_INT)                  return *((s32*)data);
 		if (&td == &TD_UNSIGNED_INT)         return *((u32*)data);
-		if (&td == &TD_LONGLONG)             return *((s64*)data);
+		if (&td == &TD_LONG_LONG)            return *((s64*)data);
 		if (&td == &TD_UNSIGNED_LONG_LONG)   return *((u64*)data);
 		if (&td == &TD_SHORT)                return *((s16*)data);
 		if (&td == &TD_UNSIGNED_SHORT)       return *((u16*)data);
@@ -194,7 +194,7 @@ static bool JsonDeserializeWithTypeDescriptor(
 	{
 		if (&td == &TD_INT)                  { *((s32*)outData) = j.get<s32>(); return true; }
 		if (&td == &TD_UNSIGNED_INT)         { *((u32*)outData) = j.get<u32>(); return true; }
-		if (&td == &TD_LONGLONG)             { *((s64*)outData) = j.get<s64>(); return true; }
+		if (&td == &TD_LONG_LONG)            { *((s64*)outData) = j.get<s64>(); return true; }
 		if (&td == &TD_UNSIGNED_LONG_LONG)   { *((u64*)outData) = j.get<u64>(); return true; }
 		if (&td == &TD_SHORT)                { *((s16*)outData) = j.get<s16>(); return true; }
 		if (&td == &TD_UNSIGNED_SHORT)       { *((u16*)outData) = j.get<u16>(); return true; }
