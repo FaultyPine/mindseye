@@ -1,5 +1,7 @@
 #pragma once
 
+#include "core/me_defines.h"
+
 struct MEREFLECT(type) 
 meRelPtr
 {
@@ -7,19 +9,47 @@ meRelPtr
     OffsetType offset;
 
     template <typename T>
-    T* operator->()
+    T* Get()
     {
         return offset ? (T*)((char*)&offset + offset) : nullptr;
     }
     template <typename T>
+    const T* Get() const
+    {
+        return offset ? (const T*)((const char*)&offset + offset) : nullptr;
+    }
+    template <typename T>
+    T* operator->()
+    {
+        return Get<T>();
+    }
+    template <typename T>
+    const T* operator->() const
+    {
+        return Get<T>();
+    }
+    template <typename T>
     T& operator*()
     {
-        return *this->operator-><T>();
+        return *Get<T>();
+    }
+    template <typename T>
+    const T& operator*() const
+    {
+        return *Get<T>();
     }
     template <typename T>
     void operator=(T* ptr)
     {
         offset = ptr ? (OffsetType)((char*)ptr - (char*)&offset) : 0;
+    }
+    void Clear()
+    {
+        offset = 0;
+    }
+    explicit operator bool() const
+    {
+        return offset != 0;
     }
 };
 
