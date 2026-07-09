@@ -30,6 +30,7 @@
 #include "core/me_job_system.h"
 #include "core/me_scope_exit.h"
 #include "core/me_chunker.h"
+#include "core/me_relptr.h"
 
 #include "core/containers/dynarray.h"
 #include "core/containers/me_hybrid_array.h"
