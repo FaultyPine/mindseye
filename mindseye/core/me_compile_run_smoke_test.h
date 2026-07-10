@@ -79,6 +79,9 @@ MEREFLECT(CompileRun) void meCompileRunSmokeTest2(meCompileRunContext* ctx)
     }
 }
 
+// This is just an example
+// but in the future i'd like to use this system to write a compile-time parser pass
+// that finds functions with a `CONSOLE_COMMAND` tag and auto-generates the boilerplate to register that function as a console command
 MEREFLECT(CompileRun) void meConsoleCommandMetaGenerator(meCompileRunContext* ctx)
 {
     if (ctx->stage == meCompileRunStage_VisitDecl)
