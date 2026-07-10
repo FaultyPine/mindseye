@@ -76,6 +76,16 @@ typedef void (*SetToDefaults)(void* objData);
 
 typedef bool (*EqualsFn)(const meTypeDescriptor& td, const void* a, const void* b);
 
+struct DeepCopyContext
+{
+	const void* srcData = nullptr;
+	meSpan outputData = {};
+	meAllocator* allocator = nullptr;
+	const meTypeDescriptor* parentType = nullptr;
+};
+
+typedef void (*DeepCopyFn)(const meTypeDescriptor& td, DeepCopyContext& ctx);
+
 // Opaque key that identifies an element within a container.
 // index for arrays, hash/id for maps, etc
 typedef u64 meContainerKey;
@@ -132,6 +142,7 @@ struct meTypeDescriptor
     EditorRenderFn editorRenderFn = nullptr;
     // invoke default constructor on an arbitrary buffer
     SetToDefaults setToDefaultsFn = nullptr;
+	DeepCopyFn deepCopyFn = nullptr;
     // if this is valid, that implies this type is an iterable container
     meTypeIterateContentFn iterateContentFn = nullptr;
     meTypePushElementFn pushElementFn = nullptr;
@@ -199,6 +210,8 @@ bool sizedBufferDeserializer(const meTypeDescriptor&, DeserializeContext& ctx);
 void stringSerializer(const meTypeDescriptor&, SerializeContext& ctx);
 bool stringDeserializer(const meTypeDescriptor&, DeserializeContext& ctx);
 bool sizedBufferEquals(const meTypeDescriptor& td, const void* a, const void* b);
+void sizedBufferDeepCopy(const meTypeDescriptor& td, DeepCopyContext& ctx);
+void stringDeepCopy(const meTypeDescriptor& td, DeepCopyContext& ctx);
 
 // NOTE: there are static maps mapping between reflected types and their type descriptors
 // in me_reflector.cpp

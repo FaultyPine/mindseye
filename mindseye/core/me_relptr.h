@@ -52,12 +52,3 @@ meRelPtr
         return offset != 0;
     }
 };
-
-
-// an Offset Pointer is really just an offset (from some arbitrary base pointer)
-template <typename T>
-struct meOffsetPtr
-{
-    u32 offset;
-
-};

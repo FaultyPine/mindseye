@@ -28,6 +28,16 @@ void stringSerializer(
 	const meTypeDescriptor& typedescriptor,
 	SerializeContext& ctx)
 { UNIMPLEMENTED(); }
+
+void sizedBufferDeepCopy(
+	const meTypeDescriptor& typedescriptor,
+	DeepCopyContext& ctx)
+{ UNIMPLEMENTED(); }
+
+void stringDeepCopy(
+	const meTypeDescriptor& typedescriptor,
+	DeepCopyContext& ctx)
+{ UNIMPLEMENTED(); }
 #endif
 
 bool sizedBufferDeserializer(
@@ -91,10 +101,10 @@ meTypeDescriptor TD_WCHAR_T = { .name = STRING_LIT("wchar_t"), .size = 4, .align
 // NOTE: We can reuse sizedBufferEquals because meSpan, StringView, and String follow a similar pattern internally
 // where the first param is a data pointer and the second is the 64-bit size.
 // equalsFn uses sizedBufferEquals for the same reason - we compare the referenced bytes instead of the raw struct.
-meTypeDescriptor TD_SPAN = { .name = STRING_LIT("span"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(meSpan), .align = alignof(meSpan), .serializerFn = sizedBufferSerializer, .deserializerFn = sizedBufferDeserializer, .equalsFn = &sizedBufferEquals };
+meTypeDescriptor TD_SPAN = { .name = STRING_LIT("span"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(meSpan), .align = alignof(meSpan), .serializerFn = sizedBufferSerializer, .deserializerFn = sizedBufferDeserializer, .equalsFn = &sizedBufferEquals, .deepCopyFn = &sizedBufferDeepCopy };
 // NOTE: stringview is intentionally NOT serializable. If you want to serialize a string, use an owning String
 meTypeDescriptor TD_STRINGVIEW = { .name = STRING_LIT("StringView"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(StringView), .align = alignof(StringView), .equalsFn = &sizedBufferEquals };
-meTypeDescriptor TD_STRING = { .name = STRING_LIT("String"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(String), .align = alignof(String), .serializerFn = stringSerializer, .deserializerFn = stringDeserializer, .equalsFn = &sizedBufferEquals };
+meTypeDescriptor TD_STRING = { .name = STRING_LIT("String"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(String), .align = alignof(String), .serializerFn = stringSerializer, .deserializerFn = stringDeserializer, .equalsFn = &sizedBufferEquals, .deepCopyFn = &stringDeepCopy };
 
 void DynArraySerializerToStringFn(
 	const meTypeDescriptor& typeDescriptor,
@@ -108,6 +118,12 @@ bool DynArrayEqualsFn(
     const meTypeDescriptor& td,
     const void* a,
     const void* b);
+
+#ifndef ME_CORE_ONLY
+void DynArrayDeepCopyFn(
+	const meTypeDescriptor& td,
+	DeepCopyContext& ctx);
+#endif
 
 static void DynArrayIterateContent(void* containerPtr, const meTypeDescriptor* fieldDesc,
                                    meTypeIterateElementFn visitor, void* userData)
@@ -141,6 +157,7 @@ meTypeDescriptor TD_DYNARRAY = { .name = STRING_LIT("DynArray"), .flags = meType
 #ifndef ME_CORE_ONLY
     .serializerFn = DynArraySerializerToStringFn, .deserializerFn = DynArrayDeserializerFromStringFn,
     .equalsFn = DynArrayEqualsFn,
+	.deepCopyFn = DynArrayDeepCopyFn,
 #endif
     .iterateContentFn = DynArrayIterateContent,
     .pushElementFn    = DynArrayPushElement,

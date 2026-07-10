@@ -56,6 +56,12 @@ bool meFieldsEqual(
 	const void* b,
 	const meTypeDescriptor* parentType = nullptr);
 
+// Deep-copies a buffer described by typeDesc, allocating any owned backing data
+// through ctx.allocator.
+void meTypeDescriptorDeepCopy(
+	const meTypeDescriptor& typeDesc,
+	DeepCopyContext& ctx);
+
 // Like SerializeToTextBlocking, but only emits fields whose values
 // differ from those in templateData. Header MAID is always written.
 meSerializeResult SerializeOverridesToTextBlocking(

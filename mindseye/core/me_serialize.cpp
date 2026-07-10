@@ -325,6 +325,121 @@ bool meFieldsEqual(
 	return memcmp(a, b, td.size) == 0;
 }
 
+void sizedBufferDeepCopy(
+	const meTypeDescriptor& typedescriptor,
+	DeepCopyContext& ctx)
+{
+	const meSpan* srcSpan = (const meSpan*)ctx.srcData;
+	meSpan* dstSpan = (meSpan*)ctx.outputData.data;
+	if (!srcSpan->data || srcSpan->size == 0)
+	{
+		*dstSpan = {};
+		return;
+	}
+	Allocation mem = MEALLOC(ctx.allocator, srcSpan->size);
+	BufferCopy(mem, *srcSpan);
+	*dstSpan = mem;
+}
+
+void stringDeepCopy(
+	const meTypeDescriptor& typedescriptor,
+	DeepCopyContext& ctx)
+{
+	String* dstString = (String*)ctx.outputData.data;
+	const String* srcString = (const String*)ctx.srcData;
+	dstString->CopyOf(StringView(*srcString), ctx.allocator);
+	dstString->allocator = ctx.allocator;
+}
+
+void DynArrayDeepCopyFn(
+	const meTypeDescriptor& typeDescriptor,
+	DeepCopyContext& ctx)
+{
+	const meTypeDescriptor* fieldDesc = ctx.parentType ? ctx.parentType : &typeDescriptor;
+	DynArrayAny& src = *(DynArrayAny*)ctx.srcData;
+	DynArrayAny& dst = *(DynArrayAny*)ctx.outputData.data;
+	if (!src)
+	{
+		dst = {};
+		return;
+	}
+
+	ME_ASSERT(fieldDesc->templatedTypes && fieldDesc->templatedTypes.size == 1);
+	const meTypeDescriptor& elementType = *fieldDesc->templatedTypes[0];
+	u32 size = DynArrayGetSize(src);
+	u32 capacity = DynArrayGetCapacity(src);
+	u32 stride = DynArrayGetStride(src);
+	dst = DynArrayCreate<u8>(ctx.allocator, MEMAX(capacity, (u32)1), stride);
+	dst.header.size = size;
+	for (u32 i = 0; i < size; i++)
+	{
+		const u8* srcElem = src.data + (i * stride);
+		u8* dstElem = dst.data + (i * stride);
+		DeepCopyContext elementCtx = {};
+		elementCtx.srcData = srcElem;
+		elementCtx.outputData = meSpan(dstElem, elementType.size);
+		elementCtx.allocator = ctx.allocator;
+		elementCtx.parentType = fieldDesc;
+		meTypeDescriptorDeepCopy(elementType, elementCtx);
+	}
+}
+
+void meTypeDescriptorDeepCopy(
+	const meTypeDescriptor& typeDesc,
+	DeepCopyContext& ctx)
+{
+	if (!ctx.srcData || !ctx.outputData.data)
+	{
+		return;
+	}
+	ME_ASSERT(ctx.outputData.size == typeDesc.size);
+
+	if (typeDesc.thisType && TEST_BIT(typeDesc.flags, meTypeDescriptorFlag_ConstantArray))
+	{
+		u32 numElements = typeDesc.size / typeDesc.thisType->size;
+		for (u32 i = 0; i < numElements; i++)
+		{
+			DeepCopyContext elementCtx = {};
+			elementCtx.srcData = (const u8*)ctx.srcData + (typeDesc.thisType->size * i);
+			elementCtx.outputData = meSpan((u8*)ctx.outputData.data + (typeDesc.thisType->size * i), typeDesc.thisType->size);
+			elementCtx.allocator = ctx.allocator;
+			elementCtx.parentType = &typeDesc;
+			meTypeDescriptorDeepCopy(*typeDesc.thisType, elementCtx);
+		}
+		return;
+	}
+
+	if (typeDesc.thisType && typeDesc.fields.size == 0)
+	{
+		DeepCopyContext aliasCtx = ctx;
+		aliasCtx.parentType = &typeDesc;
+		meTypeDescriptorDeepCopy(*typeDesc.thisType, aliasCtx);
+		return;
+	}
+
+	if (typeDesc.deepCopyFn)
+	{
+		typeDesc.deepCopyFn(typeDesc, ctx);
+		return;
+	}
+
+    // if something doesn't have a deepcopy function, from the perspective of the serialization system it's a primitive/POD struct
+	ME_MEMCPY(ctx.outputData.data, ctx.srcData, typeDesc.size);
+
+	for (u64 i = 0; i < typeDesc.fields.size; i++)
+	{
+		const meTypeDescriptor& field = typeDesc.fields[i];
+		if (!field.ShouldSerializeText() || field.thisType == nullptr) continue;
+		ME_ASSERT(field.offsetBits % 8 == 0);
+		DeepCopyContext fieldCtx = {};
+		fieldCtx.srcData = (const u8*)ctx.srcData + (field.offsetBits / 8);
+		fieldCtx.outputData = meSpan((u8*)ctx.outputData.data + (field.offsetBits / 8), field.size);
+		fieldCtx.allocator = ctx.allocator;
+		fieldCtx.parentType = &typeDesc;
+		meTypeDescriptorDeepCopy(field, fieldCtx);
+	}
+}
+
 // Override serialization
 // only includes fields whose value differs between instanceData and
 // templateData. The asset header (MAID field named "header") is always
@@ -392,12 +507,6 @@ void DeserializeOverridesFromTextBlocking(
 	ME_ASSERT(outBuffer.size == typeDesc.size);
 	ME_ASSERT(templateData);
 
-	// Seed outBuffer with the template payload.
-	// external-pointer fields (strings, spans, dynarrays) still alias the
-	// template's memory until an override below rewrites them. For POD fields
-	// that aren't overridden, this is exactly the behavior we want.
-	ME_MEMCPY(outBuffer.data, templateData, typeDesc.size);
-
 	json root;
 	try
 	{
@@ -432,6 +541,22 @@ void DeserializeOverridesFromTextBlocking(
 			outResult.result = meSerializeResult::SER_VERSION_MISMATCH;
 			return;
 		}
+	}
+
+	ME_MEMCPY(outBuffer.data, templateData, typeDesc.size);
+	for (u64 i = 0; i < typeDesc.fields.size; i++)
+	{
+		const meTypeDescriptor& field = typeDesc.fields[i];
+		if (!field.ShouldSerializeText() || field.thisType == nullptr) continue;
+		ME_ASSERT(field.offsetBits % 8 == 0);
+		std::string fieldName(field.name.data, field.name.len);
+		if (root.contains(fieldName)) continue;
+		DeepCopyContext fieldCtx = {};
+		fieldCtx.srcData = (const u8*)templateData + (field.offsetBits / 8);
+		fieldCtx.outputData = meSpan((u8*)outBuffer.data + (field.offsetBits / 8), field.size);
+		fieldCtx.allocator = allocator;
+		fieldCtx.parentType = &typeDesc;
+		meTypeDescriptorDeepCopy(field, fieldCtx);
 	}
 
 	for (u64 i = 0; i < typeDesc.fields.size; i++)
@@ -843,9 +968,11 @@ bool meAssetDeserializerFromStringFn(const meTypeDescriptor& td, DeserializeCont
         }
         else
         {
-            // BOOKMARK: deep copy
-            ME_MEMCPY(instanceData, templateData, loader->assetTypeDesc->size);
-            LOG_WARN("Using shallow copy for deserialization of overridden fields may result in bad data. This is an important TODO!");
+			DeepCopyContext deepCopyCtx = {};
+			deepCopyCtx.srcData = templateData;
+			deepCopyCtx.outputData = meSpan(instanceData, loader->assetTypeDesc->size);
+			deepCopyCtx.allocator = ctx.externalDataAllocator;
+            meTypeDescriptorDeepCopy(*loader->assetTypeDesc, deepCopyCtx);
         }
     }
 
