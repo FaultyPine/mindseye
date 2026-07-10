@@ -346,7 +346,7 @@ int main(int argc, char** argv)
 	NOB_CMD_APPEND_MULTIPLE(driverCompile, compilerFlagsCommon);
 	// driver linker
 	NOB_CMD_APPEND_MULTIPLE(driverCompile, linkerFlagsCommon);
-	nob_cmd_append(&driverCompile, "-lmindseye", "-Wl,/subsystem:windows");
+	nob_cmd_append(&driverCompile, "-lmindseye", "-lshell32", "-Wl,/subsystem:windows");
 	// input/output
 	const char* input = nob_temp_sprintf("%s/mindseye/platform/driver.cpp", root);
 	driver.addInputs(&input, 1);

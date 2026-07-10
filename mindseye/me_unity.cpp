@@ -62,6 +62,7 @@
 #include "core/thread/me_thread.cpp"
 #include "core/me_job_system.cpp"
 #include "core/me_chunker.cpp"
+#include "core/me_relptr.cpp"
 
 #include "core/containers/dynarray.cpp"
 #include "core/containers/me_hybrid_array.cpp"

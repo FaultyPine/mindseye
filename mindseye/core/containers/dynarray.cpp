@@ -253,7 +253,7 @@ void DynArrayTests()
         ME_ASSERT(expected_2[i] == arr[i]);
         LOG_INFO("%i",arr[i]);
     }
-    ME_ASSERT(DynArrayGetCapacity(arr) == 5);
+    ME_ASSERT(DynArrayGetCapacity(arr) == DynArrayDefaultCapacity);
     ME_ASSERT(DynArrayGetStride(arr) == sizeof(s32));
 
     for (int i = 0; i < 20; i++)

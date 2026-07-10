@@ -21,6 +21,11 @@ template<> StringView parseCmdLineArgFromString(StringView value)
 {
     return value;
 }
+template<> bool parseCmdLineArgFromString(StringView value)
+{
+    ToLower(value);
+    return value == STRING_LIT("true") || value == STRING_LIT("1");
+}
 
 void parseCmdLine(s32 argc, char* argv[], CommandLineArgs& args)
 {

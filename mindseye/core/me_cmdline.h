@@ -4,7 +4,7 @@
 
 #define COMMAND_LINE_ARGS_DECL \
 X(ResourceDir, const char*)\
-X(Something, s32)
+X(ShouldRunTests, bool)
 
 enum CommandLineArgOption
 {
@@ -22,6 +22,8 @@ struct CommandLineArgs
 COMMAND_LINE_ARGS_DECL
 #undef X
 };
+
+#define CMDLINE_HAS(name) (GetCommandLineArgs().has##name)
 
 void InitializeCmdLine(s32 argc, char* argv[]);
 const CommandLineArgs& GetCommandLineArgs();

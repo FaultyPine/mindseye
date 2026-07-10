@@ -224,6 +224,17 @@ void InitializeEngineSystems(EngineContext* engine)
 
 }
 
+void RunEngineTests(EngineContext* engine)
+{
+    if (!CMDLINE_HAS(ShouldRunTests))
+    {
+        return;
+    }
+    meRelPtrTests();
+    DynArrayTests();
+    HybridArrayTests();
+}
+
 void DeinitializeEngineSystems(EngineContext* engine)
 {
     DeinitializeEntitySystem(engine);
@@ -255,6 +266,8 @@ void InitializeEngine(s32 argc, char** argv)
 		meEditorInitialize(engine);
 		meEditorGetCtx().editorCamera.isControlledByUserInput = true;
 	}
+
+    RunEngineTests(engine);
 
 	meOSSetCursorState(CAPTURED, *engine->osData);
 	

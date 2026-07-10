@@ -52,3 +52,5 @@ meRelPtr
         return offset != 0;
     }
 };
+
+void meRelPtrTests();
