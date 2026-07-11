@@ -39,6 +39,7 @@
 
 #ifndef ME_CORE_ONLY
 #include "core/me_serialize.h"
+#include "tests/me_descriptor_tests.h"
 #include "core/me_cmdline.h"
 #include "core/me_command.h"
 #include "core/me_app.h"
@@ -73,6 +74,7 @@
 
 #ifndef ME_CORE_ONLY
 #include "core/me_serialize.cpp"
+#include "tests/me_descriptor_tests.cpp"
 #include "core/me_cmdline.cpp"
 #include "core/me_command.cpp"
 #include "core/me_app.cpp"
