@@ -177,11 +177,126 @@ struct meTypeDescriptor
 		thisType = other.thisType;
 	}
 
-	bool ShouldSerializeText() const
+	bool ShouldSerialize() const
 	{
 		return !(TEST_BIT(flags, meTypeDescriptorFlag_Excluded) || TEST_BIT(flags, meTypeDescriptorFlag_PaddingMember));
 	}
 };
+
+struct meTypeDescriptorMember
+{
+	const meTypeDescriptor& field;
+	void* data = nullptr;
+	const meTypeDescriptor* parentType = nullptr;
+	meContainerKey key = 0;
+	u64 index = 0;
+	u64 offsetBytes = 0;
+};
+
+inline u64 meTypeDescriptorMemberOffsetBytes(const meTypeDescriptor& field)
+{
+	ME_ASSERT(field.offsetBits >= 0);
+	ME_ASSERT(field.offsetBits % 8 == 0);
+	return (u64)field.offsetBits / 8;
+}
+
+inline const meTypeDescriptor* meTypeDescriptorGetSingleTemplateArg(const meTypeDescriptor& fieldDesc)
+{
+	ME_ASSERT(fieldDesc.templatedTypes && fieldDesc.templatedTypes.size == 1);
+	return fieldDesc.templatedTypes[0];
+}
+
+template <typename Fn>
+bool meTypeDescriptorWalkMembers(
+	const meTypeDescriptor& typeDesc,
+	void* data,
+	Fn&& fn,
+	bool serializableOnly = true)
+{
+	for (u64 i = 0; i < typeDesc.fields.size; i++)
+	{
+		const meTypeDescriptor& field = typeDesc.fields[i];
+		if ((serializableOnly && !field.ShouldSerialize()) || field.thisType == nullptr)
+		{
+			continue;
+		}
+
+		u64 offsetBytes = meTypeDescriptorMemberOffsetBytes(field);
+		meTypeDescriptorMember member = { field, data ? (u8*)data + offsetBytes : nullptr, &typeDesc, i, i, offsetBytes };
+		if (!fn(member))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+template <typename Fn>
+bool meTypeDescriptorWalkElements(
+	const meTypeDescriptor& typeDesc,
+	void* data,
+	Fn&& fn,
+	const meTypeDescriptor* parentType = nullptr)
+{
+	if (typeDesc.thisType && TEST_BIT(typeDesc.flags, meTypeDescriptorFlag_ConstantArray))
+	{
+		if (typeDesc.thisType->size == 0)
+		{
+			return true;
+		}
+
+		u32 count = typeDesc.size / typeDesc.thisType->size;
+		for (u32 i = 0; i < count; i++)
+		{
+			meTypeDescriptorMember element = {
+				*typeDesc.thisType,
+				data ? (u8*)data + (typeDesc.thisType->size * i) : nullptr,
+				&typeDesc,
+				i,
+				i,
+				0,
+			};
+			if (!fn(element))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	const meTypeDescriptor* containerType = typeDesc.iterateContentFn ? &typeDesc : typeDesc.thisType;
+	if (!containerType || !containerType->iterateContentFn)
+	{
+		return false;
+	}
+
+	const meTypeDescriptor* fieldDesc = parentType ? parentType : &typeDesc;
+	using FnType = typename remove_reference<Fn>::type;
+	struct WalkCtx
+	{
+		FnType* fn = nullptr;
+		const meTypeDescriptor* parentType = nullptr;
+		bool keepWalking = true;
+		u64 index = 0;
+	};
+	WalkCtx walkCtx = { &fn, fieldDesc };
+	containerType->iterateContentFn(
+		data,
+		fieldDesc,
+		+[](void* elemPtr, const meTypeDescriptor* elemType, meContainerKey elemKey, void* userData)
+		{
+			WalkCtx& ctx = *(WalkCtx*)userData;
+			if (!ctx.keepWalking)
+			{
+				return;
+			}
+
+			meTypeDescriptorMember element = { *elemType, elemPtr, ctx.parentType, elemKey, ctx.index++, 0 };
+			ctx.keepWalking = (*ctx.fn)(element);
+		},
+		&walkCtx);
+	return walkCtx.keepWalking;
+}
 
 
 extern meTypeDescriptor TD_UNSIGNED_INT;
@@ -240,27 +355,56 @@ bool meTypeDescriptorEquals(
     {
         return (*(const T*)a) == (*(const T*)b);
     }
-    if (td.thisType)
+    if (td.thisType && TEST_BIT(td.flags, meTypeDescriptorFlag_ConstantArray))
     {
+        u32 elemSize = td.thisType->size;
+        if (elemSize == 0) return ME_MEMCMP(a, b, td.size) == 0;
+        bool elementsEqual = true;
+        meTypeDescriptorWalkElements(td, const_cast<void*>(a),
+            [&](const meTypeDescriptorMember& element)
+            {
+                const void* bElem = (const u8*)b + (elemSize * element.index);
+                if (!meTypeDescriptorEquals<void>(element.field, element.data, bElem))
+                {
+                    elementsEqual = false;
+                    return false;
+                }
+                return true;
+            });
+        if (!elementsEqual) return false;
+        return true;
+    }
+    else if (td.thisType)
+    {
+        if (td.thisType->equalsFn)
+        {
+            return td.thisType->equalsFn(td, a, b);
+        }
         return meTypeDescriptorEquals<void>(*td.thisType, a, b);
     }
-    else if (td.fields.size > 0)
+    if constexpr (std::is_same_v<T, void>)
     {
-        for (u32 i = 0; i < td.fields.size; i++)
+        if (td.equalsFn)
         {
-            const meTypeDescriptor& field = td.fields[i];
-            if (!field.ShouldSerializeText())
-            {
-                continue;
-            }
-            u64 offset = field.offsetBits * 8;
-            const void* aField = ((char*)a)+offset;
-            const void* bField = ((char*)b)+offset;
-            if (!meTypeDescriptorEquals<void>(field, aField, bField))
-            {
-                return false;
-            }
+            return td.equalsFn(td, a, b);
         }
+    }
+    if (td.fields.size > 0)
+    {
+        bool fieldsEqual = true;
+        meTypeDescriptorWalkMembers(td, const_cast<void*>(a),
+            [&](const meTypeDescriptorMember& member)
+            {
+                const void* bField = (const u8*)b + member.offsetBytes;
+                if (!meTypeDescriptorEquals<void>(member.field, member.data, bField))
+                {
+                    fieldsEqual = false;
+                    return false;
+                }
+                return true;
+            });
+        if (!fieldsEqual) return false;
+        return true;
     }
     // NOTE: by having this here it means structures can't use custom equalsFn, which i think is fine.
     else if (td.equalsFn)
@@ -270,7 +414,7 @@ bool meTypeDescriptorEquals(
     if constexpr (isPOD)
     {
         // fallback to memcmp
-        return ME_MEMCMP(a, b, td.size);
+        return ME_MEMCMP(a, b, td.size) == 0;
     }
     // if a type descriptor was made without an equalsFn that also isn't POD, 
     // you need to implement the equalsFn or make it pod. See DynArray's equalsFn for reference

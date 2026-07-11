@@ -318,20 +318,13 @@ static void ResetValueToDefault(
 
 	if (type.thisType && TEST_BIT(type.flags, meTypeDescriptorFlag_ConstantArray))
 	{
-		u32 elemSize = type.thisType->size;
-		if (elemSize == 0)
-		{
-			LOG_WARN("Zero-sized element in a constant array cannot be set to a default value");
-			return;
-		}
-
-		u32 elemCount = type.size / elemSize;
-		for (u32 i = 0; i < elemCount; i++)
-		{
-			void* elemData = (u8*)data + (i * elemSize);
-			if (!ResetTypedAssetToDefault(type, elemData))
-				ResetValueToDefault(*type.thisType, elemData, nullptr);
-		}
+		meTypeDescriptorWalkElements(type, data,
+			[&](const meTypeDescriptorMember& element)
+			{
+				if (!ResetTypedAssetToDefault(type, element.data))
+					ResetValueToDefault(element.field, element.data, nullptr);
+				return true;
+			});
 		return;
 	}
 
@@ -613,29 +606,28 @@ bool DrawPrimitiveValue(const meTypeDescriptor& type, u8* data, const meTypeDesc
 			ImGui::TableSetupColumn("#",     ImGuiTableColumnFlags_WidthFixed, 40.0f);
 			ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
 
-			type.iterateContentFn(data, parentType,
-				+[](void* elemPtr, const meTypeDescriptor* elemType, meContainerKey elemKey, void* userData)
+			meTypeDescriptorWalkElements(type, data,
+				[&](const meTypeDescriptorMember& element)
 				{
-					DrawCtx& ctx = *(DrawCtx*)userData;
-
 					ImGui::TableNextRow();
 					ImGui::TableSetColumnIndex(0);
-					ImGui::Text("%llu", (unsigned long long)elemKey);
+					ImGui::Text("%llu", (unsigned long long)element.key);
 					ImGui::SameLine();
-					ImGui::PushID((int)elemKey);
-					if (ImGui::SmallButton("-") && !ctx.doRemove)
+					ImGui::PushID((int)element.key);
+					if (ImGui::SmallButton("-") && !drawCtx.doRemove)
 					{
-						ctx.doRemove  = true;
-						ctx.removeKey = elemKey;
+						drawCtx.doRemove  = true;
+						drawCtx.removeKey = element.key;
 					}
 					ImGui::PopID();
 
 					ImGui::TableSetColumnIndex(1);
-					ImGui::PushID((int)elemKey);
-					ctx.changed |= DrawPrimitiveValue(*elemType, (u8*)elemPtr, ctx.parentType, ctx.editorCtx);
+					ImGui::PushID((int)element.key);
+					drawCtx.changed |= DrawPrimitiveValue(element.field, (u8*)element.data, drawCtx.parentType, drawCtx.editorCtx);
 					ImGui::PopID();
+					return true;
 				},
-				&drawCtx);
+				parentType);
 
 			ImGui::EndTable();
 		}
@@ -651,7 +643,7 @@ bool DrawPrimitiveValue(const meTypeDescriptor& type, u8* data, const meTypeDesc
 		{
 			if (parentType->templatedTypes)
 			{
-				const meTypeDescriptor* elemType = parentType->templatedTypes[0];
+				const meTypeDescriptor* elemType = meTypeDescriptorGetSingleTemplateArg(*parentType);
 				if (elemType)
 				{
 					Allocation elementData = MECALLOC(GetTLScratch(), elemType->size);
@@ -686,20 +678,24 @@ bool DrawPrimitiveValue(const meTypeDescriptor& type, u8* data, const meTypeDesc
 	return changed;
 }
 
+static bool DrawTypeDescriptorFieldData(
+	const meTypeDescriptor& field,
+	u8* fieldData,
+	AssetEditorContext* ctx,
+	const meTypeDescriptor* parentType);
+
 bool DrawStructFields(const meTypeDescriptor& type, u8* dataPtr, AssetEditorContext* ctx)
 {
 	bool anyChanged = false;
-	for (u32 i = 0; i < type.fields.size; i++)
-	{
-		const meTypeDescriptor& field = type.fields[i];
-		if (TEST_BIT(field.flags, meTypeDescriptorFlag_PaddingMember)) continue;
-		if (TEST_BIT(field.flags, meTypeDescriptorFlag_Excluded)) continue;
-
-		ImGui::PushID((int)i);
-		if (DrawTypeDescriptorField(field, dataPtr, ctx, &type))
-			anyChanged = true;
-		ImGui::PopID();
-	}
+	meTypeDescriptorWalkMembers(type, dataPtr,
+		[&](const meTypeDescriptorMember& member)
+		{
+			ImGui::PushID((int)member.index);
+			if (DrawTypeDescriptorFieldData(member.field, (u8*)member.data, ctx, &type))
+				anyChanged = true;
+			ImGui::PopID();
+			return true;
+		});
 	return anyChanged;
 }
 
@@ -711,7 +707,17 @@ bool DrawTypeDescriptorField(
 	AssetEditorContext* ctx,
 	const meTypeDescriptor* parentType)
 {
-	u8* fieldData = dataPtr + (field.offsetBits / 8);
+	if (!dataPtr) return false;
+	u8* fieldData = dataPtr + meTypeDescriptorMemberOffsetBytes(field);
+	return DrawTypeDescriptorFieldData(field, fieldData, ctx, parentType);
+}
+
+static bool DrawTypeDescriptorFieldData(
+	const meTypeDescriptor& field,
+	u8* fieldData,
+	AssetEditorContext* ctx,
+	const meTypeDescriptor* parentType)
+{
 	const meTypeDescriptor* fieldType = field.thisType;
 	bool changed = false;
 

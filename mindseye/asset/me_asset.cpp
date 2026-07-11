@@ -484,17 +484,20 @@ meSpan meSerializeTryGetAssetHeader(
 	const meTypeDescriptor& typeDesc,
 	meSpan serializedBuffer)
 {
-	for (u32 i = 0; i < typeDesc.fields.size; i++)
-	{
-		// search top-level fields for asset header type
-		const meTypeDescriptor& field = typeDesc.fields[i];
-		if (field.thisType == &TD_MAID && StringCompare(field.name, STRING_LIT(ME_ASSET_HEADER_FIELDNAME)))
+	meSpan result = {};
+	meTypeDescriptorWalkMembers(typeDesc, serializedBuffer.data,
+		[&](const meTypeDescriptorMember& member)
 		{
-			meSpan result = serializedBuffer.Subspan(field.offsetBits * 8, field.size);
-			return result;
-		}
-	}
-	return {};
+			// search top-level fields for asset header type
+			if (member.field.thisType == &TD_MAID && StringCompare(member.field.name, STRING_LIT(ME_ASSET_HEADER_FIELDNAME)))
+			{
+				result = serializedBuffer.Subspan(member.offsetBytes, member.field.size);
+				return false;
+			}
+			return true;
+		},
+		false);
+	return result;
 }
 
 

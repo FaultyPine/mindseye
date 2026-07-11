@@ -52,7 +52,7 @@ static json JsonSerializeWithTypeDescriptor(
 	void* data, 
 	const meTypeDescriptor* parentType)
 {
-	if (!data || !td.ShouldSerializeText())
+	if (!data || !td.ShouldSerialize())
 	{
 		return json();
 	}
@@ -74,12 +74,12 @@ static json JsonSerializeWithTypeDescriptor(
 	if (td.thisType && TEST_BIT(td.flags, meTypeDescriptorFlag_ConstantArray))
 	{
 		json arr = json::array();
-		u32 numElements = td.size / td.thisType->size;
-		for (u32 i = 0; i < numElements; i++)
-		{
-			void* elementData = (u8*)data + (td.thisType->size * i);
-			arr.push_back(JsonSerializeWithTypeDescriptor(*td.thisType, elementData, &td));
-		}
+		meTypeDescriptorWalkElements(td, data,
+			[&](const meTypeDescriptorMember& element)
+			{
+				arr.push_back(JsonSerializeWithTypeDescriptor(element.field, element.data, element.parentType));
+				return true;
+			});
 		return arr;
 	}
 
@@ -119,18 +119,13 @@ static json JsonSerializeWithTypeDescriptor(
 
 	// Struct with fields
 	json obj = json::object();
-	for (u64 i = 0; i < td.fields.size; i++)
-	{
-		const meTypeDescriptor& field = td.fields[i];
-		if (!field.ShouldSerializeText() || field.thisType == nullptr)
+	meTypeDescriptorWalkMembers(td, data,
+		[&](const meTypeDescriptorMember& member)
 		{
-			continue;
-		}
-		ME_ASSERT(field.offsetBits % 8 == 0);
-		void* fieldData = (u8*)data + (field.offsetBits / 8);
-		std::string fieldName(field.name.data, field.name.len);
-		obj[fieldName] = JsonSerializeWithTypeDescriptor(field, fieldData, &td);
-	}
+			std::string fieldName(member.field.name.data, member.field.name.len);
+			obj[fieldName] = JsonSerializeWithTypeDescriptor(member.field, member.data, &td);
+			return true;
+		});
 	return obj;
 }
 
@@ -143,7 +138,7 @@ static bool JsonDeserializeWithTypeDescriptor(
 	const meTypeDescriptor* parentType,
 	meSerializeResult* outResult)
 {
-	if (j.is_null() || !td.ShouldSerializeText())
+	if (j.is_null() || !td.ShouldSerialize())
 	{
 		return false;
 	}
@@ -172,14 +167,16 @@ static bool JsonDeserializeWithTypeDescriptor(
 	if (td.thisType && TEST_BIT(td.flags, meTypeDescriptorFlag_ConstantArray))
 	{
 		if (!j.is_array()) return false;
-		u32 numElements = td.size / td.thisType->size;
-		u32 jsonSize = (u32)j.size();
-		u32 count = (numElements < jsonSize) ? numElements : jsonSize;
-		for (u32 i = 0; i < count; i++)
-		{
-			void* elementData = (u8*)outData + (td.thisType->size * i);
-			JsonDeserializeWithTypeDescriptor(j[i], *td.thisType, elementData, allocator, &td, outResult);
-		}
+		meTypeDescriptorWalkElements(td, outData,
+			[&](const meTypeDescriptorMember& element)
+			{
+				if (element.index >= j.size())
+				{
+					return false;
+				}
+				JsonDeserializeWithTypeDescriptor(j[element.index], element.field, element.data, allocator, element.parentType, outResult);
+				return true;
+			});
 		return true;
 	}
 
@@ -231,23 +228,18 @@ static bool JsonDeserializeWithTypeDescriptor(
 		LOG_WARN("Tried to deserialize an object but the parsed json isn't an object?");
 		return false;
 	}
-	for (u64 i = 0; i < td.fields.size; i++)
-	{
-		const meTypeDescriptor& field = td.fields[i];
-		if (!field.ShouldSerializeText() || field.thisType == nullptr)
+	meTypeDescriptorWalkMembers(td, outData,
+		[&](const meTypeDescriptorMember& member)
 		{
-			continue;
-		}
-		ME_ASSERT(field.offsetBits % 8 == 0);
-		std::string fieldName(field.name.data, field.name.len);
-		if (!j.contains(fieldName))
-		{
-			// Field not in JSON - leave as default
-			continue;
-		}
-		void* fieldData = (u8*)outData + (field.offsetBits / 8);
-		JsonDeserializeWithTypeDescriptor(j[fieldName], field, fieldData, allocator, &td, outResult);
-	}
+			std::string fieldName(member.field.name.data, member.field.name.len);
+			if (!j.contains(fieldName))
+			{
+				// Field not in JSON - leave as default
+				return true;
+			}
+			JsonDeserializeWithTypeDescriptor(j[fieldName], member.field, member.data, allocator, &td, outResult);
+			return true;
+		});
 	return true;
 }
 
@@ -258,7 +250,7 @@ bool meFieldsEqual(
 	const void* b,
 	const meTypeDescriptor* parentType)
 {
-	if (!td.ShouldSerializeText())
+	if (!td.ShouldSerialize())
 	{
 		return true;
 	}
@@ -267,18 +259,27 @@ bool meFieldsEqual(
 	{
 		u32 elemSize = td.thisType->size;
 		if (elemSize == 0) return memcmp(a, b, td.size) == 0;
-		u32 numElements = td.size / elemSize;
-		for (u32 i = 0; i < numElements; i++)
-		{
-			const void* aElem = (const u8*)a + (elemSize * i);
-			const void* bElem = (const u8*)b + (elemSize * i);
-			if (!meFieldsEqual(*td.thisType, aElem, bElem, &td)) return false;
-		}
-		return true;
+		bool elementsEqual = true;
+		meTypeDescriptorWalkElements(td, const_cast<void*>(a),
+			[&](const meTypeDescriptorMember& element)
+			{
+				const void* bElem = (const u8*)b + (elemSize * element.index);
+				if (!meFieldsEqual(element.field, element.data, bElem, element.parentType))
+				{
+					elementsEqual = false;
+					return false;
+				}
+				return true;
+			});
+		return elementsEqual;
 	}
 
 	if (td.thisType)
 	{
+		if (td.thisType->equalsFn)
+		{
+			return td.thisType->equalsFn(td, a, b);
+		}
 		return meFieldsEqual(*td.thisType, a, b, &td);
 	}
 
@@ -289,18 +290,20 @@ bool meFieldsEqual(
 
 	if (td.fields.size > 0)
 	{
-		for (u64 i = 0; i < td.fields.size; i++)
-		{
-			const meTypeDescriptor& field = td.fields[i];
-			if (!field.ShouldSerializeText() || field.thisType == nullptr) continue;
-			ME_ASSERT(field.offsetBits % 8 == 0);
-			const void* aField = (const u8*)a + (field.offsetBits / 8);
-			const void* bField = (const u8*)b + (field.offsetBits / 8);
-			if (!meFieldsEqual(field, aField, bField, &td)) return false;
-		}
-		return true;
+		bool fieldsEqual = true;
+		meTypeDescriptorWalkMembers(td, const_cast<void*>(a),
+			[&](const meTypeDescriptorMember& member)
+			{
+				const void* bField = (const u8*)b + member.offsetBytes;
+				if (!meFieldsEqual(member.field, member.data, bField, &td))
+				{
+					fieldsEqual = false;
+					return false;
+				}
+				return true;
+			});
+		return fieldsEqual;
 	}
-
 
 	// Last resort
 	return memcmp(a, b, td.size) == 0;
@@ -345,24 +348,24 @@ void DynArrayDeepCopyFn(
 		return;
 	}
 
-	ME_ASSERT(fieldDesc->templatedTypes && fieldDesc->templatedTypes.size == 1);
-	const meTypeDescriptor& elementType = *fieldDesc->templatedTypes[0];
+	const meTypeDescriptor& elementType = *meTypeDescriptorGetSingleTemplateArg(*fieldDesc);
 	u32 size = DynArrayGetSize(src);
 	u32 capacity = DynArrayGetCapacity(src);
 	u32 stride = DynArrayGetStride(src);
 	dst = DynArrayCreate<u8>(ctx.allocator, MEMAX(capacity, (u32)1), stride);
 	dst.header.size = size;
-	for (u32 i = 0; i < size; i++)
-	{
-		const u8* srcElem = src.data + (i * stride);
-		u8* dstElem = dst.data + (i * stride);
-		DeepCopyContext elementCtx = {};
-		elementCtx.srcData = srcElem;
-		elementCtx.outputData = meSpan(dstElem, elementType.size);
-		elementCtx.allocator = ctx.allocator;
-		elementCtx.parentType = fieldDesc;
-		meTypeDescriptorDeepCopy(elementType, elementCtx);
-	}
+	meTypeDescriptorWalkElements(typeDescriptor, &src,
+		[&](const meTypeDescriptorMember& element)
+		{
+			DeepCopyContext elementCtx = {};
+			elementCtx.srcData = element.data;
+			elementCtx.outputData = meSpan(dst.data + ((u32)element.key * stride), elementType.size);
+			elementCtx.allocator = ctx.allocator;
+			elementCtx.parentType = element.parentType;
+			meTypeDescriptorDeepCopy(element.field, elementCtx);
+			return true;
+		},
+		fieldDesc);
 }
 
 void meTypeDescriptorDeepCopy(
@@ -377,16 +380,17 @@ void meTypeDescriptorDeepCopy(
 
 	if (typeDesc.thisType && TEST_BIT(typeDesc.flags, meTypeDescriptorFlag_ConstantArray))
 	{
-		u32 numElements = typeDesc.size / typeDesc.thisType->size;
-		for (u32 i = 0; i < numElements; i++)
-		{
-			DeepCopyContext elementCtx = {};
-			elementCtx.srcData = (const u8*)ctx.srcData + (typeDesc.thisType->size * i);
-			elementCtx.outputData = meSpan((u8*)ctx.outputData.data + (typeDesc.thisType->size * i), typeDesc.thisType->size);
-			elementCtx.allocator = ctx.allocator;
-			elementCtx.parentType = &typeDesc;
-			meTypeDescriptorDeepCopy(*typeDesc.thisType, elementCtx);
-		}
+		meTypeDescriptorWalkElements(typeDesc, const_cast<void*>(ctx.srcData),
+			[&](const meTypeDescriptorMember& element)
+			{
+				DeepCopyContext elementCtx = {};
+				elementCtx.srcData = element.data;
+				elementCtx.outputData = meSpan((u8*)ctx.outputData.data + (typeDesc.thisType->size * element.index), element.field.size);
+				elementCtx.allocator = ctx.allocator;
+				elementCtx.parentType = element.parentType;
+				meTypeDescriptorDeepCopy(element.field, elementCtx);
+				return true;
+			});
 		return;
 	}
 
@@ -407,18 +411,17 @@ void meTypeDescriptorDeepCopy(
     // if something doesn't have a deepcopy function, from the perspective of the serialization system it's a primitive/POD struct
 	ME_MEMCPY(ctx.outputData.data, ctx.srcData, typeDesc.size);
 
-	for (u64 i = 0; i < typeDesc.fields.size; i++)
-	{
-		const meTypeDescriptor& field = typeDesc.fields[i];
-		if (!field.ShouldSerializeText() || field.thisType == nullptr) continue;
-		ME_ASSERT(field.offsetBits % 8 == 0);
-		DeepCopyContext fieldCtx = {};
-		fieldCtx.srcData = (const u8*)ctx.srcData + (field.offsetBits / 8);
-		fieldCtx.outputData = meSpan((u8*)ctx.outputData.data + (field.offsetBits / 8), field.size);
-		fieldCtx.allocator = ctx.allocator;
-		fieldCtx.parentType = &typeDesc;
-		meTypeDescriptorDeepCopy(field, fieldCtx);
-	}
+	meTypeDescriptorWalkMembers(typeDesc, const_cast<void*>(ctx.srcData),
+		[&](const meTypeDescriptorMember& member)
+		{
+			DeepCopyContext fieldCtx = {};
+			fieldCtx.srcData = member.data;
+			fieldCtx.outputData = meSpan((u8*)ctx.outputData.data + member.offsetBytes, member.field.size);
+			fieldCtx.allocator = ctx.allocator;
+			fieldCtx.parentType = &typeDesc;
+			meTypeDescriptorDeepCopy(member.field, fieldCtx);
+			return true;
+		});
 }
 
 // Override serialization
@@ -436,27 +439,22 @@ meSerializeResult SerializeOverridesToTextBlocking(
 	root["version"] = typeDesc.version;
 	root["type"] = std::string(typeDesc.name.data, typeDesc.name.len);
 
-	for (u64 i = 0; i < typeDesc.fields.size; i++)
-	{
-		const meTypeDescriptor& field = typeDesc.fields[i];
-		if (!field.ShouldSerializeText() || field.thisType == nullptr)
+	meTypeDescriptorWalkMembers(typeDesc, instanceData,
+		[&](const meTypeDescriptorMember& member)
 		{
-			continue;
-		}
-		ME_ASSERT(field.offsetBits % 8 == 0);
-		void* aField = (u8*)instanceData + (field.offsetBits / 8);
-		void* bField = (u8*)templateData + (field.offsetBits / 8);
+			void* templateField = (u8*)templateData + member.offsetBytes;
 
-		bool isHeader = (field.thisType == &TD_MAID)
-			&& StringCompare(field.name, STRING_LIT(ME_ASSET_HEADER_FIELDNAME));
-		if (!isHeader && meFieldsEqual(field, aField, bField, &typeDesc))
-		{
-			continue;
-		}
+			bool isHeader = (member.field.thisType == &TD_MAID)
+				&& StringCompare(member.field.name, STRING_LIT(ME_ASSET_HEADER_FIELDNAME));
+			if (!isHeader && meFieldsEqual(member.field, member.data, templateField, &typeDesc))
+			{
+				return true;
+			}
 
-		std::string fieldName(field.name.data, field.name.len);
-		root[fieldName] = JsonSerializeWithTypeDescriptor(field, aField, &typeDesc);
-	}
+			std::string fieldName(member.field.name.data, member.field.name.len);
+			root[fieldName] = JsonSerializeWithTypeDescriptor(member.field, member.data, &typeDesc);
+			return true;
+		});
 
 	std::string jsonStr = {};
 	try
@@ -525,35 +523,33 @@ void DeserializeOverridesFromTextBlocking(
 	}
 
 	ME_MEMCPY(outBuffer.data, templateData, typeDesc.size);
-	for (u64 i = 0; i < typeDesc.fields.size; i++)
-	{
-		const meTypeDescriptor& field = typeDesc.fields[i];
-		if (!field.ShouldSerializeText() || field.thisType == nullptr) continue;
-		ME_ASSERT(field.offsetBits % 8 == 0);
-		std::string fieldName(field.name.data, field.name.len);
-		if (root.contains(fieldName)) continue;
-		DeepCopyContext fieldCtx = {};
-		fieldCtx.srcData = (const u8*)templateData + (field.offsetBits / 8);
-		fieldCtx.outputData = meSpan((u8*)outBuffer.data + (field.offsetBits / 8), field.size);
-		fieldCtx.allocator = allocator;
-		fieldCtx.parentType = &typeDesc;
-		meTypeDescriptorDeepCopy(field, fieldCtx);
-	}
-
-	for (u64 i = 0; i < typeDesc.fields.size; i++)
-	{
-		const meTypeDescriptor& field = typeDesc.fields[i];
-		if (!field.ShouldSerializeText() || field.thisType == nullptr) continue;
-		ME_ASSERT(field.offsetBits % 8 == 0);
-		std::string fieldName(field.name.data, field.name.len);
-		if (!root.contains(fieldName))
+	meTypeDescriptorWalkMembers(typeDesc, const_cast<void*>(templateData),
+		[&](const meTypeDescriptorMember& member)
 		{
-			// Not overridden - template's value already lives in outBuffer.
-			continue;
-		}
-		void* fieldData = (u8*)outBuffer.data + (field.offsetBits / 8);
-		JsonDeserializeWithTypeDescriptor(root[fieldName], field, fieldData, allocator, &typeDesc, &outResult);
-	}
+			std::string fieldName(member.field.name.data, member.field.name.len);
+			if (root.contains(fieldName)) return true;
+
+			DeepCopyContext fieldCtx = {};
+			fieldCtx.srcData = member.data;
+			fieldCtx.outputData = meSpan((u8*)outBuffer.data + member.offsetBytes, member.field.size);
+			fieldCtx.allocator = allocator;
+			fieldCtx.parentType = &typeDesc;
+			meTypeDescriptorDeepCopy(member.field, fieldCtx);
+			return true;
+		});
+
+	meTypeDescriptorWalkMembers(typeDesc, outBuffer.data,
+		[&](const meTypeDescriptorMember& member)
+		{
+			std::string fieldName(member.field.name.data, member.field.name.len);
+			if (!root.contains(fieldName))
+			{
+				// Not overridden - template's value already lives in outBuffer.
+				return true;
+			}
+			JsonDeserializeWithTypeDescriptor(root[fieldName], member.field, member.data, allocator, &typeDesc, &outResult);
+			return true;
+		});
 
 	outResult.result = meSerializeResult::SER_SUCCESS;
 }
@@ -591,18 +587,13 @@ meSerializeResult SerializeToTextBlocking(
 	root["type"] = std::string(typeDesc.name.data, typeDesc.name.len);
 	
 	// Serialize all fields into the root object
-	for (u64 i = 0; i < typeDesc.fields.size; i++)
-	{
-		const meTypeDescriptor& field = typeDesc.fields[i];
-		if (!field.ShouldSerializeText() || field.thisType == nullptr)
+	meTypeDescriptorWalkMembers(typeDesc, data,
+		[&](const meTypeDescriptorMember& member)
 		{
-			continue;
-		}
-		ME_ASSERT(field.offsetBits % 8 == 0);
-		void* fieldData = (u8*)data + (field.offsetBits / 8);
-		std::string fieldName(field.name.data, field.name.len);
-		root[fieldName] = JsonSerializeWithTypeDescriptor(field, fieldData, &typeDesc);
-	}
+			std::string fieldName(member.field.name.data, member.field.name.len);
+			root[fieldName] = JsonSerializeWithTypeDescriptor(member.field, member.data, &typeDesc);
+			return true;
+		});
 
 	// Convert to string with pretty printing
 	std::string jsonStr = {};
@@ -676,23 +667,18 @@ void DeserializeFromTextBlocking(
 
 	ME_ASSERT(outBuffer.size == typeDesc.size);
 
-	for (u64 i = 0; i < typeDesc.fields.size; i++)
-	{
-		const meTypeDescriptor& field = typeDesc.fields[i];
-		if (!field.ShouldSerializeText() || field.thisType == nullptr)
+	meTypeDescriptorWalkMembers(typeDesc, outBuffer.data,
+		[&](const meTypeDescriptorMember& member)
 		{
-			continue;
-		}
-		ME_ASSERT(field.offsetBits % 8 == 0);
-		std::string fieldName(field.name.data, field.name.len);
-		if (!root.contains(fieldName))
-		{
-			// Field not in JSON - leave as default
-			continue;
-		}
-		void* fieldData = (u8*)outBuffer.data + (field.offsetBits / 8);
-		JsonDeserializeWithTypeDescriptor(root[fieldName], field, fieldData, allocator, &typeDesc, &outResult);
-	}
+			std::string fieldName(member.field.name.data, member.field.name.len);
+			if (!root.contains(fieldName))
+			{
+				// Field not in JSON - leave as default
+				return true;
+			}
+			JsonDeserializeWithTypeDescriptor(root[fieldName], member.field, member.data, allocator, &typeDesc, &outResult);
+			return true;
+		});
 
 	outResult.result = meSerializeResult::SER_SUCCESS;
 }
@@ -710,23 +696,15 @@ void DynArraySerializerToStringFn(
 	const meTypeDescriptor* parentType = ctx.parentType;
 	// DynArray is templated, and so requires the parent type to understand the template args, see comment in meTypeDescriptor struct
 	ME_ASSERT(parentType);
-	meSpanTyped<meTypeDescriptor*> templatedTypes = parentType->templatedTypes;
-	ME_ASSERT(templatedTypes);
-	ME_ASSERT(templatedTypes.size == 1);
-	const meTypeDescriptor& templateArg = *templatedTypes[0];
 	const meSpan& dynArrayData = ctx.data;
-	DynArrayAny& arr = *(DynArrayAny*)dynArrayData.data;
-	u32 size = DynArrayGetSize(arr);
-	u32 stride = DynArrayGetStride(arr);
 	json j = json::array();
-	for (u32 i = 0; i < size; i++)
-	{
-		meSpan elementSpan = meSpan(&arr[i * stride], templateArg.size);
-		SerializeContext elementCtx = ctx;
-		elementCtx.data = elementSpan;
-		json serializedElement = JsonSerializeWithTypeDescriptor(templateArg, elementSpan.data, ctx.parentType);
-		j.push_back(serializedElement);
-	}
+	meTypeDescriptorWalkElements(typeDescriptor, dynArrayData.data,
+		[&](const meTypeDescriptorMember& element)
+		{
+			j.push_back(JsonSerializeWithTypeDescriptor(element.field, element.data, element.parentType));
+			return true;
+		},
+		parentType);
 	json& out = *(json*)ctx.outputData.data;
 	out = std::move(j);
 }
@@ -738,10 +716,7 @@ bool DynArrayDeserializerFromStringFn(
 	const meTypeDescriptor* parentType = ctx.parentType;
 	// DynArray is templated, and so requires the parent type to understand the template args, see comment in meTypeDescriptor struct
 	ME_ASSERT(parentType);
-	meSpanTyped<meTypeDescriptor*> templatedTypes = parentType->templatedTypes;
-	ME_ASSERT(templatedTypes);
-	ME_ASSERT(templatedTypes.size == 1);
-	const meTypeDescriptor& templateArg = *templatedTypes[0];
+	const meTypeDescriptor& templateArg = *meTypeDescriptorGetSingleTemplateArg(*parentType);
 
 	StringView str = StringView(ctx.inputData.data, ctx.inputData.size);
 	json root;
@@ -754,7 +729,7 @@ bool DynArrayDeserializerFromStringFn(
 		LOG_ERROR("JSON dynarray parse error: %s", e.what());
 		return false;
 	}
-	bool result = false;
+	bool result = true;
 	DynArrayAny* array = (DynArrayAny*)ctx.outputData.data;
 	// a byte array which is our "type erasure". Later becomes the actual typed array in the deserialized struct
 	*array = DynArrayCreate<u8>(ctx.externalDataAllocator, DynArrayDefaultCapacity, templateArg.size);
@@ -774,8 +749,7 @@ bool DynArrayEqualsFn(
     const void* b)
 {
     // td here is the field descriptor (not TD_DYNARRAY itself), so templatedTypes is populated.
-    ME_ASSERT(td.templatedTypes && td.templatedTypes.size == 1);
-    const meTypeDescriptor& elementType = *td.templatedTypes[0];
+    const meTypeDescriptor& elementType = *meTypeDescriptorGetSingleTemplateArg(td);
 
     DynArrayAny& arrA = *(DynArrayAny*)a;
     DynArrayAny& arrB = *(DynArrayAny*)b;
@@ -787,13 +761,12 @@ bool DynArrayEqualsFn(
     if (sizeA == 0) return true;
 
     u32 stride = DynArrayGetStride(arrA);
-    ME_ASSERT(elementType.equalsFn);
 
     for (u32 i = 0; i < sizeA; i++)
     {
         const void* elemA = &arrA[i * stride];
         const void* elemB = &arrB[i * stride];
-        if (!elementType.equalsFn(elementType, elemA, elemB))
+        if (!meFieldsEqual(elementType, elemA, elemB, &td))
         {
             return false;
         }

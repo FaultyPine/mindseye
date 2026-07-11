@@ -128,8 +128,8 @@ void DynArrayDeepCopyFn(
 static void DynArrayIterateContent(void* containerPtr, const meTypeDescriptor* fieldDesc,
                                    meTypeIterateElementFn visitor, void* userData)
 {
-    if (!fieldDesc->templatedTypes) return;
-    const meTypeDescriptor* elemType = fieldDesc->templatedTypes[0];
+    if (!fieldDesc->templatedTypes || fieldDesc->templatedTypes.size != 1) return;
+    const meTypeDescriptor* elemType = meTypeDescriptorGetSingleTemplateArg(*fieldDesc);
     if (!elemType) return;
     DynArrayAny& arr = *(DynArrayAny*)containerPtr;
     if (!arr.data) return;
