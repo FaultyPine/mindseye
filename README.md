@@ -14,25 +14,33 @@ run `build.bat`
 ### Current focus
 
 Finishing the asset system todo:
-
-- enforce some read-only-ness to asset templates, unless it's explicitly specified that we're in "live edit" mode
-- Prove out a workflow of "create a mesh asset, assign it to an entity, see it rendered, saved, loaded in the scene"
-- implement "scoped asset locks" on an arbitrary MAID/meAsset
-    - ref count meAssets, LRU cache?
 - binary serialization 
     - use meChunker
     - start on a "asset compilation" pipeline. 
-- console command system - use CompileRun to codegen function<->console command bindings
+    - refactor so instead of straight loading gltf, we "import" gltf and turn it into massets, then load(/compile) those
+	- meAssetCreate would do the check for .gltf in the filename, and do it there
+- enforce some read-only-ness to asset templates
+- Prove out a workflow of "create a mesh asset, assign it to an entity, see it rendered, saved, loaded in the scene"
+- implement "scoped asset locks" on an arbitrary MAID/meAsset
+    - ref count meAssets, LRU cache?
+
+
+- Implement proper job system
+    - should be lock free and use work stealing algo
+    - should be able to build & submit a "graph" of work - the dependencies of which are resolved and the work is scheduled in parallel based on that graph
+    - need "job queue types" - basically separate buckets of work that can be synchronized differently. I.E. background async work, asset compilation, frame tasks, multi-frame - async tasks, etc.
+    - A job should be able to enqueue more jobs inside itself
+    - a job should be able to enqueue child jobs from itself
+    - A job should be able to yield or return out as "suspended". I.E. if that job needs to wait for some other child job to complete before it finishes.
+    - Need to be able to wait on a job, or on a full "graph"/batch of submitted jobs
+
 
 TODO: get rid of portable-file-dialogs. It pulls in a bunch of stl stuff.
-
-- refactor so instead of straight loading gltf, we "import" gltf and turn it into massets, then load(/compile) those
-	- meAssetCreate would do the check for .gltf in the filename, and do it there
-
 ============================
 
 ### Roadmap
 - asset system
+- console command system - use CompileRun to codegen function<->console command bindings (also use for cmdline args handlers?)
 - renderer
 - scene graph
 - engine-wide savestates
