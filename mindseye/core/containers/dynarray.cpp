@@ -142,7 +142,6 @@ void __DynArrayPopAt(DynArray<T>& array, u32 index, void* out)
     DynArrayHeader* header = GetHeaderPointer(array);
     u32 arrSize = header->size;
     u32 stride = header->stride;
-    ME_ASSERT(stride == sizeof(T)); // i don't think we're going to need to pop for an opaque dynarray but if we do, need a similar line as in DynArrayPushAt
 #if ARRAY_CHECKS
     if (index >= arrSize)
     {
@@ -158,7 +157,7 @@ void __DynArrayPopAt(DynArray<T>& array, u32 index, void* out)
     // if not last element, copy everything to the right of it 1 spot to the left
     if (index != arrSize-1)
     {
-        u32 moveSize = (arrSize - index) * stride;
+        u32 moveSize = (arrSize - index - 1) * stride;
         u8* moveTo   = arrayMem + ((index+0) * stride);
         u8* moveFrom = arrayMem + ((index+1) * stride);
         ME_MEMMOVE(moveTo, moveFrom, moveSize);

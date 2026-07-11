@@ -226,10 +226,6 @@ void InitializeEngineSystems(EngineContext* engine)
 
 void RunEngineTests(EngineContext* engine)
 {
-    if (!CMDLINE_HAS(ShouldRunTests))
-    {
-        return;
-    }
     meRelPtrTests();
     DynArrayTests();
     HybridArrayTests();
@@ -267,7 +263,11 @@ void InitializeEngine(s32 argc, char** argv)
 		meEditorGetCtx().editorCamera.isControlledByUserInput = true;
 	}
 
+    if (CMDLINE_HAS(ShouldRunTests))
+    {
     RunEngineTests(engine);
+        return;
+    }
 
 	meOSSetCursorState(CAPTURED, *engine->osData);
 	

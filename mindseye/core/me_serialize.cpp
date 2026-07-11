@@ -301,25 +301,6 @@ bool meFieldsEqual(
 		return true;
 	}
 
-    // icky semi-last-resort. Compare the result of serializing both objects
-	// if (td.serializerFn)
-	// {
-	// 	json ja, jb;
-	// 	SerializeContext ctxA = {};
-	// 	ctxA.allocator = GetTLScratch();
-	// 	ctxA.data = meSpan((void*)a, td.size);
-	// 	ctxA.outputData = meSpan(&ja, sizeof(json));
-	// 	ctxA.parentType = parentType ? parentType : &td;
-	// 	td.serializerFn(td, ctxA);
-
-	// 	SerializeContext ctxB = {};
-	// 	ctxB.allocator = GetTLScratch();
-	// 	ctxB.data = meSpan((void*)b, td.size);
-	// 	ctxB.outputData = meSpan(&jb, sizeof(json));
-	// 	ctxB.parentType = parentType ? parentType : &td;
-	// 	td.serializerFn(td, ctxB);
-	// 	return ja == jb;
-	// }
 
 	// Last resort
 	return memcmp(a, b, td.size) == 0;
