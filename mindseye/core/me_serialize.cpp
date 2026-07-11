@@ -378,6 +378,12 @@ void meTypeDescriptorDeepCopy(
 	}
 	ME_ASSERT(ctx.outputData.size == typeDesc.size);
 
+	if (typeDesc.deepCopyFn)
+	{
+		typeDesc.deepCopyFn(typeDesc, ctx);
+		return;
+	}
+
 	if (typeDesc.thisType && TEST_BIT(typeDesc.flags, meTypeDescriptorFlag_ConstantArray))
 	{
 		meTypeDescriptorWalkElements(typeDesc, const_cast<void*>(ctx.srcData),
@@ -399,12 +405,6 @@ void meTypeDescriptorDeepCopy(
 		DeepCopyContext aliasCtx = ctx;
 		aliasCtx.parentType = &typeDesc;
 		meTypeDescriptorDeepCopy(*typeDesc.thisType, aliasCtx);
-		return;
-	}
-
-	if (typeDesc.deepCopyFn)
-	{
-		typeDesc.deepCopyFn(typeDesc, ctx);
 		return;
 	}
 
