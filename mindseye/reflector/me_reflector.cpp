@@ -1599,7 +1599,6 @@ bool ProcessReflectedFile(
 "    .size = %u, .align = %u,\n"
 "    .thisType = &TD_" STRING_FMT ",\n"
 "    .templatedTypes = meSpanTyped<meTypeDescriptor*>(g_nestedTemplateArgs_%.*s_%u),\n"
-"    .equalsFn = &meTypeDescriptorEquals<" STRING_FMT ">,\n"
 "    .setToDefaultsFn = &meTypeDescriptorSetToDefaults<" STRING_FMT ">,\n"
 "};\n",
                                         STRING_VAARGS(childReflType.name), (u32)templateArgIdx,
@@ -1607,7 +1606,6 @@ bool ProcessReflectedFile(
                                         templateArgType->size, templateArgType->align,
                                         STRING_VAARGS(argTDName),
                                         STRING_VAARGS(childReflType.name), (u32)templateArgIdx,
-                                        STRING_VAARGS(ctorTypeName),
                                         STRING_VAARGS(ctorTypeName)
                                     );
                                 }
@@ -1694,10 +1692,6 @@ bool ProcessReflectedFile(
             if (typeRefl.equalsFnName)
             {
                 mainTypeDescriptorContent.AppendFormat("\t.equalsFn = " STRING_FMT ",\n", STRING_VAARGS(typeRefl.equalsFnName));
-            }
-            else
-            {
-                mainTypeDescriptorContent.AppendFormat("\t.equalsFn = &meTypeDescriptorEquals<" STRING_FMT ">,\n", STRING_VAARGS(typeRefl.name));
             }
             if (typeRefl.editorRenderFnName)
             {

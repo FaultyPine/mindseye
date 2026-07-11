@@ -255,6 +255,11 @@ bool meFieldsEqual(
 		return true;
 	}
 
+	if (td.equalsFn)
+	{
+		return td.equalsFn(td, a, b);
+	}
+
 	if (td.thisType && TEST_BIT(td.flags, meTypeDescriptorFlag_ConstantArray))
 	{
 		u32 elemSize = td.thisType->size;
@@ -281,11 +286,6 @@ bool meFieldsEqual(
 			return td.thisType->equalsFn(td, a, b);
 		}
 		return meFieldsEqual(*td.thisType, a, b, &td);
-	}
-
-	if (td.equalsFn)
-	{
-		return td.equalsFn(td, a, b);
 	}
 
 	if (td.fields.size > 0)
