@@ -32,17 +32,15 @@ static void DestroyDescriptorTestAsset(meDescriptorTestAsset& asset)
 static const meTypeDescriptor* FindDescriptorTestField(StringView name)
 {
     const meTypeDescriptor* result = nullptr;
-    meTypeDescriptorWalkMembers(TD_MEDESCRIPTORTESTASSET, nullptr,
-        [&](const meTypeDescriptorMember& member)
+    for (u32 i = 0; i < TD_MEDESCRIPTORTESTASSET.fields.size; i++)
+    {
+        meTypeDescriptor& member = TD_MEDESCRIPTORTESTASSET.fields[i];
+        if (StringCompare(member.name, name))
         {
-            if (StringCompare(member.field.name, name))
-            {
-                result = &member.field;
-                return false;
-            }
-            return true;
-        },
-        false);
+            result = &member;
+            break;
+        }
+    }
     ME_ASSERT(result);
     return result;
 }
