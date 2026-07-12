@@ -18,6 +18,7 @@
 #include "render/me_shader.h"
 #include "scene/me_entity.h"
 #include "core/me_serialize.h"
+#include "core/me_chunker.h"
 #include "tests/me_descriptor_tests.h"
 #include "core/me_command.h"
 
@@ -228,6 +229,7 @@ void InitializeEngineSystems(EngineContext* engine)
 void RunEngineTests(EngineContext* engine)
 {
     meRelPtrTests();
+    meChunkerTests();
     DynArrayTests();
     HybridArrayTests();
     meDescriptorTests();

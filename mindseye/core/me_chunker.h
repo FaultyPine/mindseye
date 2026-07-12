@@ -1,10 +1,20 @@
 #pragma once
 
-// Single-pass binary serialization. The same DoState(wrap) code path handles
+// binary serialization. The same DoState(wrap) code path handles
 // save, load, measure, and verify by switching the mode on the wrap object.
 // inspired by Dolphin Emulator's PointerWrap
 
-// TODO: Use this for binary serialization
+// Measure: walk the data and count how many bytes are needed
+// Write: copy data to output buffer
+// Read: copy data from input buffer back into the struct
+// Verify: compare expected data against bytes in a buffer
+// 'meChunkerSave' first does a 'Measure' pass to allocate that much, then 'Write'
+// 
+// If someone happens to write asymmetric serialization code using this, it is detected
+// and the meChunker is switched to (harmless) 'Measure' mode. If we're in measure mode at the end
+// of read/write call, we know we've had an error and can return an error to the caller.
+//
+// A 'marker" is a hash cookie - if it doesn't match on read, same thing as above happens to indicate failure
 
 #include "core/me_defines.h"
 #include "core/me_memory.h"
@@ -13,6 +23,8 @@
 
 #include <type_traits>
 #include <functional>
+
+bool meChunkerTests();
 
 struct meChunker
 {
@@ -96,10 +108,10 @@ private:
 
         switch (m_mode)
         {
-        case Mode::Write:   ME_MEMCPY(m_cursor, data, size); break;
-        case Mode::Read:    ME_MEMCPY(data, m_cursor, size); break;
-        case Mode::Measure: break;
-        case Mode::Verify:  ME_ASSERT(ME_MEMCMP(data, m_cursor, size) == 0); break;
+			case Mode::Write:   ME_MEMCPY(m_cursor, data, size); break;
+			case Mode::Read:    ME_MEMCPY(data, m_cursor, size); break;
+			case Mode::Measure: break;
+			case Mode::Verify:  ME_ASSERT(ME_MEMCMP(data, m_cursor, size) == 0); break;
         }
 
         m_cursor += size;
