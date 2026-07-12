@@ -481,9 +481,9 @@ bool meOSWriteFileContent(
 u64 meOSGetFileSize(const OSFileReference& file)
 {
     ME_ASSERT(file.fileHandle != nullptr && file.fileHandle != INVALID_HANDLE_VALUE);
-    DWORD fileSizeHi = 0;
-    DWORD fileSizeLo = GetFileSize(file.fileHandle, &fileSizeHi);
-    return (u64)fileSizeLo | ((u64)fileSizeHi << 32);
+    LARGE_INTEGER fileSize;
+    bool result = GetFileSizeEx(file.fileHandle, &fileSize);
+    return fileSize;
 }
 
 
