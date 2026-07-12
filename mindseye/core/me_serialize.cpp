@@ -562,14 +562,11 @@ void DeserializeFromFileBlocking(
 	meSpan outBuffer,
 	meSerializeResult& outResult)
 {
-	// when debugging serialization, we might want to open the file being worked with, so we close the file handle before doing the Deserialize call
 	Allocation tempFileContent = {};
-	{
-		OSFileReference file;
-		meOSOpenFile(file, filepath, (OSFileFlags_OnlyIfExists | OSFileFlags_ScopedFile)); // TODO: memmap the file instead
-		tempFileContent = MEALLOC(GetTLScratch(), meOSGetFileSize(file));
-		meOSReadFileContents(file, tempFileContent, tempFileContent.size);
-	}
+    OSFileReference file;
+    meOSOpenFile(file, filepath, (OSFileFlags_OnlyIfExists | OSFileFlags_ScopedFile | OSFileFlags_ReadOnly)); // TODO: memmap the file instead
+    tempFileContent = MEALLOC(GetTLScratch(), meOSGetFileSize(file));
+    meOSReadFileContents(file, tempFileContent, tempFileContent.size);
 
 	DeserializeFromTextBlocking(typeDescriptor, allocator, StringView(tempFileContent), outBuffer, outResult);
 	// TODO: could/should be replaced with timestamp

@@ -84,7 +84,7 @@ meGPUBuffer meTexturePool::Load(
 		StringView textureResourcePath = StringFormatTmp("%.*s/%.*s", STRING_VAARGS(gltfResDir), STRING_VAARGS(textureUri));
 		// TODO: offer a loading fast-path if an equivalent .ktx file is next to the source file
 		OSFileReference file;
-		if (!meOSOpenFile(file, textureResourcePath, OSFileFlags_OnlyIfExists))
+		if (!meOSOpenFile(file, textureResourcePath, OSFileFlags_OnlyIfExists | OSFileFlags_ReadOnly))
 		{
 			LOG_ERROR("Failed to open texture file %.*s", STRING_VAARGS(textureResourcePath));
 			break;

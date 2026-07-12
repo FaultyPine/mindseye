@@ -380,7 +380,7 @@ struct meMeshAssetLoader : public meAssetLoader
 		{
             StringView resourcePathAbs = meAssetGetAbsPathForResource(outMesh.externalMeshPath);
             OSFileReference file;
-            meOSOpenFile(file, resourcePathAbs, (OSFileFlags_OnlyIfExists | OSFileFlags_ScopedFile));
+            meOSOpenFile(file, resourcePathAbs, (OSFileFlags_OnlyIfExists | OSFileFlags_ScopedFile | OSFileFlags_ReadOnly));
             u64 filesize = meOSGetFileSize(file);
             Allocation gltfBuffer = MEALLOC(allocator, filesize);
             if (!meOSReadFileContents(file, gltfBuffer.data, gltfBuffer.size))

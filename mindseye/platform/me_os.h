@@ -48,11 +48,12 @@ struct OSStateView
 typedef u32 OSFileFlags;
 enum OSFileFlags_
 {
-	OSFileFlags_OnlyIfExists    = NTH_BIT(0),
-	OSFileFlags_StompExisting   = NTH_BIT(1),
-    OSFileFlags_ScopedFile      = NTH_BIT(2),
+	OSFileFlags_OnlyIfExists      = NTH_BIT(0),
+	OSFileFlags_StompExisting     = NTH_BIT(1),
+    OSFileFlags_ScopedFile        = NTH_BIT(2),
 	OSFileFlags_DeleteOnFileClose = NTH_BIT(3),
-	OSFileFlags_IsDirectory     = NTH_BIT(4),
+	OSFileFlags_IsDirectory       = NTH_BIT(4),
+    OSFileFlags_ReadOnly          = NTH_BIT(5),
 };
 
 enum OSFileCursorMode { BEGIN, CURRENT, END };
@@ -154,11 +155,7 @@ struct OSFileReference
 
 	// TODO: implement copy/assign/move
 	OSFileReference() = default;
-	OSFileReference(StringView str, OSFileFlags flags = (OSFileFlags_ScopedFile | OSFileFlags_OnlyIfExists))
-	{
-		bool result = meOSOpenFile(*this, str, flags);
-		ME_ASSERT(result);
-	}
+
 	void InitWithoutOpening(StringView str)
 	{
 		StringCopy({path, ME_PATH_MAX}, str);

@@ -472,6 +472,7 @@ bool meOSWriteFileContent(
 	void* buffer,
 	size_t amtToWrite)
 {
+    ME_ASSERT(!(file.flags & OSFileFlags_ReadOnly));
 	DWORD amtActuallyWritten = 0;
 	bool result = WriteFile(file.fileHandle, buffer, amtToWrite, &amtActuallyWritten, nullptr);
 	return result;
@@ -517,7 +518,7 @@ bool meOSOpenFile(
 	{
 		openMode = CREATE_ALWAYS;
 	}
-    file.fileHandle = CreateFileA(file.path, GENERIC_READ | GENERIC_WRITE, 0 /*exclusive access*/, 0, openMode, FILE_ATTRIBUTE_NORMAL, 0);
+    file.fileHandle = CreateFileA(file.path, (flags & OSFileFlags_ReadOnly) ? GENERIC_READ : GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, 0, openMode, FILE_ATTRIBUTE_NORMAL, 0);
     if (file.fileHandle == INVALID_HANDLE_VALUE)
     {
         DWORD result = GetLastError();

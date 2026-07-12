@@ -152,7 +152,7 @@ void meScenePool::Load(
 {
 	String resourcePathAbs = meAssetGetAbsPathForResource(resourcePathRel);
 	OSFileReference file;
-    meOSOpenFile(file, resourcePathAbs, (OSFileFlags_OnlyIfExists | OSFileFlags_ScopedFile));
+    meOSOpenFile(file, resourcePathAbs, (OSFileFlags_OnlyIfExists | OSFileFlags_ScopedFile | OSFileFlags_ReadOnly));
 	u64 filesize = meOSGetFileSize(file);
 	Allocation gltfBuffer = MEALLOC(sceneAllocator, filesize);
 
