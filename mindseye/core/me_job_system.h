@@ -8,11 +8,20 @@ typedef u32 meJobId;
 typedef void(*meJobCb)(void* payload);
 
 // FUTURE:
-// replace with lock free work stealing algo
-// spin on atomics w/cpu yields
-// or 3rd party lib equivalent (https://gametechdev.github.io/GTS-GamesTaskScheduler/documentation/html/index.html)
 // big plans...
-// need Queue Types (background async, asset compilation, frame tasks, multi-frame async tasks, ...)
+// for reference: https://github.com/dougbinks/enkiTS
+// DESIGN:
+/*
+should be lock free and use work stealing algo
+should be able to build & submit a "graph" of work - the dependencies of which are resolved and the work is scheduled in parallel based on that graph
+need "job queue types" - basically separate buckets of work that can be synchronized differently. I.E. background async work, asset compilation, frame tasks, multi-frame async tasks, etc.
+A job should be able to enqueue more jobs inside itself
+a job should be able to enqueue child jobs from itself
+Need to be able to wait on a job, or on a full "graph"/batch of submitted jobs
+A job should be able to return out as "suspended". Which will re-queue the job, and call it as normal. 
+    SUSPEND = scheduler will requeue the job as normal (programmer can add checks to skip logic on next passes if desired), 
+    WAITING = job is waiting on a synchronization primitive, sheduler shouldn't requeue it until the thing (?) is signaled (need a way to represent jobs that wait on some signal at the scheduler level)
+*/
 
 
 struct meJob
