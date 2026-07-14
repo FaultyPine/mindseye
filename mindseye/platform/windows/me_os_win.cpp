@@ -483,8 +483,7 @@ u64 meOSGetFileSize(const OSFileReference& file)
     ME_ASSERT(file.fileHandle != nullptr && file.fileHandle != INVALID_HANDLE_VALUE);
     LARGE_INTEGER fileSize;
     bool result = GetFileSizeEx(file.fileHandle, &fileSize);
-    UNUSED_DECL DWORD errCode = GetLastError();
-    ME_ASSERT(result && errCode);
+    ME_ASSERT(result);
     return fileSize.QuadPart;
 }
 

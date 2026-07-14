@@ -1056,22 +1056,45 @@ DynArray<CompileCommand> CompileDatabaseToCommandsList(
     OSFileReference compileCmdsFile = {};
     if (!meOSOpenFile(compileCmdsFile, compileDatabasePath, OSFileFlags_OnlyIfExists | OSFileFlags_ScopedFile | OSFileFlags_ReadOnly))
     {
-        LOG_ERROR("Failed to open compile commands database file %s", compileDatabasePath.data);
+        LOG_ERROR("Failed to open compile commands database file %s", compileDatabasePath.cstr());
         return cmds;
     }
     u64 fileSize = meOSGetFileSize(compileCmdsFile);
-    char *compileCmdsContentsMem = (char *)MEALLOC(allocator, fileSize);
+    if (fileSize == 0)
+    {
+        LOG_ERROR("Compile commands database file is empty %s", compileDatabasePath.cstr());
+        return cmds;
+    }
+    char *compileCmdsContentsMem = (char *)MEALLOC(allocator, fileSize + 1);
     StringView compileCmdsContentsStr = StringView(compileCmdsContentsMem, fileSize);
     if (!meOSReadFileContents(compileCmdsFile, compileCmdsContentsMem, fileSize))
     {
-        LOG_ERROR("Failed to read compile commands database file %s", compileDatabasePath.data);
+        LOG_ERROR("Failed to read compile commands database file %s", compileDatabasePath.cstr());
         return cmds;
     }
-    CompileCommand cmd;
+    compileCmdsContentsMem[fileSize] = '\0';
+    CompileCommand cmd = {};
     s32 idx = FindInString(compileCmdsContentsStr, STRING_LIT(" "));
+    if (idx < 0)
+    {
+        LOG_ERROR("Compile commands database did not contain compiler arguments");
+        return cmds;
+    }
     cmd.arguments = compileCmdsContentsStr.OffsetView(idx + 1);
-    s32 endFileIdx = FindInString(compileCmdsContentsStr, STRING_LIT(".cpp")) + 4;
-    s32 startFileIdx = FindInStringRev(compileCmdsContentsStr, STRING_LIT(" "), compileCmdsContentsStr.len - endFileIdx) + 1;
+    s32 cppIdx = FindInString(compileCmdsContentsStr, STRING_LIT(".cpp"));
+    if (cppIdx < 0)
+    {
+        LOG_ERROR("Compile commands database did not contain a C++ source file");
+        return cmds;
+    }
+    s32 endFileIdx = cppIdx + 4;
+    s32 startFileIdx = FindInStringRev(compileCmdsContentsStr, STRING_LIT(" "), compileCmdsContentsStr.len - endFileIdx);
+    if (startFileIdx < 0)
+    {
+        LOG_ERROR("Compile commands database source file path was malformed");
+        return cmds;
+    }
+    startFileIdx += 1;
     cmd.inFile = compileCmdsContentsStr.OffsetView(startFileIdx, endFileIdx - startFileIdx);
     DynArrayPush(cmds, cmd);
     return cmds;
@@ -1119,6 +1142,7 @@ int main(int argc, char *argv[])
     if (exePath[exePath.len - 1] != '\\' && exePath[exePath.len - 1] != '/')
         DynArrayPush(reflectorFilePath, '/');
     DynArrayPush(reflectorFilePath, (char *)reflectorHeaderFilename, CStringLength(reflectorHeaderFilename));
+    DynArrayPush(reflectorFilePath, '\0');
     auto idx = clang_createIndex(0, 0);
     u32 clangOptions = 0 | CXTranslationUnit_DetailedPreprocessingRecord | CXTranslationUnit_IncludeBriefCommentsInCodeCompletion | CXTranslationUnit_KeepGoing
         //| CXTranslationUnit_SingleFileParse
