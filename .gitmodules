@@ -1,3 +1,6 @@
 [submodule "projects/gltf-samples"]
 	path = projects/testbed/gltf-samples
 	url = https://github.com/KhronosGroup/glTF-Sample-Assets
+[submodule "mindseye/external/imgui-node-editor"]
+	path = mindseye/external/imgui-node-editor
+	url = https://github.com/thedmd/imgui-node-editor

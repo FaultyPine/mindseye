@@ -23,6 +23,8 @@ static bool DescriptorDispatchBaseDeserializer(const meTypeDescriptor&, Deserial
 static bool DescriptorDispatchAliasDeserializer(const meTypeDescriptor&, DeserializeContext& ctx);
 static bool DescriptorDispatchBaseEquals(const meTypeDescriptor&, const void* a, const void* b);
 static bool DescriptorDispatchAliasEquals(const meTypeDescriptor&, const void* a, const void* b);
+static void DescriptorDispatchBaseDestroy(const meTypeDescriptor&, DestroyContext& ctx);
+static void DescriptorDispatchAliasDestroy(const meTypeDescriptor&, DestroyContext& ctx);
 static void DescriptorDispatchBaseDeepCopy(const meTypeDescriptor&, DeepCopyContext& ctx);
 static void DescriptorDispatchAliasDeepCopy(const meTypeDescriptor&, DeepCopyContext& ctx);
 
@@ -33,6 +35,7 @@ static meTypeDescriptor TD_DESCRIPTOR_DISPATCH_BASE = {
     .serializerFn = DescriptorDispatchBaseSerializer,
     .deserializerFn = DescriptorDispatchBaseDeserializer,
     .equalsFn = DescriptorDispatchBaseEquals,
+    .destroyFn = DescriptorDispatchBaseDestroy,
     .deepCopyFn = DescriptorDispatchBaseDeepCopy,
 };
 
@@ -46,6 +49,7 @@ static meTypeDescriptor g_descriptorDispatchWrapperFields[] = {
         .serializerFn = DescriptorDispatchAliasSerializer,
         .deserializerFn = DescriptorDispatchAliasDeserializer,
         .equalsFn = DescriptorDispatchAliasEquals,
+        .destroyFn = DescriptorDispatchAliasDestroy,
         .deepCopyFn = DescriptorDispatchAliasDeepCopy,
     },
 };
@@ -65,6 +69,8 @@ struct DescriptorDispatchStats
     u32 aliasDeserializer = 0;
     u32 baseEquals = 0;
     u32 aliasEquals = 0;
+    u32 baseDestroy = 0;
+    u32 aliasDestroy = 0;
     u32 baseDeepCopy = 0;
     u32 aliasDeepCopy = 0;
 };
@@ -119,6 +125,18 @@ static bool DescriptorDispatchAliasEquals(const meTypeDescriptor&, const void*, 
 {
     g_descriptorDispatchStats.aliasEquals++;
     return true;
+}
+
+static void DescriptorDispatchBaseDestroy(const meTypeDescriptor&, DestroyContext& ctx)
+{
+    g_descriptorDispatchStats.baseDestroy++;
+    ((meDescriptorDispatchValue*)ctx.data)->value = -2000;
+}
+
+static void DescriptorDispatchAliasDestroy(const meTypeDescriptor&, DestroyContext& ctx)
+{
+    g_descriptorDispatchStats.aliasDestroy++;
+    ((meDescriptorDispatchValue*)ctx.data)->value = -1000;
 }
 
 static void DescriptorDispatchBaseDeepCopy(const meTypeDescriptor&, DeepCopyContext& ctx)
@@ -265,6 +283,21 @@ static void DescriptorTestDeepCopy(meAllocator* allocator)
     DestroyDescriptorTestAsset(copied);
 }
 
+static void DescriptorTestDestroy(meAllocator* allocator)
+{
+    meDescriptorTestAsset asset = MakeDescriptorTestAsset(allocator);
+    ME_ASSERT(asset.displayName.data);
+    ME_ASSERT(asset.children.data);
+
+    DestroyContext ctx = {};
+    ctx.data = &asset;
+    ctx.allocator = allocator;
+    meTypeDescriptorDestroy(TD_MEDESCRIPTORTESTASSET, ctx);
+
+    ME_ASSERT(!asset.displayName.data);
+    ME_ASSERT(!asset.children.data);
+}
+
 static void DescriptorTestContainerFunctions(meAllocator* allocator)
 {
     meDescriptorTestAsset asset = MakeDescriptorTestAsset(allocator);
@@ -354,6 +387,16 @@ static void DescriptorTestDispatchOrdering(meAllocator* allocator)
     ME_ASSERT(copied.field.value == original.field.value + 1000);
     ME_ASSERT(g_descriptorDispatchStats.aliasDeepCopy == 1);
     ME_ASSERT(g_descriptorDispatchStats.baseDeepCopy == 0);
+
+    DescriptorDispatchResetStats();
+    meDescriptorDispatchWrapper destroyed = { { 42 } };
+    DestroyContext destroyCtx = {};
+    destroyCtx.data = &destroyed;
+    destroyCtx.allocator = allocator;
+    meTypeDescriptorDestroy(TD_DESCRIPTOR_DISPATCH_WRAPPER, destroyCtx);
+    ME_ASSERT(destroyed.field.value == -1000);
+    ME_ASSERT(g_descriptorDispatchStats.aliasDestroy == 1);
+    ME_ASSERT(g_descriptorDispatchStats.baseDestroy == 0);
 }
 
 void meDescriptorTests()
@@ -367,6 +410,8 @@ void meDescriptorTests()
     DescriptorTestSerializeDeserializeEquals(allocator);
     LOG_INFO("Testing deepCopyFn...");
     DescriptorTestDeepCopy(allocator);
+    LOG_INFO("Testing destroyFn...");
+    DescriptorTestDestroy(allocator);
     LOG_INFO("Testing iterateContentFn, pushElementFn, and removeElementFn...");
     DescriptorTestContainerFunctions(allocator);
     LOG_INFO("Testing descriptor dispatch ordering...");

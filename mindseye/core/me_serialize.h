@@ -47,21 +47,6 @@ void DeserializeFromTextBlocking(
 	meSerializeResult& outResult);
 
 
-// Returns true if the two buffers, interpreted as the given type, are
-// semantically equal
-// parentType is used for templated types (see meTypeDescriptor docs).
-bool meFieldsEqual(
-	const meTypeDescriptor& typeDesc,
-	const void* a,
-	const void* b,
-	const meTypeDescriptor* parentType = nullptr);
-
-// Deep-copies a buffer described by typeDesc, allocating any owned backing data
-// through ctx.allocator.
-void meTypeDescriptorDeepCopy(
-	const meTypeDescriptor& typeDesc,
-	DeepCopyContext& ctx);
-
 // Like SerializeToTextBlocking, but only emits fields whose values
 // differ from those in templateData. Header MAID is always written.
 meSerializeResult SerializeOverridesToTextBlocking(

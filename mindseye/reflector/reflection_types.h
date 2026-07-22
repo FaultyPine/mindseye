@@ -76,6 +76,15 @@ typedef void (*SetToDefaults)(void* objData);
 
 typedef bool (*EqualsFn)(const meTypeDescriptor& td, const void* a, const void* b);
 
+struct DestroyContext
+{
+	void* data = nullptr;
+	meAllocator* allocator = nullptr;
+	const meTypeDescriptor* parentType = nullptr;
+};
+
+typedef void (*DestroyFn)(const meTypeDescriptor& td, DestroyContext& ctx);
+
 struct DeepCopyContext
 {
 	const void* srcData = nullptr;
@@ -142,6 +151,7 @@ struct meTypeDescriptor
     EditorRenderFn editorRenderFn = nullptr;
     // invoke default constructor on an arbitrary buffer
     SetToDefaults setToDefaultsFn = nullptr;
+	DestroyFn destroyFn = nullptr;
 	DeepCopyFn deepCopyFn = nullptr;
     // if this is valid, that implies this type is an iterable container
     meTypeIterateContentFn iterateContentFn = nullptr;
@@ -325,8 +335,28 @@ bool sizedBufferDeserializer(const meTypeDescriptor&, DeserializeContext& ctx);
 void stringSerializer(const meTypeDescriptor&, SerializeContext& ctx);
 bool stringDeserializer(const meTypeDescriptor&, DeserializeContext& ctx);
 bool sizedBufferEquals(const meTypeDescriptor& td, const void* a, const void* b);
+void sizedBufferDestroy(const meTypeDescriptor& td, DestroyContext& ctx);
+void stringDestroy(const meTypeDescriptor& td, DestroyContext& ctx);
 void sizedBufferDeepCopy(const meTypeDescriptor& td, DeepCopyContext& ctx);
 void stringDeepCopy(const meTypeDescriptor& td, DeepCopyContext& ctx);
+
+// Returns true if two buffers are semantically equal as this reflected type.
+// parentType is used for templated types.
+bool meFieldsEqual(
+	const meTypeDescriptor& typeDesc,
+	const void* a,
+	const void* b,
+	const meTypeDescriptor* parentType = nullptr);
+
+// Frees owned backing data inside a reflected type. Primitive/POD fields are no-ops.
+void meTypeDescriptorDestroy(
+	const meTypeDescriptor& typeDesc,
+	DestroyContext& ctx);
+
+// Deep-copies a reflected type, allocating owned backing data through ctx.allocator.
+void meTypeDescriptorDeepCopy(
+	const meTypeDescriptor& typeDesc,
+	DeepCopyContext& ctx);
 
 // NOTE: there are static maps mapping between reflected types and their type descriptors
 // in me_reflector.cpp
