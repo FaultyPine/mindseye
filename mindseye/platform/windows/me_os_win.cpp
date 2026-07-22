@@ -319,46 +319,43 @@ bool meOSCopyFile(const char* src, const char* dst)
     return CopyFileA(src, dst, FALSE) != 0;
 }
 
-bool meOSMapFile(meMemoryMappedFile& out, const char* path, u64 size, meMapFileFlags flags)
+bool meOSMapFile(meMemoryMappedFile& out, StringView path, OSFileFlags flags)
 {
     ME_ASSERT(!out.ptr);
-    HANDLE fileHandle = INVALID_HANDLE_VALUE;
-    if (path != nullptr)
+    ME_ASSERT(path);
+    if (!meOSOpenFile(out, path, flags))
     {
-        fileHandle = CreateFileA(path, GENERIC_READ | GENERIC_WRITE, 0, nullptr,
-                                 OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-        if (fileHandle == INVALID_HANDLE_VALUE)
-        {
-            LOG_ERROR("meOSMapFile: failed to open %s (%lu)", path, GetLastError());
-            return false;
-        }
-        out.fileHandle = fileHandle;
+        LOG_ERROR("meOSMapFile: failed to open " STRING_FMT, STRING_VAARGS(path));
+        return false;
     }
-
-    DWORD protect = (flags & meMapFileFlags_ReserveOnly) ? PAGE_READWRITE | SEC_RESERVE : PAGE_READWRITE;
-    HANDLE mapping = CreateFileMappingA(fileHandle, nullptr, protect,
-                                        (DWORD)(size >> 32), (DWORD)(size & 0xFFFFFFFF), nullptr);
-    if (!mapping)
+    out.size = meOSGetFileSize(out);
+    if (out.size == 0)
     {
-        LOG_ERROR("meOSMapFile: CreateFileMappingA failed%s%s (%lu)",
-                  path ? " for " : "", path ? path : "", GetLastError());
-        if (path) CloseHandle(fileHandle);
+        meOSUnmapFile(out);
         return false;
     }
 
-    void* ptr = MapViewOfFile(mapping, FILE_MAP_ALL_ACCESS, 0, 0, size);
+    DWORD protect = (flags & OSFileFlags_ReadOnly) ? PAGE_READONLY : PAGE_READWRITE;
+    HANDLE mapping = CreateFileMappingA(out.fileHandle, nullptr, protect, 0, 0, nullptr);
+    if (!mapping)
+    {
+        LOG_ERROR("meOSMapFile: CreateFileMappingA failed for " STRING_FMT " (%lu)", STRING_VAARGS(path), GetLastError());
+        meOSUnmapFile(out);
+        return false;
+    }
+
+    DWORD desiredAccess = (flags & OSFileFlags_ReadOnly) ? FILE_MAP_READ : FILE_MAP_ALL_ACCESS;
+    void* ptr = MapViewOfFile(mapping, desiredAccess, 0, 0, 0);
     if (!ptr)
     {
-        LOG_ERROR("meOSMapFile: MapViewOfFile failed%s%s (%lu)",
-                  path ? " for " : "", path ? path : "", GetLastError());
+        LOG_ERROR("meOSMapFile: MapViewOfFile failed for " STRING_FMT " (%lu)", STRING_VAARGS(path), GetLastError());
         CloseHandle(mapping);
-        if (path) CloseHandle(fileHandle);
+        meOSUnmapFile(out);
         return false;
     }
 
     out.mappingHandle = mapping;
     out.ptr           = ptr;
-    out.size          = size;
     return true;
 }
 
@@ -366,7 +363,7 @@ void meOSUnmapFile(meMemoryMappedFile& mapping)
 {
     if (mapping.ptr)            UnmapViewOfFile(mapping.ptr);
     if (mapping.mappingHandle)  CloseHandle((HANDLE)mapping.mappingHandle);
-    if (mapping.fileHandle)     CloseHandle((HANDLE)mapping.fileHandle);
+    if (mapping.HasOpenFile())  meOSCloseFile(mapping);
     mapping = {};
 }
 
@@ -480,10 +477,24 @@ bool meOSWriteFileContent(
 
 u64 meOSGetFileSize(const OSFileReference& file)
 {
-    ME_ASSERT(file.fileHandle != nullptr && file.fileHandle != INVALID_HANDLE_VALUE);
     LARGE_INTEGER fileSize;
-    bool result = GetFileSizeEx(file.fileHandle, &fileSize);
-    ME_ASSERT(result);
+    bool result = false;
+    if (file.HasOpenFile())
+    {
+        result = GetFileSizeEx(file.fileHandle, &fileSize);
+    }
+    else
+    {
+        WIN32_FILE_ATTRIBUTE_DATA fileData = {};
+        result = GetFileAttributesExA(file.path, GetFileExInfoStandard, &fileData);
+        fileSize.HighPart = fileData.nFileSizeHigh;
+        fileSize.LowPart = fileData.nFileSizeLow;
+    }
+    if (!result)
+    {
+        LOG_WARN("Failed to get file size %s", file.path);
+        return 0;
+    }
     return fileSize.QuadPart;
 }
 

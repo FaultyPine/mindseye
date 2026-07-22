@@ -79,24 +79,8 @@ MEAPI void  meOSResetWrittenAddresses(void* base, u64 size);
 
 // ── Memory-mapped files ───────────────────────────────────────────────────────
 
-typedef u32 meMapFileFlags;
-enum meMapFileFlags_
-{
-    meMapFileFlags_None        = 0,
-    meMapFileFlags_ReserveOnly = NTH_BIT(0), // SEC_RESERVE: commit sub-ranges with meOSCommitMemory before use
-};
-
-struct meMemoryMappedFile
-{
-    void* ptr  = nullptr;
-    u64   size = 0;
-#ifdef OS_WINDOWS
-    void* fileHandle    = nullptr;
-    void* mappingHandle = nullptr;
-#endif
-};
-// path == nullptr: backed by system pagefile.
-MEAPI bool meOSMapFile(meMemoryMappedFile& out, const char* path, u64 size, meMapFileFlags flags = meMapFileFlags_None);
+struct meMemoryMappedFile;
+MEAPI bool meOSMapFile(meMemoryMappedFile& out, StringView path, OSFileFlags flags = OSFileFlags_OnlyIfExists);
 MEAPI void meOSUnmapFile(meMemoryMappedFile& mapping);
 
 // ── Process ───────────────────────────────────────────────────────────────────
@@ -161,6 +145,16 @@ struct OSFileReference
 		StringCopy({path, ME_PATH_MAX}, str);
 		ME_ASSERT(path[str.len] == '\0');
 	}
-	bool HasOpenFile() const { return reinterpret_cast<s64>(fileHandle) != -1; }
+	bool HasOpenFile() const { return reinterpret_cast<s64>(fileHandle) > 0; }
 	StringView GetPath() const { return StringFromCString(path); }
+};
+
+struct meMemoryMappedFile : public OSFileReference
+{
+	~meMemoryMappedFile();
+	void* ptr = nullptr;
+	u64 size = 0;
+#ifdef OS_WINDOWS
+	void* mappingHandle = nullptr;
+#endif
 };

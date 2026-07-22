@@ -40,6 +40,14 @@ OSFileReference::~OSFileReference()
     }
 }
 
+meMemoryMappedFile::~meMemoryMappedFile()
+{
+    if (flags & OSFileFlags_ScopedFile)
+    {
+        meOSUnmapFile(*this);
+    }
+}
+
 
 bool meOSSetFileCursor(
 	const OSFileReference& file,
