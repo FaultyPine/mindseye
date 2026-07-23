@@ -2,8 +2,16 @@
 #include "me_math.h"
 #include "core/me_core.h"
 
-meTypeDescriptor TD_VEC3 = { .name = STRING_LIT("vec3"), .size = sizeof(glm::vec3), .align = alignof(glm::vec3), .equalsFn = &meTypeDescriptorEquals<glm::vec3> };
-meTypeDescriptor TD_QUAT = { .name = STRING_LIT("quat"), .size = sizeof(glm::quat), .align = alignof(glm::quat), .equalsFn = &meTypeDescriptorEquals<glm::quat> };
+#ifndef ME_CORE_ONLY
+#define ME_PRIMITIVE_SERDE .serializerFn = primitiveSerializer, .deserializerFn = primitiveDeserializer,
+#else
+#define ME_PRIMITIVE_SERDE
+#endif
+
+meTypeDescriptor TD_VEC3 = { .name = STRING_LIT("vec3"), .size = sizeof(glm::vec3), .align = alignof(glm::vec3), ME_PRIMITIVE_SERDE .equalsFn = &meTypeDescriptorEquals<glm::vec3> };
+meTypeDescriptor TD_QUAT = { .name = STRING_LIT("quat"), .size = sizeof(glm::quat), .align = alignof(glm::quat), ME_PRIMITIVE_SERDE .equalsFn = &meTypeDescriptorEquals<glm::quat> };
+
+#undef ME_PRIMITIVE_SERDE
 
 namespace Math {
 

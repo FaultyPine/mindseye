@@ -180,15 +180,35 @@ static void InitializeEngineConfig(EngineContext* engine)
 	}
 	else
 	{
-        meSerializeResult result = {};
-		DeserializeFromFileBlocking(userProjectConfigPath, &engine->engineArena, TD_MEUSERCONFIG, SPAN_FROM(engine->userConfig), result);
-        ME_ASSERT(result.result == meSerializeResult::ResultType::SER_SUCCESS);
+		meSerializeResult result = {};
+		DeserializeContext deserializeCtx = {};
+		deserializeCtx.mode = meSerializationMode_Text;
+		deserializeCtx.typeDesc = &TD_MEUSERCONFIG;
+		deserializeCtx.externalDataAllocator = &engine->engineArena;
+		deserializeCtx.outputData = SPAN_FROM(engine->userConfig);
+		deserializeCtx.outResult = &result;
+		DeserializeFromFileBlocking(userProjectConfigPath, deserializeCtx);
+        if (result.result != meSerializeResult::ResultType::SER_SUCCESS)
+        {
+            LOG_WARN("failed to deserialize user config!");
+            return;
+        }
         // "userApp" referring to a program that uses the mindseye engine
 		StringView userAppConfigFile = engine->userConfig.projectRootConfigFile;
 		String userAppConfigPathAbs = meOSResolveRelativeToAbsPath(GetTLScratch(), userAppConfigFile);
         result = {};
-		DeserializeFromFileBlocking(userAppConfigPathAbs, &engine->engineArena, TD_MEAPPCONFIG, SPAN_FROM(engine->appConfig), result);
-        ME_ASSERT(result.result == meSerializeResult::ResultType::SER_SUCCESS);
+		deserializeCtx = {};
+		deserializeCtx.mode = meSerializationMode_Text;
+		deserializeCtx.typeDesc = &TD_MEAPPCONFIG;
+		deserializeCtx.externalDataAllocator = &engine->engineArena;
+		deserializeCtx.outputData = SPAN_FROM(engine->appConfig);
+		deserializeCtx.outResult = &result;
+		DeserializeFromFileBlocking(userAppConfigPathAbs, deserializeCtx);
+        if (result.result != meSerializeResult::ResultType::SER_SUCCESS)
+        {
+            LOG_WARN("failed to deserialize app config!");
+            return;
+        }
 
         StringView exeFolder = meOSGetExeFileFolder();
         String userAppDllPath = StringFormatTmp("%.*s/%.*s-1.dll",

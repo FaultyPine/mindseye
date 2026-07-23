@@ -242,9 +242,10 @@ static void DrawAssetInspector(EditorContext& editor, InspectorWindow& inspector
 	{
 		ImGui::TableSetupColumn("Property", ImGuiTableColumnFlags_WidthFixed, 120.0f);
 		ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthFixed, 180.0f);
-        meTypeDescriptor* assetTypeDesc = meAssetSystemGet().assetLoaders[asset.id.GetType()]->assetTypeDesc;
-        void* assetData = meAssetSystemGet().assetLoaders[asset.id.GetType()]->resourcePool->GetOpaque(asset.runtimeHandle);
-		bool didUserChangeSomething = DrawStructFields(*assetTypeDesc, (u8*)assetData);
+		ScopedAssetOpaqueLockW lockedAsset(asset);
+        meTypeDescriptor* assetTypeDesc = lockedAsset.Loader() ? lockedAsset.Loader()->assetTypeDesc : nullptr;
+        void* assetData = lockedAsset.Get();
+		bool didUserChangeSomething = assetTypeDesc && assetData && DrawStructFields(*assetTypeDesc, (u8*)assetData);
         if (didUserChangeSomething)
         {
             // Not supporting template asset editing in the inspector - it's only for runtime stuff 
@@ -369,7 +370,7 @@ void meEditorTick(EngineContext* engine)
 
         StringView scenePath = STRING_LIT("No Scene Loaded");
         meScene& scene = engine->sceneSystem->CurrentScene();
-        MAID currentSceneAsset = scene.header;
+        MAID currentSceneAsset = scene.header.assetHeader;
         if (StringView currentScenePath = meAssetIndexGetFilesystemPath(currentSceneAsset))
         {
             scenePath = currentScenePath;

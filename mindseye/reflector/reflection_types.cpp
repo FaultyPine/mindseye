@@ -16,51 +16,6 @@ StringView meTypeDescriptorFlagToString(meTypeDescriptorFlags flag)
 	};
 }
 
-// Serializer/Deserializer functions for sized buffer types (meSpan, StringView, String)
-#ifdef ME_CORE_ONLY
-// raw fallback for reflector build (no json available)
-void sizedBufferSerializer(
-	const meTypeDescriptor& typedescriptor,
-	SerializeContext& ctx)
-{ UNIMPLEMENTED(); }
-
-void stringSerializer(
-	const meTypeDescriptor& typedescriptor,
-	SerializeContext& ctx)
-{ UNIMPLEMENTED(); }
-
-#endif
-
-bool sizedBufferDeserializer(
-	const meTypeDescriptor& typedescriptor,
-	DeserializeContext& ctx)
-{
-	meSpan* outputSpan = (meSpan*)ctx.outputData.data;
-	Allocation mem = MEALLOC(ctx.externalDataAllocator, ctx.inputData.size);
-	BufferCopy(mem, ctx.inputData);
-	ctx.outputDataExternal = mem;
-	*outputSpan = mem;
-	return true;
-}
-
-static meAllocator* meStringDeserializerAllocatorOrDefault(const DeserializeContext& ctx)
-{
-	return ctx.externalDataAllocator ? ctx.externalDataAllocator : GetStringAllocator();
-}
-
-bool stringDeserializer(
-	const meTypeDescriptor& typedescriptor,
-	DeserializeContext& ctx)
-{
-	meAllocator* allocator = meStringDeserializerAllocatorOrDefault(ctx);
-	String* ownedStr = (String*)ctx.outputData.data;
-	ownedStr->CopyOf(StringView::FromSpan(ctx.inputData), allocator);
-	ownedStr->allocator = allocator;
-	ctx.outputDataExternal = meSpan(ownedStr->data, ownedStr->len);
-	ctx.outputData = meSpan(ownedStr, sizeof(String));
-	return true;
-}
-
 bool sizedBufferEquals(
     const meTypeDescriptor& td,
     const void* a, 
@@ -380,30 +335,59 @@ void meTypeDescriptorDeepCopy(
 		});
 }
 
-meTypeDescriptor TD_UNSIGNED_INT = { .name = STRING_LIT("unsigned int"), .size = 4, .align = 4, .equalsFn = &meTypeDescriptorEquals<unsigned int> };
-meTypeDescriptor TD_INT = { .name = STRING_LIT("int"), .size = 4, .align = 4, .equalsFn = &meTypeDescriptorEquals<int> };
-meTypeDescriptor TD_UNSIGNED_SHORT = { .name = STRING_LIT("unsigned short"), .size = 2, .align = 2, .equalsFn = &meTypeDescriptorEquals<unsigned short> };
-meTypeDescriptor TD_SHORT = { .name = STRING_LIT("short"), .size = 2, .align = 2, .equalsFn = &meTypeDescriptorEquals<short> };
-meTypeDescriptor TD_UNSIGNED_LONG = { .name = STRING_LIT("unsigned long"), .size = 8, .align = 8, .equalsFn = &meTypeDescriptorEquals<unsigned long> };
-meTypeDescriptor TD_LONG = { .name = STRING_LIT("long"), .size = 8, .align = 8, .equalsFn = &meTypeDescriptorEquals<long> };
-meTypeDescriptor TD_LONG_LONG = { .name = STRING_LIT("long long"), .size = 8, .align = 8, .equalsFn = &meTypeDescriptorEquals<long long> };
-meTypeDescriptor TD_UNSIGNED_LONG_LONG = { .name = STRING_LIT("unsigned long long"), .size = 8, .align = 8, .equalsFn = &meTypeDescriptorEquals<unsigned long long> };
-meTypeDescriptor TD_FLOAT = { .name = STRING_LIT("float"), .size = 4, .align = 4, .equalsFn = &meTypeDescriptorEquals<float> };
-meTypeDescriptor TD_DOUBLE = { .name = STRING_LIT("double"), .size = 8, .align = 8, .equalsFn = &meTypeDescriptorEquals<double> };
-meTypeDescriptor TD_BOOL = { .name = STRING_LIT("bool"), .size = 1, .align = 1, .equalsFn = &meTypeDescriptorEquals<bool> };
-meTypeDescriptor TD_CHAR = { .name = STRING_LIT("char"), .size = 1, .align = 1, .equalsFn = &meTypeDescriptorEquals<char> };
-meTypeDescriptor TD_UNSIGNED_CHAR = {.name = STRING_LIT("unsigned char"), .size = 1, .align = 1, .equalsFn = &meTypeDescriptorEquals<unsigned char> };
-meTypeDescriptor TD_WCHAR_T = { .name = STRING_LIT("wchar_t"), .size = 4, .align = 4, .equalsFn = &meTypeDescriptorEquals<wchar_t> };
+#ifndef ME_CORE_ONLY
+#define ME_PRIMITIVE_SERDE .serializerFn = primitiveSerializer, .deserializerFn = primitiveDeserializer,
+#define ME_SIZED_BUFFER_SERDE .serializerFn = sizedBufferSerializer, .deserializerFn = sizedBufferDeserializer,
+#define ME_STRING_SERDE .serializerFn = stringSerializer, .deserializerFn = stringDeserializer,
+#define ME_DISALLOWED_SERDE .serializerFn = serializationDisallowed, .deserializerFn = deserializationDisallowed,
+#define ME_SPAN_DESTROY .destroyFn = &sizedBufferDestroy,
+#define ME_STRING_DESTROY .destroyFn = &stringDestroy,
+#define ME_SPAN_DEEP_COPY .deepCopyFn = &sizedBufferDeepCopy,
+#define ME_STRING_DEEP_COPY .deepCopyFn = &stringDeepCopy,
+#else
+#define ME_PRIMITIVE_SERDE
+#define ME_SIZED_BUFFER_SERDE
+#define ME_STRING_SERDE
+#define ME_DISALLOWED_SERDE
+#define ME_SPAN_DESTROY
+#define ME_STRING_DESTROY
+#define ME_SPAN_DEEP_COPY
+#define ME_STRING_DEEP_COPY
+#endif
+
+meTypeDescriptor TD_UNSIGNED_INT = { .name = STRING_LIT("unsigned int"), .size = 4, .align = 4, ME_PRIMITIVE_SERDE .equalsFn = &meTypeDescriptorEquals<unsigned int> };
+meTypeDescriptor TD_INT = { .name = STRING_LIT("int"), .size = 4, .align = 4, ME_PRIMITIVE_SERDE .equalsFn = &meTypeDescriptorEquals<int> };
+meTypeDescriptor TD_UNSIGNED_SHORT = { .name = STRING_LIT("unsigned short"), .size = 2, .align = 2, ME_PRIMITIVE_SERDE .equalsFn = &meTypeDescriptorEquals<unsigned short> };
+meTypeDescriptor TD_SHORT = { .name = STRING_LIT("short"), .size = 2, .align = 2, ME_PRIMITIVE_SERDE .equalsFn = &meTypeDescriptorEquals<short> };
+meTypeDescriptor TD_UNSIGNED_LONG = { .name = STRING_LIT("unsigned long"), .size = 8, .align = 8, ME_PRIMITIVE_SERDE .equalsFn = &meTypeDescriptorEquals<unsigned long> };
+meTypeDescriptor TD_LONG = { .name = STRING_LIT("long"), .size = 8, .align = 8, ME_PRIMITIVE_SERDE .equalsFn = &meTypeDescriptorEquals<long> };
+meTypeDescriptor TD_LONG_LONG = { .name = STRING_LIT("long long"), .size = 8, .align = 8, ME_PRIMITIVE_SERDE .equalsFn = &meTypeDescriptorEquals<long long> };
+meTypeDescriptor TD_UNSIGNED_LONG_LONG = { .name = STRING_LIT("unsigned long long"), .size = 8, .align = 8, ME_PRIMITIVE_SERDE .equalsFn = &meTypeDescriptorEquals<unsigned long long> };
+meTypeDescriptor TD_FLOAT = { .name = STRING_LIT("float"), .size = 4, .align = 4, ME_PRIMITIVE_SERDE .equalsFn = &meTypeDescriptorEquals<float> };
+meTypeDescriptor TD_DOUBLE = { .name = STRING_LIT("double"), .size = 8, .align = 8, ME_PRIMITIVE_SERDE .equalsFn = &meTypeDescriptorEquals<double> };
+meTypeDescriptor TD_BOOL = { .name = STRING_LIT("bool"), .size = 1, .align = 1, ME_PRIMITIVE_SERDE .equalsFn = &meTypeDescriptorEquals<bool> };
+meTypeDescriptor TD_CHAR = { .name = STRING_LIT("char"), .size = 1, .align = 1, ME_PRIMITIVE_SERDE .equalsFn = &meTypeDescriptorEquals<char> };
+meTypeDescriptor TD_UNSIGNED_CHAR = {.name = STRING_LIT("unsigned char"), .size = 1, .align = 1, ME_PRIMITIVE_SERDE .equalsFn = &meTypeDescriptorEquals<unsigned char> };
+meTypeDescriptor TD_WCHAR_T = { .name = STRING_LIT("wchar_t"), .size = 4, .align = 4, ME_PRIMITIVE_SERDE .equalsFn = &meTypeDescriptorEquals<wchar_t> };
 
 // NOTE: We can reuse sizedBufferEquals because meSpan, StringView, and String follow a similar pattern internally
 // where the first param is a data pointer and the second is the 64-bit size.
 // equalsFn uses sizedBufferEquals for the same reason - we compare the referenced bytes instead of the raw struct.
-meTypeDescriptor TD_SPAN = { .name = STRING_LIT("span"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(meSpan), .align = alignof(meSpan), .serializerFn = sizedBufferSerializer, .deserializerFn = sizedBufferDeserializer, .equalsFn = &sizedBufferEquals, .destroyFn = &sizedBufferDestroy, .deepCopyFn = &sizedBufferDeepCopy };
-// NOTE: stringview is intentionally NOT serializable. If you want to serialize a string, use an owning String
-meTypeDescriptor TD_STRINGVIEW = { .name = STRING_LIT("StringView"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(StringView), .align = alignof(StringView), .equalsFn = &sizedBufferEquals };
-meTypeDescriptor TD_STRING = { .name = STRING_LIT("String"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(String), .align = alignof(String), .serializerFn = stringSerializer, .deserializerFn = stringDeserializer, .equalsFn = &sizedBufferEquals, .destroyFn = &stringDestroy, .deepCopyFn = &stringDeepCopy };
+meTypeDescriptor TD_SPAN = { .name = STRING_LIT("span"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(meSpan), .align = alignof(meSpan), ME_SIZED_BUFFER_SERDE .equalsFn = &sizedBufferEquals, ME_SPAN_DESTROY ME_SPAN_DEEP_COPY };
+// NOTE: StringView isn't allowed be serialized - it doesn't own the data. Use String instead.
+meTypeDescriptor TD_STRINGVIEW = { .name = STRING_LIT("StringView"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(StringView), .align = alignof(StringView), ME_DISALLOWED_SERDE .equalsFn = &sizedBufferEquals };
+meTypeDescriptor TD_STRING = { .name = STRING_LIT("String"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(String), .align = alignof(String), ME_STRING_SERDE .equalsFn = &sizedBufferEquals, ME_STRING_DESTROY ME_STRING_DEEP_COPY };
 
-void DynArraySerializerToStringFn(
+#undef ME_PRIMITIVE_SERDE
+#undef ME_SIZED_BUFFER_SERDE
+#undef ME_STRING_SERDE
+#undef ME_DISALLOWED_SERDE
+#undef ME_SPAN_DESTROY
+#undef ME_STRING_DESTROY
+#undef ME_SPAN_DEEP_COPY
+#undef ME_STRING_DEEP_COPY
+
+bool DynArraySerializerToStringFn(
 	const meTypeDescriptor& typeDescriptor,
 	SerializeContext& ctx);
 

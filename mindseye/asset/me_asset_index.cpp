@@ -2,8 +2,9 @@
 #include "me_asset_index.h"
 
 #include "asset/me_asset.h"
+#include "core/me_serialize.h"
 
-#define ME_ASSET_INDEX_DEBUGLOG 1
+#define ME_ASSET_INDEX_DEBUGLOG 0
 
 meAssetIndex& meAssetIndexGet()
 {
@@ -145,7 +146,13 @@ void OnFoundAssetFile(
     // BOOKMARK: Don't deserialize just for the asset index.
     // This should be able to JUST read the header to generate metadata about the asset
     // without actually deserializing it. I.E. disk path, MAID, any searchable metadata tags
-	DeserializeFromFileBlocking(assetPath, GetTLScratch(), typeDesc, outSerialized, result);
+	DeserializeContext ctx = {};
+	ctx.mode = meSerializationMode_Text;
+	ctx.typeDesc = &typeDesc;
+	ctx.externalDataAllocator = GetTLScratch();
+	ctx.outputData = outSerialized;
+	ctx.outResult = &result;
+	DeserializeFromFileBlocking(assetPath, ctx);
 	if (result == meSerializeResult::SER_SUCCESS)
 	{
 		meSpan assetHeaderData = meSerializeTryGetAssetHeader(typeDesc, outSerialized);

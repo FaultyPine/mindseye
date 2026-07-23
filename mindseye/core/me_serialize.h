@@ -23,54 +23,23 @@ struct meSerializeResult
 	operator bool() const { return result == SER_SUCCESS; }
 };
 
+bool meSerializeTryReadBinaryHeader(
+	meSpan serializedBuffer,
+	meSerializedHeader* outHeader = nullptr);
 
-meSerializeResult SerializeToTextBlocking(
-	const meTypeDescriptor& typeDesc,
-	void* data,
-	meAllocator* allocator,
-	StringView& outResult);
+meSerializeResult SerializeBlocking(SerializeContext& ctx);
+
+void DeserializeBlocking(DeserializeContext& ctx);
 
 void DeserializeFromFileBlocking(
 	StringView file,
-	meAllocator* allocator,
-	const meTypeDescriptor& typeDescriptor,
-	meSpan outBuffer,
-	meSerializeResult& outResult);
-
-// allocator  - for dynamic allocations needed during deserialization (I.E. strings)
-// outBuffer  - preallocated buffer to deserialize into for POD data of the structure
-void DeserializeFromTextBlocking(
-	const meTypeDescriptor& typeDesc,
-	meAllocator* allocator,
-	StringView inText,
-	meSpan outBuffer,
-	meSerializeResult& outResult);
+	DeserializeContext& ctx);
 
 
-// Like SerializeToTextBlocking, but only emits fields whose values
-// differ from those in templateData. Header MAID is always written.
-meSerializeResult SerializeOverridesToTextBlocking(
-	const meTypeDescriptor& assetTypeDesc,
-	void* instanceData,
-	void* templateData,
-	meAllocator* allocator,
-	StringView& outResult);
+// Like SerializeBlocking, but only emits fields whose values differ from
+// ctx.templateData. Header MAID is always written.
+meSerializeResult SerializeOverridesBlocking(SerializeContext& ctx);
 
-// Counterpart: copies templateData into outBuffer first, then
-// overwrites any fields present in inText.
-void DeserializeOverridesFromTextBlocking(
-	const meTypeDescriptor& assetTypeDesc,
-	meAllocator* allocator,
-	StringView inText,
-	const void* templateData,
-	meSpan outBuffer,
-	meSerializeResult& outResult);
-
-
-void sizedBufferSerializer(
-    const meTypeDescriptor& typedescriptor,
-    SerializeContext& ctx);
-
-void stringSerializer(
-    const meTypeDescriptor& typedescriptor,
-    SerializeContext& ctx);
+// Counterpart: copies ctx.templateData into ctx.outputData first, then
+// overwrites any fields present in ctx.sourceData.
+void DeserializeOverridesBlocking(DeserializeContext& ctx);

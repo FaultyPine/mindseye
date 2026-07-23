@@ -83,13 +83,13 @@ meSceneRaycastHit meSceneRaycast(meScene& scene, const meRay& ray)
 	DynArray<meTypedAsset<MAEntity>>& entities = scene.entities;
 	for (DynArray_Foreach(entities, i))
 	{
-		EntityRef entRef = entities[i];
-		meEntity& entData = meEntityGet(entRef);
-		if (meEntityIsFlag(entRef, EntityFlags_HIDDEN) || meEntityIsFlag(entRef, EntityFlags_DISABLED))
+		meTypedAsset<MAEntity>& entRef = entities[i];
+		ScopedAssetLockR<meEntity> entData(entRef);
+		if (!entData || meEntityIsFlag(*entData, EntityFlags_HIDDEN) || meEntityIsFlag(*entData, EntityFlags_DISABLED))
 			continue;
 
-		glm::vec3 worldMin = entData.transform.position + entData.authoritativeBounds.min;
-		glm::vec3 worldMax = entData.transform.position + entData.authoritativeBounds.max;
+		glm::vec3 worldMin = entData->transform.position + entData->authoritativeBounds.min;
+		glm::vec3 worldMax = entData->transform.position + entData->authoritativeBounds.max;
 
 		f32 t = 0.0f;
 		if (meRayIntersectsAABB(ray, worldMin, worldMax, t))

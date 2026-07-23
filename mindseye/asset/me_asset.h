@@ -99,6 +99,19 @@ MEMAP_BEGIN_CUSTOM_HASHER(MAID, obj)
 STATIC_ASSERT(sizeof(MAID) == sizeof(u64));
 constexpr MAID MAID_INVALID = {};
 
+constexpr u32 ME_BINARY_SERIALIZED_MAGIC = 0x5341454D; // "MEAS"
+constexpr u32 ME_BINARY_SERIALIZED_VERSION = 1;
+
+struct MEREFLECT(type) meSerializedHeader
+{
+	u32 magic = ME_BINARY_SERIALIZED_MAGIC;
+	u32 formatVersion = ME_BINARY_SERIALIZED_VERSION;
+	s32 typeVersion = 0;
+	u32 typeNameHash = 0;
+	u32 payloadSize = 0;
+	MAID assetHeader = {};
+};
+
 enum meAssetLoadStage
 {
     Unloaded = 0, 
@@ -113,16 +126,16 @@ enum meAssetLoadStage
 
 struct meBaseAsset
 {
-    MAID header = {};
+    meSerializedHeader header = {};
     meBaseAsset() = default;
-    meBaseAsset(const MAID& ident) : header(ident) {}
+    meBaseAsset(const MAID& ident) { header.assetHeader = ident; }
 };
 
 
 // storing both the "load-time" and "usage-time" information, this is meant to be
 // both serialized, and also used for loading at runtime. This is what will be in the fields
 // of asset definitions. I.E. when a "scene" asset references a "mesh" asset, use this structure
-struct MEREFLECT(type, Serializer="meAssetSerializerToStringFn", Deserializer="meAssetDeserializerFromStringFn", Equals="meAssetEqualsFn") 
+struct MEREFLECT(type, Serializer="meAssetSerializerFn", Deserializer="meAssetDeserializerFn", Equals="meAssetEqualsFn") 
 meAsset
 {
     // refers to a template asset on disk
@@ -179,6 +192,18 @@ meAsset
     {
         return id;
     }
+	void SetReference(MAID identifier)
+	{
+		id = identifier;
+		runtimeHandle = EYE_INVALID;
+		loadStage = Unloaded;
+	}
+	void ResetReferenceToType(meAssetType type)
+	{
+		*this = {};
+		id.SetID(U32_INVALID_ID);
+		id.SetType(type);
+	}
 	operator const Eye() const { return runtimeHandle; }
 	operator const MAID() const { return id; }
 };
@@ -247,7 +272,7 @@ struct meAssetSystem
 	meEvent assetFinishedWritingEvent = {};
 };
 
-meAssetSystem& meAssetSystemGet();
+MEAPI meAssetSystem& meAssetSystemGet();
 void meAssetInitialize(EngineContext* engine);
 void meAssetInitializeLate(EngineContext* engine);
 void meAssetTeardown(EngineContext* engine);
@@ -296,10 +321,13 @@ MEAPI StringView meAssetGetAbsPathForResource(StringView resourcePath);
 MEAPI StringView meAssetGetRelPathForResource(StringView resourcePath);
 
 
-// takes a buffer that has been deserialized from an asset (I.E. SerializeFromFile)
-// and attempts to find the "header" field inherited from meBaseAsset.
-// Use this to get the asset ident out of any asset type's deserialized buffer.
-// returns a buffer pointing to the asset ident field data if present, otherwise an invalid mespan
+// Takes a buffer that has been deserialized from an asset and attempts to find
+// the serialized "header" field inherited from meBaseAsset.
+meSpan meSerializeTryGetSerializedHeader(
+	const meTypeDescriptor& typeDesc,
+	meSpan serializedBuffer);
+
+// Returns a buffer pointing to the MAID inside meBaseAsset's serialized header.
 meSpan meSerializeTryGetAssetHeader(
 	const meTypeDescriptor& typeDesc,
 	meSpan serializedBuffer);
@@ -309,3 +337,204 @@ StringView meAssetFileExtFromType(meAssetType type);
 StringView meAssetEnsurePathHasGoodExtension(
     const StringView& assetPath, 
     meAssetType inputType);
+
+inline bool meAssetTypeIsValid(meAssetType type)
+{
+	return type > MABadData && type < NUM_ASSET_TYPES;
+}
+
+struct ScopedAssetOpaqueLockR
+{
+	const void* resource = nullptr;
+	meAsset asset = {};
+
+	explicit ScopedAssetOpaqueLockR(const meAsset& asset)
+	{
+		Init(asset);
+	}
+
+	ScopedAssetOpaqueLockR(const ScopedAssetOpaqueLockR&) = delete;
+	ScopedAssetOpaqueLockR& operator=(const ScopedAssetOpaqueLockR&) = delete;
+
+	const void* Get() const { return resource; }
+	meAssetLoader* Loader() const
+	{
+		meAssetType type = asset.id.GetType();
+		return meAssetTypeIsValid(type) ? meAssetSystemGet().assetLoaders[type] : nullptr;
+	}
+	const meAsset& Asset() const { return asset; }
+	explicit operator bool() const { return resource != nullptr; }
+
+private:
+	void Init(const meAsset& sourceAsset)
+	{
+		asset = sourceAsset;
+		if (asset.isLoaded() || !asset.id)
+		{
+			InitLoadedRuntime();
+			return;
+		}
+		InitTemplateAsset();
+	}
+
+	void InitTemplateAsset()
+	{
+		MAID maid = asset.id;
+		if (!maid || !meAssetTypeIsValid(maid.GetType()))
+		{
+			return;
+		}
+
+		meAssetRequestLoadTemplate(&maid, 1);
+		if (!meAssetWaitUntilLoadstage({ &maid, 1 }, Loaded))
+		{
+			return;
+		}
+
+		meAssetSystem& sys = meAssetSystemGet();
+		meAssetTypeRegistry& reg = sys.registries[maid.GetType()];
+		{
+			RWLockRead lock(reg.lock);
+			auto it = reg.assets.find(maid);
+			if (it == reg.assets.end() || !it->second.isLoaded())
+			{
+				return;
+			}
+			asset = it->second;
+		}
+
+		meAssetLoader* loader = Loader();
+		if (loader && loader->resourcePool)
+		{
+			resource = loader->resourcePool->GetOpaque(asset.runtimeHandle);
+		}
+	}
+
+	void InitLoadedRuntime()
+	{
+		meAssetType type = asset.id.GetType();
+		if (!meAssetTypeIsValid(type))
+		{
+			return;
+		}
+
+		meAssetLoader* loader = Loader();
+		if (loader && loader->resourcePool)
+		{
+			Eye handle = asset.isLoaded() ? asset.runtimeHandle : EYE_INVALID;
+			resource = loader->resourcePool->GetOpaque(handle);
+		}
+	}
+};
+
+struct ScopedAssetOpaqueLockW
+{
+	void* resource = nullptr;
+	meAsset asset = {};
+
+	explicit ScopedAssetOpaqueLockW(const meAsset& asset)
+	{
+		Init(asset);
+	}
+
+	ScopedAssetOpaqueLockW(const ScopedAssetOpaqueLockW&) = delete;
+	ScopedAssetOpaqueLockW& operator=(const ScopedAssetOpaqueLockW&) = delete;
+
+	void* Get() const { return resource; }
+	meAssetLoader* Loader() const
+	{
+		meAssetType type = asset.id.GetType();
+		return meAssetTypeIsValid(type) ? meAssetSystemGet().assetLoaders[type] : nullptr;
+	}
+	const meAsset& Asset() const { return asset; }
+	explicit operator bool() const { return resource != nullptr; }
+
+private:
+	void Init(const meAsset& sourceAsset)
+	{
+		asset = sourceAsset;
+		if (asset.isLoaded() || !asset.id)
+		{
+			InitLoadedRuntime();
+			return;
+		}
+		InitTemplateAsset();
+	}
+
+	void InitTemplateAsset()
+	{
+		MAID maid = asset.id;
+		if (!maid || !meAssetTypeIsValid(maid.GetType()))
+		{
+			return;
+		}
+
+		meAssetRequestLoadTemplate(&maid, 1);
+		if (!meAssetWaitUntilLoadstage({ &maid, 1 }, Loaded))
+		{
+			return;
+		}
+
+		meAssetSystem& sys = meAssetSystemGet();
+		meAssetTypeRegistry& reg = sys.registries[maid.GetType()];
+		{
+			RWLockRead lock(reg.lock);
+			auto it = reg.assets.find(maid);
+			if (it == reg.assets.end() || !it->second.isLoaded())
+			{
+				return;
+			}
+			asset = it->second;
+		}
+
+		meAssetLoader* loader = Loader();
+		if (loader && loader->resourcePool)
+		{
+			resource = loader->resourcePool->GetOpaque(asset.runtimeHandle);
+		}
+	}
+
+	void InitLoadedRuntime()
+	{
+		meAssetType type = asset.id.GetType();
+		if (!meAssetTypeIsValid(type))
+		{
+			return;
+		}
+
+		meAssetLoader* loader = Loader();
+		if (loader && loader->resourcePool)
+		{
+			Eye handle = asset.isLoaded() ? asset.runtimeHandle : EYE_INVALID;
+			resource = loader->resourcePool->GetOpaque(handle);
+		}
+	}
+};
+
+template <typename T>
+struct ScopedAssetLockR
+{
+	ScopedAssetOpaqueLockR opaque;
+
+	explicit ScopedAssetLockR(const meAsset& asset) : opaque(asset) {}
+
+	const T* Get() const { return (const T*)opaque.Get(); }
+	const T* operator->() const { ME_ASSERT(Get()); return Get(); }
+	const T& operator*() const { ME_ASSERT(Get()); return *Get(); }
+	const meAsset& Asset() const { return opaque.Asset(); }
+	explicit operator bool() const { return (bool)opaque; }
+};
+
+template <typename T>
+struct ScopedAssetLockW
+{
+	ScopedAssetOpaqueLockW opaque;
+
+	explicit ScopedAssetLockW(const meAsset& asset) : opaque(asset) {}
+
+	T* Get() const { return (T*)opaque.Get(); }
+	T* operator->() const { ME_ASSERT(Get()); return Get(); }
+	T& operator*() const { ME_ASSERT(Get()); return *Get(); }
+	const meAsset& Asset() const { return opaque.Asset(); }
+	explicit operator bool() const { return (bool)opaque; }
+};

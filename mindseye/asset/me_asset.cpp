@@ -13,7 +13,7 @@ MEEVENT_DECLARE_STATIC(registerAssetLoader);
 static bool MEASSET_DEBUG_SINGLETHREADED_LOAD = 1;
 constexpr u32 NUM_ASSET_COMPILER_THREADS = 1;
 
-meAssetSystem& meAssetSystemGet()
+MEAPI meAssetSystem& meAssetSystemGet()
 {
 	return *GetEngineCtx()->assetSystem;
 }
@@ -92,9 +92,9 @@ void meAssetRegisterLoader(meAssetLoader* loader)
 	ME_ASSERT(type != MABadData);
 	ME_ASSERT(loader->resourcePool != nullptr);
 	ME_ASSERT(loader->assetTypeDesc != nullptr);
-    // any "asset" must have a header with its own asset id
+    // any "asset" must have a serialized header with its own asset id
     // if you hit this assert, make sure your asset struct inherits from meBaseAsset
-	ME_ASSERT(loader->assetTypeDesc->fields[0].thisType == &TD_MAID);
+	ME_ASSERT(loader->assetTypeDesc->fields[0].thisType == &TD_MESERIALIZEDHEADER);
 	assetSystem.assetLoaders[type] = loader;
 }
 
@@ -120,8 +120,8 @@ meAsset meAssetCreateNewAsset(
 
 	Eye newRuntimeResource = resourcePool->Load({.resourceType = resourceType});
 	void* opaqueAssetData = resourcePool->GetOpaque(newRuntimeResource);
-	MAID* assetHeader = (MAID*)opaqueAssetData;
-	*assetHeader = newMaid;
+	meSerializedHeader* assetHeader = (meSerializedHeader*)opaqueAssetData;
+	assetHeader->assetHeader = newMaid;
 
 	meAsset newAsset = meAsset(newRuntimeResource, newMaid);
     if (templateFilename)
@@ -350,16 +350,22 @@ void meAssetLoader::meAssetLoad(meAsset& asset)
 	void* outAsset = pool->GetOpaque(asset.runtimeHandle);
 	StringView diskPath = meAssetIndexGetFilesystemPath(asset.id);
 	StringView assetPath = meAssetGetAbsPathForResource(diskPath);
-	// Set ownerMaid before deserializing so that meAssetDeserializerFromStringFn
+	// Set ownerMaid before deserializing so that meAssetDeserializerFn
 	// registers any referenced asset MAIDs in the asset index under this asset's key.
 	meSerializeResult result;
 	result.ownerMaid = asset.id;
-	DeserializeFromFileBlocking(assetPath, allocator, *assetTypeDesc, meSpan(outAsset, assetTypeDesc->size), result);
+	DeserializeContext ctx = {};
+	ctx.mode = meSerializationMode_Text;
+	ctx.typeDesc = assetTypeDesc;
+	ctx.externalDataAllocator = allocator;
+	ctx.outputData = meSpan(outAsset, assetTypeDesc->size);
+	ctx.outResult = &result;
+	DeserializeFromFileBlocking(assetPath, ctx);
 	if (result)
 	{
-		ME_ASSERT(assetTypeDesc->fields[0].thisType == &TD_MAID);
-		MAID* header = (MAID*)outAsset;
-		ME_ASSERT(*header == asset.id);
+		ME_ASSERT(assetTypeDesc->fields[0].thisType == &TD_MESERIALIZEDHEADER);
+		meSerializedHeader* header = (meSerializedHeader*)outAsset;
+		ME_ASSERT(header->assetHeader == asset.id);
 	}
 	else
 	{
@@ -405,15 +411,20 @@ void meAssetLoader::meAssetWrite(meAsset& asset)
 		LOG_WARN("Attempted to write an unloaded asset");
 		return;
 	}
-	ME_ASSERT(assetTypeDesc->fields[0].thisType == &TD_MAID);
+	ME_ASSERT(assetTypeDesc->fields[0].thisType == &TD_MESERIALIZEDHEADER);
 
 	void* assetData = pool->GetOpaque(asset.runtimeHandle);
 	StringView diskPath = meAssetIndexGetFilesystemPath(asset.id);
 	StringView assetPath = meAssetGetAbsPathForResource(diskPath);
 	meAllocator* tempAllocator = GetTLScratch();
-	StringView assetSerializedString = {};
-	meSerializeResult res = SerializeToTextBlocking(*assetTypeDesc, assetData, tempAllocator, assetSerializedString);
+	SerializeContext ctx = {};
+	ctx.mode = meSerializationMode_Text;
+	ctx.typeDesc = assetTypeDesc;
+	ctx.allocator = tempAllocator;
+	ctx.sourceData = meSpan(assetData, assetTypeDesc->size);
+	meSerializeResult res = SerializeBlocking(ctx);
 	ME_ASSERT(res == meSerializeResult::SER_SUCCESS);
+	StringView assetSerializedString((char*)ctx.serializedData.data, ctx.serializedData.size);
 	// TODO: split the actual writing out into a separate thing?
 	OSFileReference file;
 	meOSOpenFile(file, assetPath, (OSFileFlags_StompExisting | OSFileFlags_ScopedFile));
@@ -480,7 +491,7 @@ StringView meAssetGetRelPathForResource(StringView resourcePath)
 	return resourcePath;
 }
 
-meSpan meSerializeTryGetAssetHeader(
+meSpan meSerializeTryGetSerializedHeader(
 	const meTypeDescriptor& typeDesc,
 	meSpan serializedBuffer)
 {
@@ -488,7 +499,32 @@ meSpan meSerializeTryGetAssetHeader(
 	meTypeDescriptorWalkMembers(typeDesc, serializedBuffer.data,
 		[&](const meTypeDescriptorMember& member)
 		{
-			// search top-level fields for asset header type
+			// search top-level fields for the meBaseAsset serialized header
+			if (member.field.thisType == &TD_MESERIALIZEDHEADER && StringCompare(member.field.name, STRING_LIT(ME_ASSET_HEADER_FIELDNAME)))
+			{
+				result = serializedBuffer.Subspan(member.offsetBytes, member.field.size);
+				return false;
+			}
+			return true;
+		},
+		false);
+	return result;
+}
+
+meSpan meSerializeTryGetAssetHeader(
+	const meTypeDescriptor& typeDesc,
+	meSpan serializedBuffer)
+{
+	meSpan serializedHeader = meSerializeTryGetSerializedHeader(typeDesc, serializedBuffer);
+	if (serializedHeader)
+	{
+		return serializedHeader.Subspan(offsetof(meSerializedHeader, assetHeader), sizeof(MAID));
+	}
+
+	meSpan result = {};
+	meTypeDescriptorWalkMembers(typeDesc, serializedBuffer.data,
+		[&](const meTypeDescriptorMember& member)
+		{
 			if (member.field.thisType == &TD_MAID && StringCompare(member.field.name, STRING_LIT(ME_ASSET_HEADER_FIELDNAME)))
 			{
 				result = serializedBuffer.Subspan(member.offsetBytes, member.field.size);

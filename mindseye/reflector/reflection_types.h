@@ -6,13 +6,24 @@
 #include "core/containers/dynarray.h"
 struct meTypeDescriptor;
 struct meSerializeResult;
+struct meChunker;
+
+enum meSerializationMode
+{
+	meSerializationMode_Text,
+	meSerializationMode_Binary,
+};
 
 struct DeserializeContext
 {
+	meSerializationMode mode = (meSerializationMode)-1;
+	const meTypeDescriptor* typeDesc = nullptr;
 	// data to be deserialized, I.E. a string like "0.1" or equivalent
-	meSpan inputData = {};
+	meSpan sourceData = {};
 	// POD, preallocated before deserialization functions are called
 	meSpan outputData = {};
+	const void* templateData = nullptr;
+	meChunker* chunker = nullptr;
 	// external pointer buffer, allocated inside deserialization funcs with the following allocator
 	meSpan outputDataExternal = {};
 	meAllocator* externalDataAllocator = {};
@@ -23,12 +34,16 @@ struct DeserializeContext
 
 struct SerializeContext
 {
+	meSerializationMode mode = (meSerializationMode)-1;
+	const meTypeDescriptor* typeDesc = nullptr;
 	// serializing funcs should allocate the string/extra data using this
 	meAllocator* allocator = {};
 	// buffer that should be serialized
-	meSpan data = {};
-	// output: serialized data written by serialization functions
-	meSpan outputData = {};
+	meSpan sourceData = {};
+	const void* templateData = nullptr;
+	// the output serialized buffer
+	meOwningSpan serializedData = {};
+	meChunker* chunker = nullptr;
 	// for templated types, this is can be used to get the template params
 	const meTypeDescriptor* parentType = {};
 };
@@ -61,7 +76,7 @@ enum meTypeDescriptorFlag_
 
 StringView meTypeDescriptorFlagToString(meTypeDescriptorFlags flag);
 
-typedef void(*SerializerFn)(
+typedef bool(*SerializerFn)(
 	const meTypeDescriptor& typeDescriptor,
 	SerializeContext& ctx);
 
@@ -326,14 +341,18 @@ extern meTypeDescriptor TD_WCHAR_T;
 extern meTypeDescriptor TD_VEC3;
 extern meTypeDescriptor TD_QUAT;
 extern meTypeDescriptor TD_SPAN;
-extern meTypeDescriptor TD_STRINGVIEW; // basically the same as span
+extern meTypeDescriptor TD_STRINGVIEW;
 extern meTypeDescriptor TD_STRING;
 
 // Serializer/Deserializer functions for sized buffer types
-void sizedBufferSerializer(const meTypeDescriptor&, SerializeContext& ctx);
+bool sizedBufferSerializer(const meTypeDescriptor&, SerializeContext& ctx);
 bool sizedBufferDeserializer(const meTypeDescriptor&, DeserializeContext& ctx);
-void stringSerializer(const meTypeDescriptor&, SerializeContext& ctx);
+bool stringSerializer(const meTypeDescriptor&, SerializeContext& ctx);
 bool stringDeserializer(const meTypeDescriptor&, DeserializeContext& ctx);
+bool primitiveSerializer(const meTypeDescriptor&, SerializeContext& ctx);
+bool primitiveDeserializer(const meTypeDescriptor&, DeserializeContext& ctx);
+bool serializationDisallowed(const meTypeDescriptor&, SerializeContext& ctx);
+bool deserializationDisallowed(const meTypeDescriptor&, DeserializeContext& ctx);
 bool sizedBufferEquals(const meTypeDescriptor& td, const void* a, const void* b);
 void sizedBufferDestroy(const meTypeDescriptor& td, DestroyContext& ctx);
 void stringDestroy(const meTypeDescriptor& td, DestroyContext& ctx);

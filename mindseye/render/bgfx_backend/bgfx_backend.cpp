@@ -396,55 +396,63 @@ void* BgfxRendererBackend::RenderScene(RenderInput* input)
     glm::mat4 viewFromWorld = cam.GetViewFromWorldMatrix();
 	bgfx::setViewTransform(0, glm::value_ptr(viewFromWorld), glm::value_ptr(projectionFromView));
 
-	const meTexturePool& texturePool = meTextureGetPool();
-	const meMaterialPool& materialPool = meMaterialGetPool();
-
 	for (DynArray_Foreach(input->scene.entities, i))
 	{
-		const EntityRef& entityRef = input->scene.entities[i];
-		const meEntity& entity = meEntityGet(entityRef);
-		if (meEntityIsFlag(entity, EntityFlags_HIDDEN))
+		const meTypedAsset<MAEntity>& entityRef = input->scene.entities[i];
+		ScopedAssetLockR<meEntity> entity(entityRef);
+		if (!entity || meEntityIsFlag(*entity, EntityFlags_HIDDEN))
 		{
 			continue;
 		}
-		meMeshID meshHandle = entity.mesh;
-		const meMesh& mesh = meMeshPoolGet().Get(meshHandle);
-		if (mesh.IsLoaded())
+		ScopedAssetLockR<meMesh> mesh(entity->mesh);
+		if (mesh && mesh->IsLoaded())
 		{
-			const meMaterial& material = materialPool.Get(mesh.material);
-			meTextureID diffuseTextureHdl = material.textureHandles[meMaterialTextureType::Diffuse];
-			const meTexture& diffuseTex = texturePool.Get(diffuseTextureHdl);
-			bgfx::TextureHandle bgfxDiffuseTex = bgfx::TextureHandle { static_cast<u16>(diffuseTex.buffer.bufferHandle) };
-			meShader& shader = meShaderGetPool().Get(material.shaderHandle);
-			for (DynArray_Foreach(shader.uniformHandles, uniformIdx))
+			ScopedAssetLockR<meMaterial> material(mesh->material);
+			if (!material)
 			{
-				meShaderUniform& uniform = shader.uniformHandles[uniformIdx];
+				continue;
+			}
+			const meTypedAsset<MATexture>& diffuseTexture = material->textureHandles[meMaterialTextureType::Diffuse];
+			ScopedAssetLockR<meTexture> diffuseTex(diffuseTexture);
+			bgfx::TextureHandle bgfxDiffuseTex = {};
+			if (diffuseTex)
+			{
+				bgfxDiffuseTex = bgfx::TextureHandle { static_cast<u16>(diffuseTex->buffer.bufferHandle) };
+			}
+			ScopedAssetLockW<meShader> shader(material->shaderHandle);
+			if (!shader)
+			{
+				continue;
+			}
+			for (DynArray_Foreach(shader->uniformHandles, uniformIdx))
+			{
+				meShaderUniform& uniform = shader->uniformHandles[uniformIdx];
 				if (!uniform.RefreshInternalUniformData()) continue;
 				bgfx::setUniform(bgfx::UniformHandle(uniform.handle), uniform.uniformData);
 			}
 
-			bgfx::ProgramHandle program = bgfx::ProgramHandle(shader.program);
+			bgfx::ProgramHandle program = bgfx::ProgramHandle(shader->program);
 			//renderScreenSpaceQuad(proj, 0, program, 0, 0, 256, 256, bgfxDiffuseTex);
 
-			glm::mat4 worldFromModel = entity.transform.ToWorldFromModelMatrix();
+			glm::mat4 worldFromModel = entity->transform.ToWorldFromModelMatrix();
 			bgfx::setTransform(&worldFromModel[0]);
 
-			bgfx::setVertexBuffer(0, bgfx::VertexBufferHandle { static_cast<u16>(mesh.vertBuffer.bufferHandle) });
-			if (mesh.idxBuffer.IsValid())
+			bgfx::setVertexBuffer(0, bgfx::VertexBufferHandle { static_cast<u16>(mesh->vertBuffer.bufferHandle) });
+			if (mesh->idxBuffer.IsValid())
 			{ // meshes without index buffers are valid, and used for generated shapes meshes
-				bgfx::setIndexBuffer(bgfx::IndexBufferHandle { static_cast<u16>(mesh.idxBuffer.bufferHandle) });
+				bgfx::setIndexBuffer(bgfx::IndexBufferHandle { static_cast<u16>(mesh->idxBuffer.bufferHandle) });
 			}
-			if (mesh.normBuffer.IsValid())
+			if (mesh->normBuffer.IsValid())
 			{
-				bgfx::setVertexBuffer(1, bgfx::VertexBufferHandle { static_cast<u16>(mesh.normBuffer.bufferHandle) });
+				bgfx::setVertexBuffer(1, bgfx::VertexBufferHandle { static_cast<u16>(mesh->normBuffer.bufferHandle) });
 			}
-			if (mesh.texcoordBuffer.IsValid())
+			if (mesh->texcoordBuffer.IsValid())
 			{
-				bgfx::setVertexBuffer(2, bgfx::VertexBufferHandle { static_cast<u16>(mesh.texcoordBuffer.bufferHandle) });
+				bgfx::setVertexBuffer(2, bgfx::VertexBufferHandle { static_cast<u16>(mesh->texcoordBuffer.bufferHandle) });
 			}
-			if (diffuseTex.IsValid())
+			if (diffuseTex && diffuseTex->IsValid())
 			{
-				bgfx::setTexture(0, bgfx::UniformHandle { static_cast<u16>(diffuseTex.sampler) }, bgfxDiffuseTex, diffuseTex.samplingFlags);
+				bgfx::setTexture(0, bgfx::UniformHandle { static_cast<u16>(diffuseTex->sampler) }, bgfxDiffuseTex, diffuseTex->samplingFlags);
 			}
 			bgfx::setState(BGFX_STATE_WRITE_RGB
 						   | BGFX_STATE_WRITE_A

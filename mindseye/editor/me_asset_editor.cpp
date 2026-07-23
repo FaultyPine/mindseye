@@ -63,11 +63,11 @@ static bool DrawAssetNode(meAsset asset, AssetEditorContext& ctx)
     meAssetType assetType = asset.id.GetType();
     if (assetType == MABadData || assetType >= NUM_ASSET_TYPES) return false;
 
-    meAssetSystem& sys = meAssetSystemGet();
-    meAssetLoader* loader = sys.assetLoaders[assetType];
-    if (!loader || !loader->assetTypeDesc || !loader->resourcePool) return false;
+    ScopedAssetOpaqueLockW lockedAsset(asset);
+    meAssetLoader* loader = lockedAsset.Loader();
+    if (!lockedAsset || !loader || !loader->assetTypeDesc) return false;
 
-    void* dataOpaque = loader->resourcePool->GetOpaque(asset.runtimeHandle);
+    void* dataOpaque = lockedAsset.Get();
     if (!dataOpaque) return false;
 
     u8* dataPtr = (u8*)dataOpaque;
@@ -247,11 +247,7 @@ static bool ResetTypedAssetToDefault(const meTypeDescriptor& type, void* data)
 		return false;
 
 	meAsset& asset = *(meAsset*)data;
-	asset = {};
-	asset.id.SetID(U32_INVALID_ID);
-	asset.id.SetType((meAssetType)type.templatedTypes[0]->value);
-	asset.runtimeHandle = EYE_INVALID;
-	asset.loadStage = Unloaded;
+	asset.ResetReferenceToType((meAssetType)type.templatedTypes[0]->value);
 	return true;
 }
 
@@ -435,9 +431,7 @@ bool DrawAssetField(
 		{
 			if (ImGui::Selectable("(none)", !maid))
 			{
-				maid.SetID(U32_INVALID_ID);
-				asset->runtimeHandle = EYE_INVALID;
-				asset->loadStage = Unloaded;
+				asset->ResetReferenceToType(assetType);
 				changed = true;
 			}
 
@@ -449,9 +443,7 @@ bool DrawAssetField(
 				bool isSelected = (maid == id);
 				if (ImGui::Selectable(path.cstr(), isSelected))
 				{
-					maid = id;
-					asset->runtimeHandle = EYE_INVALID;
-					asset->loadStage = Unloaded;
+					asset->SetReference(id);
 					changed = true;
 				}
 				if (isSelected)

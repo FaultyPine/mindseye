@@ -8,8 +8,8 @@
 // Write: copy data to output buffer
 // Read: copy data from input buffer back into the struct
 // Verify: compare expected data against bytes in a buffer
-// 'meChunkerSave' first does a 'Measure' pass to allocate that much, then 'Write'
-// 
+// For writing, we first does a 'Measure' pass to figure out how much to allocate, then 'Write' into that allocated buffer
+//
 // If someone happens to write asymmetric serialization code using this, it is detected
 // and the meChunker is switched to (harmless) 'Measure' mode. If we're in measure mode at the end
 // of read/write call, we know we've had an error and can return an error to the caller.
@@ -20,6 +20,8 @@
 #include "core/me_memory.h"
 #include "core/me_core.h"
 #include "core/containers/me_span.h"
+#include "core/me_string.h"
+#include "reflector/reflection_types.h"
 
 #include <type_traits>
 #include <functional>
@@ -28,53 +30,60 @@ bool meChunkerTests();
 
 struct meChunker
 {
-    enum class Mode : u8 { Write, Read, Measure, Verify };
+    enum class Pass : u8 { Write, Read, Measure, Verify };
+    enum class PrimitiveKind : u8
+    {
+        S8,
+        U8,
+        S16,
+        U16,
+        S32,
+        U32,
+        S64,
+        U64,
+        F32,
+        F64,
+        Bool,
+        Long,
+        ULong,
+        WChar,
+        Raw,
+    };
 
-    meChunker(meSpan buf, Mode mode)
-        : m_start((u8*)buf.data)
-        , m_cursor((u8*)buf.data)
-        , m_end((u8*)buf.data + buf.size)
-        , m_mode(mode)
-    {}
+    meChunker(meSerializationMode serializationMode, Pass pass, meAllocator* allocator, meSpan data);
 
-    bool IsReadMode()    const { return m_mode == Mode::Read;    }
-    bool IsWriteMode()   const { return m_mode == Mode::Write;   }
-    bool IsMeasureMode() const { return m_mode == Mode::Measure; }
-    bool IsVerifyMode()  const { return m_mode == Mode::Verify;  }
-    void SetMeasureMode()      { m_mode = Mode::Measure; }
+    ~meChunker();
+    meChunker(const meChunker&) = delete;
+    meChunker& operator=(const meChunker&) = delete;
 
-    u64 BytesProcessed() const { return (u64)(m_cursor - m_start); }
+    bool IsReadMode() const;
+    bool IsWriteMode() const;
+    bool IsMeasureMode() const;
+    bool IsVerifyMode() const;
+    bool IsValid() const;
+    void SetMeasureMode();
+    meSerializationMode GetSerializationMode() const;
+    u64 BytesProcessed() const;
 
     template<typename T>
     requires (std::is_trivially_copyable_v<T> && !std::is_pointer_v<T>)
-    void Do(T& x) { DoVoid(&x, (u32)sizeof(x)); }
+    void Do(T& x) { DoPrimitive(&x, (u32)sizeof(x), PrimitiveKindFor<T>()); }
 
-    void Do(bool& x)
-    {
-        u8 as_byte = x ? 1 : 0;
-        DoVoid(&as_byte, 1);
-        if (IsReadMode()) x = (as_byte != 0);
-    }
+    void Do(bool& x);
 
     template<typename T>
     requires std::is_trivially_copyable_v<T>
-    void DoArray(T* arr, u32 count) { DoVoid(arr, count * (u32)sizeof(T)); }
+    void DoArray(T* arr, u32 count)
+    {
+        ME_ASSERT(m_serializationMode == meSerializationMode_Binary);
+        DoBinaryVoid(arr, count * (u32)sizeof(T));
+    }
 
     template<typename T, u32 N>
     void DoArray(T (&arr)[N]) { DoArray(arr, N); }
 
     // Size stored as u32 prefix. read_allocator required in Read mode.
-    void DoBytes(meSpan& span, meAllocator* read_allocator = nullptr)
-    {
-        u32 size = (u32)span.size;
-        Do(size);
-        if (IsReadMode())
-        {
-            ME_ASSERT(read_allocator);
-            span = MEALLOC(read_allocator, size);
-        }
-        DoVoid(span.data, size);
-    }
+    void DoBytes(meSpan& span, meAllocator* read_allocator = nullptr);
 
     // Stores ptr as a byte offset from base. Reconstructs on load.
     template<typename T>
@@ -100,65 +109,85 @@ struct meChunker
         }
     }
 
+    bool BeginObject();
+    void EndObject();
+    bool Field(StringView name);
+    void EndField();
+    bool BeginArray(u32& count);
+    bool BeginFixedArray(u32& count);
+    void EndArray();
+    bool Element(u32 index);
+    void EndElement();
+
+    void DoString(String& str, meAllocator* readAllocator = nullptr);
+    meOwningSpan Finalize(meAllocator* allocator);
+
 private:
-    void DoVoid(void* data, u32 size)
+    void InitBinary(meSpan buf);
+    void InitText(meAllocator* allocator, meSpan data);
+
+    template<typename T>
+    static constexpr PrimitiveKind PrimitiveKindFor()
     {
-        if (!IsMeasureMode() && (m_cursor + size) > m_end)
-            SetMeasureMode();
-
-        switch (m_mode)
-        {
-			case Mode::Write:   ME_MEMCPY(m_cursor, data, size); break;
-			case Mode::Read:    ME_MEMCPY(data, m_cursor, size); break;
-			case Mode::Measure: break;
-			case Mode::Verify:  ME_ASSERT(ME_MEMCMP(data, m_cursor, size) == 0); break;
-        }
-
-        m_cursor += size;
+        if constexpr (std::is_same_v<T, s8>) return PrimitiveKind::S8;
+        else if constexpr (std::is_same_v<T, u8>) return PrimitiveKind::U8;
+        else if constexpr (std::is_same_v<T, s16>) return PrimitiveKind::S16;
+        else if constexpr (std::is_same_v<T, u16>) return PrimitiveKind::U16;
+        else if constexpr (std::is_same_v<T, s32>) return PrimitiveKind::S32;
+        else if constexpr (std::is_same_v<T, u32>) return PrimitiveKind::U32;
+        else if constexpr (std::is_same_v<T, s64>) return PrimitiveKind::S64;
+        else if constexpr (std::is_same_v<T, u64>) return PrimitiveKind::U64;
+        else if constexpr (std::is_same_v<T, f32>) return PrimitiveKind::F32;
+        else if constexpr (std::is_same_v<T, f64>) return PrimitiveKind::F64;
+        else if constexpr (std::is_same_v<T, bool>) return PrimitiveKind::Bool;
+        else if constexpr (std::is_same_v<T, long>) return PrimitiveKind::Long;
+        else if constexpr (std::is_same_v<T, unsigned long>) return PrimitiveKind::ULong;
+        else if constexpr (std::is_same_v<T, wchar_t>) return PrimitiveKind::WChar;
+        else return PrimitiveKind::Raw;
     }
 
-    u8*  m_start  = nullptr;
-    u8*  m_cursor = nullptr;
-    u8*  m_end    = nullptr;
-    Mode m_mode   = Mode::Measure;
+    void DoPrimitive(void* data, u32 size, PrimitiveKind kind);
+
+    void DoBinaryVoid(void* data, u32 size);
+
+    void DoTextPrimitive(void* data, u32 size, PrimitiveKind kind);
+    void DoTextBytes(meSpan& span, meAllocator* readAllocator);
+    bool DoTextBeginObject();
+    void DoTextEndObject();
+    bool DoTextField(StringView name);
+    void DoTextEndField();
+    bool DoTextBeginArray(u32& count);
+    void DoTextEndArray();
+    bool DoTextElement(u32 index);
+    void DoTextEndElement();
+    meOwningSpan DoTextFinalize(meAllocator* allocator);
+    void PushTextCurrent();
+    void PopTextCurrent();
+
+    struct BinaryState
+    {
+        u8* start  = nullptr;
+        u8* cursor = nullptr;
+        u8* end    = nullptr;
+    };
+
+    struct TextState
+    {
+        void* root = nullptr;
+        void* current = nullptr;
+        void* currentStack[128] = {};
+        u32 currentStackSize = 0;
+        meSpan outputBuffer = {};
+        meAllocator* allocator = nullptr;
+    };
+
+    static void TextStateInitForWrite(TextState& state, meAllocator* allocator, meSpan outputBuffer);
+    static bool TextStateInitForRead(TextState& state, meAllocator* allocator, meSpan input);
+    static void TextStateDestroy(TextState& state);
+
+    meSerializationMode m_serializationMode = meSerializationMode_Binary;
+    Pass m_pass = Pass::Measure;
+    bool m_isValid = true;
+    BinaryState m_binary = {};
+    TextState m_text = {};
 };
-
-
-template<typename Fn> u64 meChunkerMeasure(Fn&& fn)
-{
-    meChunker w(meSpan((char*)nullptr, 0), meChunker::Mode::Measure);
-    fn(w);
-    return w.BytesProcessed();
-}
-
-template<typename Fn> u64 meChunkerWrite(meSpan buf, Fn&& fn)
-{
-    meChunker w(buf, meChunker::Mode::Write);
-    fn(w);
-    return w.IsWriteMode() ? w.BytesProcessed() : 0;
-}
-
-template<typename Fn> bool meChunkerRead(meSpan buf, Fn&& fn)
-{
-    meChunker w(buf, meChunker::Mode::Read);
-    fn(w);
-    return w.IsReadMode();
-}
-
-template<typename Fn> bool meChunkerVerify(meSpan buf, Fn&& fn)
-{
-    meChunker w(buf, meChunker::Mode::Verify);
-    fn(w);
-    return w.IsVerifyMode();
-}
-
-// Allocate, write, return owned buffer
-template<typename Fn> meOwningSpan meChunkerSave(meAllocator* allocator, Fn&& fn)
-{
-    u64 needed = meChunkerMeasure(fn);
-    if (needed == 0) return {};
-    meOwningSpan buf = MEALLOC(allocator, needed);
-    u64 written = meChunkerWrite(buf, fn);
-    ME_ASSERT(written == needed);
-    return buf;
-}
