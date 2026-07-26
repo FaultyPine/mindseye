@@ -15,15 +15,10 @@ run `build.bat`
 
 Finishing the asset system todo:
 - binary serialization 
-    - use meChunker
-        - BOOKMARK: need to continue making binary serialization mode work.
-            - all assets should have a "parent asset"
-            - ^ is how overridden "data inheritance" will work. This also needs more work for binary serialization, since it's not sparse like text ser is. Will need a bitset of "which fields are set in the child asset".
     - start on a "asset compilation" pipeline. 
     - refactor so instead of straight loading gltf, we "import" gltf and turn it into massets, then load(/compile) those
 	- meAssetCreate would do the check for .gltf in the filename, and do it there
 - enforce some read-only-ness to asset templates
-- Prove out a workflow of "create a mesh asset, assign it to an entity, see it rendered, saved, loaded in the scene"
 - implement "scoped asset locks" on an arbitrary MAID/meAsset
     - ref count meAssets, LRU cache?
 - make a unique_ptr equivalent so a struct can clearly "own" some heap data.
