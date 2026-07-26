@@ -22,4 +22,5 @@ me_build.exe
 temp/
 
 mindseye/external/vulkan_lib/Lib
+mindseye/external/usd/
 mindseye/reflector/libclang.dll

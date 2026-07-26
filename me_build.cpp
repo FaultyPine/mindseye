@@ -123,6 +123,30 @@ for (int i = 0; i < ARRAY_SIZE(arr); i++) \
 if (arr[i]) nob_cmd_append(&compile, arr[i]);\
 }
 
+const char* usdLibraries[] =
+{
+	"usd_usd",
+	"usd_usdGeom",
+};
+
+const char* usdRuntimeDependencies[] =
+{
+	"usd_ar",
+	"usd_arch",
+	"usd_gf",
+	"usd_js",
+	"usd_kind",
+	"usd_pcp",
+	"usd_plug",
+	"usd_python",
+	"usd_sdf",
+	"usd_tf",
+	"usd_trace",
+	"usd_ts",
+	"usd_vt",
+	"usd_work",
+};
+
 void normalizePathSeperators(char* str)
 {
 	for (u32 i = 0; i < strlen(str); i++)
@@ -131,6 +155,14 @@ void normalizePathSeperators(char* str)
 		{
 			str[i] = '/';
 		}
+	}
+}
+
+void copyFileIfNewer(const char* src, const char* dst)
+{
+	if (!nob_file_exists(dst) || nob_needs_rebuild(dst, &src, 1) > 0)
+	{
+		nob_copy_file(src, dst);
 	}
 }
 
@@ -249,10 +281,7 @@ int main(int argc, char** argv)
 			nob_log(NOB_INFO, "Successfully downloaded vulkan binaries to mindseye/external/vulkan_lib/Lib");
 		}
 	}
-	if (!nob_file_exists("build/vulkan-1.dll"))
-	{
-		nob_copy_file("mindseye/external/vulkan_lib/Lib/vulkan-1.dll", "build/vulkan-1.dll");
-	}
+	copyFileIfNewer("mindseye/external/vulkan_lib/Lib/vulkan-1.dll", "build/vulkan-1.dll");
 
 	if (!nob_file_exists("mindseye/external/bgfx/bin"))
 	{
@@ -268,6 +297,23 @@ int main(int argc, char** argv)
 		else
 		{
 			nob_log(NOB_INFO, "Successfully downloaded bgfx binaries to mindseye/external/bgfx/bin");
+		}
+	}
+
+	if (!nob_file_exists("mindseye/external/usd/include/pxr/pxr.h"))
+	{
+		nob_log(NOB_INFO, "[First time setup] downloading OpenUSD binaries...");
+		Nob_Cmd usdDownloadBatch = {};
+		nob_cmd_append(&usdDownloadBatch, "cmd", "/c", "call", "tools/download_usd.bat");
+		bool result = nob_cmd_run(&usdDownloadBatch);
+		if (!result)
+		{
+			nob_log(NOB_ERROR, "Failed to download OpenUSD binaries!");
+			return 1;
+		}
+		else
+		{
+			nob_log(NOB_INFO, "Successfully downloaded OpenUSD binaries to mindseye/external/usd");
 		}
 	}
 	
@@ -307,6 +353,8 @@ int main(int argc, char** argv)
 		nob_temp_sprintf("-I%s/mindseye/external/bgfx/bimg/include", root),
 		nob_temp_sprintf("-I%s/mindseye/external/ktx", root),
 		nob_temp_sprintf("-I%s/mindseye/external/enkiTS/src", root),
+		nob_temp_sprintf("-I%s/mindseye/external/usd/include", root),
+		"-DME_WITH_USD=1",
 		sanitizerFlag,
 	};
 
@@ -520,6 +568,11 @@ int main(int argc, char** argv)
 	NOB_CMD_APPEND_MULTIPLE(mindseyeLinkCmd, linkerFlagsCommon);
 	NOB_CMD_APPEND_MULTIPLE(mindseyeLinkCmd, compilerFlagsCommon);
 	nob_cmd_append(&mindseyeLinkCmd, nob_temp_sprintf("-L%s/mindseye/external/ktx/lib", root), "-lktx", "-lshell32");
+	nob_cmd_append(&mindseyeLinkCmd, nob_temp_sprintf("-L%s/mindseye/external/usd/lib", root));
+	for (int i = 0; i < ARRAY_SIZE(usdLibraries); i++)
+	{
+		nob_cmd_append(&mindseyeLinkCmd, nob_temp_sprintf("-l%s", usdLibraries[i]));
+	}
 	if (mode == DEBUG) 
     {
 		nob_cmd_append(&mindseyeLinkCmd, nob_temp_sprintf("-L%s/mindseye/external/bgfx/bin", root), "-lbgfxDebug", "-lbimgDebug", "-lbxDebug");
@@ -693,20 +746,31 @@ int main(int argc, char** argv)
 	
 	// =====================================================================================
 
-	// copy tools/clang/bin/libclang.dll to reflector/ with nob_copy_file
 	const char* libclangSource = nob_temp_sprintf("%s/tools/clang/bin/libclang.dll", root);
 	const char* libclangDest = nob_temp_sprintf("%s/mindseye/reflector/libclang.dll", root);
-	if (!nob_file_exists(libclangDest) || nob_needs_rebuild(libclangDest, &libclangSource, 1) > 0)
-	{
-		nob_copy_file(libclangSource, libclangDest);
-	}
-	// copy ktx.dll to build folder
+	copyFileIfNewer(libclangSource, libclangDest);
+
 	const char* ktxDllSource = nob_temp_sprintf("%s/mindseye/external/ktx/bin/ktx.dll", root);
 	const char* ktxDllDest = nob_temp_sprintf("%s/build/ktx.dll", root);
-	if (!nob_file_exists(ktxDllDest))
+	copyFileIfNewer(ktxDllSource, ktxDllDest);
+
+	const char* usdRoot = "mindseye/external/usd";
+	const char* usdLibDir = nob_temp_sprintf("%s/lib", usdRoot);
+	const char* usdBinDir = nob_temp_sprintf("%s/bin", usdRoot);
+	const char* usdPythonDir = nob_temp_sprintf("%s/python", usdRoot);
+	const char* dstDir = "build";
+	for (int i = 0; i < ARRAY_SIZE(usdLibraries); i++)
 	{
-		nob_copy_file(ktxDllSource, ktxDllDest);
+		const char* dllName = nob_temp_sprintf("%s.dll", usdLibraries[i]);
+		copyFileIfNewer(nob_temp_sprintf("%s/%s", usdLibDir, dllName), nob_temp_sprintf("%s/%s", dstDir, dllName));
 	}
+	for (int i = 0; i < ARRAY_SIZE(usdRuntimeDependencies); i++)
+	{
+		const char* dllName = nob_temp_sprintf("%s.dll", usdRuntimeDependencies[i]);
+		copyFileIfNewer(nob_temp_sprintf("%s/%s", usdLibDir, dllName), nob_temp_sprintf("%s/%s", dstDir, dllName));
+	}
+	copyFileIfNewer(nob_temp_sprintf("%s/tbb.dll", usdBinDir), nob_temp_sprintf("%s/tbb.dll", dstDir));
+	copyFileIfNewer(nob_temp_sprintf("%s/python312.dll", usdPythonDir), nob_temp_sprintf("%s/python312.dll", dstDir));
 
 	// ======================== Testbed ==============================================
 	BuildableArtifact testbedBuild = {};
@@ -852,7 +916,7 @@ int main(int argc, char** argv)
 			if (allDigits)
 				nob_delete_file(buildEntries.items[i]);
 		}
-		nob_copy_file("testbed.dll", "testbed-1.dll");
+		copyFileIfNewer("testbed.dll", "testbed-1.dll");
 	}
 	CHECK_BUILD_RESULT(driver.build());
 	uint64_t buildEndNs = nob_nanos_since_unspecified_epoch();
