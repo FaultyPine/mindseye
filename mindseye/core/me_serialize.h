@@ -27,6 +27,13 @@ bool meSerializeTryReadBinaryHeader(
 	meSpan serializedBuffer,
 	meSerializedHeader* outHeader = nullptr);
 
+bool meSerializeTryReadHeader(
+	meSerializationMode mode,
+	meSpan serializedBuffer,
+	const meTypeDescriptor& typeDesc,
+	meAllocator* allocator,
+	meSerializedHeader* outHeader);
+
 meSerializeResult SerializeBlocking(SerializeContext& ctx);
 
 void DeserializeBlocking(DeserializeContext& ctx);
@@ -34,12 +41,3 @@ void DeserializeBlocking(DeserializeContext& ctx);
 void DeserializeFromFileBlocking(
 	StringView file,
 	DeserializeContext& ctx);
-
-
-// Like SerializeBlocking, but only emits fields whose values differ from
-// ctx.templateData. Header MAID is always written.
-meSerializeResult SerializeOverridesBlocking(SerializeContext& ctx);
-
-// Counterpart: copies ctx.templateData into ctx.outputData first, then
-// overwrites any fields present in ctx.sourceData.
-void DeserializeOverridesBlocking(DeserializeContext& ctx);

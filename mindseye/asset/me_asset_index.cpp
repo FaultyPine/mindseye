@@ -3,6 +3,7 @@
 
 #include "asset/me_asset.h"
 #include "core/me_serialize.h"
+#include "platform/me_os.h"
 
 #define ME_ASSET_INDEX_DEBUGLOG 0
 
@@ -137,47 +138,45 @@ void OnFoundAssetFile(
 {
 	StringView filepath = file.GetPath();
 	meAssetType type = meAssetFindAssetTypeFromFilepath(filepath);
+	if (type == MABadData)
+	{
+		return;
+	}
 	StringView assetPath = meAssetGetAbsPathForResource(filepath);
 	meAssetLoader* loader = meAssetSystemGet().assetLoaders[type];
-	const meTypeDescriptor& typeDesc = *loader->assetTypeDesc;
-	u32 size = typeDesc.size;
-	Allocation outSerialized = MEALLOC(GetTLScratch(), size);
-	meSerializeResult result;
-    // BOOKMARK: Don't deserialize just for the asset index.
-    // This should be able to JUST read the header to generate metadata about the asset
-    // without actually deserializing it. I.E. disk path, MAID, any searchable metadata tags
-	DeserializeContext ctx = {};
-	ctx.mode = meSerializationMode_Text;
-	ctx.typeDesc = &typeDesc;
-	ctx.externalDataAllocator = GetTLScratch();
-	ctx.outputData = outSerialized;
-	ctx.outResult = &result;
-	DeserializeFromFileBlocking(assetPath, ctx);
-	if (result == meSerializeResult::SER_SUCCESS)
+	if (!loader || !loader->assetTypeDesc)
 	{
-		meSpan assetHeaderData = meSerializeTryGetAssetHeader(typeDesc, outSerialized);
-		if (assetHeaderData)
-		{
-			const MAID& header = *(MAID*)assetHeaderData.data;
-			if (header)
-			{
-				assetIndex.assetToPathMap[header] = filepath;
-				assetIndex.pathToAssetsMap[filepath] = header;
-				assetIndex.serializedUniqueIdentifiers[header] = result.serializedUniqueIdentifier;
-			}
-			else
-			{
-				LOG_ERROR("Failed to read asset header from " STRING_FMT, STRING_VAARGS(filepath));
-			}
-		}
-		else
-		{
-			LOG_ERROR("Tried to serialize " STRING_FMT " from disk, but couldn't find an asset header field", STRING_VAARGS(meAssetTypeToString(type)));
-		}
+		LOG_WARN("Tried to index " STRING_FMT " but no asset loader was registered", STRING_VAARGS(filepath));
+		return;
 	}
-	else
+	const meTypeDescriptor& typeDesc = *loader->assetTypeDesc;
+
+	meMemoryMappedFile mapping = {};
+	if (!meOSMapFile(mapping, assetPath, OSFileFlags_OnlyIfExists | OSFileFlags_ReadOnly | OSFileFlags_ScopedFile))
 	{
-		LOG_WARN("Tried to load " STRING_FMT " for asset index but failed", filepath);
+		LOG_WARN("Tried to read " STRING_FMT " for asset index but failed", STRING_VAARGS(filepath));
+		return;
+	}
+
+	meSerializedHeader header = {};
+	meSpan sourceData(mapping.ptr, mapping.size);
+	if (!meSerializeTryReadHeader(meSerializationMode_Text, sourceData, typeDesc, GetTLScratch(), &header))
+	{
+		LOG_WARN("Tried to read " STRING_FMT " for asset index but failed", STRING_VAARGS(filepath));
+		return;
+	}
+	if (!header.assetHeader)
+	{
+		LOG_ERROR("Failed to read asset header from " STRING_FMT, STRING_VAARGS(filepath));
+		return;
+	}
+
+	assetIndex.assetToPathMap[header.assetHeader] = filepath;
+	assetIndex.pathToAssetsMap[filepath] = header.assetHeader;
+	assetIndex.serializedUniqueIdentifiers[header.assetHeader] = HashBytesL((u8*)sourceData.data, sourceData.size);
+	for (DynArray_Foreach(header.dependencies, i))
+	{
+		meAssetIndexRecordDependency(header.assetHeader, header.dependencies[i]);
 	}
 }
 

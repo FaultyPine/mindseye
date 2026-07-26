@@ -6,6 +6,7 @@
 #include "core/me_job_system.h"
 #include "core/me_event.h"
 #include "core/containers/me_array.h"
+#include "core/containers/dynarray.h"
 #include "core/me_resourcepool.h"
 
 #include "generatedtypes/me_asset.generated.h"
@@ -110,6 +111,8 @@ struct MEREFLECT(type) meSerializedHeader
 	u32 typeNameHash = 0;
 	u32 payloadSize = 0;
 	MAID assetHeader = {};
+	MAID parentAsset = {};
+	DynArray<MAID> dependencies = {};
 };
 
 enum meAssetLoadStage

@@ -520,20 +520,7 @@ meSpan meSerializeTryGetAssetHeader(
 	{
 		return serializedHeader.Subspan(offsetof(meSerializedHeader, assetHeader), sizeof(MAID));
 	}
-
-	meSpan result = {};
-	meTypeDescriptorWalkMembers(typeDesc, serializedBuffer.data,
-		[&](const meTypeDescriptorMember& member)
-		{
-			if (member.field.thisType == &TD_MAID && StringCompare(member.field.name, STRING_LIT(ME_ASSET_HEADER_FIELDNAME)))
-			{
-				result = serializedBuffer.Subspan(member.offsetBytes, member.field.size);
-				return false;
-			}
-			return true;
-		},
-		false);
-	return result;
+	return {};
 }
 
 

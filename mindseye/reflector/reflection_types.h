@@ -7,6 +7,7 @@
 struct meTypeDescriptor;
 struct meSerializeResult;
 struct meChunker;
+struct MAID;
 
 enum meSerializationMode
 {
@@ -22,7 +23,6 @@ struct DeserializeContext
 	meSpan sourceData = {};
 	// POD, preallocated before deserialization functions are called
 	meSpan outputData = {};
-	const void* templateData = nullptr;
 	meChunker* chunker = nullptr;
 	// external pointer buffer, allocated inside deserialization funcs with the following allocator
 	meSpan outputDataExternal = {};
@@ -40,10 +40,10 @@ struct SerializeContext
 	meAllocator* allocator = {};
 	// buffer that should be serialized
 	meSpan sourceData = {};
-	const void* templateData = nullptr;
 	// the output serialized buffer
 	meOwningSpan serializedData = {};
 	meChunker* chunker = nullptr;
+	DynArray<MAID>* assetDependencies = nullptr;
 	// for templated types, this is can be used to get the template params
 	const meTypeDescriptor* parentType = {};
 };

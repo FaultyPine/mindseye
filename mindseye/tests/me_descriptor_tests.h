@@ -18,7 +18,7 @@ meDescriptorTestChild
 struct MEREFLECT(type)
 meDescriptorTestAsset
 {
-    MAID header = {};
+    meSerializedHeader header = {};
     String displayName = {};
     s32 health = 0;
     f32 speed = 0.0f;

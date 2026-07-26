@@ -15,7 +15,20 @@ static bool ChunkWithTypeDescriptor(
 	void* data,
 	meAllocator* readAllocator,
 	const meTypeDescriptor* parentType,
-	meSerializeResult* outResult);
+	meSerializeResult* outResult,
+	DynArray<MAID>* assetDependencies = nullptr,
+	bool resetPresentFieldsBeforeRead = false);
+
+static bool TryReadSerializedHeaderField(
+	meSerializationMode mode,
+	meSpan sourceData,
+	meAllocator* allocator,
+	meSerializedHeader& header);
+
+static bool ValidateSerializedHeader(
+	const meSerializedHeader& header,
+	const meTypeDescriptor& typeDesc,
+	meSerializeResult& outResult);
 
 static u32 meSerializeTypeNameHash(const meTypeDescriptor& typeDesc)
 {
@@ -26,11 +39,12 @@ bool meSerializeTryReadBinaryHeader(
 	meSpan serializedBuffer,
 	meSerializedHeader* outHeader)
 {
-	if (serializedBuffer.size < TD_MESERIALIZEDHEADER.size)
+	meSerializedHeader header = {};
+	meAllocator* allocator = GetTLScratch();
+	if (!TryReadSerializedHeaderField(meSerializationMode_Binary, serializedBuffer, allocator, header))
 	{
 		return false;
 	}
-	const meSerializedHeader& header = *(const meSerializedHeader*)serializedBuffer.data;
 	if (header.magic != ME_BINARY_SERIALIZED_MAGIC ||
 		header.formatVersion != ME_BINARY_SERIALIZED_VERSION)
 	{
@@ -45,7 +59,8 @@ bool meSerializeTryReadBinaryHeader(
 
 static bool PrepareSerializedHeaderInAssetData(
 	const meTypeDescriptor& typeDesc,
-	meSpan assetData)
+	meSpan assetData,
+	bool resetDependencies)
 {
 	meSpan serializedHeader = meSerializeTryGetSerializedHeader(typeDesc, assetData);
 	if (!serializedHeader)
@@ -55,18 +70,38 @@ static bool PrepareSerializedHeaderInAssetData(
 
 	meSerializedHeader& header = *(meSerializedHeader*)serializedHeader.data;
 	MAID assetHeader = header.assetHeader;
-	meSpan assetHeaderSpan = meSerializeTryGetAssetHeader(typeDesc, assetData);
-	if (assetHeaderSpan)
-	{
-		assetHeader = *(MAID*)assetHeaderSpan.data;
-	}
-
 	header.magic = ME_BINARY_SERIALIZED_MAGIC;
 	header.formatVersion = ME_BINARY_SERIALIZED_VERSION;
 	header.typeVersion = typeDesc.version;
 	header.typeNameHash = meSerializeTypeNameHash(typeDesc);
 	header.payloadSize = 0;
 	header.assetHeader = assetHeader;
+	if (resetDependencies)
+	{
+		DynArrayClear(header.dependencies);
+	}
+	return true;
+}
+
+bool meSerializeTryReadHeader(
+	meSerializationMode mode,
+	meSpan serializedBuffer,
+	const meTypeDescriptor& typeDesc,
+	meAllocator* allocator,
+	meSerializedHeader* outHeader)
+{
+	meSerializedHeader header = {};
+	meAllocator* readAllocator = allocator ? allocator : GetTLScratch();
+	meSerializeResult result = {};
+	if (!TryReadSerializedHeaderField(mode, serializedBuffer, readAllocator, header) ||
+		!ValidateSerializedHeader(header, typeDesc, result))
+	{
+		return false;
+	}
+	if (outHeader)
+	{
+		*outHeader = header;
+	}
 	return true;
 }
 
@@ -74,12 +109,6 @@ static bool IsSerializedHeaderField(const meTypeDescriptor& field)
 {
 	return field.thisType == &TD_MESERIALIZEDHEADER &&
 		StringCompare(field.name, STRING_LIT(ME_ASSET_HEADER_FIELDNAME));
-}
-
-static bool IsAssetHeaderField(const meTypeDescriptor& field)
-{
-	return StringCompare(field.name, STRING_LIT(ME_ASSET_HEADER_FIELDNAME)) &&
-		(field.thisType == &TD_MESERIALIZEDHEADER || field.thisType == &TD_MAID);
 }
 
 static bool TypeHasSerializedHeader(const meTypeDescriptor& typeDesc)
@@ -122,7 +151,57 @@ static bool ValidateSerializedHeader(
 	return true;
 }
 
-static void SerializeTopLevelPrologue(const SerializeContext& ctx, bool expectsTemplateData)
+static bool DeepCopyParentAssetIfNeeded(
+	const meSerializedHeader& header,
+	const meTypeDescriptor& typeDesc,
+	DeserializeContext& ctx)
+{
+	if (!header.parentAsset)
+	{
+		return false;
+	}
+	if (header.parentAsset.GetType() != header.assetHeader.GetType())
+	{
+		LOG_ERROR("Parent asset type does not match child asset type");
+		ctx.outResult->result = meSerializeResult::SER_FAILURE;
+		return false;
+	}
+
+	MAID parentMaid = header.parentAsset;
+	meAssetRequestLoadTemplate(&parentMaid, 1);
+	if (!meAssetWaitUntilLoadstage({ &parentMaid, 1 }, Loaded))
+	{
+		LOG_ERROR("Failed to load parent asset while deserializing inherited asset");
+		ctx.outResult->result = meSerializeResult::SER_FAILURE;
+		return false;
+	}
+
+	meAsset* parentAsset = meAssetTryGetTemplate(parentMaid);
+	if (!parentAsset || !parentAsset->runtimeHandle)
+	{
+		LOG_ERROR("Parent asset was not available after load");
+		ctx.outResult->result = meSerializeResult::SER_FAILURE;
+		return false;
+	}
+
+	meAssetLoader* loader = meAssetSystemGet().assetLoaders[parentMaid.GetType()];
+	if (!loader || loader->assetTypeDesc != &typeDesc)
+	{
+		LOG_ERROR("Parent asset loader does not match deserialized asset type");
+		ctx.outResult->result = meSerializeResult::SER_FAILURE;
+		return false;
+	}
+
+	void* parentData = loader->resourcePool->GetOpaque(parentAsset->runtimeHandle);
+	DeepCopyContext copyCtx = {};
+	copyCtx.srcData = parentData;
+	copyCtx.outputData = ctx.outputData;
+	copyCtx.allocator = ctx.externalDataAllocator;
+	meTypeDescriptorDeepCopy(typeDesc, copyCtx);
+	return true;
+}
+
+static void SerializeTopLevelPrologue(const SerializeContext& ctx)
 {
 	ME_ASSERT(ctx.typeDesc);
 	ME_ASSERT(ctx.allocator);
@@ -132,10 +211,9 @@ static void SerializeTopLevelPrologue(const SerializeContext& ctx, bool expectsT
 	// Top-level callers produce serializedData; field walkers use chunker/parentType instead.
 	ME_ASSERT(!ctx.chunker);
 	ME_ASSERT(!ctx.parentType);
-	ME_ASSERT(expectsTemplateData ? ctx.templateData != nullptr : ctx.templateData == nullptr);
 }
 
-static void DeserializeTopLevelPrologue(const DeserializeContext& ctx, bool expectsTemplateData)
+static void DeserializeTopLevelPrologue(const DeserializeContext& ctx)
 {
 	ME_ASSERT(ctx.typeDesc);
 	ME_ASSERT(ctx.outResult);
@@ -145,7 +223,48 @@ static void DeserializeTopLevelPrologue(const DeserializeContext& ctx, bool expe
 	// Top-level callers read sourceData; field walkers use chunker/parentType instead.
 	ME_ASSERT(!ctx.chunker);
 	ME_ASSERT(!ctx.parentType);
-	ME_ASSERT(expectsTemplateData ? ctx.templateData != nullptr : ctx.templateData == nullptr);
+}
+
+static void SetToDefaultsWithTypeDescriptor(
+	const meTypeDescriptor& td,
+	void* data)
+{
+	if (!data)
+	{
+		return;
+	}
+	if (td.setToDefaultsFn)
+	{
+		td.setToDefaultsFn(data);
+		return;
+	}
+	if (td.thisType && TEST_BIT(td.flags, meTypeDescriptorFlag_ConstantArray))
+	{
+		u32 fixedCount = td.thisType->size ? td.size / td.thisType->size : 0;
+		for (u32 i = 0; i < fixedCount; i++)
+		{
+			SetToDefaultsWithTypeDescriptor(*td.thisType, (u8*)data + (td.thisType->size * i));
+		}
+		return;
+	}
+	if (td.thisType && !TEST_BIT(td.flags, meTypeDescriptorFlag_ConstantArray) && td.thisType->setToDefaultsFn)
+	{
+		td.thisType->setToDefaultsFn(data);
+	}
+}
+
+static void ResetFieldBeforeDeserialize(
+	const meTypeDescriptor& field,
+	void* data,
+	meAllocator* allocator,
+	const meTypeDescriptor* parentType)
+{
+	DestroyContext destroyCtx = {};
+	destroyCtx.data = data;
+	destroyCtx.allocator = allocator;
+	destroyCtx.parentType = parentType;
+	meTypeDescriptorDestroy(field, destroyCtx);
+	SetToDefaultsWithTypeDescriptor(field, data);
 }
 
 static bool ChunkDynArray(
@@ -154,7 +273,9 @@ static bool ChunkDynArray(
 	void* data,
 	meAllocator* readAllocator,
 	const meTypeDescriptor* parentType,
-	meSerializeResult* outResult)
+	meSerializeResult* outResult,
+	DynArray<MAID>* assetDependencies,
+	bool resetPresentFieldsBeforeRead = false)
 {
 	const meTypeDescriptor* fieldDesc = parentType ? parentType : &td;
 	ME_ASSERT(fieldDesc->templatedTypes && fieldDesc->templatedTypes.size == 1);
@@ -188,7 +309,7 @@ static bool ChunkDynArray(
 			return false;
 		}
 		ME_ON_SCOPE_EXIT([&chunker]() { chunker.EndElement(); });
-		if (!ChunkWithTypeDescriptor(elemType, chunker, elemData, readAllocator, fieldDesc, outResult))
+		if (!ChunkWithTypeDescriptor(elemType, chunker, elemData, readAllocator, fieldDesc, outResult, assetDependencies, resetPresentFieldsBeforeRead))
 		{
 			return false;
 		}
@@ -202,7 +323,9 @@ static bool ChunkWithTypeDescriptor(
 	void* data,
 	meAllocator* readAllocator,
 	const meTypeDescriptor* parentType,
-	meSerializeResult* outResult)
+	meSerializeResult* outResult,
+	DynArray<MAID>* assetDependencies,
+	bool resetPresentFieldsBeforeRead)
 {
 	if (!data || !td.ShouldSerialize())
 	{
@@ -229,6 +352,7 @@ static bool ChunkWithTypeDescriptor(
 		ctx.allocator = readAllocator;
 		ctx.sourceData = meSpan(data, td.size);
 		ctx.chunker = &chunker;
+		ctx.assetDependencies = assetDependencies;
 		ctx.parentType = parentType ? parentType : &td;
 		return td.serializerFn(td, ctx);
 	}
@@ -253,7 +377,7 @@ static bool ChunkWithTypeDescriptor(
 			}
 			ME_ON_SCOPE_EXIT([&chunker]() { chunker.EndElement(); });
 			void* elementData = data ? (u8*)data + (td.thisType->size * i) : nullptr;
-			if (!ChunkWithTypeDescriptor(*td.thisType, chunker, elementData, readAllocator, &td, outResult))
+			if (!ChunkWithTypeDescriptor(*td.thisType, chunker, elementData, readAllocator, &td, outResult, assetDependencies, resetPresentFieldsBeforeRead))
 			{
 				return false;
 			}
@@ -262,7 +386,7 @@ static bool ChunkWithTypeDescriptor(
 	}
 	if (td.thisType && td.fields.size == 0)
 	{
-		return ChunkWithTypeDescriptor(*td.thisType, chunker, data, readAllocator, &td, outResult);
+		return ChunkWithTypeDescriptor(*td.thisType, chunker, data, readAllocator, &td, outResult, assetDependencies, resetPresentFieldsBeforeRead);
 	}
 	if (td.fields.size > 0)
 	{
@@ -276,10 +400,16 @@ static bool ChunkWithTypeDescriptor(
 			{
 				if (!chunker.Field(member.field.name))
 				{
+					// In text mode, field presence is the "set" bit. Missing fields keep
+					// either the copied parent value or the type default.
 					return true;
 				}
 				ME_ON_SCOPE_EXIT([&chunker]() { chunker.EndField(); });
-				return ChunkWithTypeDescriptor(member.field, chunker, member.data, readAllocator, &td, outResult);
+				if (resetPresentFieldsBeforeRead && chunker.IsReadMode())
+				{
+					ResetFieldBeforeDeserialize(member.field, member.data, readAllocator, &td);
+				}
+				return ChunkWithTypeDescriptor(member.field, chunker, member.data, readAllocator, &td, outResult, assetDependencies, false);
 			});
 		return result;
 	}
@@ -310,12 +440,19 @@ static bool TryReadSerializedHeaderField(
 
 static bool SerializeChunkerPass(
 	SerializeContext& ctx,
-	meChunker::Pass mode)
+	meChunker::Pass mode,
+	bool resetDependencies)
 {
 	const meTypeDescriptor& typeDesc = *ctx.typeDesc;
-	PrepareSerializedHeaderInAssetData(typeDesc, ctx.sourceData);
+	PrepareSerializedHeaderInAssetData(typeDesc, ctx.sourceData, resetDependencies);
+	DynArray<MAID>* dependencies = nullptr;
+	meSpan serializedHeader = meSerializeTryGetSerializedHeader(typeDesc, ctx.sourceData);
+	if (serializedHeader)
+	{
+		dependencies = &((meSerializedHeader*)serializedHeader.data)->dependencies;
+	}
 	meChunker chunker(ctx.mode, mode, ctx.allocator, ctx.serializedData);
-	if (!ChunkWithTypeDescriptor(typeDesc, chunker, ctx.sourceData.data, ctx.allocator, nullptr, nullptr))
+	if (!ChunkWithTypeDescriptor(typeDesc, chunker, ctx.sourceData.data, ctx.allocator, nullptr, nullptr, dependencies))
 	{
 		return false;
 	}
@@ -333,14 +470,23 @@ static bool SerializeChunkerPass(
 
 static meSerializeResult SerializeChunkedBlocking(SerializeContext& ctx)
 {
-	if (!SerializeChunkerPass(ctx, meChunker::Pass::Measure) ||
+	// Dependencies live in the header, but asset references are encountered after the
+	// header during the type walk. Do one measure pass to collect dependencies, then
+	// measure again with the completed header so allocation size is correct.
+    // TODO: serialize an offset pointer for the dependencies list in the header and then fill in the actual dependencies later so we don't need to do this twice.
+	if (!SerializeChunkerPass(ctx, meChunker::Pass::Measure, true))
+	{
+		return meSerializeResult::SER_FAILURE;
+	}
+	ctx.serializedData = {};
+	if (!SerializeChunkerPass(ctx, meChunker::Pass::Measure, false) ||
 		ctx.serializedData.size == 0)
 	{
 		return meSerializeResult::SER_FAILURE;
 	}
 	u64 measuredSize = ctx.serializedData.size;
 	ctx.serializedData = MEALLOC(ctx.allocator, measuredSize);
-	if (!SerializeChunkerPass(ctx, meChunker::Pass::Write))
+	if (!SerializeChunkerPass(ctx, meChunker::Pass::Write, false))
 	{
 		return meSerializeResult::SER_FAILURE;
 	}
@@ -354,15 +500,12 @@ static bool DeserializeChunkedBlocking(DeserializeContext& ctx)
 	meSerializeResult& outResult = *ctx.outResult;
 	outResult.result = meSerializeResult::SER_FAILURE;
 	ME_ASSERT(ctx.outputData.size == typeDesc.size);
-	if (typeDesc.setToDefaultsFn)
-	{
-		typeDesc.setToDefaultsFn(ctx.outputData.data);
-	}
 
 	meAllocator* chunkerAllocator = ctx.externalDataAllocator ? ctx.externalDataAllocator : GetTLScratch();
-	if (TypeHasSerializedHeader(typeDesc))
+	meSerializedHeader header = {};
+	bool hasSerializedHeader = TypeHasSerializedHeader(typeDesc);
+	if (hasSerializedHeader)
 	{
-		meSerializedHeader header = {};
 		if (!TryReadSerializedHeaderField(ctx.mode, ctx.sourceData, chunkerAllocator, header) ||
 			!ValidateSerializedHeader(header, typeDesc, outResult))
 		{
@@ -370,9 +513,23 @@ static bool DeserializeChunkedBlocking(DeserializeContext& ctx)
 		}
 	}
 
+	bool copiedParent = false;
+	if (hasSerializedHeader && header.parentAsset)
+	{
+		copiedParent = DeepCopyParentAssetIfNeeded(header, typeDesc, ctx);
+		if (!copiedParent)
+		{
+			return false;
+		}
+	}
+	if (!copiedParent && typeDesc.setToDefaultsFn)
+	{
+		typeDesc.setToDefaultsFn(ctx.outputData.data);
+	}
+
 	meChunker chunker(ctx.mode, meChunker::Pass::Read, chunkerAllocator, ctx.sourceData);
 	bool ok = chunker.IsValid() &&
-		ChunkWithTypeDescriptor(typeDesc, chunker, ctx.outputData.data, ctx.externalDataAllocator, nullptr, &outResult) &&
+		ChunkWithTypeDescriptor(typeDesc, chunker, ctx.outputData.data, ctx.externalDataAllocator, nullptr, &outResult, nullptr, copiedParent) &&
 		chunker.IsReadMode();
 	outResult.serializedUniqueIdentifier = HashBytesL((u8*)ctx.sourceData.data, ctx.sourceData.size);
 	if (ok)
@@ -519,170 +676,6 @@ bool deserializationDisallowed(
 	ME_ASSERT(!"Deserialization is disallowed for this type descriptor");
 	return false;
 }
-// Override serialization
-// only includes fields whose value differs between instanceData and
-// templateData. The asset header (MAID field named "header") is always
-// written so the deserializer can locate the template.
-static bool ChunkOverridesWithTypeDescriptor(
-	const meTypeDescriptor& typeDesc,
-	meChunker& chunker,
-	void* instanceData,
-	const void* templateData,
-	meAllocator* allocator,
-	meSerializeResult* outResult)
-{
-	ME_ASSERT(chunker.GetSerializationMode() == meSerializationMode_Text);
-	if (!chunker.BeginObject())
-	{
-		return false;
-	}
-	ME_ON_SCOPE_EXIT([&chunker]() { chunker.EndObject(); });
-	bool result = meTypeDescriptorWalkMembers(typeDesc, instanceData,
-		[&](const meTypeDescriptorMember& member)
-		{
-			void* templateField = (u8*)templateData + member.offsetBytes;
-			bool isHeader = IsAssetHeaderField(member.field);
-			if (!chunker.IsReadMode() &&
-				!isHeader &&
-				meFieldsEqual(member.field, member.data, templateField, &typeDesc))
-			{
-				return true;
-			}
-
-			if (!chunker.Field(member.field.name))
-			{
-				return true;
-			}
-			ME_ON_SCOPE_EXIT([&chunker]() { chunker.EndField(); });
-			return ChunkWithTypeDescriptor(member.field, chunker, member.data, allocator, &typeDesc, outResult);
-		});
-	return result;
-}
-
-static bool ChunkOverrideDocumentWithTypeDescriptor(
-	const meTypeDescriptor& typeDesc,
-	meChunker& chunker,
-	meSpan sourceData,
-	const void* templateData,
-	meAllocator* allocator,
-	meSerializeResult* outResult);
-
-static bool SerializeOverridesPass(
-	SerializeContext& ctx,
-	meChunker::Pass pass)
-{
-	meChunker chunker(meSerializationMode_Text, pass, ctx.allocator, ctx.serializedData);
-	bool ok = ChunkOverrideDocumentWithTypeDescriptor(
-		*ctx.typeDesc,
-		chunker,
-		ctx.sourceData,
-		ctx.templateData,
-		ctx.allocator,
-		nullptr);
-	if (ok)
-	{
-		ctx.serializedData = chunker.Finalize(ctx.allocator);
-	}
-	return ok;
-}
-
-static bool ChunkOverrideDocumentWithTypeDescriptor(
-	const meTypeDescriptor& typeDesc,
-	meChunker& chunker,
-	meSpan sourceData,
-	const void* templateData,
-	meAllocator* allocator,
-	meSerializeResult* outResult)
-{
-	PrepareSerializedHeaderInAssetData(typeDesc, sourceData);
-	return ChunkOverridesWithTypeDescriptor(
-		typeDesc,
-		chunker,
-		sourceData.data,
-		templateData,
-		allocator,
-		outResult);
-}
-
-meSerializeResult SerializeOverridesBlocking(SerializeContext& ctx)
-{
-	SerializeTopLevelPrologue(ctx, true);
-
-	if (ctx.mode == meSerializationMode_Binary)
-	{
-		LOG_ERROR("Binary override serialization is not implemented yet");
-		return meSerializeResult::SER_FAILURE;
-	}
-	if (!SerializeOverridesPass(ctx, meChunker::Pass::Measure) ||
-		ctx.serializedData.size == 0)
-	{
-		return meSerializeResult::SER_FAILURE;
-	}
-	u64 measuredSize = ctx.serializedData.size;
-	ctx.serializedData = MEALLOC(ctx.allocator, measuredSize);
-	if (!SerializeOverridesPass(ctx, meChunker::Pass::Write))
-	{
-		return meSerializeResult::SER_FAILURE;
-	}
-	ME_ASSERT(ctx.serializedData.size == measuredSize);
-	return meSerializeResult::SER_SUCCESS;
-}
-
-void DeserializeOverridesBlocking(DeserializeContext& ctx)
-{
-	ME_ASSERT(ctx.outResult);
-	if (ctx.mode == meSerializationMode_Binary)
-	{
-		LOG_ERROR("Binary override deserialization is not implemented yet");
-		ctx.outResult->result = meSerializeResult::SER_FAILURE;
-		return;
-	}
-	DeserializeTopLevelPrologue(ctx, true);
-	const meTypeDescriptor& typeDesc = *ctx.typeDesc;
-	meSerializeResult& outResult = *ctx.outResult;
-	outResult.result = meSerializeResult::SER_FAILURE;
-	meAllocator* textStateAllocator = ctx.externalDataAllocator ? ctx.externalDataAllocator : GetTLScratch();
-
-	meChunker chunker(meSerializationMode_Text, meChunker::Pass::Read, textStateAllocator, ctx.sourceData);
-	if (!chunker.IsValid())
-	{
-		outResult.result = meSerializeResult::SER_FAILURE;
-		return;
-	}
-
-	if (TypeHasSerializedHeader(typeDesc))
-	{
-		meSerializedHeader header = {};
-		if (!TryReadSerializedHeaderField(ctx.mode, ctx.sourceData, textStateAllocator, header) ||
-			!ValidateSerializedHeader(header, typeDesc, outResult))
-		{
-			return;
-		}
-	}
-
-	// Overrides are sparse, so missing fields intentionally keep their template values.
-	// Copy the template first, then apply the serialized overrides on top.
-	DeepCopyContext copyCtx = {};
-	copyCtx.srcData = ctx.templateData;
-	copyCtx.outputData = ctx.outputData;
-	copyCtx.allocator = textStateAllocator;
-	meTypeDescriptorDeepCopy(typeDesc, copyCtx);
-
-	bool ok = ChunkOverridesWithTypeDescriptor(
-		typeDesc,
-		chunker,
-		ctx.outputData.data,
-		ctx.templateData,
-		textStateAllocator,
-		&outResult);
-	if (!ok || !chunker.IsReadMode())
-	{
-		outResult.result = meSerializeResult::SER_FAILURE;
-		return;
-	}
-	outResult.result = meSerializeResult::SER_SUCCESS;
-}
-
 
 void DeserializeFromFileBlocking(
 	StringView filepath,
@@ -709,13 +702,13 @@ void DeserializeFromFileBlocking(
 
 meSerializeResult SerializeBlocking(SerializeContext& ctx)
 {
-	SerializeTopLevelPrologue(ctx, false);
+	SerializeTopLevelPrologue(ctx);
 	return SerializeChunkedBlocking(ctx);
 }
 
 void DeserializeBlocking(DeserializeContext& ctx)
 {
-	DeserializeTopLevelPrologue(ctx, false);
+	DeserializeTopLevelPrologue(ctx);
 	DeserializeChunkedBlocking(ctx);
 }
 
@@ -733,7 +726,7 @@ bool DynArraySerializerToStringFn(
 	// DynArray is templated, and so requires the parent type to understand the template args, see comment in meTypeDescriptor struct
 	ME_ASSERT(parentType);
 	ME_ASSERT(ctx.chunker);
-	return ChunkDynArray(typeDescriptor, *ctx.chunker, ctx.sourceData.data, ctx.allocator, parentType, nullptr);
+	return ChunkDynArray(typeDescriptor, *ctx.chunker, ctx.sourceData.data, ctx.allocator, parentType, nullptr, ctx.assetDependencies);
 }
 
 bool DynArrayDeserializerFromStringFn(
@@ -744,54 +737,27 @@ bool DynArrayDeserializerFromStringFn(
 	// DynArray is templated, and so requires the parent type to understand the template args, see comment in meTypeDescriptor struct
 	ME_ASSERT(parentType);
 	ME_ASSERT(ctx.chunker);
-	return ChunkDynArray(typeDescriptor, *ctx.chunker, ctx.outputData.data, ctx.externalDataAllocator, parentType, ctx.outResult);
+	return ChunkDynArray(typeDescriptor, *ctx.chunker, ctx.outputData.data, ctx.externalDataAllocator, parentType, ctx.outResult, nullptr);
 }
 
-static bool meAssetIsLoadedInstance(const meAsset& asset)
+static void AddAssetDependency(DynArray<MAID>* dependencies, MAID maid, meAllocator* allocator)
 {
-	return asset.runtimeHandle
-		&& !asset.runtimeHandle.IsTemplateAsset()
-		&& asset.loadStage == Loaded
-		&& asset.id;
-}
-
-static bool ChunkAssetReference(meChunker& chunker, MAID& maid)
-{
-	if (!chunker.BeginObject())
+	if (!dependencies || !maid)
 	{
-		return false;
+		return;
 	}
-	ME_ON_SCOPE_EXIT([&chunker]() { chunker.EndObject(); });
-
-	u64 id = maid.GetID();
-	u32 type = (u32)maid.GetType();
-	bool ok = true;
-	if (!chunker.Field(STRING_LIT("id")))
+	if (!*dependencies)
 	{
-		ok = false;
+		*dependencies = DynArrayCreate<MAID>(allocator);
 	}
-	else
+	for (DynArray_Foreach(*dependencies, i))
 	{
-		ME_ON_SCOPE_EXIT([&chunker]() { chunker.EndField(); });
-		chunker.Do(id);
+		if ((*dependencies)[i] == maid)
+		{
+			return;
+		}
 	}
-
-	if (ok && !chunker.Field(STRING_LIT("type")))
-	{
-		ok = false;
-	}
-	else if (ok)
-	{
-		ME_ON_SCOPE_EXIT([&chunker]() { chunker.EndField(); });
-		chunker.Do(type);
-	}
-
-	if (ok && chunker.IsReadMode())
-	{
-		maid.SetID(id);
-		maid.SetType((meAssetType)type);
-	}
-	return ok;
+	DynArrayPush(*dependencies, maid);
 }
 
 bool meAssetSerializerFn(const meTypeDescriptor& td, SerializeContext& ctx)
@@ -799,95 +765,23 @@ bool meAssetSerializerFn(const meTypeDescriptor& td, SerializeContext& ctx)
     meAsset* asset = (meAsset*)ctx.sourceData.data;
 	ME_ASSERT(ctx.chunker);
 
-    bool isInstance = meAssetIsLoadedInstance(*asset);
-    if (!isInstance)
-    {
-		MAID assetId = asset->id;
-		return ChunkAssetReference(*ctx.chunker, assetId);
-	}
-
-	// Binary asset override serialization is not implemented yet.
-	if (ctx.chunker->GetSerializationMode() != meSerializationMode_Text)
-	{
-		LOG_ERROR("Binary asset override serialization is not implemented yet");
-		return false;
-	}
-
-    meAssetLoader* loader = meAssetSystemGet().assetLoaders[asset->id.GetType()];
-    ME_ASSERT(loader);
-
-    MAID templateMaid = asset->id;
-    meAssetRequestLoadTemplate(&templateMaid, 1);
-    meAssetWaitUntilLoadstage({ &templateMaid, 1 }, Loaded);
-    meAsset* tmpl = meAssetTryGetTemplate(templateMaid);
-    ME_ASSERT(tmpl);
-    if (!tmpl->runtimeHandle.IsTemplateAsset())
-    {
-        // an instance asset *created from a template* will have the template asset MAID
-        // an instance asset *created at runtime* (and therefore NOT derived from a template asset)
-        // shouldn't be serialized at all
-        return false;
-    }
-
-    void* templateData = loader->resourcePool->GetOpaque(tmpl->runtimeHandle);
-    void* instanceData = loader->resourcePool->GetOpaque(asset->runtimeHandle);
-
-	return ChunkOverrideDocumentWithTypeDescriptor(
-		*loader->assetTypeDesc,
-		*ctx.chunker,
-		meSpan(instanceData, loader->assetTypeDesc->size),
-		templateData,
-		ctx.allocator,
-		nullptr);
+	MAID assetId = asset->id;
+	AddAssetDependency(ctx.assetDependencies, assetId, ctx.allocator);
+	return ChunkWithTypeDescriptor(TD_MAID, *ctx.chunker, &assetId, ctx.allocator, nullptr, nullptr);
 }
 
 bool meAssetDeserializerFn(const meTypeDescriptor& td, DeserializeContext& ctx)
 {
     meAsset* outAsset = (meAsset*)ctx.outputData.data;
     ME_ASSERT(ctx.chunker);
-	bool isOverrideDoc = meAssetIsLoadedInstance(*outAsset);
     *outAsset = meAsset();
 
     MAID templateMaid = {};
-    if (isOverrideDoc)
-    {
-		// Binary asset override deserialization is not implemented yet.
-		if (ctx.chunker->GetSerializationMode() != meSerializationMode_Text)
-		{
-			LOG_ERROR("Binary asset override deserialization is not implemented yet");
-			return false;
-		}
-
-		meSerializedHeader header = {};
-		if (!ctx.chunker->BeginObject())
-		{
-			LOG_ERROR("meAsset override data must be a serialized override document");
-			return false;
-		}
-		ME_ON_SCOPE_EXIT([&ctx]() { ctx.chunker->EndObject(); });
-		if (!ctx.chunker->Field(STRING_LIT(ME_ASSET_HEADER_FIELDNAME)))
-		{
-			LOG_ERROR("meAsset override data must be a serialized override document");
-			return false;
-		}
-		ME_ON_SCOPE_EXIT([&ctx]() { ctx.chunker->EndField(); });
-		if (!ChunkWithTypeDescriptor(TD_MESERIALIZEDHEADER, *ctx.chunker, &header, ctx.externalDataAllocator, nullptr, nullptr) ||
-			header.magic != ME_BINARY_SERIALIZED_MAGIC ||
-			header.formatVersion != ME_BINARY_SERIALIZED_VERSION)
-		{
-			LOG_ERROR("meAsset override data must be a serialized override document");
-			return false;
-		}
-        templateMaid = header.assetHeader;
-    }
-    else
-    {
-		if (!ChunkAssetReference(*ctx.chunker, templateMaid))
-		{
-			LOG_ERROR("meAsset reference malformed");
-			return false;
-		}
-    }
+	if (!ChunkWithTypeDescriptor(TD_MAID, *ctx.chunker, &templateMaid, ctx.externalDataAllocator, nullptr, ctx.outResult))
+	{
+		LOG_ERROR("meAsset reference malformed");
+		return false;
+	}
 
     outAsset->id = templateMaid;
     outAsset->runtimeHandle = EYE_INVALID;

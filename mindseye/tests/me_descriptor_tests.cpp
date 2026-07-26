@@ -223,7 +223,7 @@ static void DescriptorDispatchAliasDeepCopy(const meTypeDescriptor&, DeepCopyCon
 static meDescriptorTestAsset MakeDescriptorTestAsset(meAllocator* allocator)
 {
     meDescriptorTestAsset asset = {};
-    asset.header = MAID(12345, MAEntity);
+    asset.header.assetHeader = MAID(12345, MAEntity);
     asset.displayName = String(STRING_LIT("descriptor fixture"), allocator);
     asset.health = 100;
     asset.speed = 12.5f;
@@ -414,7 +414,7 @@ static void DescriptorTestEmptyValuesRoundTrip(meAllocator* allocator, meSeriali
 {
     meDescriptorTestAsset original = {};
     meDescriptorTestAsset restored = {};
-    original.header = MAID(2222, MAEntity);
+    original.header.assetHeader = MAID(2222, MAEntity);
     original.displayName = String(STRING_LIT(""), allocator);
     original.health = 0;
     original.speed = 0.0f;
@@ -535,7 +535,7 @@ static void DescriptorTestSetToDefaults()
     TD_MEDESCRIPTORTESTASSET.setToDefaultsFn(backing);
     meDescriptorTestAsset& asset = *(meDescriptorTestAsset*)backing;
 
-    ME_ASSERT(!asset.header);
+    ME_ASSERT(!asset.header.assetHeader);
     ME_ASSERT(!asset.displayName);
     ME_ASSERT(asset.health == 0);
     ME_ASSERT(asset.speed == 0.0f);
@@ -579,7 +579,7 @@ static void DescriptorTestSerializeDeserializeEquals(meAllocator* allocator)
         TD_MEDESCRIPTORTESTASSET,
         meSpan(&restored, sizeof(restored)));
     ME_ASSERT(headerSpan.data);
-    ME_ASSERT(*(MAID*)headerSpan.data == original.header);
+    ME_ASSERT(*(MAID*)headerSpan.data == original.header.assetHeader);
 
     restored.samples[1]++;
     ME_ASSERT(!meFieldsEqual(TD_MEDESCRIPTORTESTASSET, &original, &restored));
@@ -609,7 +609,7 @@ static void DescriptorTestBinarySerializeDeserializeEquals(meAllocator* allocato
 
     meSerializedHeader header = {};
     ME_ASSERT(meSerializeTryReadBinaryHeader(serializeCtx.serializedData, &header));
-    ME_ASSERT(header.assetHeader == original.header);
+    ME_ASSERT(header.assetHeader == original.header.assetHeader);
     ME_ASSERT(header.typeVersion == TD_MEDESCRIPTORTESTASSET.version);
 
     meSerializeResult deserializeResult = {};
@@ -628,126 +628,6 @@ static void DescriptorTestBinarySerializeDeserializeEquals(meAllocator* allocato
 
     MEFREE(allocator, serializeCtx.serializedData.data);
     DestroyDescriptorTestAsset(original);
-    DestroyDescriptorTestAsset(restored);
-}
-
-static void DescriptorTestTextOverridesRoundTrip(meAllocator* allocator)
-{
-    meDescriptorTestAsset templateAsset = MakeDescriptorTestAsset(allocator);
-    meDescriptorTestAsset instanceAsset = MakeDescriptorTestAsset(allocator);
-    meDescriptorTestAsset restored = {};
-
-    instanceAsset.health = 777;
-    instanceAsset.samples[0] = -100;
-    instanceAsset.children[1].enabled = true;
-
-    SerializeContext serializeCtx = {};
-    serializeCtx.mode = meSerializationMode_Text;
-    serializeCtx.typeDesc = &TD_MEDESCRIPTORTESTASSET;
-    serializeCtx.allocator = allocator;
-    serializeCtx.sourceData = meSpan(&instanceAsset, sizeof(instanceAsset));
-    serializeCtx.templateData = &templateAsset;
-    meSerializeResult serializeResult = SerializeOverridesBlocking(serializeCtx);
-    ME_ASSERT(serializeResult == meSerializeResult::SER_SUCCESS);
-    ME_ASSERT(serializeCtx.serializedData);
-
-    StringView overrideText = StringView::FromSpan(serializeCtx.serializedData);
-    ME_ASSERT(FindInString(overrideText, STRING_LIT("\"header\"")) >= 0);
-    ME_ASSERT(FindInString(overrideText, STRING_LIT("\"health\"")) >= 0);
-    ME_ASSERT(FindInString(overrideText, STRING_LIT("\"samples\"")) >= 0);
-    ME_ASSERT(FindInString(overrideText, STRING_LIT("\"children\"")) >= 0);
-    ME_ASSERT(FindInString(overrideText, STRING_LIT("\"speed\"")) < 0);
-    ME_ASSERT(FindInString(overrideText, STRING_LIT("\"displayName\"")) < 0);
-
-    meSerializeResult deserializeResult = {};
-    DeserializeContext deserializeCtx = {};
-    deserializeCtx.mode = meSerializationMode_Text;
-    deserializeCtx.typeDesc = &TD_MEDESCRIPTORTESTASSET;
-    deserializeCtx.externalDataAllocator = allocator;
-    deserializeCtx.sourceData = serializeCtx.serializedData;
-    deserializeCtx.outputData = meSpan(&restored, sizeof(restored));
-    deserializeCtx.templateData = &templateAsset;
-    deserializeCtx.outResult = &deserializeResult;
-    DeserializeOverridesBlocking(deserializeCtx);
-    ME_ASSERT(deserializeResult == meSerializeResult::SER_SUCCESS);
-    ME_ASSERT(meFieldsEqual(TD_MEDESCRIPTORTESTASSET, &instanceAsset, &restored));
-    ME_ASSERT(restored.displayName.data != templateAsset.displayName.data);
-    ME_ASSERT(restored.children.data != templateAsset.children.data);
-
-    MEFREE(allocator, serializeCtx.serializedData.data);
-    DestroyDescriptorTestAsset(templateAsset);
-    DestroyDescriptorTestAsset(instanceAsset);
-    DestroyDescriptorTestAsset(restored);
-}
-
-static void DescriptorTestTextOverridesNoDiffRoundTrip(meAllocator* allocator)
-{
-    meDescriptorTestAsset templateAsset = MakeDescriptorTestAsset(allocator);
-    meDescriptorTestAsset restored = {};
-
-    SerializeContext serializeCtx = {};
-    serializeCtx.mode = meSerializationMode_Text;
-    serializeCtx.typeDesc = &TD_MEDESCRIPTORTESTASSET;
-    serializeCtx.allocator = allocator;
-    serializeCtx.sourceData = meSpan(&templateAsset, sizeof(templateAsset));
-    serializeCtx.templateData = &templateAsset;
-    meSerializeResult serializeResult = SerializeOverridesBlocking(serializeCtx);
-    ME_ASSERT(serializeResult == meSerializeResult::SER_SUCCESS);
-
-    StringView overrideText = StringView::FromSpan(serializeCtx.serializedData);
-    ME_ASSERT(FindInString(overrideText, STRING_LIT("\"header\"")) >= 0);
-    ME_ASSERT(FindInString(overrideText, STRING_LIT("\"health\"")) < 0);
-    ME_ASSERT(FindInString(overrideText, STRING_LIT("\"displayName\"")) < 0);
-    ME_ASSERT(FindInString(overrideText, STRING_LIT("\"children\"")) < 0);
-
-    meSerializeResult deserializeResult = {};
-    DeserializeContext deserializeCtx = {};
-    deserializeCtx.mode = meSerializationMode_Text;
-    deserializeCtx.typeDesc = &TD_MEDESCRIPTORTESTASSET;
-    deserializeCtx.externalDataAllocator = allocator;
-    deserializeCtx.sourceData = serializeCtx.serializedData;
-    deserializeCtx.outputData = meSpan(&restored, sizeof(restored));
-    deserializeCtx.templateData = &templateAsset;
-    deserializeCtx.outResult = &deserializeResult;
-    DeserializeOverridesBlocking(deserializeCtx);
-    ME_ASSERT(deserializeResult == meSerializeResult::SER_SUCCESS);
-    ME_ASSERT(meFieldsEqual(TD_MEDESCRIPTORTESTASSET, &templateAsset, &restored));
-
-    MEFREE(allocator, serializeCtx.serializedData.data);
-    DestroyDescriptorTestAsset(templateAsset);
-    DestroyDescriptorTestAsset(restored);
-}
-
-static void DescriptorTestBinaryOverridesFail(meAllocator* allocator)
-{
-    meDescriptorTestAsset templateAsset = MakeDescriptorTestAsset(allocator);
-    meDescriptorTestAsset instanceAsset = MakeDescriptorTestAsset(allocator);
-    meDescriptorTestAsset restored = {};
-    instanceAsset.health = templateAsset.health + 1;
-
-    SerializeContext serializeCtx = {};
-    serializeCtx.mode = meSerializationMode_Binary;
-    serializeCtx.typeDesc = &TD_MEDESCRIPTORTESTASSET;
-    serializeCtx.allocator = allocator;
-    serializeCtx.sourceData = meSpan(&instanceAsset, sizeof(instanceAsset));
-    serializeCtx.templateData = &templateAsset;
-    meSerializeResult serializeResult = SerializeOverridesBlocking(serializeCtx);
-    ME_ASSERT(serializeResult == meSerializeResult::SER_FAILURE);
-    ME_ASSERT(!serializeCtx.serializedData);
-
-    meSerializeResult deserializeResult = {};
-    DeserializeContext deserializeCtx = {};
-    deserializeCtx.mode = meSerializationMode_Binary;
-    deserializeCtx.typeDesc = &TD_MEDESCRIPTORTESTASSET;
-    deserializeCtx.externalDataAllocator = allocator;
-    deserializeCtx.outputData = meSpan(&restored, sizeof(restored));
-    deserializeCtx.templateData = &templateAsset;
-    deserializeCtx.outResult = &deserializeResult;
-    DeserializeOverridesBlocking(deserializeCtx);
-    ME_ASSERT(deserializeResult == meSerializeResult::SER_FAILURE);
-
-    DestroyDescriptorTestAsset(templateAsset);
-    DestroyDescriptorTestAsset(instanceAsset);
     DestroyDescriptorTestAsset(restored);
 }
 
@@ -926,11 +806,6 @@ void meDescriptorTests()
     LOG_INFO("Testing type mismatch failures...");
     DescriptorTestTypeMismatchFails(allocator, meSerializationMode_Text);
     DescriptorTestTypeMismatchFails(allocator, meSerializationMode_Binary);
-    LOG_INFO("Testing text override serialization...");
-    DescriptorTestTextOverridesRoundTrip(allocator);
-    DescriptorTestTextOverridesNoDiffRoundTrip(allocator);
-    LOG_INFO("Testing binary override serialization failure...");
-    DescriptorTestBinaryOverridesFail(allocator);
     LOG_INFO("Testing deepCopyFn...");
     DescriptorTestDeepCopy(allocator);
     LOG_INFO("Testing destroyFn...");
