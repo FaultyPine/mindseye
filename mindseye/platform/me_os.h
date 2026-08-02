@@ -65,6 +65,33 @@ MEAPI void  UnloadDynamicLibrary(void* module);
 MEAPI void* GetFunctionPtr(void* module, StringView functionName);
 MEAPI bool  meOSCopyFile(const char* src, const char* dst);
 
+// ── Atomics ───────────────────────────────────────────────────────────
+
+struct meAtomicU32
+{
+    volatile u32 value = 0;
+};
+
+struct meAtomicU64
+{
+    volatile u64 value = 0;
+};
+
+MEAPI u32 meOSAtomicLoad(const meAtomicU32& atomic);
+MEAPI u64 meOSAtomicLoad(const meAtomicU64& atomic);
+MEAPI void meOSAtomicStore(meAtomicU32& atomic, u32 value);
+MEAPI void meOSAtomicStore(meAtomicU64& atomic, u64 value);
+MEAPI u32 meOSAtomicExchange(meAtomicU32& atomic, u32 value);
+MEAPI u64 meOSAtomicExchange(meAtomicU64& atomic, u64 value);
+MEAPI u32 meOSAtomicCompareExchange(meAtomicU32& atomic, u32 exchange, u32 comparand);
+MEAPI u64 meOSAtomicCompareExchange(meAtomicU64& atomic, u64 exchange, u64 comparand);
+MEAPI u32 meOSAtomicAdd(meAtomicU32& atomic, u32 value);
+MEAPI u64 meOSAtomicAdd(meAtomicU64& atomic, u64 value);
+MEAPI u32 meOSAtomicIncrement(meAtomicU32& atomic);
+MEAPI u64 meOSAtomicIncrement(meAtomicU64& atomic);
+MEAPI u32 meOSAtomicDecrement(meAtomicU32& atomic);
+MEAPI u64 meOSAtomicDecrement(meAtomicU64& atomic);
+
 // ── Virtual memory ───────────────────────────────────────────────────────────
 
 MEAPI void* meOSReserveVirtualMemory(u64 size);

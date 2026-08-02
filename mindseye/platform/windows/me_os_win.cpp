@@ -319,6 +319,96 @@ bool meOSCopyFile(const char* src, const char* dst)
     return CopyFileA(src, dst, FALSE) != 0;
 }
 
+static volatile LONG* meWinAtomicPtr(meAtomicU32& atomic)
+{
+    return reinterpret_cast<volatile LONG*>(&atomic.value);
+}
+
+static volatile LONG* meWinAtomicPtr(const meAtomicU32& atomic)
+{
+    return const_cast<volatile LONG*>(reinterpret_cast<const volatile LONG*>(&atomic.value));
+}
+
+static volatile LONG64* meWinAtomicPtr(meAtomicU64& atomic)
+{
+    return reinterpret_cast<volatile LONG64*>(&atomic.value);
+}
+
+static volatile LONG64* meWinAtomicPtr(const meAtomicU64& atomic)
+{
+    return const_cast<volatile LONG64*>(reinterpret_cast<const volatile LONG64*>(&atomic.value));
+}
+
+u32 meOSAtomicLoad(const meAtomicU32& atomic)
+{
+    return (u32)InterlockedCompareExchange(meWinAtomicPtr(atomic), 0, 0);
+}
+
+u64 meOSAtomicLoad(const meAtomicU64& atomic)
+{
+    return (u64)InterlockedCompareExchange64(meWinAtomicPtr(atomic), 0, 0);
+}
+
+void meOSAtomicStore(meAtomicU32& atomic, u32 value)
+{
+    InterlockedExchange(meWinAtomicPtr(atomic), (LONG)value);
+}
+
+void meOSAtomicStore(meAtomicU64& atomic, u64 value)
+{
+    InterlockedExchange64(meWinAtomicPtr(atomic), (LONG64)value);
+}
+
+u32 meOSAtomicExchange(meAtomicU32& atomic, u32 value)
+{
+    return (u32)InterlockedExchange(meWinAtomicPtr(atomic), (LONG)value);
+}
+
+u64 meOSAtomicExchange(meAtomicU64& atomic, u64 value)
+{
+    return (u64)InterlockedExchange64(meWinAtomicPtr(atomic), (LONG64)value);
+}
+
+u32 meOSAtomicCompareExchange(meAtomicU32& atomic, u32 exchange, u32 comparand)
+{
+    return (u32)InterlockedCompareExchange(meWinAtomicPtr(atomic), (LONG)exchange, (LONG)comparand);
+}
+
+u64 meOSAtomicCompareExchange(meAtomicU64& atomic, u64 exchange, u64 comparand)
+{
+    return (u64)InterlockedCompareExchange64(meWinAtomicPtr(atomic), (LONG64)exchange, (LONG64)comparand);
+}
+
+u32 meOSAtomicAdd(meAtomicU32& atomic, u32 value)
+{
+    return (u32)InterlockedExchangeAdd(meWinAtomicPtr(atomic), (LONG)value);
+}
+
+u64 meOSAtomicAdd(meAtomicU64& atomic, u64 value)
+{
+    return (u64)InterlockedExchangeAdd64(meWinAtomicPtr(atomic), (LONG64)value);
+}
+
+u32 meOSAtomicIncrement(meAtomicU32& atomic)
+{
+    return (u32)InterlockedIncrement(meWinAtomicPtr(atomic));
+}
+
+u64 meOSAtomicIncrement(meAtomicU64& atomic)
+{
+    return (u64)InterlockedIncrement64(meWinAtomicPtr(atomic));
+}
+
+u32 meOSAtomicDecrement(meAtomicU32& atomic)
+{
+    return (u32)InterlockedDecrement(meWinAtomicPtr(atomic));
+}
+
+u64 meOSAtomicDecrement(meAtomicU64& atomic)
+{
+    return (u64)InterlockedDecrement64(meWinAtomicPtr(atomic));
+}
+
 bool meOSMapFile(meMemoryMappedFile& out, StringView path, OSFileFlags flags)
 {
     ME_ASSERT(!out.ptr);
