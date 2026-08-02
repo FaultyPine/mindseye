@@ -49,13 +49,13 @@ void meSceneManager::UnloadCurrentScene()
 
 void meSceneManager::ChangeCurrentSceneAsync(StringView filename)
 {
-	UnloadCurrentScene();
 	MAID sceneIdent = meAssetIndexGetMAIDFromPath(filename);
     if (!sceneIdent || sceneIdent.GetType() != MAScene)
     {
         LOG_WARN("Failed to change scene. Scene file " STRING_FMT " doesn't map to a valid scene asset", STRING_VAARGS(filename));
         return;
     }
+	UnloadCurrentScene();
 	meAssetRequestLoadTemplate(&sceneIdent, 1, [](const meAsset& sceneAsset)
     {
         if (meAsset* asset = meAssetTryGetTemplate(sceneAsset.id))
