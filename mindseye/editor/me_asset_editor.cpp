@@ -717,6 +717,11 @@ static bool DrawTypeDescriptorFieldData(
 
 	const char* displayName = field.editorName.data ? field.editorName.cstr() : field.name.cstr();
 
+    if (fieldType == &TD_MESERIALIZEDHEADER)
+    {
+        return false;
+    }
+
     if (fieldType->editorRenderFn)
     {
         changed |= InspectorLabel(field, fieldData, parentType, ctx);
