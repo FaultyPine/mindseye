@@ -67,11 +67,15 @@ void meSceneManager::ChangeCurrentSceneAsync(StringView filename)
     });
 }
 
-void meSceneManager::CopyToRenderInput(meScene& outScene)
+void meSceneManager::CopyToRenderInput(meScene& outScene, meAllocator* frameAllocator)
 {
 	// copy the "current"? scene to the given scene for the renderer to use as its readonly copy. This will become complex later...
-    // TODO: deep copy everything in the scene - for assets, that means incrementing reader (ref) count
-	outScene = CurrentScene();
+    ME_ASSERT(frameAllocator);
+    DeepCopyContext copyCtx = {};
+    copyCtx.srcData = &CurrentScene();
+    copyCtx.outputData = meSpan(&outScene, sizeof(outScene));
+    copyCtx.allocator = frameAllocator;
+    meTypeDescriptorDeepCopy(TD_MESCENE, copyCtx);
 }
 
 // TODO: BVH

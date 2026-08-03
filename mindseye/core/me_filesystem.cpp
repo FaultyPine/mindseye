@@ -87,7 +87,7 @@ StringView meFsScanOutForFile(StringView fileStr)
 	{
 		return absPath;
 	}
-	String result = absPath;
+	String result = meMove(absPath);
 	StringBuilder builder = StringBuilder(allocator);
 	while (result)
 	{

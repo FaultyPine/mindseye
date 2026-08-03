@@ -56,7 +56,7 @@ void CopyToRenderInput(
 	RenderInput& renderInput)
 {
 	renderInput.osData = *engine->osData;
-	engine->sceneSystem->CopyToRenderInput(renderInput.scene);
+	engine->sceneSystem->CopyToRenderInput(renderInput.scene, &engine->engineFrameAllocator);
 	renderInput.editorCtx = *engine->editor;
 }
 
@@ -155,6 +155,7 @@ void RunEngine(EngineContext* engine)
         void* renderedSceneHandle = engine->renderer->RenderScene(&renderInput);
         UNUSED(renderedSceneHandle);
 		engine->renderer->EndImguiContext();
+		engine->engineFrameAllocator.meClear();
 		GetTLScratch()->meClear(); // clear the main engine thread's scratch buffer every frame
 		engine->lastFrameTime = time;
 		engine->frameCount++;

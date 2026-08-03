@@ -31,7 +31,7 @@ void testbed_update(EngineContext* engine)
 	//ME_ASSERT(globals.IsValid());
 	//meEntity& entity = meEntityGet(globals.testEntity);
 	//entity.transform.position.x += sin(GetTimeSec());
-    auto entities = engine->sceneSystem->CurrentScene().entities;
+    auto& entities = engine->sceneSystem->CurrentScene().entities;
     for (DynArray_Foreach(entities, i))
     {
         auto& entityAsset = entities[i];

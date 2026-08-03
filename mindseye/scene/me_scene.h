@@ -43,7 +43,7 @@ struct meSceneManager
 	// -------- engine internal --------------------------
 	void UnloadCurrentScene();
 	void Tick(EngineContext* ctx);
-	void CopyToRenderInput(meScene& outScene);
+	void CopyToRenderInput(meScene& outScene, meAllocator* frameAllocator);
 
 	meAsset rootScene = {};
 
