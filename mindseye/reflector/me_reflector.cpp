@@ -102,6 +102,8 @@ struct meReflectedType
     StringView deserializerFnName = {};
     StringView equalsFnName = {};
     StringView editorRenderFnName = {};
+    StringView destroyFnName = {};
+    StringView deepCopyFnName = {};
     // for template specializations where the typical "name" field here isn't sufficient to fully describe the type
     // Empty for non-template or builtin types where name is sufficient.
     StringView fullTemplateName = {};
@@ -775,6 +777,12 @@ void StoreReflectedTypeInfo(
         StringView editorRenderParam = GetStringParam(STRING_LIT("EditorRender"), macroContent);
         reflType.editorRenderFnName = editorRenderParam;
 
+        StringView destroyParam = GetStringParam(STRING_LIT("Destroy"), macroContent);
+        reflType.destroyFnName = destroyParam;
+
+        StringView deepCopyParam = GetStringParam(STRING_LIT("DeepCopy"), macroContent);
+        reflType.deepCopyFnName = deepCopyParam;
+
         SET_BIT(reflType.flags, meTypeDescriptorFlag_Excluded, reflType.IsExcluded() || excluded);
     }
 }
@@ -1363,6 +1371,16 @@ bool GenerateForwardDecls(
                 // matches signature of EqualsFn
                 builder.AppendFormat("bool " STRING_FMT "(const meTypeDescriptor& typeDescriptor, const void* a, const void* b);\n", STRING_VAARGS(typeRefl.equalsFnName));
             }
+            if (typeRefl.destroyFnName)
+            {
+                // matches signature of DestroyFn
+                builder.AppendFormat("void " STRING_FMT "(const meTypeDescriptor& typeDescriptor, DestroyContext& ctx);\n", STRING_VAARGS(typeRefl.destroyFnName));
+            }
+            if (typeRefl.deepCopyFnName)
+            {
+                // matches signature of DeepCopyFn
+                builder.AppendFormat("void " STRING_FMT "(const meTypeDescriptor& typeDescriptor, DeepCopyContext& ctx);\n", STRING_VAARGS(typeRefl.deepCopyFnName));
+            }
             generatedAny = true;
         }
     }
@@ -1624,12 +1642,16 @@ bool ProcessReflectedFile(
 "    .thisType = &TD_" STRING_FMT ",\n"
 "    .templatedTypes = meSpanTyped<meTypeDescriptor*>(g_nestedTemplateArgs_%.*s_%u),\n"
 "    .setToDefaultsFn = &meTypeDescriptorSetToDefaults<" STRING_FMT ">,\n"
+"    .destroyFn = &meTypeDescriptorGeneratedDestroy<" STRING_FMT ">,\n"
+"    .deepCopyFn = &meTypeDescriptorGeneratedDeepCopy<" STRING_FMT ">,\n"
 "};\n",
                                         STRING_VAARGS(childReflType.name), (u32)templateArgIdx,
                                         STRING_VAARGS(templateArgType->name),
                                         templateArgType->size, templateArgType->align,
                                         STRING_VAARGS(argTDName),
                                         STRING_VAARGS(childReflType.name), (u32)templateArgIdx,
+                                        STRING_VAARGS(ctorTypeName),
+                                        STRING_VAARGS(ctorTypeName),
                                         STRING_VAARGS(ctorTypeName)
                                     );
                                 }
@@ -1723,6 +1745,22 @@ bool ProcessReflectedFile(
             }
 
             mainTypeDescriptorContent.AppendFormat("\t.setToDefaultsFn = &meTypeDescriptorSetToDefaults<" STRING_FMT ">,\n", STRING_VAARGS(typeRefl.name));
+            if (typeRefl.destroyFnName)
+            {
+                mainTypeDescriptorContent.AppendFormat("\t.destroyFn = " STRING_FMT ",\n", STRING_VAARGS(typeRefl.destroyFnName));
+            }
+            else
+            {
+                mainTypeDescriptorContent.AppendFormat("\t.destroyFn = &meTypeDescriptorGeneratedDestroy<" STRING_FMT ">,\n", STRING_VAARGS(typeRefl.name));
+            }
+            if (typeRefl.deepCopyFnName)
+            {
+                mainTypeDescriptorContent.AppendFormat("\t.deepCopyFn = " STRING_FMT ",\n", STRING_VAARGS(typeRefl.deepCopyFnName));
+            }
+            else
+            {
+                mainTypeDescriptorContent.AppendFormat("\t.deepCopyFn = &meTypeDescriptorGeneratedDeepCopy<" STRING_FMT ">,\n", STRING_VAARGS(typeRefl.name));
+            }
 
             sourceContentBuilder.AppendFormat("meTypeDescriptor TD_%.*s = {\n%.*s};\n", STRING_VAARGS(uppercaseName), STRING_VAARGS(mainTypeDescriptorContent));
             generatedAny = true;

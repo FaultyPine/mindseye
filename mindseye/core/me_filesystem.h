@@ -5,7 +5,7 @@
 
 
 // TODO: if the reflector respected inherited types somehow, we wouldn't need to manually specify the string serializer/deserializer
-struct MEREFLECT(type, EditorRender=meFsPathEditorRender, Serializer=stringSerializer, Deserializer=stringDeserializer, Equals=sizedBufferEquals) 
+struct MEREFLECT(type, EditorRender=meFsPathEditorRender, Serializer=stringSerializer, Deserializer=stringDeserializer, Equals=sizedBufferEquals, Destroy=stringDestroy, DeepCopy=stringDeepCopy)
 meFsPath : public String
 {
 

@@ -4,6 +4,7 @@
 #include "core/me_memory.h"
 #include "core/me_string.h"
 #include "core/containers/dynarray.h"
+#include <type_traits>
 struct meTypeDescriptor;
 struct meSerializeResult;
 struct meChunker;
@@ -372,8 +373,18 @@ void meTypeDescriptorDestroy(
 	const meTypeDescriptor& typeDesc,
 	DestroyContext& ctx);
 
+// Same as meTypeDescriptorDestroy, but skips typeDesc.destroyFn.
+void meTypeDescriptorDestroyFields(
+	const meTypeDescriptor& typeDesc,
+	DestroyContext& ctx);
+
 // Deep-copies a reflected type, allocating owned backing data through ctx.allocator.
 void meTypeDescriptorDeepCopy(
+	const meTypeDescriptor& typeDesc,
+	DeepCopyContext& ctx);
+
+// Same as meTypeDescriptorDeepCopy, but skips typeDesc.deepCopyFn.
+void meTypeDescriptorDeepCopyFields(
 	const meTypeDescriptor& typeDesc,
 	DeepCopyContext& ctx);
 
@@ -385,7 +396,65 @@ void meTypeDescriptorDeepCopy(
 template <typename T>
 void meTypeDescriptorSetToDefaults(void* objData)
 {
+	static_assert(std::is_default_constructible_v<T>, "Reflected type must be default constructible or provide a custom SetToDefaults function.");
     new (objData) T();
+}
+
+template <typename T>
+void meTypeDescriptorGeneratedDestroy(
+	const meTypeDescriptor& td,
+	DestroyContext& ctx)
+{
+	static_assert(std::is_destructible_v<T>, "Reflected type must be destructible or provide a custom Destroy function.");
+	static_assert(std::is_default_constructible_v<T>, "Generated destroy resets the storage to a default value after destruction.");
+
+	if (!ctx.data)
+	{
+		return;
+	}
+
+	if constexpr (requires(T& obj) { obj.Destroy(); })
+	{
+		((T*)ctx.data)->Destroy();
+	}
+	else
+	{
+		meTypeDescriptorDestroyFields(td, ctx);
+	}
+
+	if constexpr (!std::is_trivially_destructible_v<T>)
+	{
+		((T*)ctx.data)->~T();
+	}
+	new (ctx.data) T();
+}
+
+template <typename T>
+void meTypeDescriptorGeneratedDeepCopy(
+	const meTypeDescriptor& td,
+	DeepCopyContext& ctx)
+{
+	static_assert(
+		std::is_trivially_copyable_v<T> || std::is_copy_constructible_v<T>,
+		"Reflected type must be trivially copyable, copy constructible, or provide a custom DeepCopy function.");
+
+	if (!ctx.srcData || !ctx.outputData.data)
+	{
+		return;
+	}
+	ME_ASSERT(ctx.outputData.size == td.size);
+
+	if constexpr (std::is_copy_constructible_v<T> && !std::is_trivially_copyable_v<T>)
+	{
+		if (td.fields.size == 0)
+		{
+			new (ctx.outputData.data) T(*(const T*)ctx.srcData);
+			return;
+		}
+	}
+
+	// Reflected fields remain the source of truth for owned child data such as DynArray.
+	meTypeDescriptorDeepCopyFields(td, ctx);
 }
 
 template <typename T>

@@ -108,6 +108,18 @@ void meTypeDescriptorDestroy(
 		return;
 	}
 
+	meTypeDescriptorDestroyFields(typeDesc, ctx);
+}
+
+void meTypeDescriptorDestroyFields(
+	const meTypeDescriptor& typeDesc,
+	DestroyContext& ctx)
+{
+	if (!ctx.data)
+	{
+		return;
+	}
+
 	if (typeDesc.thisType && TEST_BIT(typeDesc.flags, meTypeDescriptorFlag_ConstantArray))
 	{
 		meTypeDescriptorWalkElements(typeDesc, ctx.data,
@@ -295,6 +307,19 @@ void meTypeDescriptorDeepCopy(
 		typeDesc.deepCopyFn(typeDesc, ctx);
 		return;
 	}
+
+	meTypeDescriptorDeepCopyFields(typeDesc, ctx);
+}
+
+void meTypeDescriptorDeepCopyFields(
+	const meTypeDescriptor& typeDesc,
+	DeepCopyContext& ctx)
+{
+	if (!ctx.srcData || !ctx.outputData.data)
+	{
+		return;
+	}
+	ME_ASSERT(ctx.outputData.size == typeDesc.size);
 
 	if (typeDesc.thisType && TEST_BIT(typeDesc.flags, meTypeDescriptorFlag_ConstantArray))
 	{
