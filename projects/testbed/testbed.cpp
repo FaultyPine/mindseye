@@ -38,7 +38,7 @@ void testbed_update(EngineContext* engine)
         ScopedAssetLockW<meEntity> entity(entityAsset);
         if (entity)
         {
-            entity->transform.position.x = sinf(GetTimeSec() * 1.5f) * 10.0f;
+            //entity->transform.position.x = sinf(GetTimeSec() * 1.5f) * 10.0f;
         }
     }
 }

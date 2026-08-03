@@ -1,5 +1,6 @@
 {
-	"type" : "meAppConfig",
-	"version" : 0,
-	"appName" : "testbed"
+    "appName": "testbed",
+    "resourcesDir": "projects/testbed",
+    "defaultSceneName": "test.scn.masset",
+    "pixelsPerUnit": 100
 }

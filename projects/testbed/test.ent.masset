@@ -1,0 +1,54 @@
+{
+    "header": {
+        "magic": 1396786509,
+        "formatVersion": 1,
+        "typeVersion": 0,
+        "typeNameHash": 3901121728,
+        "payloadSize": 0,
+        "assetHeader": {
+            "id": 430675410,
+            "type": 6
+        },
+        "parentAsset": {
+            "id": 4294967295,
+            "type": 4294967295
+        },
+        "dependencies": []
+    },
+    "transform": {
+        "position": [
+            -5.428051948547363,
+            0.0,
+            0.0
+        ],
+        "scale": [
+            1.4900000095367432,
+            3.7899999618530273,
+            1.0
+        ],
+        "rotation": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+        ]
+    },
+    "mesh": {
+        "id": 4294967295,
+        "type": 4
+    },
+    "authoritativeBounds": {
+        "min": [
+            0.0,
+            0.0,
+            0.0
+        ],
+        "max": [
+            1.0,
+            1.0,
+            1.0
+        ]
+    },
+    "flags": 0,
+    "name": ""
+}

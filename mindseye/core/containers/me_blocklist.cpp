@@ -15,12 +15,20 @@ meBlockList<T, BLOCK_SIZE>::~meBlockList()
 template <typename T, u32 BLOCK_SIZE>
 u32 meBlockList<T, BLOCK_SIZE>::push(const T& value)
 {
-    if (!tail || tail->count == BLOCK_SIZE) 
+    Block* blk = head;
+    u32 blockIdx = 0;
+    while (blk && blk->count == BLOCK_SIZE)
     {
-        Block* newBlock = MENEW(allocator, Block);
-        if (tail) tail->next = newBlock;
-        else head = newBlock;
-        tail = newBlock;
+        blk = blk->next;
+        ++blockIdx;
+    }
+
+    if (!blk) 
+    {
+        blk = MENEW(allocator, Block);
+        if (tail) tail->next = blk;
+        else head = blk;
+        tail = blk;
     }
 
     // Find a free slot if available
@@ -28,7 +36,7 @@ u32 meBlockList<T, BLOCK_SIZE>::push(const T& value)
     bool foundFree = false;
     for (; idx < BLOCK_SIZE; ++idx)
     {
-        if (tail->freeBits.get(idx))
+        if (blk->freeBits.get(idx))
         {
             foundFree = true;
             break;
@@ -37,59 +45,35 @@ u32 meBlockList<T, BLOCK_SIZE>::push(const T& value)
 
     if (foundFree)
     {
-        tail->data[idx] = value;
-        tail->freeBits.set(idx, false);
-        ++tail->count;
+        blk->data[idx] = value;
+        blk->freeBits.set(idx, false);
+        ++blk->count;
         ++size;
-		return idx;
+        return blockIdx * BLOCK_SIZE + idx;
     }
     else 
 	{ 
 		ME_ASSERT(false && "something has gone terribly wrong"); 
 	}
+    return 0;
 }
 
 template <typename T, u32 BLOCK_SIZE>
 void meBlockList<T, BLOCK_SIZE>::markDeleted(u32 index)
 {
-    ME_ASSERT(index < size);
-
     Block* blk = head;
-    u32 remaining = index;
-
-    while (blk)
+    u32 blockIdx = index / BLOCK_SIZE;
+    u32 slotIdx = index % BLOCK_SIZE;
+    for (u32 i = 0; i < blockIdx && blk; ++i)
     {
-        u32 usedInBlock = 0;
-        for (u32 i = 0; i < BLOCK_SIZE; ++i)
-        {
-            if (!blk->freeBits.get(i))
-                ++usedInBlock;
-        }
-
-        if (remaining <= usedInBlock)
-        {
-            // Find the N-th used slot in this block
-            for (u32 i = 0; i < BLOCK_SIZE; ++i)
-            {
-                if (!blk->freeBits.get(i))
-                {
-                    if (remaining == 0)
-                    {
-                        blk->freeBits.set(i, true);
-                        --size;
-                        return;
-                    }
-                    --remaining;
-                }
-            }
-        }
-        else
-        {
-            remaining -= usedInBlock;
-            blk = blk->next;
-        }
+        blk = blk->next;
     }
-    ME_ASSERT(false && "Index out of bounds in markDeleted");
+    ME_ASSERT(blk && "Index out of bounds in markDeleted");
+    ME_ASSERT(!blk->freeBits.get(slotIdx) && "Deleting a free slot in meBlockList");
+
+    blk->freeBits.set(slotIdx, true);
+    --blk->count;
+    --size;
 }
 
 template <typename T, u32 BLOCK_SIZE>
@@ -113,44 +97,17 @@ void meBlockList<T, BLOCK_SIZE>::clear()
 template <typename T, u32 BLOCK_SIZE>
 const T& meBlockList<T, BLOCK_SIZE>::get(u32 index) const
 {
-    ME_ASSERT(index < size);
-
     Block* blk = head;
-    u32 remaining = index;
-
-    while (blk)
+    u32 blockIdx = index / BLOCK_SIZE;
+    u32 slotIdx = index % BLOCK_SIZE;
+    for (u32 i = 0; i < blockIdx && blk; ++i)
     {
-        u32 usedInBlock = 0;
-        // Count only used (non-free) slots in this block
-        for (u32 i = 0; i < BLOCK_SIZE; ++i)
-        {
-            if (!blk->freeBits.get(i))
-                ++usedInBlock;
-        }
-
-        if (remaining <= usedInBlock)
-        {
-            // Find the N-th used slot in this block
-            for (u32 i = 0; i < BLOCK_SIZE; ++i)
-            {
-                if (!blk->freeBits.get(i))
-                {
-                    if (remaining == 0)
-                        return blk->data[i];
-                    --remaining;
-                }
-            }
-        }
-        else
-        {
-            remaining -= usedInBlock;
-            blk = blk->next;
-        }
+        blk = blk->next;
     }
+    ME_ASSERT(blk && "Index out of bounds in meBlockList::get");
+    ME_ASSERT(!blk->freeBits.get(slotIdx) && "Getting a free slot in meBlockList");
 
-    // Should never reach here if index < size
-    ME_ASSERT(false && "Index out of bounds in meBlockList::get");
-    return head->data[0]; // fallback
+    return blk->data[slotIdx];
 }
 
 
@@ -201,7 +158,9 @@ bool meBlockList<T, BLOCK_SIZE>::Iterator::operator!=(const Iterator& other) con
 template <typename T, u32 BLOCK_SIZE>
 typename meBlockList<T, BLOCK_SIZE>::Iterator meBlockList<T, BLOCK_SIZE>::begin()
 {
-    return Iterator(head, 0);
+    Iterator it(head, 0);
+    it.skip_free();
+    return it;
 }
 
 template <typename T, u32 BLOCK_SIZE>
@@ -218,7 +177,7 @@ void TestBlocklist()
 
     // Test push and size
     for (int i = 0; i < 10; ++i)
-        list.push(i);
+        ME_ASSERT(list.push(i) == (u32)i);
     ME_ASSERT(list.size == 10);
 
     // Test get
@@ -250,12 +209,13 @@ void TestBlocklist()
     ME_ASSERT(!found5);
     ME_ASSERT(count == 9);
 
-    // Test get after deletion (should skip deleted)
-    for (u32 i = 0; i < list.size; ++i)
-    {
-        int val = list.get(i);
-        ME_ASSERT(val != 5);
-    }
+    // Test push after deletion reuses the stable physical index
+    ME_ASSERT(list.push(10) == 5);
+    ME_ASSERT(list.get(5) == 10);
+
+    // Test begin skips a deleted first slot
+    list.markDeleted(0);
+    ME_ASSERT(*list.begin() == 1);
 
     // Test clear
     list.clear();

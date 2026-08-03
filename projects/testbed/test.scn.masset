@@ -1,0 +1,56 @@
+{
+    "entities": [
+        {
+            "id": 430675410,
+            "type": 6
+        }
+    ],
+    "externalScenePath": "C:\\Dev\\mindseye\\projects\\testbed\\gltf-samples\\Models\\ABeautifulGame\\glTF\\ABeautifulGame.gltf",
+    "header": {
+        "assetHeader": {
+            "id": 128789949,
+            "type": 1
+        },
+        "dependencies": [
+            {
+                "id": 430675410,
+                "type": 6
+            }
+        ],
+        "formatVersion": 1,
+        "magic": 1396786509,
+        "parentAsset": {
+            "id": 4294967295,
+            "type": 4294967295
+        },
+        "payloadSize": 0,
+        "typeNameHash": 4030780133,
+        "typeVersion": 0
+    },
+    "mainCamera": {
+        "FOV": 45.0,
+        "cameraFront": [
+            1.0,
+            0.0,
+            0.0
+        ],
+        "cameraPos": [
+            0.0,
+            5.0,
+            0.0
+        ],
+        "cameraUp": [
+            0.0,
+            1.0,
+            0.0
+        ],
+        "farClip": 1000.0,
+        "isControlledByUserInput": false,
+        "nearClip": 0.10000000149011612,
+        "pitch": 0.0,
+        "projection": 0,
+        "sensitivity": 0.10000000149011612,
+        "speed": 10.0,
+        "yaw": -90.0
+    }
+}
