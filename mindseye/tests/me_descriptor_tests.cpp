@@ -2,7 +2,9 @@
 
 #include "core/me_log.h"
 #include "core/me_serialize.h"
+#include "core/me_filesystem.h"
 #include "generatedtypes/me_descriptor_tests.generated.h"
+#include "generatedtypes/me_filesystem.generated.h"
 
 #include <stddef.h>
 
@@ -75,6 +77,7 @@ struct DescriptorDispatchStats
 };
 
 static DescriptorDispatchStats g_descriptorDispatchStats = {};
+static u32 g_descriptorLifecycleMemberDestroyCalls = 0;
 
 struct meSerializationFixture
 {
@@ -127,6 +130,19 @@ static meTypeDescriptor TD_SERIALIZATION_FIXTURE = {
 static void DescriptorDispatchResetStats()
 {
     g_descriptorDispatchStats = {};
+}
+
+void meDescriptorLifecycleWithDestroy::Destroy()
+{
+    g_descriptorLifecycleMemberDestroyCalls++;
+    name.~String();
+    new (&name) String();
+
+    for (DynArray_Foreach(destroyAliases, i))
+    {
+        destroyAliases[i].~String();
+    }
+    DynArrayDestroy(destroyAliases);
 }
 
 static bool DescriptorDispatchBaseSerializer(const meTypeDescriptor&, SerializeContext& ctx)
@@ -238,6 +254,37 @@ static meDescriptorTestAsset MakeDescriptorTestAsset(meAllocator* allocator)
     DynArrayPush(asset.children, second);
 
     return asset;
+}
+
+static void AddLifecycleAlias(
+    DynArray<String>& aliases,
+    meAllocator* allocator,
+    StringView alias)
+{
+    DynArrayHeader* header = GetHeaderPointer(aliases);
+    ME_ASSERT(header->size < header->capacity);
+    new (&aliases.data[header->size]) String(alias, allocator);
+    header->size++;
+}
+
+static meDescriptorLifecycleContainer MakeLifecycleContainer(meAllocator* allocator)
+{
+    meDescriptorLifecycleContainer data = {};
+    data.name = String(STRING_LIT("lifecycle root"), allocator);
+    data.aliases = DynArrayCreate<String>(allocator);
+    AddLifecycleAlias(data.aliases, allocator, STRING_LIT("first alias"));
+    AddLifecycleAlias(data.aliases, allocator, STRING_LIT("second alias"));
+    return data;
+}
+
+static meDescriptorLifecycleWithDestroy MakeLifecycleWithDestroy(meAllocator* allocator)
+{
+    meDescriptorLifecycleWithDestroy data = {};
+    data.name = String(STRING_LIT("member destroy root"), allocator);
+    data.destroyAliases = DynArrayCreate<String>(allocator);
+    AddLifecycleAlias(data.destroyAliases, allocator, STRING_LIT("member first"));
+    AddLifecycleAlias(data.destroyAliases, allocator, STRING_LIT("member second"));
+    return data;
 }
 
 static void DestroyDescriptorTestAsset(meDescriptorTestAsset& asset)
@@ -511,12 +558,12 @@ static void DescriptorTestTypeMismatchFails(meAllocator* allocator, meSerializat
     DestroySerializationFixture(original, allocator);
 }
 
-static const meTypeDescriptor* FindDescriptorTestField(StringView name)
+static const meTypeDescriptor* FindDescriptorField(const meTypeDescriptor& typeDesc, StringView name)
 {
     const meTypeDescriptor* result = nullptr;
-    for (u32 i = 0; i < TD_MEDESCRIPTORTESTASSET.fields.size; i++)
+    for (u32 i = 0; i < typeDesc.fields.size; i++)
     {
-        meTypeDescriptor& member = TD_MEDESCRIPTORTESTASSET.fields[i];
+        const meTypeDescriptor& member = typeDesc.fields[i];
         if (StringCompare(member.name, name))
         {
             result = &member;
@@ -525,6 +572,33 @@ static const meTypeDescriptor* FindDescriptorTestField(StringView name)
     }
     ME_ASSERT(result);
     return result;
+}
+
+static const meTypeDescriptor* FindDescriptorTestField(StringView name)
+{
+    return FindDescriptorField(TD_MEDESCRIPTORTESTASSET, name);
+}
+
+static void DescriptorTestGeneratedLifecycleHookPresence()
+{
+    ME_ASSERT(TD_MEDESCRIPTORTESTCHILD.setToDefaultsFn);
+    ME_ASSERT(TD_MEDESCRIPTORTESTCHILD.destroyFn);
+    ME_ASSERT(TD_MEDESCRIPTORTESTCHILD.deepCopyFn);
+    ME_ASSERT(TD_MEDESCRIPTORTESTASSET.setToDefaultsFn);
+    ME_ASSERT(TD_MEDESCRIPTORTESTASSET.destroyFn);
+    ME_ASSERT(TD_MEDESCRIPTORTESTASSET.deepCopyFn);
+    ME_ASSERT(TD_MEDESCRIPTORLIFECYCLECONTAINER.setToDefaultsFn);
+    ME_ASSERT(TD_MEDESCRIPTORLIFECYCLECONTAINER.destroyFn);
+    ME_ASSERT(TD_MEDESCRIPTORLIFECYCLECONTAINER.deepCopyFn);
+    ME_ASSERT(TD_MEDESCRIPTORLIFECYCLEWITHDESTROY.setToDefaultsFn);
+    ME_ASSERT(TD_MEDESCRIPTORLIFECYCLEWITHDESTROY.destroyFn);
+    ME_ASSERT(TD_MEDESCRIPTORLIFECYCLEWITHDESTROY.deepCopyFn);
+
+    ME_ASSERT(TD_MEFSPATH.serializerFn == stringSerializer);
+    ME_ASSERT(TD_MEFSPATH.deserializerFn == stringDeserializer);
+    ME_ASSERT(TD_MEFSPATH.equalsFn == sizedBufferEquals);
+    ME_ASSERT(TD_MEFSPATH.destroyFn == stringDestroy);
+    ME_ASSERT(TD_MEFSPATH.deepCopyFn == stringDeepCopy);
 }
 
 static void DescriptorTestSetToDefaults()
@@ -545,6 +619,17 @@ static void DescriptorTestSetToDefaults()
     ME_ASSERT(!asset.children);
 
     asset.~meDescriptorTestAsset();
+
+    alignas(meDescriptorLifecycleContainer) u8 lifecycleBacking[sizeof(meDescriptorLifecycleContainer)];
+    ME_MEMSET(lifecycleBacking, 0xCD, sizeof(lifecycleBacking));
+
+    TD_MEDESCRIPTORLIFECYCLECONTAINER.setToDefaultsFn(lifecycleBacking);
+    meDescriptorLifecycleContainer& lifecycle = *(meDescriptorLifecycleContainer*)lifecycleBacking;
+
+    ME_ASSERT(!lifecycle.name);
+    ME_ASSERT(!lifecycle.aliases);
+
+    lifecycle.~meDescriptorLifecycleContainer();
 }
 
 static void DescriptorTestSerializeDeserializeEquals(meAllocator* allocator)
@@ -656,6 +741,73 @@ static void DescriptorTestDeepCopy(meAllocator* allocator)
     DestroyDescriptorTestAsset(copied);
 }
 
+static void DescriptorTestGeneratedDeepCopyNestedOwnership(meAllocator* allocator)
+{
+    meDescriptorLifecycleContainer original = MakeLifecycleContainer(allocator);
+    meDescriptorLifecycleContainer copied = {};
+
+    DeepCopyContext ctx = {};
+    ctx.srcData = &original;
+    ctx.outputData = meSpan(&copied, sizeof(copied));
+    ctx.allocator = allocator;
+    meTypeDescriptorDeepCopy(TD_MEDESCRIPTORLIFECYCLECONTAINER, ctx);
+
+    ME_ASSERT(meFieldsEqual(TD_MEDESCRIPTORLIFECYCLECONTAINER, &original, &copied));
+    ME_ASSERT(copied.name.data != original.name.data);
+    ME_ASSERT(copied.aliases.data != original.aliases.data);
+    ME_ASSERT(DynArrayGetSize(copied.aliases) == 2);
+    ME_ASSERT(copied.aliases[0].data != original.aliases[0].data);
+    ME_ASSERT(copied.aliases[1].data != original.aliases[1].data);
+
+    copied.name.data[0] = 'L';
+    copied.aliases[0].data[0] = 'F';
+    ME_ASSERT(original.name[0] == 'l');
+    ME_ASSERT(original.aliases[0][0] == 'f');
+    ME_ASSERT(!meFieldsEqual(TD_MEDESCRIPTORLIFECYCLECONTAINER, &original, &copied));
+
+    DestroyContext destroyCtx = {};
+    destroyCtx.allocator = allocator;
+    destroyCtx.data = &original;
+    meTypeDescriptorDestroy(TD_MEDESCRIPTORLIFECYCLECONTAINER, destroyCtx);
+    destroyCtx.data = &copied;
+    meTypeDescriptorDestroy(TD_MEDESCRIPTORLIFECYCLECONTAINER, destroyCtx);
+}
+
+static void DescriptorTestSerializedHeaderLifecycle(meAllocator* allocator)
+{
+    meSerializedHeader original = {};
+    original.assetHeader = MAID(111, MAEntity);
+    original.parentAsset = MAID(222, MAScene);
+    original.dependencies = DynArrayCreate<MAID>(allocator);
+    DynArrayPush(original.dependencies, MAID(333, MAMesh));
+    DynArrayPush(original.dependencies, MAID(444, MAMaterial));
+
+    meSerializedHeader copied = {};
+    DeepCopyContext copyCtx = {};
+    copyCtx.srcData = &original;
+    copyCtx.outputData = meSpan(&copied, sizeof(copied));
+    copyCtx.allocator = allocator;
+    meTypeDescriptorDeepCopy(TD_MESERIALIZEDHEADER, copyCtx);
+
+    ME_ASSERT(meFieldsEqual(TD_MESERIALIZEDHEADER, &original, &copied));
+    ME_ASSERT(copied.dependencies.data != original.dependencies.data);
+    ME_ASSERT(DynArrayGetSize(copied.dependencies) == 2);
+
+    copied.dependencies[0] = MAID(555, MATexture);
+    ME_ASSERT(original.dependencies[0] == MAID(333, MAMesh));
+    ME_ASSERT(!meFieldsEqual(TD_MESERIALIZEDHEADER, &original, &copied));
+
+    DestroyContext destroyCtx = {};
+    destroyCtx.allocator = allocator;
+    destroyCtx.data = &original;
+    meTypeDescriptorDestroy(TD_MESERIALIZEDHEADER, destroyCtx);
+    ME_ASSERT(!original.dependencies);
+
+    destroyCtx.data = &copied;
+    meTypeDescriptorDestroy(TD_MESERIALIZEDHEADER, destroyCtx);
+    ME_ASSERT(!copied.dependencies);
+}
+
 static void DescriptorTestDestroy(meAllocator* allocator)
 {
     meDescriptorTestAsset asset = MakeDescriptorTestAsset(allocator);
@@ -669,6 +821,71 @@ static void DescriptorTestDestroy(meAllocator* allocator)
 
     ME_ASSERT(!asset.displayName.data);
     ME_ASSERT(!asset.children.data);
+
+    meDescriptorLifecycleContainer lifecycle = MakeLifecycleContainer(allocator);
+    ctx.data = &lifecycle;
+    meTypeDescriptorDestroy(TD_MEDESCRIPTORLIFECYCLECONTAINER, ctx);
+    ME_ASSERT(!lifecycle.name.data);
+    ME_ASSERT(!lifecycle.aliases.data);
+}
+
+static void DescriptorTestGeneratedDestroyUsesMemberDestroy(meAllocator* allocator)
+{
+    u32 originalDestroyCalls = g_descriptorLifecycleMemberDestroyCalls;
+    meDescriptorLifecycleWithDestroy data = MakeLifecycleWithDestroy(allocator);
+
+    DestroyContext ctx = {};
+    ctx.data = &data;
+    ctx.allocator = allocator;
+    meTypeDescriptorDestroy(TD_MEDESCRIPTORLIFECYCLEWITHDESTROY, ctx);
+
+    ME_ASSERT(g_descriptorLifecycleMemberDestroyCalls == originalDestroyCalls + 1);
+    ME_ASSERT(!data.name.data);
+    ME_ASSERT(!data.destroyAliases.data);
+}
+
+static void DescriptorTestMeFsPathManualLifecycleOverrides(meAllocator* allocator)
+{
+    meFsPath original = {};
+    meFsPath copied = {};
+    ((String&)original) = String(STRING_LIT("assets/models/example.gltf"), allocator);
+
+    DeepCopyContext copyCtx = {};
+    copyCtx.srcData = &original;
+    copyCtx.outputData = meSpan(&copied, sizeof(copied));
+    copyCtx.allocator = allocator;
+    meTypeDescriptorDeepCopy(TD_MEFSPATH, copyCtx);
+
+    ME_ASSERT(meFieldsEqual(TD_MEFSPATH, &original, &copied));
+    ME_ASSERT(copied.data != original.data);
+
+    copied.data[0] = 'A';
+    ME_ASSERT(original.data[0] == 'a');
+    ME_ASSERT(!meFieldsEqual(TD_MEFSPATH, &original, &copied));
+
+    meOwningSpan serialized = {};
+    ME_ASSERT(SerializeForTest(TD_MEFSPATH, meSerializationMode_Text, &original, allocator, serialized) == meSerializeResult::SER_SUCCESS);
+
+    meFsPath restored = {};
+    ME_ASSERT(DeserializeForTest(TD_MEFSPATH, meSerializationMode_Text, serialized, &restored, allocator) == meSerializeResult::SER_SUCCESS);
+    ME_ASSERT(meFieldsEqual(TD_MEFSPATH, &original, &restored));
+    ME_ASSERT(restored.data != original.data);
+
+    MEFREE(allocator, serialized.data);
+
+    DestroyContext destroyCtx = {};
+    destroyCtx.allocator = allocator;
+    destroyCtx.data = &original;
+    meTypeDescriptorDestroy(TD_MEFSPATH, destroyCtx);
+    ME_ASSERT(!original.data);
+
+    destroyCtx.data = &copied;
+    meTypeDescriptorDestroy(TD_MEFSPATH, destroyCtx);
+    ME_ASSERT(!copied.data);
+
+    destroyCtx.data = &restored;
+    meTypeDescriptorDestroy(TD_MEFSPATH, destroyCtx);
+    ME_ASSERT(!restored.data);
 }
 
 static void DescriptorTestContainerFunctions(meAllocator* allocator)
@@ -779,6 +996,8 @@ void meDescriptorTests()
     LOG_INFO("Testing meTypeDescriptor serialization and operations...");
 
     meAllocator* allocator = GetDefaultAllocator();
+    LOG_INFO("Testing generated descriptor lifecycle hooks...");
+    DescriptorTestGeneratedLifecycleHookPresence();
     LOG_INFO("Testing setToDefaultsFn...");
     DescriptorTestSetToDefaults();
     LOG_INFO("Testing serialization, deserialization, and equals...");
@@ -808,8 +1027,16 @@ void meDescriptorTests()
     DescriptorTestTypeMismatchFails(allocator, meSerializationMode_Binary);
     LOG_INFO("Testing deepCopyFn...");
     DescriptorTestDeepCopy(allocator);
+    LOG_INFO("Testing generated deepCopyFn with nested owned fields...");
+    DescriptorTestGeneratedDeepCopyNestedOwnership(allocator);
+    LOG_INFO("Testing serialized header lifecycle hooks...");
+    DescriptorTestSerializedHeaderLifecycle(allocator);
     LOG_INFO("Testing destroyFn...");
     DescriptorTestDestroy(allocator);
+    LOG_INFO("Testing generated destroyFn member dispatch...");
+    DescriptorTestGeneratedDestroyUsesMemberDestroy(allocator);
+    LOG_INFO("Testing meFsPath manual lifecycle overrides...");
+    DescriptorTestMeFsPathManualLifecycleOverrides(allocator);
     LOG_INFO("Testing iterateContentFn, pushElementFn, and removeElementFn...");
     DescriptorTestContainerFunctions(allocator);
     LOG_INFO("Testing descriptor dispatch ordering...");

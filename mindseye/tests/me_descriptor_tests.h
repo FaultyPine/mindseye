@@ -4,8 +4,9 @@
 #include "core/containers/dynarray.h"
 #include "core/me_string.h"
 
-// I don't use much AI in this project (besides debugging help), but for writing tests I feel it's totally fine.
+// I don't use much AI in this project, but for writing tests I feel it's totally fine.
 // I wouldn't have written tests at all anyway, so feels like a net positive.
+// that is to say, expect insane weird kinda unreadable code in here  :)
 
 struct MEREFLECT(type)
 meDescriptorTestChild
@@ -24,6 +25,22 @@ meDescriptorTestAsset
     f32 speed = 0.0f;
     s32 samples[3] = {};
     DynArray<meDescriptorTestChild> children = {};
+};
+
+struct MEREFLECT(type)
+meDescriptorLifecycleContainer
+{
+    String name = {};
+    DynArray<String> aliases = {};
+};
+
+struct MEREFLECT(type)
+meDescriptorLifecycleWithDestroy
+{
+    String name = {};
+    DynArray<String> destroyAliases = {};
+
+    void Destroy();
 };
 
 void meDescriptorTests();
