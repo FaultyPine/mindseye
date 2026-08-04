@@ -3,6 +3,10 @@
 
 #ifndef TRACY_NO_CALLSTACK
 
+#  if !defined _WIN32
+#    include <sys/param.h>
+#  endif
+
 #  if defined _WIN32
 #    include "../common/TracyWinFamily.hpp"
 #    if !defined TRACY_WIN32_NO_DESKTOP
@@ -22,7 +26,7 @@
 #    endif
 #  elif defined __APPLE__
 #    define TRACY_HAS_CALLSTACK 4
-#  elif defined __FreeBSD__ || defined __NetBSD__ || defined __OpenBSD__ || defined __DragonFly__
+#  elif defined BSD
 #    define TRACY_HAS_CALLSTACK 6
 #  endif
 

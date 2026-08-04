@@ -15,21 +15,10 @@
 #include "RunQueue.hpp"
 
 #ifdef __APPLE__
-#  include <objc/objc.h>
-#  include <objc/message.h>
-#  include <objc/runtime.h>
-#  include "icon.hpp"
-#endif
-
-#if !defined TRACY_NO_FILESELECTOR
-#  if defined WIN32
-#    define GLFW_EXPOSE_NATIVE_WIN32
-#  elif defined __APPLE__
-#    define GLFW_EXPOSE_NATIVE_COCOA
-#  else
-#    define GLFW_EXPOSE_NATIVE_X11
-#  endif
-#  include <nfd_glfw3.h>
+#include <objc/objc.h>
+#include <objc/message.h>
+#include <objc/runtime.h>
+#include "icon.hpp"
 #endif
 
 
@@ -145,18 +134,7 @@ Backend::Backend( const char* title, const std::function<void()>& redraw, const 
 #  endif
 #endif
     s_window = glfwCreateWindow( m_winPos.w, m_winPos.h, title, NULL, NULL );
-    if( !s_window ) {
-        const char* description;
-        int code = glfwGetError( &description );
-        if( description ) {
-            fprintf( stderr, "ERROR: Tracy (GLFW): %s\n", description );
-#ifdef _WIN32
-            MessageBoxA( NULL, description, "ERROR: Tracy (GLFW)", MB_OK );
-            OutputDebugStringA( description );
-#endif
-        }
-        exit( 1 );
-    }
+    if( !s_window ) exit( 1 );
 
     glfwSetWindowPos( s_window, m_winPos.x, m_winPos.y );
 #if GLFW_VERSION_MAJOR > 3 || ( GLFW_VERSION_MAJOR == 3 && GLFW_VERSION_MINOR >= 2 )
@@ -292,27 +270,5 @@ float Backend::GetDpiScale()
     return x;
 #else
     return 1;
-#endif
-}
-
-size_t Backend::HandleType()
-{
-#ifdef TRACY_NO_FILESELECTOR
-    return 0;
-#else
-    nfdwindowhandle_t handle = {};
-    NFD_GetNativeWindowFromGLFWWindow( s_window, &handle );
-    return handle.type;
-#endif
-}
-
-void* Backend::Handle()
-{
-#ifdef TRACY_NO_FILESELECTOR
-    return nullptr;
-#else
-    nfdwindowhandle_t handle = {};
-    NFD_GetNativeWindowFromGLFWWindow( s_window, &handle );
-    return handle.handle;
 #endif
 }

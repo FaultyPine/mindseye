@@ -20,7 +20,7 @@ struct AchievementItem
 {
     const char* id;
     const char* name;
-    std::string text;
+    void(*description)();
     AchievementItem** items;
     AchievementItem** unlocks;
     bool keepOpen;

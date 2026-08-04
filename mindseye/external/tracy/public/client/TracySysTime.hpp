@@ -1,7 +1,13 @@
 #ifndef __TRACYSYSTIME_HPP__
 #define __TRACYSYSTIME_HPP__
 
-#if defined _WIN32 || defined __linux__ || defined __APPLE__ || defined __FreeBSD__ || defined __NetBSD__ || defined __OpenBSD__ || defined __DragonFly__
+#if defined _WIN32 || defined __linux__ || defined __APPLE__
+#  define TRACY_HAS_SYSTIME
+#else
+#  include <sys/param.h>
+#endif
+
+#ifdef BSD
 #  define TRACY_HAS_SYSTIME
 #endif
 

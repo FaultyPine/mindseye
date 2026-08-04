@@ -1,6 +1,5 @@
 #include <assert.h>
 #include <algorithm>
-#include <string>
 
 #include "TracyPrint.hpp"
 #include "TracyImGui.hpp"
@@ -128,54 +127,25 @@ void PrintSource( const std::vector<Tokenizer::Line>& lines )
     }
 }
 
-bool PrintTextWrapped( const char* text, const char* end, bool strikethrough, bool underline )
+bool PrintTextWrapped( const char* text, const char* end )
 {
     bool hovered = false;
-    if( !end ) end = text + strlen( text );
 
+    if( !end ) end = text + strlen( text );
     auto firstWord = text;
-    while( firstWord < end && *firstWord == ' ' ) firstWord++;
     while( firstWord < end && *firstWord != ' ' && *firstWord != '\n' ) firstWord++;
 
-    const auto fontSize = ImGui::GetFontSize();
-    const auto fontSize05 = round( fontSize * 0.5f );
-    const auto scale = GetScale();
-    const auto color = ImGui::ColorConvertFloat4ToU32( ImGui::GetStyle().Colors[ImGuiCol_Text] );
-
+    auto fontSize = ImGui::GetFontSize();
     auto left = ImGui::GetContentRegionAvail().x;
     auto fwLen = ImGui::CalcTextSize( text, firstWord ).x;
     if( fwLen > left )
     {
-        const auto textPrev = text;
-        while( text < firstWord && *text == ' ' ) text++;
-
-        const auto prev = left;
         ImGui::NewLine();
         left = ImGui::GetContentRegionAvail().x;
-        if( left == prev )
-        {
-            ImGui::SameLine( 0, 0 );    // undo NewLine
-            text = textPrev;
-        }
     }
 
     auto endLine = ImGui::GetFont()->CalcWordWrapPosition( fontSize, text, end, left );
-    if( strikethrough || underline )
-    {
-        auto y1 = ImGui::GetCursorScreenPos().y + fontSize05;
-        auto y2 = ImGui::GetCursorScreenPos().y + fontSize;
-        auto x0 = ImGui::GetCursorScreenPos().x - scale;
-        ImGui::TextUnformatted( text, endLine );
-        ImGui::SameLine( 0, 0 );
-        auto x1 = ImGui::GetCursorScreenPos().x + scale;
-        ImGui::NewLine();
-        if( strikethrough ) ImGui::GetWindowDrawList()->AddLine( ImVec2( x0, y1 ), ImVec2( x1, y1 ), color, scale );
-        if( underline ) ImGui::GetWindowDrawList()->AddLine( ImVec2( x0, y2 ), ImVec2( x1, y2 ), color, scale );
-    }
-    else
-    {
-        ImGui::TextUnformatted( text, endLine );
-    }
+    ImGui::TextUnformatted( text, endLine );
     if( !hovered ) hovered = ImGui::IsItemHovered();
 
     left = ImGui::GetContentRegionAvail().x;
@@ -185,46 +155,11 @@ bool PrintTextWrapped( const char* text, const char* end, bool strikethrough, bo
         if( *text == ' ' ) text++;
         endLine = ImGui::GetFont()->CalcWordWrapPosition( fontSize, text, end, left );
         if( text == endLine ) endLine++;
-        if( strikethrough || underline )
-        {
-            auto y1 = ImGui::GetCursorScreenPos().y + fontSize05;
-            auto y2 = ImGui::GetCursorScreenPos().y + fontSize;
-            auto x0 = ImGui::GetCursorScreenPos().x - scale;
-            ImGui::TextUnformatted( text, endLine );
-            ImGui::SameLine( 0, 0 );
-            auto x1 = ImGui::GetCursorScreenPos().x + scale;
-            ImGui::NewLine();
-            if( strikethrough ) ImGui::GetWindowDrawList()->AddLine( ImVec2( x0, y1 ), ImVec2( x1, y1 ), color, scale );
-            if( underline ) ImGui::GetWindowDrawList()->AddLine( ImVec2( x0, y2 ), ImVec2( x1, y2 ), color, scale );
-        }
-        else
-        {
-            ImGui::TextUnformatted( text, endLine );
-        }
+        ImGui::TextUnformatted( text, endLine );
         if( !hovered ) hovered = ImGui::IsItemHovered();
     }
 
     return hovered;
-}
-
-bool DragHeightSplitter( const char* id, float& height, float minHeight, float maxHeight, float thickness )
-{
-    ImGui::InvisibleButton( id, ImVec2( -1, thickness * 1.5f ) );
-    const bool active = ImGui::IsItemActive();
-    if( active ) height = std::clamp( height + ImGui::GetIO().MouseDelta.y, minHeight, maxHeight );
-    if( ImGui::IsItemHovered() || active ) ImGui::SetMouseCursor( ImGuiMouseCursor_ResizeNS );
-
-    auto color = ImGui::GetColorU32( ImGuiCol_Separator );
-    if( active ) color = ImGui::GetColorU32( ImGuiCol_SeparatorActive );
-    else if( ImGui::IsItemHovered() ) color = ImGui::GetColorU32( ImGuiCol_SeparatorHovered );
-
-    auto draw = ImGui::GetWindowDrawList();
-    const auto p0 = ImGui::GetItemRectMin();
-    const auto p1 = ImGui::GetItemRectMax();
-    const float y = ( p0.y + p1.y ) * 0.5f;
-    draw->AddLine( ImVec2( p0.x, y ), ImVec2( p1.x, y ), color, thickness );
-
-    return active;
 }
 
 }

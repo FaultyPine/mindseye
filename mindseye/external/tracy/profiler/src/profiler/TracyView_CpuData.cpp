@@ -197,7 +197,7 @@ bool View::DrawCpuData( const TimelineContext& ctx, const std::vector<CpuUsageDr
                         ImGui::EndTooltip();
                         ImGui::PushFont( g_fonts.normal, FontSmall );
 
-                        if( IsMouseClicked( ImGuiMouseButton_Middle ) )
+                        if( IsMouseClicked( 2 ) )
                         {
                             ZoomToRange( t0, t1 );
                         }
@@ -292,7 +292,7 @@ bool View::DrawCpuData( const TimelineContext& ctx, const std::vector<CpuUsageDr
                             TextFocused( "Thread:", m_worker.GetThreadName( thread ) );
                             ImGui::SameLine();
                             ImGui::TextDisabled( "(%s)", RealToString( thread ) );
-
+                            
                             m_drawThreadMigrations = thread;
                             m_cpuDataThread = thread;
                         }
@@ -337,7 +337,7 @@ bool View::DrawCpuData( const TimelineContext& ctx, const std::vector<CpuUsageDr
                             if( it != v.begin() )
                             {
                                 auto& prev = *( it - 1 );
-
+                                    
                                 ImGui::Separator();
 
                                 TextFocused( "Wait reason:", DecodeContextSwitchReasonCode( prev.Reason() ) );
@@ -349,7 +349,7 @@ bool View::DrawCpuData( const TimelineContext& ctx, const std::vector<CpuUsageDr
                                 TextFocused( "Wait state:", DecodeContextSwitchStateCode( prev.State() ) );
                                 TextFocused( "Waiting time:", TimeToString( it->WakeupVal() - prev.End() ) );
                             }
-
+                            
                             // Do we have information about the readying thread?
                             if( it->Start() - it->WakeupVal() )
                             {
@@ -369,7 +369,7 @@ bool View::DrawCpuData( const TimelineContext& ctx, const std::vector<CpuUsageDr
                                     bool wakeupThreadLocal, wakeupThreadUntracked;
                                     const char* wakeUpThreadProgram;
                                     auto wakeuplabel = GetThreadContextData( wakeupThread, wakeupThreadLocal, wakeupThreadUntracked, wakeUpThreadProgram );
-
+                                    
                                     uint32_t wakeupThreadColor = getDisplayThreadColor( wakeupThread, wakeupThreadLocal, wakeupThreadUntracked );
                                     TextColoredUnformatted( HighlightColor<75>( wakeupThreadColor ), wakeuplabel );
                                     ImGui::SameLine();
@@ -387,13 +387,13 @@ bool View::DrawCpuData( const TimelineContext& ctx, const std::vector<CpuUsageDr
                         ImGui::EndTooltip();
                         ImGui::PushFont( g_fonts.normal, FontSmall );
 
-                        if( local && IsMouseClicked( ImGuiMouseButton_Left ) )
+                        if( local && IsMouseClicked( 0 ) )
                         {
                             auto& item = m_tc.GetItem( m_worker.GetThreadData( thread ) );
                             item.SetVisible( true );
                             item.SetShowFull( true );
                         }
-                        if( IsMouseClicked( ImGuiMouseButton_Middle ) )
+                        if( IsMouseClicked( 2 ) )
                         {
                             ZoomToRange( ev.Start(), end );
                         }
@@ -518,7 +518,7 @@ void View::DrawThreadMigrations( const TimelineContext& ctx, const int origOffse
 
                     DrawLine( draw, pw, startPos, wakecolor, wakeupLineSize );
                     draw->AddCircleFilled( pw, bgSize, wakecolor );
-
+                        
                     // Vertical line at beginning of thread to emphasize wakeup
                     if( wakeupWidthPixels >= 3 )
                     {
@@ -574,8 +574,6 @@ void View::DrawCpuDataWindow()
     ImGui::SetNextWindowSize( ImVec2( 700 * scale, 800 * scale ), ImGuiCond_FirstUseEver );
     ImGui::Begin( "CPU data", &m_showCpuDataWindow );
     if( ImGui::GetCurrentWindowRead()->SkipItems ) { ImGui::End(); return; }
-
-    Worker::ThreadCache cache;
 
     struct PidData
     {
@@ -810,7 +808,7 @@ void View::DrawCpuDataWindow()
                     ImGui::TableNextColumn();
                     if( drawSeparator ) ImGui::Separator();
 
-                    const auto tidMatch = pidMatch && m_worker.IsThreadLocal( tid, cache );
+                    const auto tidMatch = pidMatch && m_worker.IsThreadLocal( tid );
                     const char* tname;
                     if( tidMatch )
                     {

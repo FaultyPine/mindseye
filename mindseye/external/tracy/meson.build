@@ -21,10 +21,6 @@ if get_option('callstack') > 0
   tracy_common_args += ['-DTRACY_CALLSTACK='+get_option('callstack').to_string()]
 endif
 
-if get_option('platform_header') != ''
-  tracy_common_args += ['-DTRACY_PLATFORM_HEADER="'+get_option('platform_header')+'"']
-endif
-
 if get_option('no_callstack')
   tracy_common_args += ['-DTRACY_NO_CALLSTACK']
 endif
@@ -97,10 +93,6 @@ if get_option('timer_fallback')
   tracy_common_args += ['-DTRACY_TIMER_FALLBACK']
 endif
 
-if get_option('disallow_hw_timer')
-  tracy_common_args += ['-DTRACY_DISALLOW_HW_TIMER']
-endif
-
 if get_option('no_crash_handler')
   tracy_common_args += ['-DTRACY_NO_CRASH_HANDLER']
 endif
@@ -122,10 +114,6 @@ if get_option('verbose')
   tracy_common_args += ['-DTRACY_VERBOSE']
 endif
 
-if get_option('no_internal_message')
-  tracy_common_args += ['-DTRACY_NO_INTERNAL_MESSAGE']
-endif
-
 if get_option('debuginfod')
   tracy_common_args += ['-DTRACY_DEBUGINFOD']
   tracy_public_deps += dependency('libdebuginfod')
@@ -135,10 +123,6 @@ if get_option('ignore_memory_faults')
   tracy_common_args += ['-DTRACY_IGNORE_MEMORY_FAULTS']
 endif
 
-if get_option('opengl_auto_calibration')
-  tracy_common_args += ['-DTRACY_OPENGL_AUTO_CALIBRATION']
-endif
-
 tracy_shared_libs = get_option('default_library') == 'shared'
 
 if tracy_shared_libs
@@ -146,7 +130,7 @@ if tracy_shared_libs
 endif
 
 if host_machine.system() == 'windows'
-  tracy_compile_args += ['-DWINVER=0x0A00', '-D_WIN32_WINNT=0x0A00']
+  tracy_compile_args += ['-DWINVER=0x0601', '-D_WIN32_WINNT=0x0601']
 endif
 
 includes = [
@@ -173,7 +157,6 @@ client_includes = [
     'public/client/TracyFastVector.hpp',
     'public/client/TracyKCore.hpp',
     'public/client/TracyLock.hpp',
-    'public/client/TracyMangle.hpp',
     'public/client/TracyProfiler.hpp',
     'public/client/TracyRingBuffer.hpp',
     'public/client/TracyScoped.hpp',
@@ -197,9 +180,7 @@ common_includes = [
     'public/common/TracyQueue.hpp',
     'public/common/TracySocket.hpp',
     'public/common/TracyStackFrames.hpp',
-    'public/common/TracyString.hpp',
     'public/common/TracySystem.hpp',
-    'public/common/TracyTaggedUserlandAddress.hpp',
     'public/common/TracyWinFamily.hpp',
     'public/common/TracyYield.hpp'
 ]

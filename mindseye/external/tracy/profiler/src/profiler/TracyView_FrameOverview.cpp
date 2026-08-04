@@ -96,11 +96,11 @@ void View::DrawFrames()
     if( hover )
     {
         const auto hwheel_delta = io.MouseWheelH * 100.f * m_horizontalScrollMultiplier;
-        if( IsMouseDragging( ImGuiMouseButton_Right ) || hwheel_delta != 0 )
+        if( IsMouseDragging( 1 ) || hwheel_delta != 0 )
         {
             m_viewMode = ViewMode::Paused;
             m_viewModeHeuristicTry = false;
-            auto delta = GetMouseDragDelta( ImGuiMouseButton_Right ).x;
+            auto delta = GetMouseDragDelta( 1 ).x;
             if( delta == 0 ) delta = hwheel_delta;
             if( abs( delta ) >= fwidth )
             {
@@ -137,7 +137,7 @@ void View::DrawFrames()
                     ImGui::SameLine();
                     ImGui::TextDisabled( "(%.1f FPS)", 1000000000.0 / f );
 
-                    if( IsMouseClickReleased( ImGuiMouseButton_Right ) ) m_setRangePopup = RangeSlim { m_worker.GetFrameTime( *m_frames, sel ), m_worker.GetFrameTime( *m_frames, sel + g - 1 ), true };
+                    if( IsMouseClickReleased( 1 ) ) m_setRangePopup = RangeSlim { m_worker.GetFrameTime( *m_frames, sel ), m_worker.GetFrameTime( *m_frames, sel + g - 1 ), true };
                 }
                 else
                 {
@@ -196,23 +196,36 @@ void View::DrawFrames()
                 auto fi = m_worker.GetFrameImage( *m_frames, sel );
                 if( fi )
                 {
+                    if( fi != m_frameTexturePtr )
+                    {
+                        if( !m_frameTexture ) m_frameTexture = MakeTexture();
+                        UpdateTexture( m_frameTexture, m_worker.UnpackFrameImage( *fi ), fi->w, fi->h );
+                        m_frameTexturePtr = fi;
+                    }
                     ImGui::Separator();
-                    DrawFrameImage( m_FrameTextureCache, *fi );
+                    if( fi->flip )
+                    {
+                        ImGui::Image( m_frameTexture, ImVec2( fi->w * scale, fi->h * scale ), ImVec2( 0, 1 ), ImVec2( 1, 0 ) );
+                    }
+                    else
+                    {
+                        ImGui::Image( m_frameTexture, ImVec2( fi->w * scale, fi->h * scale ) );
+                    }
                 }
                 ImGui::EndTooltip();
 
                 if( io.KeyCtrl )
                 {
-                    if( fi && IsMouseDown( ImGuiMouseButton_Left ) )
+                    if( fi && IsMouseDown( 0 ) )
                     {
                         m_showPlayback = true;
                         m_playback.pause = true;
-                        SetPlaybackFrame( m_frames->frames[sel].frameImage, true );
+                        SetPlaybackFrame( m_frames->frames[sel].frameImage );
                     }
                 }
                 else
                 {
-                    if( IsMouseClicked( ImGuiMouseButton_Left ) )
+                    if( IsMouseClicked( 0 ) )
                     {
                         m_viewMode = ViewMode::Paused;
                         m_viewModeHeuristicTry = false;
@@ -222,7 +235,7 @@ void View::DrawFrames()
                         m_vd.zvEnd = m_worker.GetFrameEnd( *m_frames, sel + group - 1 );
                         if( m_vd.zvStart == m_vd.zvEnd ) m_vd.zvStart--;
                     }
-                    else if( IsMouseDragging( ImGuiMouseButton_Left ) )
+                    else if( IsMouseDragging( 0 ) )
                     {
                         const auto t0 = std::min( m_vd.zvStart, m_worker.GetFrameBegin( *m_frames, sel ) );
                         const auto t1 = std::max( m_vd.zvEnd, m_worker.GetFrameEnd( *m_frames, sel + group - 1 ) );
@@ -230,7 +243,7 @@ void View::DrawFrames()
                     }
                 }
 
-                if( IsMouseClickReleased( ImGuiMouseButton_Right ) ) m_setRangePopup = RangeSlim { m_worker.GetFrameBegin( *m_frames, sel ), m_worker.GetFrameEnd( *m_frames, sel + group - 1 ), true };
+                if( IsMouseClickReleased( 1 ) ) m_setRangePopup = RangeSlim { m_worker.GetFrameBegin( *m_frames, sel ), m_worker.GetFrameEnd( *m_frames, sel + group - 1 ), true };
             }
 
             if( ( !m_worker.IsConnected() || m_viewMode == ViewMode::Paused ) && wheel != 0 )
@@ -245,6 +258,7 @@ void View::DrawFrames()
     }
 
     int i = 0, idx = 0;
+#ifndef TRACY_NO_STATISTICS
     if( m_worker.AreSourceLocationZonesReady() && m_findZone.show && m_findZone.showZoneInFrames && !m_findZone.match.empty() )
     {
         auto& zoneData = m_worker.GetZonesForSourceLocation( m_findZone.match[m_findZone.selMatch] );
@@ -382,6 +396,7 @@ void View::DrawFrames()
         }
     }
     else
+#endif
     {
         while( i < onScreen && m_vd.frameStart + idx < total )
         {

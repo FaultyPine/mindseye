@@ -23,9 +23,9 @@ class TracyLlmApi
     enum class Type
     {
         Unknown,
+        Ollama,
         LmStudio,
         LlamaSwap,
-        LlamaCpp,
         Other
     };
 
@@ -36,7 +36,6 @@ public:
     bool ChatCompletion( const nlohmann::json& req, const std::function<bool(const nlohmann::json&)>& callback, int modelIdx );
     bool Embeddings( const nlohmann::json& req, nlohmann::json& response, bool separateConnection = false );
     [[nodiscard]] int Tokenize( const std::string& text, int modelIdx );
-    [[nodiscard]] nlohmann::json SendMessage( const nlohmann::json& chat, int modelIdx );
 
     [[nodiscard]] bool IsConnected() const { return m_curl != nullptr; }
     [[nodiscard]] const std::vector<LlmModel>& GetModels() const { return m_models; }

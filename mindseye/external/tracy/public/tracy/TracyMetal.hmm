@@ -486,7 +486,6 @@ public:
     tracy_force_inline MetalZoneScope( MetalCtx* ctx, MTLComputePassDescriptor* desc, const SourceLocationData* srcloc, bool is_active )
 #ifdef TRACY_ON_DEMAND
         : m_active( is_active && GetProfiler().IsConnected() )
-        , m_connectionId( GetProfiler().ConnectionId() )
 #else
         : m_active( is_active )
 #endif
@@ -507,7 +506,6 @@ public:
     tracy_force_inline MetalZoneScope( MetalCtx* ctx, MTLBlitPassDescriptor* desc, const SourceLocationData* srcloc, bool is_active )
 #ifdef TRACY_ON_DEMAND
         : m_active( is_active && GetProfiler().IsConnected() )
-        , m_connectionId( GetProfiler().ConnectionId() )
 #else
         : m_active( is_active )
 #endif
@@ -528,7 +526,6 @@ public:
     tracy_force_inline MetalZoneScope( MetalCtx* ctx, MTLRenderPassDescriptor* desc, const SourceLocationData* srcloc, bool is_active )
 #ifdef TRACY_ON_DEMAND
         : m_active( is_active && GetProfiler().IsConnected() )
-        , m_connectionId( GetProfiler().ConnectionId() )
 #else
         : m_active( is_active )
 #endif
@@ -552,7 +549,6 @@ public:
     tracy_force_inline MetalZoneScope( MetalCtx* ctx, id<MTLComputeCommandEncoder> cmdEncoder, const SourceLocationData* srcloc, bool is_active )
 #ifdef TRACY_ON_DEMAND
         : m_active( is_active && GetProfiler().IsConnected() )
-        , m_connectionId( GetProfiler().ConnectionId() )
 #else
         : m_active( is_active )
 #endif
@@ -573,9 +569,6 @@ public:
     {
         if( !m_active ) return;
 
-#ifdef TRACY_ON_DEMAND
-        if( GetProfiler().ConnectionId() != m_connectionId ) return;
-#endif
         SubmitZoneEndGpu(m_ctx, m_query.idx + 1);
     }
     
@@ -583,10 +576,6 @@ public:
 
 private:
     const bool m_active;
-
-#ifdef TRACY_ON_DEMAND
-    uint64_t m_connectionId = 0;
-#endif
 
     MetalCtx* m_ctx;
 

@@ -1,13 +1,9 @@
 #ifndef __TRACYSYSTRACE_HPP__
 #define __TRACYSYSTRACE_HPP__
 
-#if !defined TRACY_NO_SYSTEM_TRACING
-#  if defined _WIN32 || defined __linux__
-#    include "../common/TracyWinFamily.hpp"
-#    if !defined TRACY_WIN32_NO_DESKTOP
-#      define TRACY_HAS_SYSTEM_TRACING
-#    endif
-#  elif defined __APPLE__
+#if !defined TRACY_NO_SYSTEM_TRACING && ( defined _WIN32 || defined __linux__ )
+#  include "../common/TracyWinFamily.hpp"
+#  if !defined TRACY_WIN32_NO_DESKTOP
 #    define TRACY_HAS_SYSTEM_TRACING
 #  endif
 #endif

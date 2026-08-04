@@ -5,7 +5,6 @@
 #include <inttypes.h>
 #include <string>
 #include <string.h>
-#include <time.h>
 
 #ifdef _WIN32
 #  include <direct.h>
@@ -19,7 +18,6 @@
 #include <sys/stat.h>
 
 #include "TracyStorage.hpp"
-#include "../common/TracyString.hpp"
 
 namespace tracy
 {
@@ -128,8 +126,8 @@ const char* GetSavePath( const char* file )
 {
     assert( file && *file );
 
-    constexpr size_t Pool = 8;
-    constexpr size_t MaxPath = 512;
+    enum { Pool = 8 };
+    enum { MaxPath = 512 };
     static char bufpool[Pool][MaxPath];
     static int bufsel = 0;
     char* buf = bufpool[bufsel];
@@ -151,11 +149,27 @@ const char* GetSavePath( const char* file )
     return buf;
 }
 
-static void NormalizeProgramName( char* buf, size_t sz )
+const char* GetSavePath( const char* program, uint64_t time, const char* file, bool create )
 {
-    for( size_t i=0; i<sz; i++ )
+    assert( program && *program );
+
+    enum { Pool = 8 };
+    enum { MaxPath = 512 };
+    static char bufpool[Pool][MaxPath];
+    static int bufsel = 0;
+    char* buf = bufpool[bufsel];
+    bufsel = ( bufsel + 1 ) % Pool;
+
+    size_t sz;
+    GetConfigDirectory( buf, sz );
+
+    const auto psz = strlen( program );
+    assert( psz < 512 );
+    char tmp[512];
+    strcpy( tmp, program );
+    for( size_t i=0; i<psz; i++ )
     {
-        switch( buf[i] )
+        switch( tmp[i] )
         {
         case 1:
         case 2:
@@ -198,78 +212,21 @@ static void NormalizeProgramName( char* buf, size_t sz )
         case '|':
         case '?':
         case '*':
-            buf[i] = '_';
+            tmp[i] = '_';
             break;
         default:
             break;
         }
     }
-}
 
-const char* GetSavePath( const char* program, uint64_t time, bool create )
-{
-    assert( program && *program );
-
-    constexpr size_t Pool = 8;
-    constexpr size_t MaxPath = 512;
-    static char bufpool[Pool][MaxPath];
-    static int bufsel = 0;
-    char* buf = bufpool[bufsel];
-    bufsel = ( bufsel + 1 ) % Pool;
-
-    size_t sz;
-    GetConfigDirectory( buf, sz );
-
-    const auto psz = strlen( program );
-    assert( psz < 512 );
-    char tmp[512];
-    const auto tsz = strzcpy( tmp, program, sizeof( tmp ) );
-    NormalizeProgramName( tmp, tsz );
-    sz += sprintf( buf+sz, "/tracy/sidecar/%s", tmp );
+    // 604800 = 7 days
+    sz += sprintf( buf+sz, "/tracy/user/%c/%s/%" PRIu64 "/%" PRIu64 "/", tmp[0], tmp, uint64_t( time / 604800 ), time );
 
     if( create )
     {
         auto status = CreateDirStruct( buf );
         assert( status );
     }
-
-    time_t _t = time;
-    auto lt = gmtime( &_t );
-    if( lt )
-    {
-        strftime( tmp, sizeof( tmp ), "%Y%m%d-%H%M%S", lt );
-    }
-    else
-    {
-        snprintf( tmp, sizeof( tmp ), "%" PRIu64, time );
-    }
-    sz += sprintf( buf+sz, "/%s.json", tmp );
-
-    return buf;
-}
-
-const char* GetSavePathLegacy( const char* program, uint64_t time, const char* file )
-{
-    assert( program && *program );
-
-    constexpr size_t Pool = 8;
-    constexpr size_t MaxPath = 512;
-    static char bufpool[Pool][MaxPath];
-    static int bufsel = 0;
-    char* buf = bufpool[bufsel];
-    bufsel = ( bufsel + 1 ) % Pool;
-
-    size_t sz;
-    GetConfigDirectory( buf, sz );
-
-    const auto psz = strlen( program );
-    assert( psz < 512 );
-    char tmp[512];
-    const auto tsz = strzcpy( tmp, program, sizeof( tmp ) );
-    NormalizeProgramName( tmp, tsz );
-
-    // 604800 = 7 days
-    sz += sprintf( buf+sz, "/tracy/user/%c/%s/%" PRIu64 "/%" PRIu64 "/", tmp[0], tmp, uint64_t( time / 604800 ), time );
 
     if( file )
     {
@@ -289,8 +246,8 @@ const char* GetCachePath( const char* file )
 {
     assert( file && *file );
 
-    constexpr size_t Pool = 8;
-    constexpr size_t MaxPath = 512;
+    enum { Pool = 8 };
+    enum { MaxPath = 512 };
     static char bufpool[Pool][MaxPath];
     static int bufsel = 0;
     char* buf = bufpool[bufsel];
@@ -308,8 +265,6 @@ const char* GetCachePath( const char* file )
     const auto fsz = strlen( file );
     assert( sz + fsz < MaxPath );
     memcpy( buf+sz, file, fsz+1 );
-
-    NormalizeProgramName( buf+sz, fsz );
 
     return buf;
 }

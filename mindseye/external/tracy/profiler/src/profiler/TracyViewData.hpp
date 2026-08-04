@@ -9,22 +9,27 @@
 namespace tracy
 {
 
-struct RangeEntry
+struct Range
 {
-    Range* range;
-    uint32_t color;
-    const char* name;
+    void StartFrame() { hiMin = hiMax = false; }
+
+    int64_t min = 0;
+    int64_t max = 0;
+    bool active = false;
+    bool hiMin = false;
+    bool hiMax = false;
+    bool modMin = false;
+    bool modMax = false;
 };
 
-enum class RangeId
+struct RangeSlim
 {
-    FindZone,
-    Statistics,
-    FlameGraph,
-    WaitStacks,
-    Memory,
-    FrameStatistics,
-    NUM
+    bool operator==( const Range& other ) const { return other.active == active && other.min == min && other.max == max; }
+    bool operator!=( const Range& other ) const { return !(*this == other); }
+    void operator=( const Range& other ) { active = other.active; min = other.min; max = other.max; }
+
+    int64_t min, max;
+    bool active = false;
 };
 
 
@@ -47,7 +52,6 @@ struct ViewData
     uint8_t drawCpuData = true;
     uint8_t drawCpuUsageGraph = true;
     uint8_t drawSamples = true;
-    uint8_t drawSections = true;
     uint8_t dynamicColors = 1;
     uint8_t inheritParentColors = true;
     uint8_t forceColors = false;
@@ -64,7 +68,6 @@ struct Annotation
     std::string text;
     Range range;
     uint32_t color;
-    bool visible = true;
 };
 
 struct SourceRegex

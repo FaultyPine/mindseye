@@ -14,7 +14,6 @@
 #include "../../server/TracyPrint.hpp"
 #include "../../server/TracyWorker.hpp"
 #include "../../getopt/getopt.h"
-#include "GitRef.hpp"
 
 #include "OfflineSymbolResolver.h"
 
@@ -26,7 +25,6 @@
 
 void Usage()
 {
-    printf( "tracy-update %i.%i.%i / %s\n\n", tracy::Version::Major, tracy::Version::Minor, tracy::Version::Patch, tracy::GitRef );
     printf( "Usage: update [options] input.tracy output.tracy\n\n" );
     printf( "  -4: enable LZ4 compression\n" );
     printf( "  -h: enable LZ4HC compression\n" );
@@ -38,12 +36,7 @@ void Usage()
     printf( "      c: context switches, s: sampling data, C: symbol code, S: source cache\n" );
     printf( "  -c: scan for source files missing in cache and add if found\n" );
     printf( "  -r: resolve symbols and patch callstack frames\n");
-    printf( "  -R: reset all callstack frame symbols to unresolved (e.g. to re-run resolution)\n");
     printf( "  -p: substitute symbol resolution path with an alternative: \"REGEX_MATCH;REPLACEMENT\"\n");
-    printf( "  -a: path to a custom addr2line-compatible tool to use for symbol resolution\n");
-    printf( "  -A: extra arguments passed verbatim to the symbol resolution tool,\n");
-    printf( "      e.g. \"--relative-address\" for llvm-addr2line on PE/Mach-O images\n");
-    printf( "  -v: verbose output while resolving symbols\n");
     printf( "  -j: number of threads to use for compression (-1 to use all cores)\n" );
 
     exit( 1 );
@@ -66,14 +59,10 @@ int main( int argc, char** argv )
     bool buildDict = false;
     bool cacheSource = false;
     bool resolveSymbols = false;
-    bool resetSymbols = false;
     std::vector<std::string> pathSubstitutions;
-    std::string addr2lineToolPath;
-    std::string addr2lineArgs;
-    bool verboseSymbols = false;
 
     int c;
-    while( ( c = getopt( argc, argv, "4hez:ds:crRp:a:A:vj:" ) ) != -1 )
+    while( ( c = getopt( argc, argv, "4hez:ds:crp:j:" ) ) != -1 )
     {
         switch( c )
         {
@@ -146,20 +135,8 @@ int main( int argc, char** argv )
         case 'r':
             resolveSymbols = true;
             break;
-        case 'R':
-            resetSymbols = true;
-            break;
         case 'p':
             pathSubstitutions.push_back(optarg);
-            break;
-        case 'a':
-            addr2lineToolPath = optarg;
-            break;
-        case 'A':
-            addr2lineArgs = optarg;
-            break;
-        case 'v':
-            verboseSymbols = true;
             break;
         case 'j':
             streams = atoi( optarg );
@@ -192,7 +169,7 @@ int main( int argc, char** argv )
         {
             const auto t0 = std::chrono::high_resolution_clock::now();
             const bool allowBgThreads = false;
-            const bool allowStringModification = resolveSymbols || resetSymbols;
+            const bool allowStringModification = resolveSymbols;
             tracy::Worker worker( *f, (tracy::EventType::Type)events, allowBgThreads, allowStringModification );
 
 #ifndef TRACY_NO_STATISTICS
@@ -202,8 +179,7 @@ int main( int argc, char** argv )
             const auto t1 = std::chrono::high_resolution_clock::now();
 
             if( cacheSource ) worker.CacheSourceFiles();
-            if( resetSymbols ) ResetSymbols( worker );
-            if( resolveSymbols ) PatchSymbols( worker, pathSubstitutions, addr2lineToolPath, addr2lineArgs, verboseSymbols );
+            if( resolveSymbols ) PatchSymbols( worker, pathSubstitutions );
 
             auto w = std::unique_ptr<tracy::FileWrite>( tracy::FileWrite::Open( output, clev, zstdLevel, streams ) );
             if( !w )

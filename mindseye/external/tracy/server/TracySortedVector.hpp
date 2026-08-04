@@ -72,7 +72,7 @@ public:
     template<class Compare>
     tracy_force_inline void push_back( const T& val, Compare comp )
     {
-        if( sortedEnd == 0 && !v.empty() && comp( val, v.back() ) )
+        if( sortedEnd == 0 && !v.empty() && !comp( v.back(), val ) )
         {
             sortedEnd = (uint32_t)v.size();
         }
@@ -93,7 +93,6 @@ public:
 
     tracy_force_inline void sort() { sort( CompareDefault() ); }
     tracy_force_inline void ensure_sorted() { if( !is_sorted() ) sort(); }
-    tracy_force_inline void mark_unsorted() { if( v.size() > 1 ) sortedEnd = 1; }
 
     template<class Compare>
     void sort( Compare comp )
@@ -104,9 +103,9 @@ public:
         const auto sl = se - 1;
         const auto ue = v.end();
 #ifdef __EMSCRIPTEN__
-        pdqsort_branchless( se, ue, comp );
+        pdqsort_branchless( sb, se, comp );
 #else
-        ppqsort::sort( ppqsort::execution::par, se, ue, comp );
+        ppqsort::sort( ppqsort::execution::par, sb, se, comp );
 #endif
         const auto ss = std::lower_bound( sb, se, *se, comp );
         const auto uu = std::lower_bound( se, ue, *sl, comp );
@@ -121,7 +120,7 @@ private:
 
 #pragma pack( pop )
 
-constexpr size_t SortedVectorSize = sizeof( SortedVector<int> );
+enum { SortedVectorSize = sizeof( SortedVector<int> ) };
 
 }
 

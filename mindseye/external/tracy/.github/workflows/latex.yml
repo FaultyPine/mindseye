@@ -5,11 +5,9 @@ on:
     branches: [ master ]
   pull_request:
     branches: [ master ]
-  workflow_dispatch:
-  workflow_call:
 
 jobs:
-  build-manual:
+  build:
 
     runs-on: ubuntu-latest
 

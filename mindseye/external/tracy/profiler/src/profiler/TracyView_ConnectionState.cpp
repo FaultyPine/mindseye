@@ -77,8 +77,8 @@ bool View::DrawConnection()
         }
     }
 
-    FrameImage lastFrameImage{};
     {
+        Worker::MainThreadDataLockGuard lock = m_worker.ObtainLockForMainThread();
         ImGui::SameLine();
         TextFocused( "+", RealToString( m_worker.GetSendInFlight() ) );
         const auto sz = m_worker.GetFrameCount( *m_frames );
@@ -91,20 +91,33 @@ bool View::DrawConnection()
             ImGui::Text( "%6.1f", fps );
             ImGui::SameLine();
             TextFocused( "Frame time:", TimeToString( dt ) );
-        }        
-        const auto& fis = m_worker.GetFrameImages();
-        // Keep a copy so the frame image data is retained independently of the worker storage.
-        if( !fis.empty() ) lastFrameImage = *fis.back();
+        }
     }
 
-    if( lastFrameImage.ptr.get() )
+    const auto& fis = m_worker.GetFrameImages();
+    if( !fis.empty() )
     {
+        const auto fiScale = scale * 0.5f;
+        const auto& fi = fis.back();
+        if( fi != m_frameTextureConnPtr )
+        {
+            if( !m_frameTextureConn ) m_frameTextureConn = MakeTexture();
+            UpdateTexture( m_frameTextureConn, m_worker.UnpackFrameImage( *fi ), fi->w, fi->h );
+            m_frameTextureConnPtr = fi;
+        }
         ImGui::Separator();
-        DrawFrameImage( m_FrameTextureCacheConnection, lastFrameImage, scale * 0.5f );
+        if( fi->flip )
+        {
+            ImGui::Image( m_frameTextureConn, ImVec2( fi->w * fiScale, fi->h * fiScale ), ImVec2( 0, 1 ), ImVec2( 1, 0 ) );
+        }
+        else
+        {
+            ImGui::Image( m_frameTextureConn, ImVec2( fi->w * fiScale, fi->h * fiScale ) );
+        }
     }
 
     ImGui::Separator();
-    if( ImGui::Button( ICON_FA_FLOPPY_DISK " Save trace…" ) && m_saveThreadState.load( std::memory_order_relaxed ) == SaveThreadState::Inert )
+    if( ImGui::Button( ICON_FA_FLOPPY_DISK " Save trace" ) && m_saveThreadState.load( std::memory_order_relaxed ) == SaveThreadState::Inert )
     {
         auto cb = [this]( const char* fn ) {
             const auto sz = strlen( fn );
@@ -129,6 +142,7 @@ bool View::DrawConnection()
 
     ImGui::SameLine( 0, 2 * ty );
     const char* stopStr = ICON_FA_PLUG " Stop";
+    Worker::MainThreadDataLockGuard lock = m_worker.ObtainLockForMainThread();
     if( !m_disconnectIssued && m_worker.IsConnected() )
     {
         if( ImGui::Button( stopStr ) )
@@ -201,33 +215,21 @@ bool View::DrawConnection()
                         ImGui::TextUnformatted( m_worker.GetString( p.name ) );
                         ImGui::TableNextColumn();
                         ImGui::PushID( idx );
-                        switch( p.type )
-                        {
-                        case ParameterType::Boolean:
+                        if( p.isBool )
                         {
                             bool val = p.val;
                             if( ImGui::Checkbox( "", &val ) )
                             {
                                 m_worker.SetParameter( idx, int32_t( val ) );
                             }
-                            break;
                         }
-                        case ParameterType::Integer:
+                        else
                         {
                             auto val = int( p.val );
-                            ImGui::SetNextItemWidth( 100 * GetScale() );
                             if( ImGui::InputInt( "", &val, 1, 100, ImGuiInputTextFlags_EnterReturnsTrue ) )
                             {
                                 m_worker.SetParameter( idx, int32_t( val ) );
                             }
-                            break;
-                        }
-                        case ParameterType::Trigger:
-                            if( ImGui::Button( ICON_FA_CIRCLE_DOT ) )
-                            {
-                                m_worker.SetParameter( idx, p.val );
-                            }
-                            break;
                         }
                         ImGui::PopID();
                         idx++;

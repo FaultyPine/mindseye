@@ -166,7 +166,7 @@ const char* View::DecodeContextSwitchState( uint8_t state )
     }
 }
 
-void View::DrawContextSwitchList( const TimelineContext& ctx, const std::vector<ContextSwitchDraw>& drawList, const Vector<ContextSwitchData>& ctxSwitch, int offset, int endOffset, bool isFiber, uint64_t tid )
+void View::DrawContextSwitchList( const TimelineContext& ctx, const std::vector<ContextSwitchDraw>& drawList, const Vector<ContextSwitchData>& ctxSwitch, int offset, int endOffset, bool isFiber )
 {
     constexpr float MinCtxSize = 4;
 
@@ -210,12 +210,6 @@ void View::DrawContextSwitchList( const TimelineContext& ctx, const std::vector<
 
             if( hover )
             {
-                int64_t waitTime = 0;
-                const char* waitReason = nullptr;
-                const char* waitReasonCode = nullptr;
-                const char* waitState = nullptr;
-                const char* waitStateCode = nullptr;
-
                 bool tooltip = false;
                 if( ImGui::IsMouseHoveringRect( wpos + ImVec2( px0, offset ), wpos + ImVec2( pxw, offset + ty ) ) )
                 {
@@ -227,9 +221,8 @@ void View::DrawContextSwitchList( const TimelineContext& ctx, const std::vector<
                     }
                     else
                     {
-                        waitTime = ev.WakeupVal() - prev.End();
                         TextFocused( "Thread is", migration ? "migrating CPUs" : "waiting" );
-                        TextFocused( "Waiting time:", TimeToString( waitTime ) );
+                        TextFocused( "Waiting time:", TimeToString( ev.WakeupVal() - prev.End() ) );
                         if( migration )
                         {
                             TextFocused( "CPU:", RealToString( prev.Cpu() ) );
@@ -242,27 +235,23 @@ void View::DrawContextSwitchList( const TimelineContext& ctx, const std::vector<
                         }
                         if( prev.Reason() != 100 )
                         {
-                            waitReason = DecodeContextSwitchReason( prev.Reason() );
-                            waitReasonCode = DecodeContextSwitchReasonCode( prev.Reason() );
-                            TextFocused( "Wait reason:", waitReasonCode );
+                            TextFocused( "Wait reason:", DecodeContextSwitchReasonCode( prev.Reason() ) );
                             ImGui::SameLine();
                             ImGui::PushFont( g_fonts.normal, FontSmall );
                             ImGui::AlignTextToFramePadding();
-                            TextDisabledUnformatted( waitReason );
+                            TextDisabledUnformatted( DecodeContextSwitchReason( prev.Reason() ) );
                             ImGui::PopFont();
                         }
-                        waitState = DecodeContextSwitchState( prev.State() );
-                        waitStateCode = DecodeContextSwitchStateCode( prev.State() );
-                        TextFocused( "Wait state:", waitStateCode );
+                        TextFocused( "Wait state:", DecodeContextSwitchStateCode( prev.State() ) );
                         ImGui::SameLine();
                         ImGui::PushFont( g_fonts.normal, FontSmall );
                         ImGui::AlignTextToFramePadding();
-                        TextDisabledUnformatted( waitState );
+                        TextDisabledUnformatted( DecodeContextSwitchState( prev.State() ) );
                         ImGui::PopFont();
                     }
                     tooltip = true;
 
-                    if( IsMouseClicked( ImGuiMouseButton_Middle ) )
+                    if( IsMouseClicked( 2 ) )
                     {
                         ZoomToRange( prev.End(), ev.WakeupVal() );
                     }
@@ -274,7 +263,7 @@ void View::DrawContextSwitchList( const TimelineContext& ctx, const std::vector<
                     TextFocused( "Thread is", "waking up" );
                     TextFocused( "Scheduling delay:", TimeToString( ev.Start() - ev.WakeupVal() ) );
                     TextFocused( "CPU:", RealToString( ev.Cpu() ) );
-                    if( IsMouseClicked( ImGuiMouseButton_Middle ) )
+                    if( IsMouseClicked( 2 ) )
                     {
                         ZoomToRange( prev.End(), ev.WakeupVal() );
                     }
@@ -286,23 +275,13 @@ void View::DrawContextSwitchList( const TimelineContext& ctx, const std::vector<
                     const auto waitStack = v.data;
                     if( waitStack )
                     {
-                        ImGui::Separator();
-                        TextDisabledUnformatted( ICON_FA_HOURGLASS_HALF " Wait stack:" );
-                        CallstackTooltipContents( waitStack );
-                        if( IsMouseClicked( ImGuiMouseButton_Left ) )
-                        {
-                            m_callstackView = {
-                                .id = waitStack,
-                                .thread = tid,
-                                .wait = {
-                                    .time = waitTime,
-                                    .reason = waitReason,
-                                    .reasonCode = waitReasonCode,
-                                    .state = waitState,
-                                    .stateCode = waitStateCode
-                                }
-                            };
-                        }
+                            ImGui::Separator();
+                            TextDisabledUnformatted( ICON_FA_HOURGLASS_HALF " Wait stack:" );
+                            CallstackTooltipContents( waitStack );
+                            if( ImGui::IsMouseClicked( 0 ) )
+                            {
+                                m_callstackInfoWindow = waitStack;
+                            }
                     }
                     ImGui::EndTooltip();
                 }
@@ -340,7 +319,7 @@ void View::DrawContextSwitchList( const TimelineContext& ctx, const std::vector<
                     }
                     ImGui::EndTooltip();
 
-                    if( IsMouseClicked( ImGuiMouseButton_Middle ) )
+                    if( IsMouseClicked( 2 ) )
                     {
                         ZoomToRange( ev.Start(), end );
                     }
@@ -357,7 +336,7 @@ void View::DrawContextSwitchList( const TimelineContext& ctx, const std::vector<
                     TextFocused( "Time:", TimeToString( end - ev.Start() ) );
                     ImGui::EndTooltip();
 
-                    if( IsMouseClicked( ImGuiMouseButton_Middle ) )
+                    if( IsMouseClicked( 2 ) )
                     {
                         ZoomToRange( ev.Start(), end );
                     }
@@ -391,7 +370,7 @@ void View::DrawContextSwitchList( const TimelineContext& ctx, const std::vector<
                 }
                 ImGui::EndTooltip();
 
-                if( IsMouseClicked( ImGuiMouseButton_Middle ) )
+                if( IsMouseClicked( 2 ) )
                 {
                     ZoomToRange( ev.Start(), end );
                 }
@@ -407,13 +386,13 @@ void View::DrawContextSwitchList( const TimelineContext& ctx, const std::vector<
 
 void View::DrawWaitStacks()
 {
-    UpdateThreadOrder();
-
     const auto scale = GetScale();
     ImGui::SetNextWindowSize( ImVec2( 1400 * scale, 500 * scale ), ImGuiCond_FirstUseEver );
-    m_waitStacksConstraint.Constrain();
     ImGui::Begin( "Wait stacks", &m_showWaitStacks );
     if( ImGui::GetCurrentWindowRead()->SkipItems ) { ImGui::End(); return; }
+#ifdef TRACY_NO_STATISTICS
+    ImGui::TextWrapped( "Rebuild without the TRACY_NO_STATISTICS macro to enable wait stacks." );
+#else
     uint64_t totalCount = 0;
     unordered_flat_map<uint32_t, uint64_t> stacks;
     for( auto& t : m_threadOrder )
@@ -450,11 +429,11 @@ void View::DrawWaitStacks()
     ImGui::SameLine();
     ImGui::Spacing();
     ImGui::SameLine();
-    if( ImGui::RadioButton( ICON_FA_TREE ICON_FA_ARROW_UP " Bottom-up tree", m_waitStackMode == 1 ) ) m_waitStackMode = 1;
+    if( ImGui::RadioButton( ICON_FA_TREE " Bottom-up tree", m_waitStackMode == 1 ) ) m_waitStackMode = 1;
     ImGui::SameLine();
     ImGui::Spacing();
     ImGui::SameLine();
-    if( ImGui::RadioButton( ICON_FA_TREE ICON_FA_ARROW_DOWN " Top-down tree", m_waitStackMode == 2 ) ) m_waitStackMode = 2;
+    if( ImGui::RadioButton( ICON_FA_TREE " Top-down tree", m_waitStackMode == 2 ) ) m_waitStackMode = 2;
     ImGui::SameLine();
     ImGui::Spacing();
     ImGui::SameLine();
@@ -490,26 +469,19 @@ void View::DrawWaitStacks()
         ToggleButton( ICON_FA_RULER " Limits", m_showRanges );
     }
     ImGui::PopStyleVar();
-    m_waitStacksConstraint.MarkMinWidth();
 
     bool threadsChanged = false;
     auto expand = ImGui::TreeNode( ICON_FA_SHUFFLE " Visible threads:" );
     ImGui::SameLine();
     size_t visibleThreads = 0;
-    size_t tsz = 0;
-    for( const auto& t : m_threadOrder )
+    for( const auto& t : m_threadOrder ) if( WaitStackThread( t->id ) ) visibleThreads++;
+    if( visibleThreads == m_threadOrder.size() )
     {
-        if( t->ctxSwitchSamples.empty() ) continue;
-        if( WaitStackThread( t->id ) ) visibleThreads++;
-        tsz++;
-    }
-    if( visibleThreads == tsz )
-    {
-        ImGui::TextDisabled( "(%zu)", tsz );
+        ImGui::TextDisabled( "(%zu)", m_threadOrder.size() );
     }
     else
     {
-        ImGui::TextDisabled( "(%zu/%zu)", visibleThreads, tsz );
+        ImGui::TextDisabled( "(%zi/%zu)", visibleThreads, m_threadOrder.size() );
     }
     if( expand )
     {
@@ -534,31 +506,10 @@ void View::DrawWaitStacks()
             threadsChanged = true;
         }
 
-        const auto& style = ImGui::GetStyle();
-        const auto cntWidth = ImGui::CalcTextSize( "(1234)" ).x;
-        float probe = 0;
-        for( auto& t : m_threadOrder )
-        {
-            if( t->ctxSwitchSamples.empty() ) continue;
-            float w = ImGui::GetFrameHeight() * 2 + ImGui::CalcTextSize( m_worker.GetThreadName( t->id ) ).x + cntWidth + style.ItemSpacing.x * 3;
-            if( crash.thread == t->id ) w += style.ItemSpacing.x + ImGui::CalcTextSize( ICON_FA_SKULL " Crashed" ).x;
-            if( t->isFiber ) w += style.ItemSpacing.x + ImGui::CalcTextSize( "Fiber" ).x;
-            probe = std::max( probe, w );
-        }
-        const auto MinWidth = std::max( 150 * GetScale(), probe );
-        const int cols = std::max( 1, int( ImGui::GetContentRegionAvail().x / MinWidth ) );
-
-        const auto rows = ( tsz + cols - 1 ) / cols;
-        const auto rowsVisible = std::min<float>( rows, 7.5f );
-        const auto rowsHeight = ImGui::GetTextLineHeightWithSpacing() * rowsVisible;
-        ImGui::BeginChild( "###waitstackthreadrows", ImVec2( -1, rowsHeight ) );
-
         int idx = 0;
-        ImGui::BeginTable( "##waitstackthreadcols", cols, ImGuiTableFlags_NoSavedSettings );
         for( const auto& t : m_threadOrder )
         {
             if( t->ctxSwitchSamples.empty() ) continue;
-            ImGui::TableNextColumn();
             ImGui::PushID( idx++ );
             const auto threadColor = GetThreadColor( t->id, 0 );
             SmallColorBox( threadColor );
@@ -581,8 +532,6 @@ void View::DrawWaitStacks()
                 TextColoredUnformatted( ImVec4( 0.2f, 0.6f, 0.2f, 1.f ), "Fiber" );
             }
         }
-        ImGui::EndTable();
-        ImGui::EndChild();
         ImGui::TreePop();
     }
     if( threadsChanged ) m_waitStack = 0;
@@ -638,13 +587,13 @@ void View::DrawWaitStacks()
             PrintStringPercent( buf, 100. * data[m_waitStack]->second / totalCount );
             TextDisabledUnformatted( buf );
             ImGui::Separator();
-            DrawCallstackTable( data[m_waitStack]->first, { .wait = { .time = -1 } } );
+            DrawCallstackTable( data[m_waitStack]->first, false );
             break;
         }
         case 1:
         {
             SmallCheckbox( ICON_FA_LAYER_GROUP " Group by function name", &m_groupWaitStackBottomUp );
-            auto tree = GetCallstackFrameTreeBottomUp( stacks, m_groupWaitStackBottomUp );
+            auto tree = GetCallstackFrameTreeBottomUp( stacks, m_groupCallstackTreeByNameBottomUp );
             if( !tree.empty() )
             {
                 int idx = 0;
@@ -659,7 +608,7 @@ void View::DrawWaitStacks()
         case 2:
         {
             SmallCheckbox( ICON_FA_LAYER_GROUP " Group by function name", &m_groupWaitStackTopDown );
-            auto tree = GetCallstackFrameTreeTopDown( stacks, m_groupWaitStackTopDown );
+            auto tree = GetCallstackFrameTreeTopDown( stacks, m_groupCallstackTreeByNameTopDown );
             if( !tree.empty() )
             {
                 int idx = 0;
@@ -676,6 +625,7 @@ void View::DrawWaitStacks()
             break;
         }
     }
+#endif
     ImGui::EndChild();
     ImGui::End();
 }

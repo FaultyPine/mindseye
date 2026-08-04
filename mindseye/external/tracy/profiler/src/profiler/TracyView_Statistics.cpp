@@ -39,18 +39,21 @@ void View::DrawStatistics()
 {
     const auto scale = GetScale();
     ImGui::SetNextWindowSize( ImVec2( 1400 * scale, 600 * scale ), ImGuiCond_FirstUseEver );
-    m_statisticsConstraint.Constrain();
     ImGui::Begin( "Statistics", &m_showStatistics, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse );
     if( ImGui::GetCurrentWindowRead()->SkipItems ) { ImGui::End(); return; }
+#ifdef TRACY_NO_STATISTICS
+    ImGui::TextWrapped( "Collection of statistical data is disabled in this build." );
+    ImGui::TextWrapped( "Rebuild without the TRACY_NO_STATISTICS macro to enable statistics view." );
+#else
     if( !m_worker.AreSourceLocationZonesReady() && ( !m_worker.AreCallstackSamplesReady() || m_worker.GetCallstackSampleCount() == 0 ) )
     {
         const auto ty = ImGui::GetTextLineHeight();
         ImGui::PushFont( g_fonts.normal, FontBig );
         ImGui::Dummy( ImVec2( 0, ( ImGui::GetContentRegionAvail().y - ImGui::GetTextLineHeight() * 2 - ty ) * 0.5f ) );
         TextCentered( ICON_FA_HIPPO );
-        TextCentered( "Please wait, computing data…" );
+        TextCentered( "Please wait, computing data..." );
         ImGui::PopFont();
-        DrawWaitingDotsCentered( s_time );
+        DrawWaitingDots( s_time );
         ImGui::End();
         return;
     }
@@ -101,8 +104,8 @@ void View::DrawStatistics()
             ImGui::Spacing();
             ImGui::Separator();
             ImGui::PopStyleVar();
-            ImGui::TextWrapped( "Please wait, computing data…" );
-            DrawWaitingDotsCentered( s_time );
+            ImGui::TextWrapped( "Please wait, computing data..." );
+            DrawWaitingDots( s_time );
             ImGui::End();
             return;
         }
@@ -245,7 +248,6 @@ void View::DrawStatistics()
                         total = it->second.nonReentrantTotal;
                         break;
                     }
-                    if( count == 0 ) continue;
                     if( !filterActive )
                     {
                         srcloc.push_back_no_space_check( SrcLocZonesSlim { it->first, (uint16_t)it->second.threadCnt.size(), count, total } );
@@ -274,7 +276,6 @@ void View::DrawStatistics()
         ImGui::Spacing();
         ImGui::SameLine();
         AccumulationModeComboBox();
-        m_statisticsConstraint.MarkMinWidth();
     }
     else if( m_statMode == 1 )
     {
@@ -317,7 +318,6 @@ void View::DrawStatistics()
         const char* locationTable = "Entry\0Sample\0Smart\0";
         ImGui::SetNextItemWidth( ImGui::CalcTextSize( "Sample" ).x + ImGui::GetTextLineHeight() * 2 );
         ImGui::Combo( "##location", &m_statSampleLocation, locationTable );
-        m_statisticsConstraint.MarkMinWidth();
     }
     else
     {
@@ -327,8 +327,8 @@ void View::DrawStatistics()
             ImGui::Spacing();
             ImGui::Separator();
             ImGui::PopStyleVar();
-            ImGui::TextWrapped( "Please wait, computing data…" );
-            DrawWaitingDotsCentered( s_time );
+            ImGui::TextWrapped( "Please wait, computing data..." );
+            DrawWaitingDots( s_time );
             ImGui::End();
             return;
         }
@@ -518,13 +518,7 @@ void View::DrawStatistics()
         ImGui::SameLine();
         ImGui::Spacing();
         ImGui::SameLine();
-        ImGui::Checkbox( ICON_FA_SHIELD_HALVED " External", &m_statShowExternal );
-        ImGui::SameLine();
-        ImGui::Spacing();
-        ImGui::SameLine();
-        if( !m_statShowExternal ) ImGui::BeginDisabled();
-        ImGui::Checkbox( ICON_FA_HAT_WIZARD " Kernel", &m_statShowKernel );
-        if( !m_statShowExternal ) ImGui::EndDisabled();
+        ImGui::Checkbox( ICON_FA_HAT_WIZARD " Include kernel", &m_statShowKernel );
         ImGui::SameLine();
         ImGui::Spacing();
         ImGui::SameLine();
@@ -583,7 +577,6 @@ void View::DrawStatistics()
         ImGui::SameLine();
         ImGui::Checkbox( ICON_FA_FIRE " Top inline", &m_topInline );
         if( m_statSeparateInlines ) ImGui::EndDisabled();
-        m_statisticsConstraint.MarkMinWidth();
     }
 
     ImGui::Separator();
@@ -745,7 +738,7 @@ void View::DrawStatistics()
                     TextDisabledUnformatted( LocationToString( file, srcloc.line ) );
                     if( ImGui::IsItemHovered() )
                     {
-                        DrawSourceTooltip( file, srcloc.line, srcloc.line );
+                        DrawSourceTooltip( file, srcloc.line );
                         if( ImGui::IsItemClicked( 1 ) )
                         {
                             if( SourceFileValid( file, m_worker.GetCaptureTime(), *this, m_worker ) )
@@ -806,17 +799,13 @@ void View::DrawStatistics()
         if( m_showAllSymbols )
         {
             data.reserve( symMap.size() );
-            if( m_statisticsFilter.IsActive() || m_statisticsImageFilter.IsActive() || !m_statShowKernel || !m_statShowExternal )
+            if( m_statisticsFilter.IsActive() || m_statisticsImageFilter.IsActive() || !m_statShowKernel )
             {
                 for( auto& v : symMap )
                 {
                     const auto name = m_worker.GetString( v.second.name );
                     const auto image = m_worker.GetString( v.second.imageName );
-                    bool pass =
-                        ( m_statShowKernel || ( v.first >> 63 ) == 0 ) &&
-                        ( m_statShowExternal || !m_worker.IsFrameExternal( v.second.file, v.second.imageName ) ) &&
-                        m_statisticsFilter.PassFilter( name ) &&
-                        m_statisticsImageFilter.PassFilter( image );
+                    bool pass = ( m_statShowKernel || ( v.first >> 63 ) == 0 ) && m_statisticsFilter.PassFilter( name ) && m_statisticsImageFilter.PassFilter( image );
                     if( !pass && v.second.size.Val() == 0 )
                     {
                         const auto parentAddr = m_worker.GetSymbolForAddress( v.first );
@@ -826,11 +815,7 @@ void View::DrawStatistics()
                             if( pit != symMap.end() )
                             {
                                 const auto parentName = m_worker.GetString( pit->second.name );
-                                pass =
-                                    ( m_statShowKernel || ( parentAddr >> 63 ) == 0 ) &&
-                                    ( m_statShowExternal || !m_worker.IsFrameExternal( pit->second.file, v.second.imageName ) ) &&
-                                    m_statisticsFilter.PassFilter( parentName ) &&
-                                    m_statisticsImageFilter.PassFilter( image );
+                                pass = ( m_statShowKernel || ( parentAddr >> 63 ) == 0 ) && m_statisticsFilter.PassFilter( parentName ) && m_statisticsImageFilter.PassFilter( image );
                             }
                         }
                     }
@@ -917,7 +902,7 @@ void View::DrawStatistics()
         else
         {
             data.reserve( symStat.size() );
-            if( m_statisticsFilter.IsActive() || m_statisticsImageFilter.IsActive() || !m_statShowKernel || !m_statShowExternal )
+            if( m_statisticsFilter.IsActive() || m_statisticsImageFilter.IsActive() || !m_statShowKernel )
             {
                 for( auto& v : symStat )
                 {
@@ -926,11 +911,7 @@ void View::DrawStatistics()
                     {
                         const auto name = m_worker.GetString( sit->second.name );
                         const auto image = m_worker.GetString( sit->second.imageName );
-                        bool pass =
-                            ( m_statShowKernel || ( v.first >> 63 ) == 0 ) &&
-                            ( m_statShowExternal || !m_worker.IsFrameExternal( sit->second.file, sit->second.imageName ) ) &&
-                            m_statisticsFilter.PassFilter( name ) &&
-                            m_statisticsImageFilter.PassFilter( image );
+                        bool pass = ( m_statShowKernel || ( v.first >> 63 ) == 0 ) && m_statisticsFilter.PassFilter( name ) && m_statisticsImageFilter.PassFilter( image );
                         if( !pass && sit->second.size.Val() == 0 )
                         {
                             const auto parentAddr = m_worker.GetSymbolForAddress( v.first );
@@ -940,11 +921,7 @@ void View::DrawStatistics()
                                 if( pit != symMap.end() )
                                 {
                                     const auto parentName = m_worker.GetString( pit->second.name );
-                                    pass =
-                                        ( m_statShowKernel || ( parentAddr >> 63 ) == 0 ) &&
-                                        ( m_statShowExternal || !m_worker.IsFrameExternal( pit->second.file, sit->second.imageName ) ) &&
-                                        m_statisticsFilter.PassFilter( parentName ) &&
-                                        m_statisticsImageFilter.PassFilter( image );
+                                    pass = ( m_statShowKernel || ( parentAddr >> 63 ) == 0 ) && m_statisticsFilter.PassFilter( parentName ) && m_statisticsImageFilter.PassFilter( image );
                                 }
                             }
                         }
@@ -1001,34 +978,9 @@ void View::DrawStatistics()
             }
         }
 
-        // The denominator is the number of collected samples, excluding context
-        // switch samples, which do not participate in the sampling statistics. This
-        // way the percentages have the same meaning with and without an active
-        // range filter.
-        uint64_t totalSamples;
-        if( m_statRange.active )
-        {
-            static const auto CountInRange = []( const auto& vec, int64_t min, int64_t max ) -> uint64_t {
-                auto it = std::lower_bound( vec.begin(), vec.end(), min, []( const auto& lhs, const auto& rhs ) { return lhs.time.Val() < rhs; } );
-                auto end = std::lower_bound( it, vec.end(), max, []( const auto& lhs, const auto& rhs ) { return lhs.time.Val() < rhs; } );
-                return end - it;
-            };
-            totalSamples = 0;
-            for( auto& td : m_worker.GetThreadData() )
-            {
-                const auto cnt = CountInRange( td->samples, m_statRange.min, m_statRange.max );
-                const auto ctx = CountInRange( td->ctxSwitchSamples, m_statRange.min, m_statRange.max );
-                if( cnt > ctx ) totalSamples += cnt - ctx;
-            }
-        }
-        else
-        {
-            const auto cnt = m_worker.GetCallstackSampleCount();
-            const auto ctx = m_worker.GetContextSwitchSampleCount();
-            totalSamples = cnt > ctx ? cnt - ctx : 0;
-        }
-        DrawSamplesStatistics( data, timeRange, totalSamples, m_statAccumulationMode );
+        DrawSamplesStatistics( data, timeRange, m_statAccumulationMode );
     }
+#endif
     ImGui::End();
 }
 

@@ -13,10 +13,8 @@
 #include "imgui_internal.h"
 
 #include "../public/common/TracyForceInline.hpp"
-#include "IconsFontAwesome7.h"
+#include "IconsFontAwesome6.h"
 #include "TracySourceTokenizer.hpp"
-
-ImTextureID GetProfilerIconTexture();
 
 #if !IMGUI_DEFINE_MATH_OPERATORS
 static inline ImVec2 operator+( const ImVec2& l, const ImVec2& r ) { return ImVec2( l.x + r.x, l.y + r.y ); }
@@ -34,8 +32,7 @@ void DrawZigZag( ImDrawList* draw, const ImVec2& wpos, double start, double end,
 void DrawStripedRect( ImDrawList* draw, const ImVec2& wpos, double x0, double y0, double x1, double y1, double sw, uint32_t color, bool fix_stripes_in_screen_space, bool inverted );
 void DrawHistogramMinMaxLabel( ImDrawList* draw, int64_t tmin, int64_t tmax, ImVec2 wpos, float w, float ty );
 void PrintSource( const std::vector<Tokenizer::Line>& lines );
-bool PrintTextWrapped( const char* text, const char* end, bool strikethrough, bool underline );
-bool DragHeightSplitter( const char* id, float& height, float minHeight, float maxHeight, float thickness );
+bool PrintTextWrapped( const char* text, const char* end = nullptr );
 
 
 static constexpr const uint32_t SyntaxColors[] = {
@@ -122,7 +119,7 @@ static constexpr const uint32_t AsmSyntaxColors[] = {
     ImGui::TextUnformatted( value );
 }
 
-[[maybe_unused]] static inline void DrawWaitingDotsCentered( double time )
+[[maybe_unused]] static inline void DrawWaitingDots( double time )
 {
     s_wasActive = true;
     ImGui::TextUnformatted( "" );
@@ -134,19 +131,6 @@ static constexpr const uint32_t AsmSyntaxColors[] = {
     draw->AddCircleFilled( wpos + ImVec2( w * 0.5f - ty, h ), ty * ( 0.15f + 0.2f * ( pow( cos( time * 3.5f + 0.3f ), 16.f ) ) ), 0xFFBBBBBB, 12 );
     draw->AddCircleFilled( wpos + ImVec2( w * 0.5f     , h ), ty * ( 0.15f + 0.2f * ( pow( cos( time * 3.5f        ), 16.f ) ) ), 0xFFBBBBBB, 12 );
     draw->AddCircleFilled( wpos + ImVec2( w * 0.5f + ty, h ), ty * ( 0.15f + 0.2f * ( pow( cos( time * 3.5f - 0.3f ), 16.f ) ) ), 0xFFBBBBBB, 12 );
-}
-
-[[maybe_unused]] static inline void DrawWaitingDots( double time, bool windowPos = true, bool small = false )
-{
-    s_wasActive = true;
-    const auto pos = ( windowPos ? ImGui::GetWindowPos() : ImVec2( 0, 0 ) ) + ImGui::GetCursorPos();
-    auto draw = ImGui::GetWindowDrawList();
-    const auto ty = ImGui::GetTextLineHeight();
-    const auto yOffset = ty * ( small ? 0.5f : 0.675f );
-    draw->AddCircleFilled( pos + ImVec2( ty * 0.5f + 0 * ty, yOffset ), ty * ( 0.15f + 0.2f * ( pow( cos( time * 3.5f + 0.3f ), 16.f ) ) ), 0xFFBBBBBB, 12 );
-    draw->AddCircleFilled( pos + ImVec2( ty * 0.5f + 1 * ty, yOffset ), ty * ( 0.15f + 0.2f * ( pow( cos( time * 3.5f        ), 16.f ) ) ), 0xFFBBBBBB, 12 );
-    draw->AddCircleFilled( pos + ImVec2( ty * 0.5f + 2 * ty, yOffset ), ty * ( 0.15f + 0.2f * ( pow( cos( time * 3.5f - 0.3f ), 16.f ) ) ), 0xFFBBBBBB, 12 );
-    ImGui::Dummy( ImVec2( ty * 3, ty ) );
 }
 
 [[maybe_unused]] static inline bool SmallCheckbox( const char* label, bool* var )
@@ -279,18 +263,18 @@ static constexpr const uint32_t AsmSyntaxColors[] = {
 [[maybe_unused]] static tracy_force_inline void DrawLine( ImDrawList* draw, const ImVec2& v1, const ImVec2& v2, uint32_t col, float thickness = 1.0f )
 {
     const ImVec2 data[2] = { v1, v2 };
-    draw->AddPolyline( data, 2, col, thickness );
+    draw->AddPolyline( data, 2, col, 0, thickness );
 }
 
 [[maybe_unused]] static tracy_force_inline void DrawLine( ImDrawList* draw, const ImVec2& v1, const ImVec2& v2, const ImVec2& v3, uint32_t col, float thickness = 1.0f )
 {
     const ImVec2 data[3] = { v1, v2, v3 };
-    draw->AddPolyline( data, 3, col, thickness );
+    draw->AddPolyline( data, 3, col, 0, thickness );
 }
 
 [[maybe_unused]] static tracy_force_inline void TooltipIfHovered( const char* text )
 {
-    if( !ImGui::IsItemHovered( ImGuiHoveredFlags_AllowWhenDisabled ) ) return;
+    if( !ImGui::IsItemHovered() ) return;
     ImGui::BeginTooltip();
     ImGui::TextUnformatted( text );
     ImGui::EndTooltip();

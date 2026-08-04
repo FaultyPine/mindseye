@@ -19,10 +19,6 @@
 #include <wayland-cursor.h>
 #include <wayland-egl.h>
 
-#ifndef TRACY_NO_FILESELECTOR
-#  include <nfd.h>
-#endif
-
 #include "wayland-xdg-activation-client-protocol.h"
 #include "wayland-xdg-decoration-client-protocol.h"
 #include "wayland-xdg-shell-client-protocol.h"
@@ -123,7 +119,7 @@ constexpr ImGuiKey s_keyTable[] = {
     /*  81 */ ImGuiKey_Keypad3,
     /*  82 */ ImGuiKey_Keypad0,
     /*  83 */ ImGuiKey_KeypadDecimal,
-    /*  84 */ ImGuiKey_None,
+    /*  84 */ ImGuiKey_RightAlt,
     /*  85 */ ImGuiKey_None,
     /*  86 */ ImGuiKey_Backslash,
     /*  87 */ ImGuiKey_F11,
@@ -139,7 +135,7 @@ constexpr ImGuiKey s_keyTable[] = {
     /*  97 */ ImGuiKey_RightCtrl,
     /*  98 */ ImGuiKey_KeypadDivide,
     /*  99 */ ImGuiKey_PrintScreen,
-    /* 100 */ ImGuiKey_None,
+    /* 100 */ ImGuiKey_RightAlt,
     /* 101 */ ImGuiKey_None,
     /* 102 */ ImGuiKey_Home,
     /* 103 */ ImGuiKey_UpArrow,
@@ -342,8 +338,8 @@ static void PointerFrame( void*, struct wl_pointer* pointer )
     if( s_wheel )
     {
         s_wheel = false;
-        s_wheelAxisX /= 15;
-        s_wheelAxisY /= 15;
+        s_wheelAxisX /= 8;
+        s_wheelAxisY /= 8;
         ImGuiIO& io = ImGui::GetIO();
         io.AddMouseWheelEvent( wl_fixed_to_double( s_wheelAxisX ), wl_fixed_to_double( s_wheelAxisY ) );
         s_wheelAxisX = s_wheelAxisY = 0;
@@ -1138,10 +1134,6 @@ void Backend::Show()
 
 void Backend::Run()
 {
-#ifndef TRACY_NO_FILESELECTOR
-    NFD_SetWaylandDisplay( s_dpy );
-#endif
-
     timespec zero = {};
     while( s_running && wl_display_dispatch_timeout( s_dpy, &zero ) != -1 )
     {
@@ -1379,22 +1371,4 @@ void Backend::SetTitle( const char* title )
 float Backend::GetDpiScale()
 {
     return s_maxScale / 120.f;
-}
-
-size_t Backend::HandleType()
-{
-#ifdef TRACY_NO_FILESELECTOR
-    return 0;
-#else
-    return NFD_WINDOW_HANDLE_TYPE_WAYLAND;
-#endif
-}
-
-void* Backend::Handle()
-{
-#ifdef TRACY_NO_FILESELECTOR
-    return nullptr;
-#else
-    return s_surf;
-#endif
 }

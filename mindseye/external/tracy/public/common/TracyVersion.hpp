@@ -1,11 +1,14 @@
 #ifndef __TRACYVERSION_HPP__
 #define __TRACYVERSION_HPP__
 
-namespace tracy::Version
+namespace tracy
 {
-constexpr int Major = 0;
-constexpr int Minor = 13;
-constexpr int Patch = 6;
+namespace Version
+{
+enum { Major = 0 };
+enum { Minor = 13 };
+enum { Patch = 1 };
+}
 }
 
 #endif

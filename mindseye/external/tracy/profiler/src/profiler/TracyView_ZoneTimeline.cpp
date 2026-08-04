@@ -84,11 +84,11 @@ void View::DrawThread( const TimelineContext& ctx, const ThreadData& thread, con
     {
         auto ctxSwitch = m_worker.GetContextSwitchData( thread.id );
         assert( ctxSwitch );
-        DrawContextSwitchList( ctx, ctxDraw, ctxSwitch->v, ctxOffset, offset, thread.isFiber, thread.id );
+        DrawContextSwitchList( ctx, ctxDraw, ctxSwitch->v, ctxOffset, offset, thread.isFiber );
     }
     if( hasSamples && !samplesDraw.empty() )
     {
-        DrawSampleList( ctx, samplesDraw, thread.samples, sampleOffset, thread.id );
+        DrawSampleList( ctx, samplesDraw, thread.samples, sampleOffset );
     }
 
     if( m_vd.drawLocks )
@@ -130,7 +130,7 @@ void View::DrawThreadMessagesList( const TimelineContext& ctx, const std::vector
             if( !isMsgHovered )
             {
                 animOff = -fabs( sin( s_time * 8 ) ) * th;
-                m_wasActive.store( true, std::memory_order_release );
+                m_wasActive = true;
             }
         }
 
@@ -161,12 +161,12 @@ void View::DrawThreadMessagesList( const TimelineContext& ctx, const std::vector
             ImGui::EndTooltip();
             m_msgHighlight = &msg;
 
-            if( IsMouseClicked( ImGuiMouseButton_Left ) )
+            if( IsMouseClicked( 0 ) )
             {
                 m_showMessages = true;
                 m_msgToFocus = &msg;
             }
-            if( IsMouseClicked( ImGuiMouseButton_Middle ) )
+            if( IsMouseClicked( 2 ) )
             {
                 CenterAtTime( msg.time );
             }
@@ -188,14 +188,11 @@ void View::DrawThreadMessagesList( const TimelineContext& ctx, const std::vector
         if( hover && ImGui::IsMouseHoveringRect( wpos + ImVec2( px - (ty - to) * 0.5 - 1, offset ), wpos + ImVec2( px + (ty - to) * 0.5 + 1, offset + ty ) ) )
         {
             CrashTooltip();
-            if( IsMouseClicked( ImGuiMouseButton_Left ) )
+            if( IsMouseClicked( 0 ) )
             {
-                m_callstackView = {
-                    .id = crash.callstack,
-                    .thread = crash.thread
-                };
+                m_showInfo = true;
             }
-            if( IsMouseClicked( ImGuiMouseButton_Middle ) )
+            if( IsMouseClicked( 2 ) )
             {
                 CenterAtTime( crash.time );
             }
@@ -297,7 +294,7 @@ void View::DrawZoneList( const TimelineContext& ctx, const std::vector<TimelineD
             DrawZigZag( draw, wpos + ImVec2( 0, offset + ty/2 ), std::max( px0, -10.0 ), std::min( std::max( px1, px0+MinVisSize ), double( w + 10 ) ), ty/4, DarkenColor( color ) );
             if( hover && ImGui::IsMouseHoveringRect( wpos + ImVec2( std::max( px0, -10.0 ), offset ), wpos + ImVec2( std::min( std::max( px1, px0+MinVisSize ), double( w + 10 ) ), offset + ty + 1 ) ) )
             {
-                if( IsMouseClickReleased( ImGuiMouseButton_Right ) ) m_setRangePopup = RangeSlim { ev.Start(), rend, true };
+                if( IsMouseClickReleased( 1 ) ) m_setRangePopup = RangeSlim { ev.Start(), rend, true };
                 if( v.num > 1 )
                 {
                     ImGui::BeginTooltip();
@@ -306,7 +303,7 @@ void View::DrawZoneList( const TimelineContext& ctx, const std::vector<TimelineD
                     TextFocused( "Execution time:", TimeToString( rend - ev.Start() ) );
                     ImGui::EndTooltip();
 
-                    if( IsMouseClicked( ImGuiMouseButton_Middle ) && rend - ev.Start() > 0 )
+                    if( IsMouseClicked( 2 ) && rend - ev.Start() > 0 )
                     {
                         ZoomToRange( ev.Start(), rend );
                     }
@@ -315,11 +312,11 @@ void View::DrawZoneList( const TimelineContext& ctx, const std::vector<TimelineD
                 {
                     ZoneTooltip( ev );
 
-                    if( IsMouseClicked( ImGuiMouseButton_Middle ) && rend - ev.Start() > 0 )
+                    if( IsMouseClicked( 2 ) && rend - ev.Start() > 0 )
                     {
                         ZoomToZone( ev );
                     }
-                    if( IsMouseClicked( ImGuiMouseButton_Left ) )
+                    if( IsMouseClicked( 0 ) )
                     {
                         if( ImGui::GetIO().KeyCtrl )
                         {
@@ -370,11 +367,11 @@ void View::DrawZoneList( const TimelineContext& ctx, const std::vector<TimelineD
             {
                 if( zoneColor.thickness > 1.f )
                 {
-                    draw->AddRect( wpos + ImVec2( px0 + 1, offset + 1 ), wpos + ImVec2( px1 - 1, offset + tsz.y - 1 ), zoneColor.accentColor, 0.f, zoneColor.thickness );
+                    draw->AddRect( wpos + ImVec2( px0 + 1, offset + 1 ), wpos + ImVec2( px1 - 1, offset + tsz.y - 1 ), zoneColor.accentColor, 0.f, -1, zoneColor.thickness );
                 }
                 else
                 {
-                    draw->AddRect( wpos + ImVec2( px0, offset ), wpos + ImVec2( px1, offset + tsz.y ), zoneColor.accentColor, 0.f, zoneColor.thickness );
+                    draw->AddRect( wpos + ImVec2( px0, offset ), wpos + ImVec2( px1, offset + tsz.y ), zoneColor.accentColor, 0.f, -1, zoneColor.thickness );
                 }
             }
             else
@@ -388,13 +385,13 @@ void View::DrawZoneList( const TimelineContext& ctx, const std::vector<TimelineD
             if( hover && ImGui::IsMouseHoveringRect( wpos + ImVec2( px0, offset ), wpos + ImVec2( px1, offset + tsz.y + 1 ) ) )
             {
                 ZoneTooltip( ev );
-                if( IsMouseClickReleased( ImGuiMouseButton_Right ) ) m_setRangePopup = RangeSlim { ev.Start(), m_worker.GetZoneEnd( ev ), true };
+                if( IsMouseClickReleased( 1 ) ) m_setRangePopup = RangeSlim { ev.Start(), m_worker.GetZoneEnd( ev ), true };
 
-                if( !m_zoomAnim.active && IsMouseClicked( ImGuiMouseButton_Middle ) )
+                if( !m_zoomAnim.active && IsMouseClicked( 2 ) )
                 {
                     ZoomToZone( ev );
                 }
-                if( IsMouseClicked( ImGuiMouseButton_Left ) )
+                if( IsMouseClicked( 0 ) )
                 {
                     if( ImGui::GetIO().KeyCtrl )
                     {
@@ -412,6 +409,7 @@ void View::DrawZoneList( const TimelineContext& ctx, const std::vector<TimelineD
             }
             break;
         }
+#ifndef TRACY_NO_STATISTICS
         case TimelineDrawType::GhostFolded:
         {
             auto& ev = *(const GhostZone*)v.ev.get();
@@ -423,14 +421,14 @@ void View::DrawZoneList( const TimelineContext& ctx, const std::vector<TimelineD
             DrawZigZag( draw, wpos + ImVec2( 0, offset + ty/2 ), std::max( px0, -10.0 ), std::min( std::max( px1, px0+MinVisSize ), double( w + 10 ) ), ty/4, DarkenColor( color ) );
             if( hover && ImGui::IsMouseHoveringRect( wpos + ImVec2( std::max( px0, -10.0 ), offset ), wpos + ImVec2( std::min( std::max( px1, px0+MinVisSize ), double( w + 10 ) ), offset + ty + 1 ) ) )
             {
-                if( IsMouseClickReleased( ImGuiMouseButton_Right ) ) m_setRangePopup = RangeSlim { ev.start.Val(), rend , true };
+                if( IsMouseClickReleased( 1 ) ) m_setRangePopup = RangeSlim { ev.start.Val(), rend , true };
                 ImGui::BeginTooltip();
                 ImGui::TextUnformatted( "Multiple ghost zones" );
                 ImGui::Separator();
                 TextFocused( "Execution time:", TimeToString( rend - ev.start.Val() ) );
                 ImGui::EndTooltip();
 
-                if( IsMouseClicked( ImGuiMouseButton_Middle ) && rend - ev.start.Val() > 0 )
+                if( IsMouseClicked( 2 ) && rend - ev.start.Val() > 0 )
                 {
                     ZoomToRange( ev.start.Val(), rend );
                 }
@@ -485,7 +483,7 @@ void View::DrawZoneList( const TimelineContext& ctx, const std::vector<TimelineD
 
                 if( hover && ImGui::IsMouseHoveringRect( wpos + ImVec2( px0, offset ), wpos + ImVec2( px1, offset + tsz.y + 1 ) ) )
                 {
-                    if( IsMouseClickReleased( ImGuiMouseButton_Right ) ) m_setRangePopup = RangeSlim { ev.start.Val(), ev.end.Val() , true };
+                    if( IsMouseClickReleased( 1 ) ) m_setRangePopup = RangeSlim { ev.start.Val(), ev.end.Val() , true };
                     ImGui::BeginTooltip();
                     TextDisabledUnformatted( ICON_FA_GHOST " Ghost zone" );
                     ImGui::Separator();
@@ -501,7 +499,7 @@ void View::DrawZoneList( const TimelineContext& ctx, const std::vector<TimelineD
                     ImGui::Separator();
                     TextFocused( "Execution time:", TimeToString( ev.end.Val() - ev.start.Val() ) );
                     ImGui::EndTooltip();
-                    if( !m_zoomAnim.active && IsMouseClicked( ImGuiMouseButton_Middle ) )
+                    if( !m_zoomAnim.active && IsMouseClicked( 2 ) )
                     {
                         ZoomToRange( ev.start.Val(), ev.end.Val() );
                     }
@@ -544,7 +542,7 @@ void View::DrawZoneList( const TimelineContext& ctx, const std::vector<TimelineD
 
                 if( hover && ImGui::IsMouseHoveringRect( wpos + ImVec2( px0, offset ), wpos + ImVec2( px1, offset + tsz.y + 1 ) ) )
                 {
-                    if( IsMouseClickReleased( ImGuiMouseButton_Right ) ) m_setRangePopup = RangeSlim { ev.start.Val(), ev.end.Val(), true };
+                    if( IsMouseClickReleased( 1 ) ) m_setRangePopup = RangeSlim { ev.start.Val(), ev.end.Val(), true };
                     ImGui::BeginTooltip();
                     TextDisabledUnformatted( ICON_FA_GHOST " Ghost zone" );
                     if( sym.symAddr >> 63 != 0 )
@@ -587,11 +585,11 @@ void View::DrawZoneList( const TimelineContext& ctx, const std::vector<TimelineD
                     TextFocused( "Execution time:", TimeToString( ev.end.Val() - ev.start.Val() ) );
                     ImGui::EndTooltip();
 
-                    if( IsMouseClicked( ImGuiMouseButton_Left ) )
+                    if( IsMouseClicked( 0 ) )
                     {
                         ViewDispatch( file, line, sym.symAddr );
                     }
-                    else if( !m_zoomAnim.active && IsMouseClicked( ImGuiMouseButton_Middle ) )
+                    else if( !m_zoomAnim.active && IsMouseClicked( 2 ) )
                     {
                         ZoomToRange( ev.start.Val(), ev.end.Val() );
                     }
@@ -599,6 +597,7 @@ void View::DrawZoneList( const TimelineContext& ctx, const std::vector<TimelineD
             }
             break;
         }
+#endif
         default:
             assert( false );
             break;
@@ -609,7 +608,7 @@ void View::DrawZoneList( const TimelineContext& ctx, const std::vector<TimelineD
 void View::DrawThreadCropper( const int depth, const uint64_t tid, const float xPos, const float yPos, const float ostep, const float cropperWidth, const bool hasCtxSwitches )
 {
     const ImVec2 mousePos = ImGui::GetMousePos();
-    const bool clicked = IsMouseClicked( ImGuiMouseButton_Left );
+    const bool clicked = ImGui::IsMouseClicked( 0 );
     auto draw = ImGui::GetWindowDrawList();
     bool isCropped = ( m_threadDepthLimit.find( tid ) != m_threadDepthLimit.end() );
     const int depthLimit = isCropped ? m_threadDepthLimit[tid] : depth;

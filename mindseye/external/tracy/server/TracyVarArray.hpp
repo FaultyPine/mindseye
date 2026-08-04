@@ -58,7 +58,7 @@ private:
 };
 #pragma pack( pop )
 
-constexpr size_t VarArraySize = sizeof( VarArray<int> );
+enum { VarArraySize = sizeof( VarArray<int> ) };
 
 
 template<typename T>

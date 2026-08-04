@@ -76,7 +76,7 @@ public:
                 newEntry.name = "[unknown] + " + std::to_string(offset);
             }
 
-            IMAGEHLP_LINE64 lineInfo = { 0 };
+            IMAGEHLP_LINE lineInfo = { 0 };
             lineInfo.SizeOfStruct = sizeof(IMAGEHLP_LINE64);
             DWORD displaceMent = 0;
             if ( SymGetLineFromAddr64( m_procHandle, address, &displaceMent, &lineInfo ) )
@@ -122,8 +122,8 @@ private:
 
 char SymbolResolver::s_symbolResolutionBuffer[symbolResolutionBufferSize];
 
-bool ResolveSymbolsDbgHelp( const std::string& imagePath, const FrameEntryList& inputEntryList,
-                            SymbolEntryList& resolvedEntries )
+bool ResolveSymbols( const std::string& imagePath, const FrameEntryList& inputEntryList,
+                    SymbolEntryList& resolvedEntries )
 {
     static SymbolResolver resolver;
     return resolver.ResolveSymbolsForModule( imagePath, inputEntryList, resolvedEntries );

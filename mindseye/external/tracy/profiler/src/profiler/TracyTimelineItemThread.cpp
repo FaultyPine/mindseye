@@ -17,45 +17,6 @@ namespace tracy
 constexpr float MinVisSize = 3;
 constexpr float MinCtxSize = 4;
 
-// Sum Wait→Obtain (and WaitShared→ObtainShared) for one thread across all locks.
-static int64_t GetThreadLockWaitTime( const Worker& worker, uint64_t tid, size_t& lockCnt, uint64_t& waitCount )
-{
-    int64_t waitTotal = 0;
-    lockCnt = 0;
-    waitCount = 0;
-    for( const auto& lock : worker.GetLockMap() )
-    {
-        const auto& lockmap = *lock.second;
-        if( !lockmap.valid ) continue;
-        auto it = lockmap.threadMap.find( tid );
-        if( it == lockmap.threadMap.end() ) continue;
-        lockCnt++;
-        const uint8_t thread = it->second;
-        bool pending = false;
-        int64_t waitStart = 0;
-        for( const auto& evPtr : lockmap.timeline )
-        {
-            const auto* ev = evPtr.ptr.get();
-            if( !ev || ev->thread != thread ) continue;
-            if( ev->type == LockEvent::Type::Wait || ev->type == LockEvent::Type::WaitShared )
-            {
-                pending = true;
-                waitStart = ev->Time();
-            }
-            else if( ev->type == LockEvent::Type::Obtain || ev->type == LockEvent::Type::ObtainShared )
-            {
-                if( pending )
-                {
-                    waitTotal += ev->Time() - waitStart;
-                    waitCount++;
-                    pending = false;
-                }
-            }
-        }
-    }
-    return waitTotal;
-}
-
 
 TimelineItemThread::TimelineItemThread( View& view, Worker& worker, const ThreadData* thread )
     : TimelineItem( view, worker, thread, true )
@@ -75,7 +36,7 @@ bool TimelineItemThread::IsEmpty() const
     return crash.thread != m_thread->id &&
         m_thread->timeline.empty() &&
         m_thread->messages.empty() &&
-        ( !m_worker.AreGhostZonesReady() || m_thread->ghostZones.empty() );
+        m_thread->ghostZones.empty();
 }
 
 uint32_t TimelineItemThread::HeaderColor() const
@@ -210,8 +171,14 @@ void TimelineItemThread::HeaderTooltip( const char* label ) const
     ImGui::Separator();
 
     size_t lockCnt = 0;
-    uint64_t lockWaitCount = 0;
-    const int64_t lockWaitTime = GetThreadLockWaitTime( m_worker, m_thread->id, lockCnt, lockWaitCount );
+    for( const auto& lock : m_worker.GetLockMap() )
+    {
+        const auto& lockmap = *lock.second;
+        if( !lockmap.valid ) continue;
+        auto it = lockmap.threadMap.find( m_thread->id );
+        if( it == lockmap.threadMap.end() ) continue;
+        lockCnt++;
+    }
 
     if( last >= 0 )
     {
@@ -232,18 +199,6 @@ void TimelineItemThread::HeaderTooltip( const char* label ) const
             ImGui::SameLine();
             PrintStringPercent( buf, ctx->runningTime / double( lifetime ) * 100 );
             TextDisabledUnformatted( buf );
-        }
-        if( lockCnt != 0 || lockWaitTime > 0 )
-        {
-            TextFocused( "Lock wait time:", TimeToString( lockWaitTime ) );
-            ImGui::SameLine();
-            PrintStringPercent( buf, lockWaitTime / double( lifetime ) * 100 );
-            TextDisabledUnformatted( buf );
-            if( lockWaitCount != 0 )
-            {
-                ImGui::SameLine();
-                ImGui::TextDisabled( "(%s waits)", RealToString( lockWaitCount ) );
-            }
         }
     }
 
@@ -282,6 +237,7 @@ void TimelineItemThread::HeaderExtraContents( const TimelineContext& ctx, int of
 {
     m_view.DrawThreadMessagesList( ctx, m_msgDraw, offset, m_thread->id );
 
+#ifndef TRACY_NO_STATISTICS
     const bool hasGhostZones = m_worker.AreGhostZonesReady() && !m_thread->ghostZones.empty();
     if( hasGhostZones && !m_thread->timeline.empty() )
     {
@@ -294,12 +250,13 @@ void TimelineItemThread::HeaderExtraContents( const TimelineContext& ctx, int of
 
         if( ctx.hover && ImGui::IsMouseHoveringRect( ctx.wpos + ImVec2( 1.5f * ty + labelWidth, offset ), ctx.wpos + ImVec2( 1.5f * ty + labelWidth + ghostSz, offset + ty ) ) )
         {
-            if( IsMouseClicked( ImGuiMouseButton_Left ) )
+            if( IsMouseClicked( 0 ) )
             {
                 m_ghost = !m_ghost;
             }
         }
     }
+#endif
 }
 
 bool TimelineItemThread::DrawContents( const TimelineContext& ctx, int& offset )
@@ -351,11 +308,13 @@ void TimelineItemThread::Preprocess( const TimelineContext& ctx, TaskDispatch& t
     assert( m_lockDraw.empty() );
 
     td.Queue( [this, &ctx, visible] {
+#ifndef TRACY_NO_STATISTICS
         if( m_worker.AreGhostZonesReady() && ( m_ghost || ( m_view.GetViewData().ghostZones && m_thread->timeline.empty() ) ) )
         {
             m_depth = PreprocessGhostLevel( ctx, m_thread->ghostZones, 0, visible );
         }
         else
+#endif
         {
             m_depth = PreprocessZoneLevel( ctx, m_thread->timeline, 0, visible, 0 );
         }
@@ -400,13 +359,14 @@ void TimelineItemThread::Preprocess( const TimelineContext& ctx, TaskDispatch& t
     }
 }
 
+#ifndef TRACY_NO_STATISTICS
 int TimelineItemThread::PreprocessGhostLevel( const TimelineContext& ctx, const Vector<GhostZone>& vec, int depth, bool visible )
 {
     const auto nspx = ctx.nspx;
     const auto vStart = ctx.vStart;
     const auto vEnd = ctx.vEnd;
 
-    const auto MinVisNs = int64_t( round( ctx.scale * MinVisSize * nspx ) );
+    const auto MinVisNs = int64_t( round( GetScale() * MinVisSize * nspx ) );
 
     auto it = std::lower_bound( vec.begin(), vec.end(), std::max<int64_t>( 0, vStart - 2 * MinVisNs ), [] ( const auto& l, const auto& r ) { return l.end.Val() < r; } );
     if( it == vec.end() ) return depth;
@@ -453,6 +413,7 @@ int TimelineItemThread::PreprocessGhostLevel( const TimelineContext& ctx, const 
 
     return maxdepth;
 }
+#endif
 
 int TimelineItemThread::PreprocessZoneLevel( const TimelineContext& ctx, const Vector<short_ptr<ZoneEvent>>& vec, int depth, bool visible, const uint32_t inheritedColor )
 {
@@ -469,17 +430,11 @@ int TimelineItemThread::PreprocessZoneLevel( const TimelineContext& ctx, const V
 template<typename Adapter, typename V>
 int TimelineItemThread::PreprocessZoneLevel( const TimelineContext& ctx, const V& vec, int depth, bool visible, const uint32_t inheritedColor )
 {
-    if( depth >= 256 )
-    {
-        m_worker.NotifyExcessiveZoneDepth( Adapter{}( vec.front() ).Start() );
-        return depth;
-    }
-
     const auto vStart = ctx.vStart;
     const auto vEnd = ctx.vEnd;
     const auto nspx = ctx.nspx;
 
-    const auto MinVisNs = int64_t( round( ctx.scale * MinVisSize * nspx ) );
+    const auto MinVisNs = int64_t( round( GetScale() * MinVisSize * nspx ) );
 
     auto it = std::lower_bound( vec.begin(), vec.end(), vStart, [this] ( const auto& l, const auto& r ) { Adapter a; return m_worker.GetZoneEnd( a(l) ) < r; } );
     if( it == vec.end() ) return depth;
@@ -569,7 +524,7 @@ void TimelineItemThread::PreprocessContextSwitches( const TimelineContext& ctx, 
     m_hasCtxSwitch = true;
     if( !visible ) return;
 
-    const auto MinCtxNs = int64_t( round( ctx.scale * MinCtxSize * nspx ) );
+    const auto MinCtxNs = int64_t( round( GetScale() * MinCtxSize * nspx ) );
     const auto& sampleData = m_thread->samples;
 
     bool first = true;
@@ -635,7 +590,7 @@ void TimelineItemThread::PreprocessSamples( const TimelineContext& ctx, const Ve
     const auto ostep = ty + 1;
     const auto pos = yPos + ostep;
 
-    const auto MinVis = 5 * ctx.scale;
+    const auto MinVis = 5 * GetScale();
     const auto MinVisNs = int64_t( round( MinVis * nspx ) );
 
     auto it = std::lower_bound( vec.begin(), vec.end(), vStart - MinVisNs, [] ( const auto& l, const auto& r ) { return l.time.Val() < r; } );
@@ -670,39 +625,7 @@ void TimelineItemThread::PreprocessSamples( const TimelineContext& ctx, const Ve
                 nextTime = nt + MinVisNs;
             }
         }
-        const auto num = uint32_t( next - it - 1 );
-        const auto idx = uint32_t( it - vec.begin() );
-        if( num == 0 )
-        {
-            auto type = SampleType::Own;
-            auto& cs = m_worker.GetCallstack( it->callstack.Val() );
-            auto frameData = m_worker.GetCallstackFrame( cs[0] );
-            if( frameData )
-            {
-                const auto& frame = frameData->data[0];
-                if( frame.symAddr >> 63 != 0 )
-                {
-                    type = SampleType::Kernel;
-                }
-                else if( m_worker.IsFrameExternal( frame.file, frameData->imageName ) )
-                {
-                    type = SampleType::External;
-                }
-            }
-
-            m_samplesDraw.emplace_back( SamplesDraw {
-                .num = 0,
-                .idx = idx,
-                .type = type
-            } );
-        }
-        else
-        {
-            m_samplesDraw.emplace_back( SamplesDraw {
-                .num = num,
-                .idx = idx
-            } );
-        }
+        m_samplesDraw.emplace_back( SamplesDraw { uint32_t( next - it - 1 ), uint32_t( it - vec.begin() ) } );
         it = next;
     }
 }
@@ -713,7 +636,7 @@ void TimelineItemThread::PreprocessMessages( const TimelineContext& ctx, const V
     const auto vEnd = ctx.vEnd;
     const auto nspx = ctx.nspx;
 
-    const auto MinVisNs = int64_t( round( ctx.scale * MinVisSize * nspx ) );
+    const auto MinVisNs = int64_t( round( GetScale() * MinVisSize * nspx ) );
 
     auto it = std::lower_bound( vec.begin(), vec.end(), vStart, [] ( const auto& lhs, const auto& rhs ) { return lhs->time < rhs; } );
     if( it == vec.end() ) return;
@@ -978,7 +901,7 @@ void TimelineItemThread::PreprocessLocks( const TimelineContext& ctx, const unor
     const auto& vd = m_view.GetViewData();
     const auto lockInfoWindow = m_view.GetLockInfoWindow();
 
-    const auto MinVisNs = int64_t( round( ctx.scale * MinVisSize * nspx ) );
+    const auto MinVisNs = int64_t( round( GetScale() * MinVisSize * nspx ) );
 
     for( auto& v : locks )
     {

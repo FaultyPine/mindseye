@@ -9,7 +9,6 @@
 #include <unistd.h>
 
 #include "TracyDebug.hpp"
-#include "../common/TracyForceInline.hpp"
 
 namespace tracy
 {
@@ -19,7 +18,6 @@ class RingBuffer
 public:
     RingBuffer( unsigned int size, int fd, int id, int cpu = -1 )
         : m_size( size )
-        , m_mask( size - 1 )
         , m_id( id )
         , m_cpu( cpu )
         , m_fd( fd )
@@ -31,7 +29,7 @@ public:
         auto mapAddr = mmap( nullptr, m_mapSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0 );
         if( mapAddr == MAP_FAILED )
         {
-            TracyDebug( "mmap failed: errno %i (%s)", errno, strerror( errno ) );
+            TracyDebug( "mmap failed: errno %i (%s)\n", errno, strerror( errno ) );
             m_fd = 0;
             m_metadata = nullptr;
             close( fd );
@@ -52,8 +50,20 @@ public:
     RingBuffer( const RingBuffer& ) = delete;
     RingBuffer& operator=( const RingBuffer& ) = delete;
 
-    RingBuffer( RingBuffer&& other ) = delete;
-    RingBuffer& operator=( RingBuffer&& other ) = delete;
+    RingBuffer( RingBuffer&& other )
+    {
+        memcpy( (char*)&other, (char*)this, sizeof( RingBuffer ) );
+        m_metadata = nullptr;
+        m_fd = 0;
+    }
+
+    RingBuffer& operator=( RingBuffer&& other )
+    {
+        memcpy( (char*)&other, (char*)this, sizeof( RingBuffer ) );
+        m_metadata = nullptr;
+        m_fd = 0;
+        return *this;
+    }
 
     bool IsValid() const { return m_metadata != nullptr; }
     int GetId() const { return m_id; }
@@ -64,10 +74,10 @@ public:
         ioctl( m_fd, PERF_EVENT_IOC_ENABLE, 0 );
     }
 
-    tracy_force_inline void Read( void* dst, uint64_t offset, uint64_t cnt )
+    void Read( void* dst, uint64_t offset, uint64_t cnt )
     {
         const auto size = m_size;
-        auto src = ( m_tail + offset ) & m_mask;
+        auto src = ( m_tail + offset ) % size;
         if( src + cnt <= size )
         {
             memcpy( dst, m_buffer + src, cnt );
@@ -118,7 +128,6 @@ private:
     }
 
     unsigned int m_size;
-    unsigned int m_mask;
     uint64_t m_tail;
     char* m_buffer;
     int m_id;

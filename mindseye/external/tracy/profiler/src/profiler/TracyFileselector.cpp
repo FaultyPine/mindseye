@@ -13,18 +13,10 @@ namespace tracy::Fileselector
 
 static bool s_hasFailed = false;
 
-#if !defined TRACY_NO_FILESELECTOR && !defined __EMSCRIPTEN__
-static nfdwindowhandle_t s_windowHandle;
-#endif
-
-void Init( size_t type, void* handle )
+void Init()
 {
 #if !defined TRACY_NO_FILESELECTOR && !defined __EMSCRIPTEN__
     NFD_Init();
-    s_windowHandle = {
-        .type = type,
-        .handle = handle
-    };
 #endif
 }
 
@@ -85,12 +77,7 @@ static bool OpenFileImpl( const char* ext, const char* desc, const std::function
 #  else
     nfdu8filteritem_t filter = { desc, ext };
     nfdu8char_t* fn;
-    const nfdopendialogu8args_t args = {
-        .filterList = &filter,
-        .filterCount = 1,
-        .parentWindow = s_windowHandle,
-    };
-    const auto res = NFD_OpenDialogU8_With( &fn, &args );
+    const auto res = NFD_OpenDialogU8( &fn, &filter, 1, nullptr );
     if( res == NFD_OKAY )
     {
         callback( (const char*)fn );
@@ -111,12 +98,7 @@ static bool SaveFileImpl( const char* ext, const char* desc, const std::function
 #if !defined TRACY_NO_FILESELECTOR && !defined __EMSCRIPTEN__
     nfdu8filteritem_t filter = { desc, ext };
     nfdu8char_t* fn;
-    const nfdsavedialogu8args_t args = {
-        .filterList = &filter,
-        .filterCount = 1,
-        .parentWindow = s_windowHandle,
-    };
-    const auto res = NFD_SaveDialogU8_With( &fn, &args );
+    const auto res = NFD_SaveDialogU8( &fn, &filter, 1, nullptr, nullptr );
     if( res == NFD_OKAY )
     {
         callback( (const char*)fn );

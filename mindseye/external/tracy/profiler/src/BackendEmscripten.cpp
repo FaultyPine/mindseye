@@ -24,30 +24,6 @@ static float s_prevScale = -1;
 static int s_width, s_height;
 static uint64_t s_time;
 static const char* s_prevCursor = nullptr;
-static std::string s_clipboard;
-
-extern "C" void tracy_paste_clipboard( const char* text )
-{
-    s_clipboard = text;
-    ImGui::GetIO().AddInputCharactersUTF8( text );
-}
-
-static void SetClipboard( ImGuiContext*, const char* text )
-{
-    s_clipboard = text;
-    EM_ASM( {
-        var text = UTF8ToString($0);
-        if( navigator.clipboard && navigator.clipboard.writeText )
-        {
-            navigator.clipboard.writeText( text );
-        }
-    }, text );
-}
-
-static const char* GetClipboard( ImGuiContext* )
-{
-    return s_clipboard.c_str();
-}
 
 static ImGuiKey TranslateKeyCode( const char* code )
 {
@@ -162,15 +138,6 @@ static ImGuiKey TranslateKeyCode( const char* code )
     return ImGuiKey_None;
 }
 
-static void UpdateKeyModifiers( const EmscriptenKeyboardEvent* e )
-{
-    ImGuiIO& io = ImGui::GetIO();
-    io.AddKeyEvent( ImGuiMod_Ctrl, e->ctrlKey );
-    io.AddKeyEvent( ImGuiMod_Shift, e->shiftKey );
-    io.AddKeyEvent( ImGuiMod_Alt, e->altKey );
-    io.AddKeyEvent( ImGuiMod_Super, e->metaKey );
-}
-
 Backend::Backend( const char* title, const std::function<void()>& redraw, const std::function<void(float)>& scaleChanged, const std::function<int(void)>& isBusy, RunQueue* mainThreadTasks )
 {
     constexpr EGLint eglConfigAttrib[] = {
@@ -216,10 +183,6 @@ Backend::Backend( const char* title, const std::function<void()>& redraw, const 
     ImGuiIO& io = ImGui::GetIO();
     io.BackendPlatformName = "wasm (tracy profiler)";
 
-    auto& platform = ImGui::GetPlatformIO();
-    platform.Platform_SetClipboardTextFn = SetClipboard;
-    platform.Platform_GetClipboardTextFn = GetClipboard;
-
     emscripten_set_mousedown_callback( "#canvas", nullptr, EM_TRUE, []( int, const EmscriptenMouseEvent* e, void* ) -> EM_BOOL {
         ImGui::GetIO().AddMouseButtonEvent( e->button == 0 ? 0 : 3 - e->button, true );
         tracy::s_wasActive = true;
@@ -252,25 +215,17 @@ Backend::Backend( const char* title, const std::function<void()>& redraw, const 
         return EM_TRUE;
     } );
     emscripten_set_keydown_callback( EMSCRIPTEN_EVENT_TARGET_WINDOW, nullptr, EM_TRUE, [] ( int, const EmscriptenKeyboardEvent* e, void* ) -> EM_BOOL {
-        UpdateKeyModifiers( e );
         const auto code = TranslateKeyCode( e->code );
         if( code == ImGuiKey_None ) return EM_FALSE;
         ImGui::GetIO().AddKeyEvent( code, true );
-        if( e->key[0] && !e->key[1] && !e->ctrlKey && !e->metaKey ) ImGui::GetIO().AddInputCharacter( *e->key );
+        if( e->key[0] && !e->key[1] ) ImGui::GetIO().AddInputCharacter( *e->key );
         return EM_TRUE;
     } );
     emscripten_set_keyup_callback( EMSCRIPTEN_EVENT_TARGET_WINDOW, nullptr, EM_TRUE, [] ( int, const EmscriptenKeyboardEvent* e, void* ) -> EM_BOOL {
-        UpdateKeyModifiers( e );
         const auto code = TranslateKeyCode( e->code );
         if( code == ImGuiKey_None ) return EM_FALSE;
         ImGui::GetIO().AddKeyEvent( code, false );
         return EM_TRUE;
-    } );
-    EM_ASM( {
-        document.addEventListener( 'paste', function( e ) {
-            var text = ( e.clipboardData || window.clipboardData ).getData( 'text' );
-            if( text ) ccall( 'tracy_paste_clipboard', 'void', ['string'], [text] );
-        } );
     } );
 
     s_time = std::chrono::duration_cast<std::chrono::microseconds>( std::chrono::high_resolution_clock::now().time_since_epoch() ).count();
@@ -310,12 +265,8 @@ void Backend::NewFrame( int& w, int& h )
 
     if( s_width != w || s_height != h )
     {
-        EM_ASM( {
-            Module.canvas.style.width = ($0 / $2) + 'px';
-            Module.canvas.style.height = ($1 / $2) + 'px';
-            Module.canvas.width = $0;
-            Module.canvas.height = $1;
-        }, w, h, double( scale ) );
+        EM_ASM( Module.canvas.style.width = window.innerWidth + 'px'; Module.canvas.style.height = window.innerHeight + 'px' );
+        EM_ASM( Module.canvas.width = $0; Module.canvas.height = $1, w, h );
 
         s_width = w;
         s_height = h;
@@ -387,14 +338,4 @@ void Backend::SetTitle( const char* title )
 float Backend::GetDpiScale()
 {
     return EM_ASM_DOUBLE( { return window.devicePixelRatio; } );
-}
-
-size_t Backend::HandleType()
-{
-    return 0;
-}
-
-void* Backend::Handle()
-{
-    return nullptr;
 }

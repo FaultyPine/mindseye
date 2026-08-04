@@ -13,7 +13,6 @@ void View::DrawMessages()
 
     const auto scale = GetScale();
     ImGui::SetNextWindowSize( ImVec2( 1200 * scale, 600 * scale ), ImGuiCond_FirstUseEver );
-    m_messagesConstraint.Constrain();
     ImGui::Begin( "Messages", &m_showMessages );
     if( ImGui::GetCurrentWindowRead()->SkipItems ) { ImGui::End(); return; }
 
@@ -29,121 +28,31 @@ void View::DrawMessages()
         return;
     }
 
-    ImGui::AlignTextToFramePadding();
-    ImGui::Text( ICON_FA_FILTER );
+    bool filterChanged = m_messageFilter.Draw( ICON_FA_FILTER " Filter messages", 200 );
     ImGui::SameLine();
-    bool filterChanged = m_messageFilter.m_text.Draw( "##Filter messages", 200 );
-
-    ImGui::SameLine();
-    ImGui::Spacing();
-    ImGui::SameLine();
-    ImGui::SeparatorEx( ImGuiSeparatorFlags_Vertical );
-
-    const auto& style = ImGui::GetStyle();
-    const float frameheight = ImGui::GetFrameHeight();
-    const ImVec4 filterButtonColor = style.Colors[ImGuiCol_Button];
-    const ImVec4 filterButtonColorDisabled{ filterButtonColor.x, filterButtonColor.y, filterButtonColor.z, style.DisabledAlpha };
-    const float buttonSpacing = 2 * style.ItemSpacing.x;
-
-    auto FilterButton = [&]( const char* label, ImVec2 size, bool& value, const char* sideText = nullptr ) {
-        const bool disabled = !value;
-        if( disabled )
-        {
-            ImGui::PushStyleVar( ImGuiStyleVar_Alpha, style.Alpha * style.DisabledAlpha );
-            ImGui::PushStyleColor( ImGuiCol_Button, filterButtonColorDisabled );
-        }
-
-        // Make sure button is at least as wide as it is tall.
-        if( size.x >= 0 ) size.x = ImMax( ImGui::CalcTextSize( label, nullptr, true ).x + 2.0f * style.FramePadding.x, frameheight );
-
-        // Toggle when button is pressed
-        if( ImGui::ButtonEx( label, size, ImGuiButtonFlags_AlignTextBaseLine ) ) 
-        {
-            value = !value;
-            filterChanged = true;
-        }
-
-        if( sideText )
-        {
-            ImGui::SameLine();
-            ImGui::TextUnformatted( sideText );
-            if( ImGui::IsItemClicked() )
-            {
-                value = !value;
-                filterChanged = true;
-            }
-        }
-        
-        if( disabled )
-        {
-            ImGui::PopStyleColor();
-            ImGui::PopStyleVar();
-        }
-    };
-
-    ImGui::SameLine( 0.0, buttonSpacing );
-    TextDisabledUnformatted( "Source" );
-
-    static const char* const sourceNames[] = { "User", "Tracy" };
-    static_assert( std::size( sourceNames ) == (size_t)MessageSourceType::COUNT, "Please provide a name for each source" );
-    static const char* const sourceIcons[] = { ICON_FA_USER, ICON_FA_MICROSCOPE };
-    static_assert( std::size( sourceIcons ) == (size_t)MessageSourceType::COUNT, "Please provide an icon for each source" );
-    for( int i=0; i<(int)MessageSourceType::COUNT; i++ )
-    {
-        ImGui::SameLine();
-        FilterButton( sourceIcons[i], ImVec2( frameheight, frameheight ), m_messageFilter.m_showMessageSourceFilter[i] );
-        tracy::TooltipIfHovered( sourceNames[i] );
-    }
-
-    ImGui::SameLine( 0.0, buttonSpacing );
-    TextDisabledUnformatted( "Severity" );
-
-    constexpr const char* severityNames[(size_t)MessageSeverity::COUNT] = { "Trace", "Debug", "Info", "Warning", "Error", "Fatal" };
-    constexpr const char* severityIcons[(size_t)MessageSeverity::COUNT] = { ICON_FA_SHOE_PRINTS, ICON_FA_BUG, ICON_FA_INFO, ICON_FA_TRIANGLE_EXCLAMATION, ICON_FA_CIRCLE_XMARK, ICON_FA_SKULL_CROSSBONES };
-    static_assert( std::size( severityNames ) == (size_t)MessageSeverity::COUNT, "Please provide a name for each severity" );
-    static_assert( std::size( severityIcons ) == (size_t)MessageSeverity::COUNT, "Please provide an icon for each severity" );
-
-    for( int i=0; i<(int)MessageSeverity::COUNT; i++ )
-    {
-        ImGui::SameLine();
-
-        char buffer[128];
-        if( m_visibleMessagesPerSeverity[i] == m_messagesPerSeverity[i] )
-        {
-            snprintf( buffer, sizeof( buffer ), "%s  %s###%s", severityIcons[i], RealToString( m_messagesPerSeverity[i] ), severityIcons[i] );
-        }
-        else
-        {
-            snprintf( buffer, sizeof( buffer ), "%s  %s / %s###%s", severityIcons[i], RealToString( m_visibleMessagesPerSeverity[i] ), RealToString( m_messagesPerSeverity[i] ), severityIcons[i] );
-        }
-        FilterButton( buffer, ImVec2( 0, 0 ), m_messageFilter.m_showMessageSeverityFilter[i] );
-        tracy::TooltipIfHovered( severityNames[i] );
-    }
-    ImGui::SameLine( 0.0, buttonSpacing );
-    if( ImGui::Button( ICON_FA_DELETE_LEFT " Reset" ) )
+    if( ImGui::Button( ICON_FA_DELETE_LEFT " Clear" ) )
     {
         m_messageFilter.Clear();
         filterChanged = true;
     }
-
+    ImGui::SameLine();
+    ImGui::Spacing();
+    ImGui::SameLine();
+    TextFocused( "Total message count:", RealToString( msgs.size() ) );
+    ImGui::SameLine();
+    ImGui::Spacing();
+    ImGui::SameLine();
+    TextFocused( "Visible messages:", RealToString( m_visibleMessages ) );
     if( m_worker.GetFrameImageCount() != 0 )
     {
-        ImGui::SameLine();
-        ImGui::Spacing();
-        ImGui::SameLine();
-        ImGui::SeparatorEx( ImGuiSeparatorFlags_Vertical );
         ImGui::SameLine();
         ImGui::Spacing();
         ImGui::SameLine();
         ImGui::Checkbox( ICON_FA_IMAGE " Show frame images", &m_showMessageImages );
     }
 
-    m_messagesConstraint.MarkMinWidth();
-    UpdateThreadOrder();
-
     bool threadsChanged = false;
-    ImGui::AlignTextToFramePadding();
-    auto expand = ImGui::TreeNodeEx( ICON_FA_SHUFFLE " Visible threads:", ImGuiTreeNodeFlags_SpanLabelWidth );
+    auto expand = ImGui::TreeNode( ICON_FA_SHUFFLE " Visible threads:" );
     ImGui::SameLine();
     size_t visibleThreads = 0;
     size_t tsz = 0;
@@ -155,17 +64,16 @@ void View::DrawMessages()
     }
     if( visibleThreads == tsz )
     {
-        ImGui::AlignTextToFramePadding();
         ImGui::TextDisabled( "(%zu)", tsz );
     }
     else
     {
-        ImGui::AlignTextToFramePadding();
         ImGui::TextDisabled( "(%zu/%zu)", visibleThreads, tsz );
     }
-
     if( expand )
     {
+        auto& crash = m_worker.GetCrashEvent();
+
         ImGui::SameLine();
         if( ImGui::SmallButton( "Select all" ) )
         {
@@ -184,48 +92,11 @@ void View::DrawMessages()
             }
             threadsChanged = true;
         }
-    }
-
-    ImGui::SameLine();
-    ImGui::Spacing();
-    ImGui::SameLine();
-    ImGui::AlignTextToFramePadding();
-    TextFocused( "Total message count:", RealToString( msgs.size() ) );
-    ImGui::SameLine();
-    ImGui::Spacing();
-    ImGui::SameLine();
-    ImGui::AlignTextToFramePadding();
-    TextFocused( "Visible messages:", RealToString( m_visibleMessages ) );
-
-    if( expand )
-    {
-        auto& crash = m_worker.GetCrashEvent();
-
-        const auto& style = ImGui::GetStyle();
-        const auto cntWidth = ImGui::CalcTextSize( "(1234)" ).x;
-        float probe = 0;
-        for( auto& t : m_threadOrder )
-        {
-            if( t->messages.empty() ) continue;
-            float w = ImGui::GetFrameHeight() * 2 + ImGui::CalcTextSize( m_worker.GetThreadName( t->id ) ).x + cntWidth + style.ItemSpacing.x * 3;
-            if( crash.thread == t->id ) w += style.ItemSpacing.x + ImGui::CalcTextSize( ICON_FA_SKULL " Crashed" ).x;
-            if( t->isFiber ) w += style.ItemSpacing.x + ImGui::CalcTextSize( "Fiber" ).x;
-            probe = std::max( probe, w );
-        }
-        const auto MinWidth = std::max( 150 * GetScale(), probe );
-        const int cols = std::max( 1, int( ImGui::GetContentRegionAvail().x / MinWidth ) );
-
-        const auto rows = ( tsz + cols - 1 ) / cols;
-        const auto rowsVisible = std::min<float>( rows, 7.5f );
-        const auto rowsHeight = ImGui::GetTextLineHeightWithSpacing() * rowsVisible;
-        ImGui::BeginChild( "###msgthreadrows", ImVec2( -1, rowsHeight ) );
 
         int idx = 0;
-        ImGui::BeginTable( "##msgthreadcols", cols, ImGuiTableFlags_NoSavedSettings );
         for( const auto& t : m_threadOrder )
         {
             if( t->messages.empty() ) continue;
-            ImGui::TableNextColumn();
             ImGui::PushID( idx++ );
             const auto threadColor = GetThreadColor( t->id, 0 );
             SmallColorBox( threadColor );
@@ -248,47 +119,83 @@ void View::DrawMessages()
                 TextColoredUnformatted( ImVec4( 0.2f, 0.6f, 0.2f, 1.f ), "Fiber" );
             }
         }
-        ImGui::EndTable();
-        ImGui::EndChild();
         ImGui::TreePop();
     }
 
+    const bool msgsChanged = msgs.size() != m_prevMessages;
     if( filterChanged || threadsChanged )
     {
-        m_prevMessages = 0;
-        m_messagesShowCallstack = false;
-        m_msgList.clear();
-        for( int& count : m_messagesPerSeverity ) count = 0;
-        for( int& count : m_visibleMessagesPerSeverity ) count = 0;
-    }
-
-    if( m_prevMessages < msgs.size() )
-    {
-        bool showCallstack = m_messagesShowCallstack;
+        bool showCallstack = false;
         m_msgList.reserve( msgs.size() );
-        
-        bool isThreadVisible = true;
-        uint16_t previousThread = msgs[m_prevMessages]->thread + 1; // Value different from first entry since + 1
-
-        for( size_t i=m_prevMessages; i<msgs.size(); i++ )
+        m_msgList.clear();
+        if( m_messageFilter.IsActive() )
         {
-            const auto& v = msgs[i];
-            if( previousThread != v->thread )
+            for( size_t i=0; i<msgs.size(); i++ )
             {
-                previousThread = v->thread;
+                const auto& v = msgs[i];
                 const auto tid = m_worker.DecompressThread( v->thread );
-                isThreadVisible = VisibleMsgThread( tid );
-            }
-            if( isThreadVisible )
-            {
-                if( m_messageFilter.PassFilter( *v, m_worker ) )
+                if( VisibleMsgThread( tid ) )
                 {
-                    if( !showCallstack && v->callstack.Val() != 0 ) showCallstack = true;
-                    m_msgList.push_back_no_space_check( uint32_t( i ) );
-                    m_visibleMessagesPerSeverity[(size_t)v->severity]++;
+                    const auto text = m_worker.GetString( msgs[i]->ref );
+                    if( m_messageFilter.PassFilter( text ) )
+                    {
+                        if( !showCallstack && msgs[i]->callstack.Val() != 0 ) showCallstack = true;
+                        m_msgList.push_back_no_space_check( uint32_t( i ) );
+                    }
                 }
             }
-            m_messagesPerSeverity[(size_t)v->severity]++;
+        }
+        else
+        {
+            for( size_t i=0; i<msgs.size(); i++ )
+            {
+                const auto& v = msgs[i];
+                const auto tid = m_worker.DecompressThread( v->thread );
+                if( VisibleMsgThread( tid ) )
+                {
+                    if( !showCallstack && msgs[i]->callstack.Val() != 0 ) showCallstack = true;
+                    m_msgList.push_back_no_space_check( uint32_t( i ) );
+                }
+            }
+        }
+        m_messagesShowCallstack = showCallstack;
+        m_visibleMessages = m_msgList.size();
+        if( msgsChanged ) m_prevMessages = msgs.size();
+    }
+    else if( msgsChanged )
+    {
+        assert( m_prevMessages < msgs.size() );
+        bool showCallstack = m_messagesShowCallstack;
+        m_msgList.reserve( msgs.size() );
+        if( m_messageFilter.IsActive() )
+        {
+            for( size_t i=m_prevMessages; i<msgs.size(); i++ )
+            {
+                const auto& v = msgs[i];
+                const auto tid = m_worker.DecompressThread( v->thread );
+                if( VisibleMsgThread( tid ) )
+                {
+                    const auto text = m_worker.GetString( msgs[i]->ref );
+                    if( m_messageFilter.PassFilter( text ) )
+                    {
+                        if( !showCallstack && msgs[i]->callstack.Val() != 0 ) showCallstack = true;
+                        m_msgList.push_back_no_space_check( uint32_t( i ) );
+                    }
+                }
+            }
+        }
+        else
+        {
+            for( size_t i=m_prevMessages; i<msgs.size(); i++ )
+            {
+                const auto& v = msgs[i];
+                const auto tid = m_worker.DecompressThread( v->thread );
+                if( VisibleMsgThread( tid ) )
+                {
+                    if( !showCallstack && msgs[i]->callstack.Val() != 0 ) showCallstack = true;
+                    m_msgList.push_back_no_space_check( uint32_t( i ) );
+                }
+            }
         }
         m_messagesShowCallstack = showCallstack;
         m_visibleMessages = m_msgList.size();
@@ -361,7 +268,20 @@ void View::DrawMessageLine( const MessageData& msg, bool hasCallstack, int& idx 
             if( fi )
             {
                 ImGui::BeginTooltip();
-                DrawFrameImage( m_FrameTextureCache , *fi );
+                if( fi != m_frameTexturePtr )
+                {
+                    if( !m_frameTexture ) m_frameTexture = MakeTexture();
+                    UpdateTexture( m_frameTexture, m_worker.UnpackFrameImage( *fi ), fi->w, fi->h );
+                    m_frameTexturePtr = fi;
+                }
+                if( fi->flip )
+                {
+                    ImGui::Image( m_frameTexture, ImVec2( fi->w, fi->h ), ImVec2( 0, 1 ), ImVec2( 1, 0 ) );
+                }
+                else
+                {
+                    ImGui::Image( m_frameTexture, ImVec2( fi->w, fi->h ) );
+                }
                 ImGui::EndTooltip();
             }
         }
@@ -372,6 +292,7 @@ void View::DrawMessageLine( const MessageData& msg, bool hasCallstack, int& idx 
         m_msgToFocus.Decay( nullptr );
         m_messagesScrollBottom = false;
     }
+    ImGui::PopID();
     ImGui::TableNextColumn();
     SmallColorBox( GetThreadColor( tid, 0 ) );
     ImGui::SameLine();
@@ -392,7 +313,7 @@ void View::DrawMessageLine( const MessageData& msg, bool hasCallstack, int& idx 
     const auto cw = ImGui::GetContentRegionAvail().x;
     const auto tw = ImGui::CalcTextSize( text, tend ).x;
     ImGui::TextUnformatted( text, tend );
-    if( (tw > cw || *tend != '\0') && ImGui::IsItemHovered() )
+    if( tw > cw && ImGui::IsItemHovered() )
     {
         ImGui::SetNextWindowSize( ImVec2( 1000 * GetScale(), 0 ) );
         ImGui::BeginTooltip();
@@ -400,28 +321,17 @@ void View::DrawMessageLine( const MessageData& msg, bool hasCallstack, int& idx 
         ImGui::EndTooltip();
     }
     ImGui::PopStyleColor();
-    if( ImGui::IsItemClicked( ImGuiMouseButton_Right ) ) ImGui::OpenPopup( "MessageContext" );
-    if( ImGui::BeginPopup( "MessageContext" ) )
-    {
-        if( ImGui::Selectable( ICON_FA_CLIPBOARD " Copy message" ) )
-        {
-            ImGui::SetClipboardText( text );
-            ImGui::CloseCurrentPopup();
-        }
-        ImGui::EndPopup();
-    }
     if( hasCallstack )
     {
         ImGui::TableNextColumn();
         const auto cs = msg.callstack.Val();
         if( cs != 0 )
         {
-            SmallCallstackButton( ICON_FA_ALIGN_JUSTIFY, cs, idx, tid );
+            SmallCallstackButton( ICON_FA_ALIGN_JUSTIFY, cs, idx );
             ImGui::SameLine();
             DrawCallstackCalls( cs, 6 );
         }
     }
-    ImGui::PopID();
 }
 
 }
