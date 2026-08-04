@@ -4,6 +4,34 @@
 #include "core/me_math.h"
 #include "core/me_log.h"
 
+meTypeDescriptorRegistry& meTypeDescriptorGetRegistry()
+{
+	static meTypeDescriptorRegistry* registry = MENEW(GetDefaultAllocator(), meTypeDescriptorRegistry);
+	return *registry;
+}
+
+void meTypeDescriptorRegister(u64 typeHash, meTypeDescriptor* typeDesc)
+{
+	ME_ASSERT(typeHash != 0);
+	ME_ASSERT(typeDesc);
+
+	meTypeDescriptorRegistry& registry = meTypeDescriptorGetRegistry();
+	auto found = registry.find(typeHash);
+	if (found != registry.end())
+	{
+		ME_ASSERT(found->second == typeDesc);
+		return;
+	}
+
+	registry[typeHash] = typeDesc;
+}
+
+meTypeDescriptor* meTypeDescriptorFind(u64 typeHash)
+{
+	meTypeDescriptorRegistry& registry = meTypeDescriptorGetRegistry();
+	auto found = registry.find(typeHash);
+	return found != registry.end() ? found->second : nullptr;
+}
 
 StringView meTypeDescriptorFlagToString(meTypeDescriptorFlags flag)
 {
@@ -395,6 +423,21 @@ meTypeDescriptor TD_CHAR = { .name = STRING_LIT("char"), .size = 1, .align = 1, 
 meTypeDescriptor TD_UNSIGNED_CHAR = {.name = STRING_LIT("unsigned char"), .size = 1, .align = 1, ME_PRIMITIVE_SERDE .equalsFn = &meTypeDescriptorEquals<unsigned char> };
 meTypeDescriptor TD_WCHAR_T = { .name = STRING_LIT("wchar_t"), .size = 4, .align = 4, ME_PRIMITIVE_SERDE .equalsFn = &meTypeDescriptorEquals<wchar_t> };
 
+ME_REGISTER_STATIC_TYPE_DESCRIPTOR(unsigned int, TD_UNSIGNED_INT);
+ME_REGISTER_STATIC_TYPE_DESCRIPTOR(int, TD_INT);
+ME_REGISTER_STATIC_TYPE_DESCRIPTOR(unsigned short, TD_UNSIGNED_SHORT);
+ME_REGISTER_STATIC_TYPE_DESCRIPTOR(short, TD_SHORT);
+ME_REGISTER_STATIC_TYPE_DESCRIPTOR(unsigned long, TD_UNSIGNED_LONG);
+ME_REGISTER_STATIC_TYPE_DESCRIPTOR(long, TD_LONG);
+ME_REGISTER_STATIC_TYPE_DESCRIPTOR(long long, TD_LONG_LONG);
+ME_REGISTER_STATIC_TYPE_DESCRIPTOR(unsigned long long, TD_UNSIGNED_LONG_LONG);
+ME_REGISTER_STATIC_TYPE_DESCRIPTOR(float, TD_FLOAT);
+ME_REGISTER_STATIC_TYPE_DESCRIPTOR(double, TD_DOUBLE);
+ME_REGISTER_STATIC_TYPE_DESCRIPTOR(bool, TD_BOOL);
+ME_REGISTER_STATIC_TYPE_DESCRIPTOR(char, TD_CHAR);
+ME_REGISTER_STATIC_TYPE_DESCRIPTOR(unsigned char, TD_UNSIGNED_CHAR);
+ME_REGISTER_STATIC_TYPE_DESCRIPTOR(wchar_t, TD_WCHAR_T);
+
 // NOTE: We can reuse sizedBufferEquals because meSpan, StringView, and String follow a similar pattern internally
 // where the first param is a data pointer and the second is the 64-bit size.
 // equalsFn uses sizedBufferEquals for the same reason - we compare the referenced bytes instead of the raw struct.
@@ -402,6 +445,10 @@ meTypeDescriptor TD_SPAN = { .name = STRING_LIT("span"), .flags = meTypeDescript
 // NOTE: StringView isn't allowed be serialized - it doesn't own the data. Use String instead.
 meTypeDescriptor TD_STRINGVIEW = { .name = STRING_LIT("StringView"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(StringView), .align = alignof(StringView), ME_DISALLOWED_SERDE .equalsFn = &sizedBufferEquals };
 meTypeDescriptor TD_STRING = { .name = STRING_LIT("String"), .flags = meTypeDescriptorFlag_ExternalPtr, .size = sizeof(String), .align = alignof(String), ME_STRING_SERDE .equalsFn = &sizedBufferEquals, ME_STRING_DESTROY ME_STRING_DEEP_COPY };
+
+ME_REGISTER_STATIC_TYPE_DESCRIPTOR(meSpan, TD_SPAN);
+ME_REGISTER_STATIC_TYPE_DESCRIPTOR(StringView, TD_STRINGVIEW);
+ME_REGISTER_STATIC_TYPE_DESCRIPTOR(String, TD_STRING);
 
 #undef ME_PRIMITIVE_SERDE
 #undef ME_SIZED_BUFFER_SERDE
@@ -460,4 +507,4 @@ meTypeDescriptor TD_DYNARRAY = { .name = STRING_LIT("DynArray"), .flags = meType
     .removeElementFn  = DynArrayRemoveElement,
 };
 
-
+ME_REGISTER_STATIC_TYPE_DESCRIPTOR(DynArray<int>, TD_DYNARRAY);

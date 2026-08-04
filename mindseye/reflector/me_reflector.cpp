@@ -1763,6 +1763,10 @@ bool ProcessReflectedFile(
             }
 
             sourceContentBuilder.AppendFormat("meTypeDescriptor TD_%.*s = {\n%.*s};\n", STRING_VAARGS(uppercaseName), STRING_VAARGS(mainTypeDescriptorContent));
+            sourceContentBuilder.AppendFormat(
+                "ME_REGISTER_STATIC_TYPE_DESCRIPTOR(" STRING_FMT ", TD_%.*s);\n",
+                STRING_VAARGS(typeRefl.name),
+                STRING_VAARGS(uppercaseName));
             generatedAny = true;
         }
     }

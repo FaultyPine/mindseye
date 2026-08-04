@@ -1,9 +1,11 @@
 #pragma once
 
 #include "core/me_defines.h"
+#include "core/me_core.h"
 #include "core/me_memory.h"
 #include "core/me_string.h"
 #include "core/containers/dynarray.h"
+#include "core/containers/me_map.h"
 #include <type_traits>
 struct meTypeDescriptor;
 struct meSerializeResult;
@@ -208,6 +210,32 @@ struct meTypeDescriptor
 		return !(TEST_BIT(flags, meTypeDescriptorFlag_Excluded) || TEST_BIT(flags, meTypeDescriptorFlag_PaddingMember));
 	}
 };
+
+typedef meMap<u64, meTypeDescriptor*> meTypeDescriptorRegistry;
+
+meTypeDescriptorRegistry& meTypeDescriptorGetRegistry();
+void meTypeDescriptorRegister(u64 typeHash, meTypeDescriptor* typeDesc);
+meTypeDescriptor* meTypeDescriptorFind(u64 typeHash);
+
+template <typename T>
+meTypeDescriptor* meTypeDescriptorFind()
+{
+	return meTypeDescriptorFind(TypeHash<T>());
+}
+
+template <typename T>
+struct meStaticTypeDescriptorRegistrar
+{
+	meStaticTypeDescriptorRegistrar(meTypeDescriptor& typeDesc)
+	{
+		meTypeDescriptorRegister(TypeHash<T>(), &typeDesc);
+	}
+};
+
+#define ME_STATIC_TYPE_DESCRIPTOR_REGISTRAR_NAME ME_MACRO_CONCAT_EX(g_typeDescriptorRegistrar_, __COUNTER__)
+
+#define ME_REGISTER_STATIC_TYPE_DESCRIPTOR(type, typeDesc) \
+	static meStaticTypeDescriptorRegistrar<type> ME_STATIC_TYPE_DESCRIPTOR_REGISTRAR_NAME(typeDesc)
 
 struct meTypeDescriptorMember
 {

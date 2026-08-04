@@ -39,6 +39,7 @@ static meTypeDescriptor TD_DESCRIPTOR_DISPATCH_BASE = {
     .destroyFn = DescriptorDispatchBaseDestroy,
     .deepCopyFn = DescriptorDispatchBaseDeepCopy,
 };
+ME_REGISTER_STATIC_TYPE_DESCRIPTOR(meDescriptorDispatchValue, TD_DESCRIPTOR_DISPATCH_BASE);
 
 static meTypeDescriptor g_descriptorDispatchWrapperFields[] = {
     {
@@ -61,6 +62,7 @@ static meTypeDescriptor TD_DESCRIPTOR_DISPATCH_WRAPPER = {
     .size = sizeof(meDescriptorDispatchWrapper),
     .align = alignof(meDescriptorDispatchWrapper),
 };
+ME_REGISTER_STATIC_TYPE_DESCRIPTOR(meDescriptorDispatchWrapper, TD_DESCRIPTOR_DISPATCH_WRAPPER);
 
 struct DescriptorDispatchStats
 {
@@ -126,6 +128,7 @@ static meTypeDescriptor TD_SERIALIZATION_FIXTURE = {
     .align = alignof(meSerializationFixture),
     .setToDefaultsFn = &meTypeDescriptorSetToDefaults<meSerializationFixture>,
 };
+ME_REGISTER_STATIC_TYPE_DESCRIPTOR(meSerializationFixture, TD_SERIALIZATION_FIXTURE);
 
 static void DescriptorDispatchResetStats()
 {
@@ -601,6 +604,18 @@ static void DescriptorTestGeneratedLifecycleHookPresence()
     ME_ASSERT(TD_MEFSPATH.deepCopyFn == stringDeepCopy);
 }
 
+static void DescriptorTestTypeDescriptorRegistry()
+{
+    ME_ASSERT(meTypeDescriptorFind<int>() == &TD_INT);
+    ME_ASSERT(meTypeDescriptorFind<String>() == &TD_STRING);
+    ME_ASSERT(meTypeDescriptorFind<meDescriptorTestChild>() == &TD_MEDESCRIPTORTESTCHILD);
+    ME_ASSERT(meTypeDescriptorFind<meDescriptorTestAsset>() == &TD_MEDESCRIPTORTESTASSET);
+    ME_ASSERT(meTypeDescriptorFind<meDescriptorDispatchValue>() == &TD_DESCRIPTOR_DISPATCH_BASE);
+    ME_ASSERT(meTypeDescriptorFind<meDescriptorDispatchWrapper>() == &TD_DESCRIPTOR_DISPATCH_WRAPPER);
+    ME_ASSERT(meTypeDescriptorFind<meSerializationFixture>() == &TD_SERIALIZATION_FIXTURE);
+    ME_ASSERT(meTypeDescriptorFind<meFsPath>() == &TD_MEFSPATH);
+}
+
 static void DescriptorTestSetToDefaults()
 {
     alignas(meDescriptorTestAsset) u8 backing[sizeof(meDescriptorTestAsset)];
@@ -998,6 +1013,8 @@ void meDescriptorTests()
     meAllocator* allocator = GetDefaultAllocator();
     LOG_INFO("Testing generated descriptor lifecycle hooks...");
     DescriptorTestGeneratedLifecycleHookPresence();
+    LOG_INFO("Testing type descriptor registry...");
+    DescriptorTestTypeDescriptorRegistry();
     LOG_INFO("Testing setToDefaultsFn...");
     DescriptorTestSetToDefaults();
     LOG_INFO("Testing serialization, deserialization, and equals...");

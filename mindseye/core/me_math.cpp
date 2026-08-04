@@ -11,6 +11,9 @@
 meTypeDescriptor TD_VEC3 = { .name = STRING_LIT("vec3"), .size = sizeof(glm::vec3), .align = alignof(glm::vec3), ME_PRIMITIVE_SERDE .equalsFn = &meTypeDescriptorEquals<glm::vec3> };
 meTypeDescriptor TD_QUAT = { .name = STRING_LIT("quat"), .size = sizeof(glm::quat), .align = alignof(glm::quat), ME_PRIMITIVE_SERDE .equalsFn = &meTypeDescriptorEquals<glm::quat> };
 
+ME_REGISTER_STATIC_TYPE_DESCRIPTOR(glm::vec3, TD_VEC3);
+ME_REGISTER_STATIC_TYPE_DESCRIPTOR(glm::quat, TD_QUAT);
+
 #undef ME_PRIMITIVE_SERDE
 
 namespace Math {
