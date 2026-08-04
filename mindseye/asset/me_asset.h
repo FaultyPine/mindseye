@@ -351,90 +351,19 @@ struct ScopedAssetOpaqueLockR
 	const void* resource = nullptr;
 	meAsset asset = {};
 
-	explicit ScopedAssetOpaqueLockR(const meAsset& asset)
-	{
-		Init(asset);
-	}
+	MEAPI explicit ScopedAssetOpaqueLockR(const meAsset& asset);
 
 	ScopedAssetOpaqueLockR(const ScopedAssetOpaqueLockR&) = delete;
 	ScopedAssetOpaqueLockR& operator=(const ScopedAssetOpaqueLockR&) = delete;
 
 	const void* Get() const { return resource; }
-	meAssetLoader* Loader() const
-	{
-		meAssetType type = asset.id.GetType();
-		return meAssetTypeIsValid(type) ? meAssetSystemGet().assetLoaders[type] : nullptr;
-	}
+	MEAPI meAssetLoader* Loader() const;
 	explicit operator bool() const { return resource != nullptr; }
 
 private:
-	void Init(const meAsset& sourceAsset)
-	{
-		asset = sourceAsset;
-		if (asset.isLoaded() || !asset.id)
-		{
-			InitLoadedRuntime();
-			return;
-		}
-		InitTemplateAsset();
-	}
-
-	void InitTemplateAsset()
-	{
-		ME_PROFILE_FUNCTION();
-		MAID maid = asset.id;
-		if (!maid || !meAssetTypeIsValid(maid.GetType()))
-		{
-			return;
-		}
-        meAsset* registeredAsset = meAssetTryGetTemplate(maid);
-        if (registeredAsset && registeredAsset->isLoaded())
-        {
-            asset = *registeredAsset;
-        }
-        else
-        {
-            meAssetRequestLoadTemplate(&maid, 1);
-            if (!meAssetWaitUntilLoadstage({ &maid, 1 }, Loaded))
-            {
-                return;
-            }
-
-            meAssetSystem& sys = meAssetSystemGet();
-            meAssetTypeRegistry& reg = sys.registries[maid.GetType()];
-            {
-                RWLockRead lock(reg.lock);
-                auto it = reg.assets.find(maid);
-                if (it == reg.assets.end() || !it->second.isLoaded())
-                {
-                    return;
-                }
-                asset = it->second;
-            }
-        }
-
-		meAssetLoader* loader = Loader();
-		if (loader && loader->resourcePool)
-		{
-			resource = loader->resourcePool->GetOpaque(asset.runtimeHandle);
-		}
-	}
-
-	void InitLoadedRuntime()
-	{
-		meAssetType type = asset.id.GetType();
-		if (!meAssetTypeIsValid(type))
-		{
-			return;
-		}
-
-		meAssetLoader* loader = Loader();
-		if (loader && loader->resourcePool)
-		{
-			Eye handle = asset.isLoaded() ? asset.runtimeHandle : EYE_INVALID;
-			resource = loader->resourcePool->GetOpaque(handle);
-		}
-	}
+	void Init(const meAsset& sourceAsset);
+	void InitTemplateAsset();
+	void InitLoadedRuntime();
 };
 
 struct ScopedAssetOpaqueLockW
@@ -442,84 +371,20 @@ struct ScopedAssetOpaqueLockW
 	void* resource = nullptr;
 	meAsset asset = {};
 
-	explicit ScopedAssetOpaqueLockW(const meAsset& asset)
-	{
-		Init(asset);
-	}
+	MEAPI explicit ScopedAssetOpaqueLockW(const meAsset& asset);
 
 	ScopedAssetOpaqueLockW(const ScopedAssetOpaqueLockW&) = delete;
 	ScopedAssetOpaqueLockW& operator=(const ScopedAssetOpaqueLockW&) = delete;
 
 	void* Get() const { return resource; }
-	meAssetLoader* Loader() const
-	{
-		meAssetType type = asset.id.GetType();
-		return meAssetTypeIsValid(type) ? meAssetSystemGet().assetLoaders[type] : nullptr;
-	}
+	MEAPI meAssetLoader* Loader() const;
 	const meAsset& Asset() const { return asset; }
 	explicit operator bool() const { return resource != nullptr; }
 
 private:
-	void Init(const meAsset& sourceAsset)
-	{
-		asset = sourceAsset;
-		if (asset.isLoaded() || !asset.id)
-		{
-			InitLoadedRuntime();
-			return;
-		}
-		InitTemplateAsset();
-	}
-
-	void InitTemplateAsset()
-	{
-		ME_PROFILE_FUNCTION();
-		MAID maid = asset.id;
-		if (!maid || !meAssetTypeIsValid(maid.GetType()))
-		{
-			return;
-		}
-
-		meAssetRequestLoadTemplate(&maid, 1);
-		if (!meAssetWaitUntilLoadstage({ &maid, 1 }, Loaded))
-		{
-			return;
-		}
-
-		meAssetSystem& sys = meAssetSystemGet();
-		meAssetTypeRegistry& reg = sys.registries[maid.GetType()];
-		{
-			RWLockRead lock(reg.lock);
-			auto it = reg.assets.find(maid);
-			if (it == reg.assets.end() || !it->second.isLoaded())
-			{
-				return;
-			}
-			asset = it->second;
-		}
-
-		meAssetLoader* loader = Loader();
-		if (loader && loader->resourcePool)
-		{
-			resource = loader->resourcePool->GetOpaque(asset.runtimeHandle);
-		}
-	}
-
-	void InitLoadedRuntime()
-	{
-		meAssetType type = asset.id.GetType();
-		if (!meAssetTypeIsValid(type))
-		{
-			return;
-		}
-
-		meAssetLoader* loader = Loader();
-		if (loader && loader->resourcePool)
-		{
-			Eye handle = asset.isLoaded() ? asset.runtimeHandle : EYE_INVALID;
-			resource = loader->resourcePool->GetOpaque(handle);
-		}
-	}
+	void Init(const meAsset& sourceAsset);
+	void InitTemplateAsset();
+	void InitLoadedRuntime();
 };
 
 template <typename T>

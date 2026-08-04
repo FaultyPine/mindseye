@@ -41,6 +41,158 @@ StringView meAssetFileExtFromType(meAssetType type)
     }
 }
 
+ScopedAssetOpaqueLockR::ScopedAssetOpaqueLockR(const meAsset& asset)
+{
+	Init(asset);
+}
+
+meAssetLoader* ScopedAssetOpaqueLockR::Loader() const
+{
+	meAssetType type = asset.id.GetType();
+	return meAssetTypeIsValid(type) ? meAssetSystemGet().assetLoaders[type] : nullptr;
+}
+
+void ScopedAssetOpaqueLockR::Init(const meAsset& sourceAsset)
+{
+	asset = sourceAsset;
+	if (asset.isLoaded() || !asset.id)
+	{
+		InitLoadedRuntime();
+		return;
+	}
+	InitTemplateAsset();
+}
+
+void ScopedAssetOpaqueLockR::InitTemplateAsset()
+{
+	ME_PROFILE_FUNCTION();
+	MAID maid = asset.id;
+	if (!maid || !meAssetTypeIsValid(maid.GetType()))
+	{
+		return;
+	}
+
+	meAsset* registeredAsset = meAssetTryGetTemplate(maid);
+	if (registeredAsset && registeredAsset->isLoaded())
+	{
+		asset = *registeredAsset;
+	}
+	else
+	{
+		meAssetRequestLoadTemplate(&maid, 1);
+		if (!meAssetWaitUntilLoadstage({ &maid, 1 }, Loaded))
+		{
+			return;
+		}
+
+		meAssetSystem& sys = meAssetSystemGet();
+		meAssetTypeRegistry& reg = sys.registries[maid.GetType()];
+		{
+			RWLockRead lock(reg.lock);
+			auto it = reg.assets.find(maid);
+			if (it == reg.assets.end() || !it->second.isLoaded())
+			{
+				return;
+			}
+			asset = it->second;
+		}
+	}
+
+	meAssetLoader* loader = Loader();
+	if (loader && loader->resourcePool)
+	{
+		resource = loader->resourcePool->GetOpaque(asset.runtimeHandle);
+	}
+}
+
+void ScopedAssetOpaqueLockR::InitLoadedRuntime()
+{
+	meAssetType type = asset.id.GetType();
+	if (!meAssetTypeIsValid(type))
+	{
+		return;
+	}
+
+	meAssetLoader* loader = Loader();
+	if (loader && loader->resourcePool)
+	{
+		Eye handle = asset.isLoaded() ? asset.runtimeHandle : EYE_INVALID;
+		resource = loader->resourcePool->GetOpaque(handle);
+	}
+}
+
+ScopedAssetOpaqueLockW::ScopedAssetOpaqueLockW(const meAsset& asset)
+{
+	Init(asset);
+}
+
+meAssetLoader* ScopedAssetOpaqueLockW::Loader() const
+{
+	meAssetType type = asset.id.GetType();
+	return meAssetTypeIsValid(type) ? meAssetSystemGet().assetLoaders[type] : nullptr;
+}
+
+void ScopedAssetOpaqueLockW::Init(const meAsset& sourceAsset)
+{
+	asset = sourceAsset;
+	if (asset.isLoaded() || !asset.id)
+	{
+		InitLoadedRuntime();
+		return;
+	}
+	InitTemplateAsset();
+}
+
+void ScopedAssetOpaqueLockW::InitTemplateAsset()
+{
+	ME_PROFILE_FUNCTION();
+	MAID maid = asset.id;
+	if (!maid || !meAssetTypeIsValid(maid.GetType()))
+	{
+		return;
+	}
+
+	meAssetRequestLoadTemplate(&maid, 1);
+	if (!meAssetWaitUntilLoadstage({ &maid, 1 }, Loaded))
+	{
+		return;
+	}
+
+	meAssetSystem& sys = meAssetSystemGet();
+	meAssetTypeRegistry& reg = sys.registries[maid.GetType()];
+	{
+		RWLockRead lock(reg.lock);
+		auto it = reg.assets.find(maid);
+		if (it == reg.assets.end() || !it->second.isLoaded())
+		{
+			return;
+		}
+		asset = it->second;
+	}
+
+	meAssetLoader* loader = Loader();
+	if (loader && loader->resourcePool)
+	{
+		resource = loader->resourcePool->GetOpaque(asset.runtimeHandle);
+	}
+}
+
+void ScopedAssetOpaqueLockW::InitLoadedRuntime()
+{
+	meAssetType type = asset.id.GetType();
+	if (!meAssetTypeIsValid(type))
+	{
+		return;
+	}
+
+	meAssetLoader* loader = Loader();
+	if (loader && loader->resourcePool)
+	{
+		Eye handle = asset.isLoaded() ? asset.runtimeHandle : EYE_INVALID;
+		resource = loader->resourcePool->GetOpaque(handle);
+	}
+}
+
 String meAssetGetProjectRootResourceDir(EngineContext* engine)
 {
 	StringView userAppConfigFile = engine->userConfig.projectRootConfigFile;
