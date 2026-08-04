@@ -4,6 +4,7 @@
 #include "core/me_log.h"
 #include "core/me_memory.h"
 #include "core/me_cmdline.h"
+#include "core/me_profile.h"
 
 #include "platform/me_os.h"
 #include "render/renderer_frontend.h"
@@ -141,6 +142,7 @@ void RunEngine(EngineContext* engine)
 {
     while (engine->isRunning)
     {
+        ME_PROFILE_SCOPE("Engine Frame");
 		f32 time = GetTimeSec();
 		engine->deltaTime = time - engine->lastFrameTime;
 		engine->renderer->BeginImguiContext();
@@ -160,6 +162,7 @@ void RunEngine(EngineContext* engine)
 		GetTLScratch()->meClear(); // clear the main engine thread's scratch buffer every frame
 		engine->lastFrameTime = time;
 		engine->frameCount++;
+        ME_PROFILE_FRAME_MARKER();
     }
     engine->renderer->Teardown(engine);
 }

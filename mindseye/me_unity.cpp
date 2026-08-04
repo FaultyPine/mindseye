@@ -29,6 +29,7 @@
 #include "core/thread/me_thread.h"
 #include "core/me_job_system.h"
 #include "core/me_scope_exit.h"
+#include "core/me_profile.h"
 #include "core/me_chunker.h"
 #include "core/me_relptr.h"
 

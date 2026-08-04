@@ -263,6 +263,7 @@ int main(int argc, char** argv)
 		nob_log(NOB_ERROR, "Use 'asan' on Windows, or run a Linux/WSL toolchain for ThreadSanitizer.");
 		return 1;
 	}
+	const bool shippingBuild = mode == RELEASE;
 	nob_mkdir_if_not_exists("build");
 
 	if (!nob_file_exists("mindseye/external/vulkan_lib/Lib"))
@@ -319,7 +320,7 @@ int main(int argc, char** argv)
 	
 	const char* linkerFlagsCommon[] =
 	{
-        "-luser32", "-lgdi32", "-ldbghelp", "-fuse-ld=lld-link", (mode == DEBUG ? "-lmsvcrtd" : "-lmsvcrt"),
+        "-luser32", "-lgdi32", "-ldbghelp", "-ladvapi32", "-lws2_32", "-fuse-ld=lld-link", (mode == DEBUG ? "-lmsvcrtd" : "-lmsvcrt"),
 		nob_temp_sprintf("-L%s/build", root),
 		nob_temp_sprintf("-L%s/tools/clang/lib/clang/21/lib/windows", root),
 		"-lclang_rt.builtins-x86_64",
@@ -337,10 +338,10 @@ int main(int argc, char** argv)
 		"-Wall", "-Wextra", "-Wno-unused-parameter", "-Wno-microsoft-include", "-ferror-limit=500",
 		// 	for /f %%i in ('call git describe --always --dirty')   do set compile_flags_common=%compile_flags_common% -DBUILD_GIT_HASH=\"%%i\"
         (mode == DEBUG ? "-D_DEBUG" : "-DNDEBUG"),
-        (mode != RELEASE ? "-fno-pie" : ""), // No ASLR in non-shipping builds
+		(mode != RELEASE ? "-fno-pie" : ""), // No ASLR in non-shipping builds
 
 		// app flags
-		"-DSHIPPING_BUILD=0", 
+		shippingBuild ? "-DSHIPPING_BUILD=1" : "-DSHIPPING_BUILD=0",
 		nob_temp_sprintf("-I%s/mindseye", root), 
 		nob_temp_sprintf("-I%s/mindseye/external", root),
 
@@ -353,8 +354,10 @@ int main(int argc, char** argv)
 		nob_temp_sprintf("-I%s/mindseye/external/bgfx/bimg/include", root),
 		nob_temp_sprintf("-I%s/mindseye/external/ktx", root),
 		nob_temp_sprintf("-I%s/mindseye/external/enkiTS/src", root),
+		nob_temp_sprintf("-I%s/mindseye/external/tracy/public", root),
 		nob_temp_sprintf("-I%s/mindseye/external/usd/include", root),
 		"-DME_WITH_USD=1",
+		!shippingBuild ? "-DTRACY_ENABLE=1" : nullptr,
 		sanitizerFlag,
 	};
 
@@ -392,6 +395,7 @@ int main(int argc, char** argv)
 	{
 		nob_cmd_append(&driverCompile, "-O2" ,"-DBUILD_DEBUG=0");
 	}
+	nob_cmd_append(&driverCompile, "-DTRACY_IMPORTS");
 	NOB_CMD_APPEND_MULTIPLE(driverCompile, compilerFlagsCommon);
 	// driver linker
 	NOB_CMD_APPEND_MULTIPLE(driverCompile, linkerFlagsCommon);
@@ -417,6 +421,7 @@ int main(int argc, char** argv)
 		nob_cmd_append(&externalLibsCmd, 
 		"-O2", "-DBUILD_DEBUG=0", "-DMEEXPORT", "-D_DLL", "-DBX_CONFIG_DEBUG=0", "-c", "-w");
 	}
+	nob_cmd_append(&externalLibsCmd, "-DTRACY_EXPORTS");
 	NOB_CMD_APPEND_MULTIPLE(externalLibsCmd, compilerFlagsCommon);
 	// input/output
 	const char* externalLibsInputs = nob_temp_sprintf("%s/mindseye/me_external_unity.cpp", root);
@@ -551,6 +556,7 @@ int main(int argc, char** argv)
 		nob_cmd_append(&mindseyeCmd, 
 		"-O2", "-DBUILD_DEBUG=0", "-DMEEXPORT", "-D_USRDLL", "-D_WINDLL", "-D_DLL", "-c", "-DBX_CONFIG_DEBUG=0");
 	}
+	nob_cmd_append(&mindseyeCmd, "-DTRACY_EXPORTS");
 	NOB_CMD_APPEND_MULTIPLE(mindseyeCmd, compilerFlagsCommon);
 	nob_cmd_append(&mindseyeCmd, pchFlag, pchFile);
 	// input/output
@@ -792,6 +798,7 @@ int main(int argc, char** argv)
 					   	//"-D_USRDLL", "-D_WINDLL", "-D_DLL", 
 					   	"-shared");
 	}
+	nob_cmd_append(&testbedCmd, "-DTRACY_IMPORTS");
 	NOB_CMD_APPEND_MULTIPLE(testbedCmd, compilerFlagsCommon);
 	// link
 	NOB_CMD_APPEND_MULTIPLE(testbedCmd, linkerFlagsCommon);
