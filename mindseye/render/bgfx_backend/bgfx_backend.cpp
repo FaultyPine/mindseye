@@ -13,6 +13,7 @@
 #include "core/me_scope_exit.h"
 
 #include "external/cgltf.h"
+#include "tracy/TracyC.h"
 
 #include "bgfx/bgfx/include/bgfx/bgfx.h"
 #include "bgfx/bgfx/src/config.h"
@@ -53,6 +54,64 @@ void OnWindowResize(int width, int height)
     bgfx::setViewRect(0, 0, 0, width, height);
 }
 
+#if defined(TRACY_ENABLE)
+
+static u32 BgfxAbgrToTracyRgb(u32 abgr)
+{
+	u32 r = (abgr >> 0) & 0xff;
+	u32 g = (abgr >> 8) & 0xff;
+	u32 b = (abgr >> 16) & 0xff;
+	return (r << 16) | (g << 8) | b;
+}
+
+struct BgfxTracyZoneStack
+{
+	static constexpr u32 MAX_DEPTH = 128;
+
+	TracyCZoneCtx zones[MAX_DEPTH] = {};
+	u32 count = 0;
+};
+
+thread_local BgfxTracyZoneStack g_bgfxTracyZoneStack;
+
+static const ___tracy_source_location_data g_bgfxTracySourceLocation =
+{
+	"bgfx",
+	"bgfx",
+	"bgfx",
+	0,
+	0
+};
+
+static void BgfxTracyProfilerBegin(const char* name, u32 abgr)
+{
+	BgfxTracyZoneStack& stack = g_bgfxTracyZoneStack;
+	if (stack.count >= BgfxTracyZoneStack::MAX_DEPTH)
+	{
+		return;
+	}
+
+	const char* zoneName = name ? name : "bgfx";
+	TracyCZoneCtx zone = ___tracy_emit_zone_begin(&g_bgfxTracySourceLocation, true);
+	___tracy_emit_zone_name(zone, zoneName, strlen(zoneName));
+	___tracy_emit_zone_color(zone, BgfxAbgrToTracyRgb(abgr));
+	stack.zones[stack.count++] = zone;
+}
+
+static void BgfxTracyProfilerEnd()
+{
+	BgfxTracyZoneStack& stack = g_bgfxTracyZoneStack;
+	if (stack.count == 0)
+	{
+		return;
+	}
+
+	TracyCZoneCtx zone = stack.zones[--stack.count];
+	___tracy_emit_zone_end(zone);
+}
+
+#endif
+
 
 struct BgfxCallback : public bgfx::CallbackI
 {
@@ -80,16 +139,39 @@ struct BgfxCallback : public bgfx::CallbackI
         }
 	}
 
-	virtual void profilerBegin(const char* /*_name*/, uint32_t /*_abgr*/, const char* /*_filePath*/, uint16_t /*_line*/) override
+	virtual void profilerBegin(const char* _name, uint32_t _abgr, const char* _filePath, uint16_t _line) override
 	{
+#if defined(TRACY_ENABLE)
+		BgfxTracyProfilerBegin(_name, _abgr);
+		UNUSED(_filePath);
+		UNUSED(_line);
+#else
+		UNUSED(_name);
+		UNUSED(_abgr);
+		UNUSED(_filePath);
+		UNUSED(_line);
+#endif
 	}
 
-	virtual void profilerBeginLiteral(const char* /*_name*/, uint32_t /*_abgr*/, const char* /*_filePath*/, uint16_t /*_line*/) override
+	virtual void profilerBeginLiteral(const char* _name, uint32_t _abgr, const char* _filePath, uint16_t _line) override
 	{
+#if defined(TRACY_ENABLE)
+		BgfxTracyProfilerBegin(_name, _abgr);
+		UNUSED(_filePath);
+		UNUSED(_line);
+#else
+		UNUSED(_name);
+		UNUSED(_abgr);
+		UNUSED(_filePath);
+		UNUSED(_line);
+#endif
 	}
 
 	virtual void profilerEnd() override
 	{
+#if defined(TRACY_ENABLE)
+		BgfxTracyProfilerEnd();
+#endif
 	}
 
 	virtual uint32_t cacheReadSize(uint64_t _id) override
@@ -126,6 +208,7 @@ struct BgfxCallback : public bgfx::CallbackI
 
 void BgfxRendererBackend::Initialize(EngineContext* engine)
 {
+    ME_PROFILE_FUNCTION();
 	// TODO: swap out the rendererPersistentAllocator for a tcmalloc esc heap.
     rendererPersistentAllocator = MENEW(&engine->engineArena, Arena, MEGABYTES_BYTES(50), "Renderer Persistent", &engine->engineArena);
     rendererFrameArena = ArenaInit(MEGABYTES_BYTES(10), "Renderer Frame", rendererPersistentAllocator);
@@ -210,6 +293,7 @@ static void DestroyShaderGPUResources(meShader& shader)
 
 void BgfxRendererBackend::Teardown(EngineContext* engine)
 {
+    ME_PROFILE_FUNCTION();
 	// Destroy all GPU resources from pools before shutting down bgfx
 	{
 		meMeshPool& meshPool = meMeshPoolGet();
@@ -304,6 +388,7 @@ u64 BgfxRendererBackend::CreateVertexBuffer(
 	meSpan bufferMem, 
 	meMeshVertexLayoutType layout)
 {
+    ME_PROFILE_FUNCTION();
 	if (TEST_BIT(layout, meMeshVertexLayoutType_Index16) || TEST_BIT(layout, meMeshVertexLayoutType_Index32))
 	{
 		// if Index bit is specified, no other bits may be specified
@@ -335,6 +420,7 @@ u64 BgfxRendererBackend::CreateShaderUniform(
 
 u64 BgfxRendererBackend::CreateShaderProgram(meSpan fsMem, meSpan vsMem)
 {
+    ME_PROFILE_FUNCTION();
 	const bgfx::Memory* fsmem = bgfx::alloc(fsMem.size+1);
 	ME_MEMCPY(fsmem->data, fsMem.data, fsMem.size);
 	fsmem->data[fsmem->size-1] = '\0';
@@ -355,11 +441,13 @@ u64 BgfxRendererBackend::CreateShaderProgram(meSpan fsMem, meSpan vsMem)
 
 void BgfxRendererBackend::DestroyShaderProgram(u64 programHandle)
 {
+    ME_PROFILE_FUNCTION();
 	bgfx::destroy(bgfx::ProgramHandle{ static_cast<u16>(programHandle) });
 }
 
 u64 BgfxRendererBackend::UploadTextureToGPU(meSpan textureMem, u32 channels, u32 width, u32 height)
 {
+    ME_PROFILE_FUNCTION();
 	const bgfx::Memory* imgMem = bgfx::makeRef(textureMem.data, textureMem.size);
 	bgfx::TextureFormat::Enum format = bgfx::TextureFormat::Enum::RGBA8;
 	if (channels == 3)
@@ -373,11 +461,13 @@ u64 BgfxRendererBackend::UploadTextureToGPU(meSpan textureMem, u32 channels, u32
 
 void BgfxRendererBackend::DestroyGPUTexture(u64 textureHandle)
 {
+    ME_PROFILE_FUNCTION();
 	bgfx::destroy(static_cast<bgfx::TextureHandle>(textureHandle));
 }
 
 void* BgfxRendererBackend::RenderScene(RenderInput* input)
 {
+    ME_PROFILE_FUNCTION();
     bgfx::setViewClear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x443355FF, 1.0f, 0);
 	bgfx::touch(0);
 
