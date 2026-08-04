@@ -146,18 +146,18 @@ u32 PackFloatsToU32(float f1, float f2, float f3, float f4);
 
 
 template<typename T>
-constexpr u64 type_id() {
+constexpr u64 TypeHash() {
 #if defined(__clang__) || defined(__GNUC__)
     constexpr std::string_view name = __PRETTY_FUNCTION__;
-    // Format: constexpr std::size_t type_id() [with T = ...]
+    // Format: constexpr std::size_t TypeHash() [with T = ...]
     constexpr std::string_view prefix = "T = ";
     auto start = name.find(prefix) + prefix.size();
     auto end = name.find(']', start);
     return HashStringComptime(name.substr(start, end - start));
 #elif defined(_MSC_VER)
     constexpr std::string_view name = __FUNCSIG__;
-    // Format: size_t __cdecl typeid_util::type_id<...>(void)
-    constexpr std::string_view prefix = "type_id<";
+    // Format: size_t __cdecl typeid_util::TypeHash<...>(void)
+    constexpr std::string_view prefix = "TypeHash<";
     auto start = name.find(prefix) + prefix.size();
     auto end = name.find('>', start);
     return HashStringComptime(name.substr(start, end - start));
