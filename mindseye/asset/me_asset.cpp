@@ -6,6 +6,7 @@
 #include "core/me_string.h"
 #include "core/me_filesystem.h"
 #include "core/me_event.h"
+#include "core/me_profile.h"
 
 
 MEEVENT_DECLARE_STATIC(registerAssetLoader);
@@ -54,6 +55,7 @@ String meAssetGetProjectRootResourceDir(EngineContext* engine)
 
 void meAssetInitialize(EngineContext* engine)
 {
+	ME_PROFILE_FUNCTION();
     engine->assetSystem = MENEW(&engine->engineArena, meAssetSystem);
 	for (u32 i = 0; i < NUM_ASSET_TYPES; i++)
 	{
@@ -75,6 +77,7 @@ void meAssetInitialize(EngineContext* engine)
 
 void meAssetInitializeLate(EngineContext* engine)
 {
+	ME_PROFILE_FUNCTION();
 	registerAssetLoader( meEventPayload{ &engine->engineArena });
 }
 
@@ -86,6 +89,7 @@ void meAssetTeardown(EngineContext* engine)
 
 void meAssetRegisterLoader(meAssetLoader* loader)
 {
+	ME_PROFILE_FUNCTION();
     meAssetSystem& assetSystem = meAssetSystemGet();
 	meAssetType type = loader->assetType;
 	ME_ASSERT(assetSystem.assetLoaders[type] == nullptr && "Not allowed to overwrite existing asset loader type");
@@ -112,6 +116,7 @@ meAsset meAssetCreateNewAsset(
     meResourceType resourceType,
     StringView templateFilename)
 {
+	ME_PROFILE_FUNCTION();
     MAID newMaid = sCreateNewAssetID(type);
     meAssetSystem& assetSystem = meAssetSystemGet();
 	meAssetLoader* loader = assetSystem.assetLoaders[type];
@@ -148,6 +153,7 @@ meAssetLoadStage meAssetLoader::meAssetWaitForLoadstage(
     meSpanTyped<MAID> assets, 
     meAssetLoadStage loadStage)
 {
+	ME_PROFILE_FUNCTION();
     for (u32 i = 0; i < assets.size; i++)
     {
         MAID maid = assets[i];
@@ -172,6 +178,7 @@ meAssetLoadStage meAssetLoader::meAssetWaitForLoadstage(
 	const MAID& maid,
 	meAssetLoadStage loadStage)
 {
+	ME_PROFILE_FUNCTION();
     return meAssetWaitForLoadstage({&maid, 1}, loadStage);
 }
 
@@ -180,6 +187,7 @@ meJobId meAssetRequestLoadTemplate(
 	u32 numAssets,
     meAssetOnAssetLoadCb cb)
 {
+	ME_PROFILE_FUNCTION();
 	meAssetSystem& assetSystem = meAssetSystemGet();
 	for (u32 i = 0; i < numAssets; i++)
 	{
@@ -220,6 +228,7 @@ meJobId meAssetRequestLoadTemplate(
 			jobData.cb = cb;
 			auto fn = [jobData, &assetSystem]() 
 			{
+				ME_PROFILE_FUNCTION();
 				meAsset* asset = meAssetTryGetTemplate(jobData.ident);
 				ME_ASSERT(asset);
 				jobData.loader->meAssetLoad(*asset);
@@ -260,6 +269,7 @@ bool meAssetWaitUntilLoadstage(
 	meSpanTyped<MAID> assetIdents, 
 	meAssetLoadStage loadStage)
 {
+	ME_PROFILE_FUNCTION();
     for (u32 i = 0; i < assetIdents.size; i++)
 	{
 		// dispatch to the loader for this asset type
@@ -283,6 +293,7 @@ meJobId meAssetRequestWriteTemplate(
 	meSpanTyped<MAID> assetIdents,
 	meAssetOnAssetLoadCb onWriteCb)
 {
+	ME_PROFILE_FUNCTION();
 	meAssetSystem& assetSystem = meAssetSystemGet();
 	for (u32 i = 0; i < assetIdents.size; i++)
 	{
@@ -316,6 +327,7 @@ meJobId meAssetRequestWriteTemplate(
 			jobData.cb = onWriteCb;
 			auto fn = [jobData, &assetSystem]() 
 			{
+				ME_PROFILE_FUNCTION();
 				meAsset* asset = meAssetTryGetTemplate(jobData.ident);
 				ME_ASSERT(asset && asset->loadStage == Loaded && asset->runtimeHandle && asset->id);
 				jobData.loader->meAssetWrite(*asset);
@@ -341,6 +353,7 @@ meJobId meAssetRequestWriteTemplate(
 
 void meAssetLoader::meAssetLoad(meAsset& asset)
 {
+	ME_PROFILE_FUNCTION();
 	ME_ASSERT(asset.id.GetType() == assetType);
 	meAllocator* allocator = resourcePool->GetPayloadAllocator();
 	// TODO: implement async loading, so this would return loadStage=Loading
@@ -383,6 +396,7 @@ void meAssetLoader::meAssetLoad(meAsset& asset)
 
 void meAssetUnloadBlocking(meSpanTyped<meAsset> assets)
 {
+	ME_PROFILE_FUNCTION();
 	meAssetSystem& assetSystem = meAssetSystemGet();
     for (u32 i = 0; i < assets.size; i++)
     {
@@ -405,6 +419,7 @@ void meAssetUnloadBlocking(meSpanTyped<meAsset> assets)
 
 void meAssetLoader::meAssetWrite(meAsset& asset)
 {
+	ME_PROFILE_FUNCTION();
 	meResourcePoolBase* pool = resourcePool;
 	if (!asset.isLoaded())
 	{

@@ -5,6 +5,7 @@
 #include "render/renderer_frontend.h"
 #include "core/me_math.h"
 #include "core/me_scope_exit.h"
+#include "core/me_profile.h"
 #include "core/me_filesystem.h"
 #include "platform/me_os.h"
 
@@ -35,6 +36,7 @@ void meMeshPool::Load(
 	meMaterialID materialIDOpt,
 	StringView nameOpt)
 {
+	ME_PROFILE_FUNCTION();
 	meMeshPool& meshPool = meMeshPoolGet();
 	RendererFrontend& renderer = RendererGetMain();
 	meMesh& outMesh = meshPool.Get(outMeshHandle);
@@ -69,6 +71,7 @@ meMeshID meMeshPool::Load(
 	StringView gltfResPath,
 	const cgltf_mesh& inMesh)
 {
+	ME_PROFILE_FUNCTION();
 	meMaterialPool& materialPool = meMaterialGetPool();
 	meMeshPool& meshPool = meMeshPoolGet();
 	meMeshID meshHandle = meshPool.Load({.resourceType = meResourceType_InstanceAsset});
@@ -372,6 +375,7 @@ struct meMeshAssetLoader : public meAssetLoader
 
 	virtual void meAssetLoad(meAsset& asset) override
 	{
+		ME_PROFILE_FUNCTION();
 		meAssetLoader::meAssetLoad(asset);
 		meAllocator* allocator = resourcePool->GetPayloadAllocator();
 		meMesh& outMesh = *(meMesh*)resourcePool->GetOpaque(asset.runtimeHandle);
@@ -395,9 +399,14 @@ struct meMeshAssetLoader : public meAssetLoader
                 cgltf_free(gltfData);
                 MEFREE(allocator, gltfBuffer);
             });
-            cgltf_result parseResult = cgltf_parse(&options, gltfBuffer.data, gltfBuffer.size, &gltfData);
+            cgltf_result parseResult = {};
+			{
+				ME_PROFILE_SCOPE("cgltf_parse mesh");
+				parseResult = cgltf_parse(&options, gltfBuffer.data, gltfBuffer.size, &gltfData);
+			}
             if (parseResult == cgltf_result_success)
             {
+				ME_PROFILE_SCOPE("cgltf_load_buffers mesh");
                 parseResult = cgltf_load_buffers(&options, gltfData, resourcePathAbs.cstr());
                 if (parseResult != cgltf_result_success)
                 {

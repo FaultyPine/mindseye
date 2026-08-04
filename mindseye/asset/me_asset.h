@@ -365,7 +365,6 @@ struct ScopedAssetOpaqueLockR
 		meAssetType type = asset.id.GetType();
 		return meAssetTypeIsValid(type) ? meAssetSystemGet().assetLoaders[type] : nullptr;
 	}
-	const meAsset& Asset() const { return asset; }
 	explicit operator bool() const { return resource != nullptr; }
 
 private:
@@ -382,29 +381,37 @@ private:
 
 	void InitTemplateAsset()
 	{
+		ME_PROFILE_FUNCTION();
 		MAID maid = asset.id;
 		if (!maid || !meAssetTypeIsValid(maid.GetType()))
 		{
 			return;
 		}
+        meAsset* registeredAsset = meAssetTryGetTemplate(maid);
+        if (registeredAsset && registeredAsset->isLoaded())
+        {
+            asset = *registeredAsset;
+        }
+        else
+        {
+            meAssetRequestLoadTemplate(&maid, 1);
+            if (!meAssetWaitUntilLoadstage({ &maid, 1 }, Loaded))
+            {
+                return;
+            }
 
-		meAssetRequestLoadTemplate(&maid, 1);
-		if (!meAssetWaitUntilLoadstage({ &maid, 1 }, Loaded))
-		{
-			return;
-		}
-
-		meAssetSystem& sys = meAssetSystemGet();
-		meAssetTypeRegistry& reg = sys.registries[maid.GetType()];
-		{
-			RWLockRead lock(reg.lock);
-			auto it = reg.assets.find(maid);
-			if (it == reg.assets.end() || !it->second.isLoaded())
-			{
-				return;
-			}
-			asset = it->second;
-		}
+            meAssetSystem& sys = meAssetSystemGet();
+            meAssetTypeRegistry& reg = sys.registries[maid.GetType()];
+            {
+                RWLockRead lock(reg.lock);
+                auto it = reg.assets.find(maid);
+                if (it == reg.assets.end() || !it->second.isLoaded())
+                {
+                    return;
+                }
+                asset = it->second;
+            }
+        }
 
 		meAssetLoader* loader = Loader();
 		if (loader && loader->resourcePool)
@@ -466,6 +473,7 @@ private:
 
 	void InitTemplateAsset()
 	{
+		ME_PROFILE_FUNCTION();
 		MAID maid = asset.id;
 		if (!maid || !meAssetTypeIsValid(maid.GetType()))
 		{
@@ -524,7 +532,6 @@ struct ScopedAssetLockR
 	const T* Get() const { return (const T*)opaque.Get(); }
 	const T* operator->() const { ME_ASSERT(Get()); return Get(); }
 	const T& operator*() const { ME_ASSERT(Get()); return *Get(); }
-	const meAsset& Asset() const { return opaque.Asset(); }
 	explicit operator bool() const { return (bool)opaque; }
 };
 

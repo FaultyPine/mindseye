@@ -1,6 +1,7 @@
 #include "me_material.h"
 
 #include "external/cgltf.h"
+#include "core/me_profile.h"
 #include "render/renderer_frontend.h"
 
 void meMaterialInitialize(EngineContext* ctx)
@@ -34,6 +35,7 @@ meMaterialID meMaterialPool::Load(
 	StringView gltfResPath,
 	const cgltf_material& gltfMaterial)
 {
+	ME_PROFILE_FUNCTION();
 	meMaterialPool& materialPool = meMaterialGetPool();
 	meMaterialID materialHdl = materialPool.Load({.resourceType = meResourceType_InstanceAsset});
 	meMaterial& material = materialPool.Get(materialHdl);

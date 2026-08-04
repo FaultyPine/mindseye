@@ -2,6 +2,7 @@
 #include "me_asset_index.h"
 
 #include "asset/me_asset.h"
+#include "core/me_profile.h"
 #include "core/me_serialize.h"
 #include "platform/me_os.h"
 
@@ -136,6 +137,7 @@ void OnFoundAssetFile(
 	meAssetIndex& assetIndex,
 	const OSFileReference& file)
 {
+	ME_PROFILE_FUNCTION();
 	StringView filepath = file.GetPath();
 	meAssetType type = meAssetFindAssetTypeFromFilepath(filepath);
 	if (type == MABadData)
@@ -185,6 +187,7 @@ void OnFoundAssetFile(
 
 void meAssetIndexInitialize(EngineContext* engine)
 {
+	ME_PROFILE_FUNCTION();
 	engine->assetIndex = MENEW(&engine->engineArena, meAssetIndex);
 	meAssetIndex& assetIndex = meAssetIndexGet();
 	StringView dataDir = meAssetGetResourceDir();

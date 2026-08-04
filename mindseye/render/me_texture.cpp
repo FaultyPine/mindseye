@@ -2,6 +2,7 @@
 
 #include "external/ktx/ktx.h"
 #include "external/stb/stb_image.h"
+#include "core/me_profile.h"
 #include "render/renderer_frontend.h"
 
 void meTextureInitialize(EngineContext* ctx)
@@ -45,6 +46,7 @@ static u32 GetChannelsFromTextureFormat(meTextureFormat format)
 
 meGPUBuffer meTexturePool::Load(const meTextureLoadParams& params)
 {
+	ME_PROFILE_FUNCTION();
 	u32 numChannels = GetChannelsFromTextureFormat(params.textureFormat);
 	meGPUBuffer result = 
 	{
@@ -59,6 +61,7 @@ meGPUBuffer meTexturePool::Load(
 	StringView gltfResPath,
 	const cgltf_image& gltfImage)
 {
+	ME_PROFILE_FUNCTION();
 	meTexturePool& texturePool = meTextureGetPool();
 	UNUSED_DECL meAllocator* texturePayloadAllocator = texturePool.GetPayloadAllocator();
 
@@ -109,7 +112,11 @@ meGPUBuffer meTexturePool::Load(
 		s32 w = 0; s32 h = 0; s32 channels = 0;
 		// TODO: this uses malloc/free, make it use my allocators (texturePayloadAllocator)
         // specifying STBI_rgb_alpha means even for images without alpha channels, it'll fill in 255
-		u8* pngDecompressed = stbi_load_from_memory((u8*)filebuf.data, filebuf.size, &w, &h, &channels, STBI_rgb_alpha);
+		u8* pngDecompressed = nullptr;
+		{
+			ME_PROFILE_SCOPE("stbi_load_from_memory");
+			pngDecompressed = stbi_load_from_memory((u8*)filebuf.data, filebuf.size, &w, &h, &channels, STBI_rgb_alpha);
+		}
 		channels = 4; // channels will get set to the # channels in the source image, but i've asked stbi to fill in the alpha regardless to make things simple
         u64 pngDecompressedSize = w * h * channels;
 		if (pngDecompressed == nullptr)

@@ -5,6 +5,7 @@
 #include "asset/me_asset.h"
 #include "core/me_scope_exit.h"
 #include "core/me_log.h"
+#include "core/me_profile.h"
 #include "core/me_serialize.h"
 #include "scene/me_entity.h"
 #include "render/me_mesh.h"
@@ -35,6 +36,7 @@ void meSceneManager::Tick(EngineContext* ctx)
 
 void meSceneManager::UnloadCurrentScene()
 {
+	ME_PROFILE_FUNCTION();
     EngineContext* ctx = GetEngineCtx();
 
     if (rootScene.isLoaded())
@@ -49,6 +51,7 @@ void meSceneManager::UnloadCurrentScene()
 
 void meSceneManager::ChangeCurrentSceneAsync(StringView filename)
 {
+	ME_PROFILE_FUNCTION();
 	MAID sceneIdent = meAssetIndexGetMAIDFromPath(filename);
     if (!sceneIdent || sceneIdent.GetType() != MAScene)
     {
@@ -130,6 +133,7 @@ struct meSceneAssetLoader : public meAssetLoader
 
 	virtual void meAssetLoad(meAsset& asset) override
 	{
+		ME_PROFILE_FUNCTION();
 		meAssetLoader::meAssetLoad(asset);
 		meAllocator* allocator = resourcePool->GetPayloadAllocator();
 		meScene& outScene = *(meScene*)resourcePool->GetOpaque(asset.runtimeHandle);
@@ -154,6 +158,7 @@ void meScenePool::Load(
 	StringView resourcePathRel,
 	meScene& outScene)
 {
+	ME_PROFILE_FUNCTION();
 	String resourcePathAbs = meAssetGetAbsPathForResource(resourcePathRel);
 	OSFileReference file;
     meOSOpenFile(file, resourcePathAbs, (OSFileFlags_OnlyIfExists | OSFileFlags_ScopedFile | OSFileFlags_ReadOnly));
@@ -173,11 +178,18 @@ void meScenePool::Load(
         MEFREE(sceneAllocator, gltfBuffer);
 	});
 	// parses the gltf json metadata
-    cgltf_result parseResult = cgltf_parse(&options, gltfBuffer.data, gltfBuffer.size, &gltfData);
+    cgltf_result parseResult = {};
+	{
+		ME_PROFILE_SCOPE("cgltf_parse scene");
+		parseResult = cgltf_parse(&options, gltfBuffer.data, gltfBuffer.size, &gltfData);
+	}
     if (parseResult == cgltf_result_success)
     {
 		// loads the external buffers (actual geo, textures, etc)
-        parseResult = cgltf_load_buffers(&options, gltfData, resourcePathAbs.cstr());
+		{
+			ME_PROFILE_SCOPE("cgltf_load_buffers scene");
+			parseResult = cgltf_load_buffers(&options, gltfData, resourcePathAbs.cstr());
+		}
 		if (parseResult != cgltf_result_success)
 		{
 			LOG_WARN("Failed to load gltf buffers from %.*s", STRING_VAARGS(resourcePathAbs));
