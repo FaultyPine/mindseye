@@ -192,9 +192,9 @@ static bool DeepCopyParentAssetIfNeeded(
 		return false;
 	}
 
-	void* parentData = loader->resourcePool->GetOpaque(parentAsset->runtimeHandle);
+    ScopedAssetOpaqueLockR parentData(*parentAsset);
 	DeepCopyContext copyCtx = {};
-	copyCtx.srcData = parentData;
+	copyCtx.srcData = parentData.Get();
 	copyCtx.outputData = ctx.outputData;
 	copyCtx.allocator = ctx.externalDataAllocator;
 	meTypeDescriptorDeepCopy(typeDesc, copyCtx);

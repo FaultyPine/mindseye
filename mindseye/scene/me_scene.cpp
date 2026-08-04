@@ -137,11 +137,11 @@ struct meSceneAssetLoader : public meAssetLoader
 		ME_PROFILE_FUNCTION();
 		meAssetLoader::meAssetLoad(asset);
 		meAllocator* allocator = resourcePool->GetPayloadAllocator();
-		meScene& outScene = *(meScene*)resourcePool->GetOpaque(asset.runtimeHandle);
-		if (FindInString(outScene.externalScenePath, STRING_LIT(".gltf")) != -1 ||
-			FindInString(outScene.externalScenePath, STRING_LIT(".glb")) != -1)
+        ScopedAssetLockW<meScene> outScene(asset);
+		if (FindInString(outScene->externalScenePath, STRING_LIT(".gltf")) != -1 ||
+			FindInString(outScene->externalScenePath, STRING_LIT(".glb")) != -1)
 		{
-			meScenePoolGet().Load(allocator, outScene.externalScenePath, outScene);
+			meScenePoolGet().Load(allocator, outScene->externalScenePath, *outScene);
 		}
 	}
 

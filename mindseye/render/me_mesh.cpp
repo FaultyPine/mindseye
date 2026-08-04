@@ -378,11 +378,11 @@ struct meMeshAssetLoader : public meAssetLoader
 		ME_PROFILE_FUNCTION();
 		meAssetLoader::meAssetLoad(asset);
 		meAllocator* allocator = resourcePool->GetPayloadAllocator();
-		meMesh& outMesh = *(meMesh*)resourcePool->GetOpaque(asset.runtimeHandle);
-		if (FindInString(outMesh.externalMeshPath, STRING_LIT(".gltf")) != -1 ||
-			FindInString(outMesh.externalMeshPath, STRING_LIT(".glb")) != -1)
+        ScopedAssetLockR<meMesh> outMesh(asset);
+		if (FindInString(outMesh->externalMeshPath, STRING_LIT(".gltf")) != -1 ||
+			FindInString(outMesh->externalMeshPath, STRING_LIT(".glb")) != -1)
 		{
-            StringView resourcePathAbs = meAssetGetAbsPathForResource(outMesh.externalMeshPath);
+            StringView resourcePathAbs = meAssetGetAbsPathForResource(outMesh->externalMeshPath);
             OSFileReference file;
             meOSOpenFile(file, resourcePathAbs, (OSFileFlags_OnlyIfExists | OSFileFlags_ScopedFile | OSFileFlags_ReadOnly));
             u64 filesize = meOSGetFileSize(file);
