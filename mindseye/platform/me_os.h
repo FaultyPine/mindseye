@@ -59,11 +59,20 @@ enum OSFileFlags_
 enum OSFileCursorMode { BEGIN, CURRENT, END };
 struct OSFileReference;
 
+struct meCrashHandlerContext
+{
+    u32 magic = 0x4852434d; // MCRH
+    u32 version = 1;
+    u32 size = sizeof(meCrashHandlerContext);
+    bool isRunningTests = false;
+};
+
 MEAPI void  ConsolePrint(StringView text);
 MEAPI void* LoadDynamicLibrary(const char* name);
 MEAPI void  UnloadDynamicLibrary(void* module);
 MEAPI void* GetFunctionPtr(void* module, StringView functionName);
 MEAPI bool  meOSCopyFile(const char* src, const char* dst);
+MEAPI void  meOSInstallUnhandledExceptionHandler(meCrashHandlerContext context);
 
 // ── Atomics ───────────────────────────────────────────────────────────
 

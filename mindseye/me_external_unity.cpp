@@ -16,6 +16,10 @@
 #undef STB_IMAGE_IMPLEMENTATION
 #undef STBIDEF
 
+#define MINIZ_NO_ZLIB_COMPATIBLE_NAMES
+#include "external/miniz/miniz.c"
+#undef MINIZ_NO_ZLIB_COMPATIBLE_NAMES
+
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-copy-with-user-provided-copy"
 #pragma clang diagnostic ignored "-Wcomment"

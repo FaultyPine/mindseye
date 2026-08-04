@@ -319,7 +319,7 @@ int main(int argc, char** argv)
 	
 	const char* linkerFlagsCommon[] =
 	{
-        "-luser32", "-lgdi32", "-fuse-ld=lld-link", (mode == DEBUG ? "-lmsvcrtd" : "-lmsvcrt"),
+        "-luser32", "-lgdi32", "-ldbghelp", "-fuse-ld=lld-link", (mode == DEBUG ? "-lmsvcrtd" : "-lmsvcrt"),
 		nob_temp_sprintf("-L%s/build", root),
 		nob_temp_sprintf("-L%s/tools/clang/lib/clang/21/lib/windows", root),
 		"-lclang_rt.builtins-x86_64",
@@ -607,6 +607,7 @@ int main(int argc, char** argv)
 		"-ladvapi32",
 		"-lws2_32",
 		"-lversion",
+		"-ldbghelp",
 		"-lntdll",
 	};
     // this is wild. And also hurts link times ;(

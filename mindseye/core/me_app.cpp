@@ -271,11 +271,15 @@ void InitializeEngine(s32 argc, char** argv)
     EngineContext* engine = GetEngineCtx();
     engine->isRunning = true;
 
+    InitializeAllocatorSystem(engine);
+    InitializeCmdLine(argc, argv);
+    meCrashHandlerContext crashHandlerContext = {};
+    crashHandlerContext.isRunningTests = CMDLINE_HAS(ShouldRunTests);
+    meOSInstallUnhandledExceptionHandler(crashHandlerContext);
+
     InitializeLogger();
 	StringView workingDir = meOSGetWorkingDir();
 	LOG_INFO("Working dir: %.*s", STRING_VAARGS(workingDir));
-    InitializeAllocatorSystem(engine);
-    InitializeCmdLine(argc, argv);
 	    
 	WindowCreationParams windowCreationParams = {}; // TODO: from config/cmdline?
     meOSCreateWindow(windowCreationParams, engine);

@@ -4,6 +4,11 @@
 #include "platform/me_os.h"
 #include "core/me_memory.h"
 #include "core/me_log.h"
+#ifndef ME_CORE_ONLY
+#define MINIZ_NO_ZLIB_COMPATIBLE_NAMES
+#include "external/miniz/miniz.h"
+#undef MINIZ_NO_ZLIB_COMPATIBLE_NAMES
+#endif
 
 #ifndef OS_WINDOWS
 #error "Including windows header in non windows build!
@@ -11,7 +16,244 @@
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#ifndef ME_CORE_ONLY
+#include <dbghelp.h>
+#endif
 #undef WIN32_LEAN_AND_MEAN
+
+#ifndef ME_CORE_ONLY
+static constexpr ULONG ME_CRASH_HANDLER_CONTEXT_STREAM_TYPE = 0x4d450001; // Must be > LastReservedStream.
+
+static meCrashHandlerContext g_crashHandlerContext = {};
+
+static StringView CrashFileName(StringView path)
+{
+    s32 lastForwardSlash = FindInStringRev(path, STRING_LIT("/"), 0, StringOpFlags_IdxAfterNeedle);
+    s32 lastBackSlash = FindInStringRev(path, STRING_LIT("\\"), 0, StringOpFlags_IdxAfterNeedle);
+    s32 fileNameStart = MEMAX(lastForwardSlash, lastBackSlash);
+    return fileNameStart == -1 ? path : path.OffsetView(fileNameStart);
+}
+
+static StringBuilder CrashCreateStackTraceBuilder()
+{
+    static char stackTraceBuffer[64 * 1024];
+    StringBuilder builder = {};
+    builder.data = stackTraceBuffer;
+    builder.len = 0;
+    builder.capacity = sizeof(stackTraceBuffer);
+    builder.allocator = GetDefaultAllocator();
+    return builder;
+}
+
+static bool CrashCreateZip(StringView zipPath, StringView* filePaths, u32 fileCount)
+{
+    mz_zip_archive zip = {};
+    if (!mz_zip_writer_init_file(&zip, zipPath.cstr(), 0))
+        return false;
+
+    u32 writtenEntries = 0;
+    for (u32 i = 0; i < fileCount; i++)
+    {
+        StringView filePath = filePaths[i];
+        if (!filePath)
+            continue;
+
+        if (mz_zip_writer_add_file(&zip, CrashFileName(filePath).cstr(), filePath.cstr(), nullptr, 0, MZ_BEST_COMPRESSION))
+            writtenEntries++;
+    }
+
+    bool ok = writtenEntries > 0 && mz_zip_writer_finalize_archive(&zip);
+    mz_zip_writer_end(&zip);
+    return ok;
+}
+
+static void CrashAppendStackTrace(EXCEPTION_POINTERS* exceptionInfo, StringBuilder& stackTrace)
+{
+    HANDLE process = GetCurrentProcess();
+    HANDLE thread = GetCurrentThread();
+
+    SymSetOptions(SYMOPT_LOAD_LINES | SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS);
+    SymInitialize(process, nullptr, TRUE);
+
+    CONTEXT context = *exceptionInfo->ContextRecord;
+    STACKFRAME64 frame = {};
+    DWORD machineType = 0;
+
+#if defined(_M_X64) || defined(__x86_64__)
+    machineType = IMAGE_FILE_MACHINE_AMD64;
+    frame.AddrPC.Offset = context.Rip;
+    frame.AddrFrame.Offset = context.Rbp;
+    frame.AddrStack.Offset = context.Rsp;
+#elif defined(_M_IX86) || defined(__i386__)
+    machineType = IMAGE_FILE_MACHINE_I386;
+    frame.AddrPC.Offset = context.Eip;
+    frame.AddrFrame.Offset = context.Ebp;
+    frame.AddrStack.Offset = context.Esp;
+#else
+    stackTrace.Append(STRING_LIT("Stack walking is not implemented for this CPU architecture.\n"));
+    return;
+#endif
+
+    frame.AddrPC.Mode = AddrModeFlat;
+    frame.AddrFrame.Mode = AddrModeFlat;
+    frame.AddrStack.Mode = AddrModeFlat;
+
+    for (u32 frameIdx = 0; frameIdx < 128; frameIdx++)
+    {
+        if (!StackWalk64(machineType, process, thread, &frame, &context, nullptr, SymFunctionTableAccess64, SymGetModuleBase64, nullptr))
+            break;
+        if (frame.AddrPC.Offset == 0)
+            break;
+
+        DWORD64 displacement = 0;
+        char symbolStorage[sizeof(SYMBOL_INFO) + 512] = {};
+        SYMBOL_INFO* symbol = (SYMBOL_INFO*)symbolStorage;
+        symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
+        symbol->MaxNameLen = 511;
+
+        IMAGEHLP_LINE64 line = {};
+        line.SizeOfStruct = sizeof(line);
+        DWORD lineDisplacement = 0;
+
+        bool hasSymbol = SymFromAddr(process, frame.AddrPC.Offset, &displacement, symbol) != FALSE;
+        bool hasLine = SymGetLineFromAddr64(process, frame.AddrPC.Offset, &lineDisplacement, &line) != FALSE;
+
+        if (hasSymbol && hasLine)
+        {
+            stackTrace.Append(StringFormatTmp("#%02u 0x%llx %s + 0x%llx (%s:%lu)\n",
+                frameIdx, frame.AddrPC.Offset, symbol->Name, displacement, line.FileName, line.LineNumber));
+        }
+        else if (hasSymbol)
+        {
+            stackTrace.Append(StringFormatTmp("#%02u 0x%llx %s + 0x%llx\n",
+                frameIdx, frame.AddrPC.Offset, symbol->Name, displacement));
+        }
+        else
+        {
+            stackTrace.Append(StringFormatTmp("#%02u 0x%llx\n", frameIdx, frame.AddrPC.Offset));
+        }
+    }
+}
+
+static bool CrashWriteDump(EXCEPTION_POINTERS* exceptionInfo, StringView dumpPath, const meCrashHandlerContext& crashContext)
+{
+    HANDLE file = CreateFileA(dumpPath.cstr(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (file == INVALID_HANDLE_VALUE)
+        return false;
+
+    MINIDUMP_EXCEPTION_INFORMATION dumpException = {};
+    dumpException.ThreadId = GetCurrentThreadId();
+    dumpException.ExceptionPointers = exceptionInfo;
+    dumpException.ClientPointers = FALSE;
+
+    MINIDUMP_TYPE dumpType = (MINIDUMP_TYPE)(
+        MiniDumpWithDataSegs |
+        MiniDumpWithHandleData |
+        MiniDumpWithUnloadedModules |
+        MiniDumpWithIndirectlyReferencedMemory |
+        MiniDumpWithThreadInfo);
+
+    MINIDUMP_USER_STREAM userStream = {};
+    userStream.Type = ME_CRASH_HANDLER_CONTEXT_STREAM_TYPE;
+    userStream.BufferSize = sizeof(crashContext);
+    userStream.Buffer = (void*)&crashContext;
+
+    MINIDUMP_USER_STREAM_INFORMATION userStreams = {};
+    userStreams.UserStreamCount = 1;
+    userStreams.UserStreamArray = &userStream;
+
+    bool ok = MiniDumpWriteDump(GetCurrentProcess(), GetCurrentProcessId(), file, dumpType, &dumpException, &userStreams, nullptr) != FALSE;
+    CloseHandle(file);
+    return ok;
+}
+
+static LONG WINAPI meUnhandledExceptionFilter(EXCEPTION_POINTERS* exceptionInfo)
+{
+    if (IsDebuggerPresent())
+        return EXCEPTION_CONTINUE_SEARCH;
+
+    meCrashHandlerContext crashContext = g_crashHandlerContext;
+
+    StringView exeFolder = meOSGetExeFileFolder();
+
+    char reportsDir[ME_PATH_MAX] = {};
+    StringCopy(StringView(reportsDir, ME_PATH_MAX), StringFormatTmp(STRING_FMT "\\crash_reports", STRING_VAARGS(exeFolder)));
+    StringView reportsDirView = StringFromCString(reportsDir);
+    CreateDirectoryA(reportsDirView.cstr(), nullptr);
+
+    SYSTEMTIME time = {};
+    GetLocalTime(&time);
+    DWORD pid = GetCurrentProcessId();
+
+    char reportBase[128] = {};
+    StringCopy(StringView(reportBase, sizeof(reportBase)), StringFormatTmp("mindseye_crash_%04u%02u%02u_%02u%02u%02u_%lu",
+        time.wYear, time.wMonth, time.wDay, time.wHour, time.wMinute, time.wSecond, pid));
+    StringView reportBaseView = StringFromCString(reportBase);
+
+    char dumpPath[ME_PATH_MAX] = {};
+    char stackPath[ME_PATH_MAX] = {};
+    char zipPath[ME_PATH_MAX] = {};
+    StringCopy(StringView(dumpPath, ME_PATH_MAX), StringFormatTmp(STRING_FMT "\\" STRING_FMT ".dmp", STRING_VAARGS(reportsDirView), STRING_VAARGS(reportBaseView)));
+    StringCopy(StringView(stackPath, ME_PATH_MAX), StringFormatTmp(STRING_FMT "\\" STRING_FMT "_stacktrace.txt", STRING_VAARGS(reportsDirView), STRING_VAARGS(reportBaseView)));
+    StringCopy(StringView(zipPath, ME_PATH_MAX), StringFormatTmp(STRING_FMT "\\" STRING_FMT ".zip", STRING_VAARGS(reportsDirView), STRING_VAARGS(reportBaseView)));
+    StringView dumpPathView = StringFromCString(dumpPath);
+    StringView stackPathView = StringFromCString(stackPath);
+    StringView zipPathView = StringFromCString(zipPath);
+
+    EXCEPTION_RECORD* record = exceptionInfo->ExceptionRecord;
+    StringBuilder stackTrace = CrashCreateStackTraceBuilder();
+    stackTrace.Append(StringFormatTmp(
+        "Unhandled exception 0x%08lx at 0x%p\nProcess: %lu\nThread: %lu\n\nStack trace:\n",
+        record->ExceptionCode, record->ExceptionAddress, pid, GetCurrentThreadId()));
+    CrashAppendStackTrace(exceptionInfo, stackTrace);
+    StringView stackTraceText = StringView(stackTrace);
+
+    bool wroteStack = false;
+    OSFileReference stackFile = {};
+    if (meOSOpenFile(stackFile, stackPathView, OSFileFlags_StompExisting))
+    {
+        bool wroteStackFile = meOSWriteFileContent(stackFile, stackTraceText.data, stackTraceText.len);
+        bool closedStackFile = meOSCloseFile(stackFile);
+        wroteStack = wroteStackFile && closedStackFile;
+    }
+    bool wroteDump = CrashWriteDump(exceptionInfo, dumpPathView, crashContext);
+
+    StringView zipEntries[2] = {};
+    u32 zipEntryCount = 0;
+    if (wroteDump)
+        zipEntries[zipEntryCount++] = dumpPathView;
+    if (wroteStack)
+        zipEntries[zipEntryCount++] = stackPathView;
+
+    bool wroteZip = CrashCreateZip(zipPathView, zipEntries, zipEntryCount);
+    StringView dumpReportPath = wroteDump ? dumpPathView : STRING_LIT("(failed to write dump)");
+    StringView zipReportPath = wroteZip ? zipPathView : STRING_LIT("(failed to write zip)");
+
+    LOG_ERROR("\n%.*s", STRING_VAARGS(stackTraceText));
+    LOG_ERROR("Crash report written: dump=" STRING_FMT " zip=" STRING_FMT,
+        STRING_VAARGS(dumpReportPath),
+        STRING_VAARGS(zipReportPath));
+
+    if (!crashContext.isRunningTests)
+    {
+        char dialogText[2048] = {};
+        StringCopy(StringView(dialogText, sizeof(dialogText)), StringFormatTmp(
+            "Mindseye has crashed.\n\nDump:\n" STRING_FMT "\n\nArchive:\n" STRING_FMT "\n\nThe stack trace was also printed to the debugger/console.",
+            STRING_VAARGS(dumpReportPath),
+            STRING_VAARGS(zipReportPath)));
+        MessageBoxA(nullptr, dialogText, "Mindseye Crash", MB_OK | MB_ICONERROR | MB_TASKMODAL);
+    }
+
+    ExitProcess(record->ExceptionCode);
+    return EXCEPTION_EXECUTE_HANDLER;
+}
+
+void meOSInstallUnhandledExceptionHandler(meCrashHandlerContext context)
+{
+    g_crashHandlerContext = context;
+    SetUnhandledExceptionFilter(meUnhandledExceptionFilter);
+}
+#endif
 
 #ifndef ME_CORE_ONLY
 #include "core/me_app.h"
