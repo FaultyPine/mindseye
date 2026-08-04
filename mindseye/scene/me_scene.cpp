@@ -84,6 +84,7 @@ void meSceneManager::CopyToRenderInput(meScene& outScene, meAllocator* frameAllo
 // TODO: BVH
 meSceneRaycastHit meSceneRaycast(meScene& scene, const meRay& ray)
 {
+    ME_PROFILE_FUNCTION();
 	meSceneRaycastHit result = {};
 	f32 closestT = FLT_MAX;
 
@@ -160,22 +161,16 @@ void meScenePool::Load(
 {
 	ME_PROFILE_FUNCTION();
 	String resourcePathAbs = meAssetGetAbsPathForResource(resourcePathRel);
-	OSFileReference file;
-    meOSOpenFile(file, resourcePathAbs, (OSFileFlags_OnlyIfExists | OSFileFlags_ScopedFile | OSFileFlags_ReadOnly));
-	u64 filesize = meOSGetFileSize(file);
-	Allocation gltfBuffer = MEALLOC(sceneAllocator, filesize);
+	meMemoryMappedFile mapping;
+    meOSMapFile(mapping, resourcePathAbs, (OSFileFlags_OnlyIfExists | OSFileFlags_ScopedFile | OSFileFlags_ReadOnly));
+	meSpan gltfBuffer(mapping.ptr, mapping.size);
 
-    if (!meOSReadFileContents(file, gltfBuffer.data, gltfBuffer.size))
-    {
-        LOG_ERROR("[meScene] failed to load gltf scene %.*s", STRING_VAARGS(resourcePathAbs));
-    }
     cgltf_options options = {};
     cgltf_data* gltfData = nullptr;
 
-    ME_ON_SCOPE_EXIT([sceneAllocator, gltfData, &gltfBuffer]()
+    ME_ON_SCOPE_EXIT([gltfData]()
 	{
 		cgltf_free(gltfData);
-        MEFREE(sceneAllocator, gltfBuffer);
 	});
 	// parses the gltf json metadata
     cgltf_result parseResult = {};

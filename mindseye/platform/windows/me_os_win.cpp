@@ -4,6 +4,7 @@
 #include "platform/me_os.h"
 #include "core/me_memory.h"
 #include "core/me_log.h"
+#include "core/me_profile.h"
 #ifndef ME_CORE_ONLY
 #define MINIZ_NO_ZLIB_COMPATIBLE_NAMES
 #include "external/miniz/miniz.h"
@@ -388,6 +389,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
 void meOSCreateWindow(WindowCreationParams creationParams, EngineContext* engine)
 {
+    ME_PROFILE_FUNCTION();
     const wchar_t* CLASS_NAME  = L"Mindseye";
     WNDCLASS wc = {};
 
@@ -458,6 +460,7 @@ void meOSCreateWindow(WindowCreationParams creationParams, EngineContext* engine
 
 void meOSTick(EngineContext* engine)
 {
+    ME_PROFILE_FUNCTION();
     MSG msg;
 	OSStateView* osState = engine->osData;
 
@@ -543,6 +546,7 @@ void meOSFreeVirtualMemory(void* data)
 
 void* LoadDynamicLibrary(const char* name)
 {
+    ME_PROFILE_FUNCTION();
     return (void*)LoadLibraryA(name);
 }
 
@@ -558,6 +562,7 @@ void* GetFunctionPtr(void* module, StringView functionName)
 
 bool meOSCopyFile(const char* src, const char* dst)
 {
+    ME_PROFILE_FUNCTION();
     return CopyFileA(src, dst, FALSE) != 0;
 }
 
@@ -653,6 +658,7 @@ u64 meOSAtomicDecrement(meAtomicU64& atomic)
 
 bool meOSMapFile(meMemoryMappedFile& out, StringView path, OSFileFlags flags)
 {
+    ME_PROFILE_FUNCTION();
     ME_ASSERT(!out.ptr);
     ME_ASSERT(path);
     if (!meOSOpenFile(out, path, flags))
@@ -693,6 +699,7 @@ bool meOSMapFile(meMemoryMappedFile& out, StringView path, OSFileFlags flags)
 
 void meOSUnmapFile(meMemoryMappedFile& mapping)
 {
+    ME_PROFILE_FUNCTION();
     if (mapping.ptr)            UnmapViewOfFile(mapping.ptr);
     if (mapping.mappingHandle)  CloseHandle((HANDLE)mapping.mappingHandle);
     if (mapping.HasOpenFile())  meOSCloseFile(mapping);
@@ -774,6 +781,7 @@ void* meOSRunProcessAsync(const char* workingDir, StringView command, meProcessE
 
 s32 meOSWaitForProcess(void* processHandle)
 {
+    ME_PROFILE_FUNCTION();
     HANDLE h = (HANDLE)processHandle;
     WaitForSingleObject(h, INFINITE);
     DWORD exitCode = 1;
@@ -785,6 +793,7 @@ s32 meOSWaitForProcess(void* processHandle)
 
 bool meOSReadFileContents(const OSFileReference& file, void* backingBuffer, size_t backingBufferSize)
 {
+    ME_PROFILE_FUNCTION();
     ME_ASSERT(file.fileHandle != nullptr && file.fileHandle != INVALID_HANDLE_VALUE);
     DWORD numBytesRead = 0;
     if (!ReadFile(file.fileHandle, backingBuffer, backingBufferSize, &numBytesRead, nullptr))
@@ -801,6 +810,7 @@ bool meOSWriteFileContent(
 	void* buffer,
 	size_t amtToWrite)
 {
+    ME_PROFILE_FUNCTION();
     ME_ASSERT(!(file.flags & OSFileFlags_ReadOnly));
 	DWORD amtActuallyWritten = 0;
 	bool result = WriteFile(file.fileHandle, buffer, amtToWrite, &amtActuallyWritten, nullptr);
@@ -809,6 +819,7 @@ bool meOSWriteFileContent(
 
 u64 meOSGetFileSize(const OSFileReference& file)
 {
+    ME_PROFILE_FUNCTION();
     LARGE_INTEGER fileSize;
     bool result = false;
     if (file.HasOpenFile())
@@ -834,6 +845,7 @@ u64 meOSGetFileSize(const OSFileReference& file)
 MEAPI FileTimestamps meOSGetFileTimestamps(
 	const OSFileReference& file)
 {
+    ME_PROFILE_FUNCTION();
 	FileTimestamps timestamps = {};
     ME_ASSERT(file.fileHandle != nullptr && file.fileHandle != INVALID_HANDLE_VALUE);
 	FILETIME lastCreate, lastRead, lastWrite;
@@ -850,6 +862,7 @@ bool meOSOpenFile(
 	StringView path, 
 	OSFileFlags flags)
 {
+    ME_PROFILE_FUNCTION();
     ME_MEMCLEAR((void*)file.path, ME_PATH_MAX);
     StringCopy({file.path, ME_PATH_MAX}, path);
 	flags |= file.flags;
@@ -875,6 +888,7 @@ bool meOSOpenFile(
 
 bool meOSCloseFile(OSFileReference& file)
 {
+    ME_PROFILE_FUNCTION();
     ME_ASSERT(file.fileHandle != nullptr && file.fileHandle != INVALID_HANDLE_VALUE);
 	bool result = CloseHandle(file.fileHandle);
 	if (file.flags & OSFileFlags_DeleteOnFileClose)
@@ -888,6 +902,7 @@ bool meOSCloseFile(OSFileReference& file)
 bool meOSDeleteFile(
 	OSFileReference& file)
 {
+    ME_PROFILE_FUNCTION();
 	bool result = DeleteFileA(file.path);
 	return result;
 }
@@ -896,6 +911,7 @@ bool meOSReadDirectory(
 	const OSFileReference& folder,
 	DynArray<OSFileReference>& result)
 {
+    ME_PROFILE_FUNCTION();
 	WIN32_FIND_DATAA ffd;
 	StringView folderQuery = StringFormatTmp("%s\\*", folder.path);
 	HANDLE hFind = FindFirstFileA(folderQuery.data, &ffd);
@@ -982,7 +998,9 @@ StringView meOSGetWorkingDir()
 	return result;
 }
 
-BOOL DirectoryExists(const char* dirPath) {
+BOOL DirectoryExists(const char* dirPath) 
+{
+    ME_PROFILE_FUNCTION();
     DWORD fileAttributes = GetFileAttributesA(dirPath);
     if (fileAttributes == INVALID_FILE_ATTRIBUTES) {
         return FALSE;
@@ -991,7 +1009,9 @@ BOOL DirectoryExists(const char* dirPath) {
 }
 
 // Function to create a full directory path recursively
-bool CreateRecursiveDirectory(StringView path) {
+bool CreateRecursiveDirectory(StringView path) 
+{
+    ME_PROFILE_FUNCTION();
     // Make a mutable copy of the path. MAX_PATH is 260.
     char tempPath[MAX_PATH];
     if (path.len >= MAX_PATH) 
@@ -1004,18 +1024,24 @@ bool CreateRecursiveDirectory(StringView path) {
     char* p = tempPath;
     
     // Skip past drive letter (e.g., C:\)
-    if (p[0] && p[1] == ':' && p[2] == '\\') {
+    if (p[0] && p[1] == ':' && p[2] == '\\') 
+    {
         p += 3;
     }
     
-    while (*p) {
-        if (*p == '\\' || *p == '/') {
+    while (*p) 
+    {
+        if (*p == '\\' || *p == '/') 
+        {
             *p = '\0'; // Temporarily terminate the string
             
-            if (!DirectoryExists(tempPath)) {
-                if (!CreateDirectoryA(tempPath, NULL)) {
+            if (!DirectoryExists(tempPath)) 
+            {
+                if (!CreateDirectoryA(tempPath, NULL)) 
+                {
                     DWORD error = GetLastError();
-                    if (error != ERROR_ALREADY_EXISTS) {
+                    if (error != ERROR_ALREADY_EXISTS) 
+                    {
                         // Handle error.
                         return FALSE;
                     }
@@ -1027,10 +1053,13 @@ bool CreateRecursiveDirectory(StringView path) {
     }
 
     // Create the final directory in the path
-    if (!DirectoryExists(tempPath)) {
-        if (!CreateDirectoryA(tempPath, NULL)) {
+    if (!DirectoryExists(tempPath)) 
+    {
+        if (!CreateDirectoryA(tempPath, NULL)) 
+        {
             DWORD error = GetLastError();
-            if (error != ERROR_ALREADY_EXISTS) {
+            if (error != ERROR_ALREADY_EXISTS) 
+            {
                 return false;
             }
         }
@@ -1048,6 +1077,7 @@ bool meOSEnsureDirectoriesExist(const char* pathCstr)
 bool meOSFileExists(
 	const OSFileReference& file)
 {
+    ME_PROFILE_FUNCTION();
 	DWORD dwAttrib = GetFileAttributesA(file.path);
 
 	return (dwAttrib != INVALID_FILE_ATTRIBUTES && 
@@ -1071,6 +1101,7 @@ String meOSResolveRelativeToAbsPath(
 	meAllocator* allocator,
 	StringView potentiallyRelativePath)
 {
+    ME_PROFILE_FUNCTION();
     char dst[ME_PATH_MAX];
     DWORD result = GetFullPathNameA(potentiallyRelativePath.cstr(), ME_PATH_MAX, dst, NULL);
 	ME_ASSERT(result > 0);
