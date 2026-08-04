@@ -72,14 +72,14 @@ StringView msFsGetDirFromPath(StringView path)
 }
 
 
-StringView meFsScanOutForFile(StringView fileStr)
+String meFsScanOutForFile(StringView fileStr)
 {
 	meAllocator* allocator = GetTLScratch();
 	OSFileReference file;
 	file.InitWithoutOpening(fileStr);
 	if (meOSFileExists(file))
 	{
-		return meMove(String(fileStr, allocator));
+		return String(fileStr, allocator);
 	}
 	String absPath = meOSResolveRelativeToAbsPath(allocator, fileStr);
 	file.InitWithoutOpening(absPath);

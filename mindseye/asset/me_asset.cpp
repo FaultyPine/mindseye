@@ -135,7 +135,7 @@ meAsset meAssetCreateNewAsset(
     meAssetTypeRegistry& reg = assetSystem.registries[type];
     RWLockWrite lock(reg.lock);
     reg.assets[newMaid] = newAsset; // copy
-	return meMove(newAsset);
+	return newAsset;
 }
 
 MAID::MAID(u64 id, meAssetType type)

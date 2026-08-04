@@ -29,7 +29,7 @@ MEAPI void meFsNormalizePathSeperators(StringView str);
 // first, tries the file string itself
 // if the file string isn't a relative path, tries looking in current working dir
 // then tries looking in all parent dirs to the current working dir
-MEAPI StringView meFsScanOutForFile(StringView file);
+MEAPI String meFsScanOutForFile(StringView file);
 
 // walks a directory tree, collecting the results into the given list
 MEAPI bool meFsRecursiveDirectoryWalk(

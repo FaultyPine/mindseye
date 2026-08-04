@@ -1321,7 +1321,7 @@ String SanitizeAndCopyTypeDescriptorName(
     String underlyingTD = String(name, allocator);
     ToUpper(underlyingTD);
     StringReplace(underlyingTD, ' ', '_');
-    return meMove(underlyingTD);
+    return underlyingTD;
 }
 
 bool GenerateForwardDecls(

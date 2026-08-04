@@ -508,7 +508,7 @@ void* meOSRunProcessAsync(const char* workingDir, StringView command, meProcessE
 
     ME_ASSERT(command.len < 4096);
     char cmdBuf[4096];
-    memcpy(cmdBuf, command.data, command.len);
+    ME_MEMCPY(cmdBuf, command.data, command.len);
     cmdBuf[command.len] = '\0';
 
     BOOL ok = CreateProcessA(nullptr, cmdBuf, nullptr, nullptr, FALSE, 0, nullptr, workingDir, &si, &pi);
@@ -833,9 +833,9 @@ String meOSResolveRelativeToAbsPath(
     DWORD result = GetFullPathNameA(potentiallyRelativePath.cstr(), ME_PATH_MAX, dst, NULL);
 	ME_ASSERT(result > 0);
 	u64 len = CStringLength(dst);
-	String absolutePath = String((const char*)dst, len);
+	String absolutePath = String((const char*)dst, len, allocator);
 	meFsNormalizePathSeperators(absolutePath);
-	return meMove(absolutePath);
+	return absolutePath;
 }
 
 u32 meOSGetThreadID()

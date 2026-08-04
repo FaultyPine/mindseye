@@ -6,7 +6,7 @@
 
 void ArenaTLScratch::meClear(bool deleteMemory)
 {
-	Arena::meClear(true);
+	Arena::meClear(deleteMemory);
 }
 
 Allocation Arena::meAlloc(u64 size) 
