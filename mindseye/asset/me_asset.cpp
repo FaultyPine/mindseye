@@ -11,7 +11,7 @@
 
 MEEVENT_DECLARE_STATIC(registerAssetLoader);
 
-static bool MEASSET_DEBUG_SINGLETHREADED_LOAD = 1;
+static bool MEASSET_DEBUG_SINGLETHREADED_LOAD = 0;
 constexpr u32 NUM_ASSET_COMPILER_THREADS = 1;
 
 MEAPI meAssetSystem& meAssetSystemGet()

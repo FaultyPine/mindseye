@@ -61,6 +61,7 @@ void meSceneManager::ChangeCurrentSceneAsync(StringView filename)
 	UnloadCurrentScene();
 	meAssetRequestLoadTemplate(&sceneIdent, 1, [](const meAsset& sceneAsset)
     {
+        ME_PROFILE_FUNCTION();
         if (meAsset* asset = meAssetTryGetTemplate(sceneAsset.id))
         {
             GetEngineCtx()->sceneSystem->rootScene = *asset;
