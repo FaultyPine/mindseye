@@ -1,8 +1,11 @@
 #pragma once
 
 #include "core/me_defines.h"
+#include "core/containers/me_array.h"
+#include "platform/me_os.h"
 #include "external/concurrentqueue/concurrentqueue.h"
 #include <functional> // need lambdas... captures are useful.
+#include <thread>
 
 typedef u32 meJobId;
 typedef void(*meJobCb)(void* payload);
@@ -33,17 +36,21 @@ struct meJob
 struct meJobSystem
 {
 	meJobSystem() 
-		: numThreads(1), currentJobID(0), allocator(nullptr) {}
+		: numThreads(0), allocator(nullptr) {}
+	MEAPI ~meJobSystem();
 	MEAPI void Initialize(meAllocator* allocator, u32 numThreads);
-    MEAPI void Shutdown() { numThreads = 0; }
+	MEAPI void Shutdown();
     MEAPI meJobId Execute(std::function<void()> job);
     MEAPI void WaitOnJob(meJobId id);
 
+	static constexpr u32 MAX_JOB_WORKERS = 32;
 	#define MAX_JOBS 256
 	u32 numThreads;
+	meAtomicU32 isRunning = {};
 	// provides unique identifier for every job
-	meJobId currentJobID;
+	meAtomicU32 currentJobID = {};
 	meAllocator* allocator;
+	meArray<std::thread, MAX_JOB_WORKERS> workers = {};
 	moodycamel::ConcurrentQueue<meJob> jobPool;
 };
 

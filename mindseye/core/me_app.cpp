@@ -263,6 +263,7 @@ void RunEngineTests(EngineContext* engine)
 
 void DeinitializeEngineSystems(EngineContext* engine)
 {
+    meAssetTeardown(engine);
     DeinitializeEntitySystem(engine);
     meShutdownMainThreadCommandQueue();
     meOSFreeVirtualMemory(engine->rootArena.backing_mem);
