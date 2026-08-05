@@ -19,7 +19,7 @@ typedef struct tagTHREADNAME_INFO
 
 void meThreadSetName(uint32_t dwThreadID, const char* threadName)
 {
-	#if PROFILING
+	#if defined(TRACY_ENABLE)
 	tracy::SetThreadName(threadName);
 	#else
 	THREADNAME_INFO info;
