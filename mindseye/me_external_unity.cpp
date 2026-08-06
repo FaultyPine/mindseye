@@ -69,4 +69,6 @@
 #pragma clang diagnostic pop
 #include "enkiTS/src/TaskScheduler.cpp"
 
+#include "external/nvrhi_unity.cpp"
+
 #include "external/tracy/public/TracyClient.cpp"

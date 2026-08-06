@@ -35,10 +35,27 @@ static u32 meSerializeTypeNameHash(const meTypeDescriptor& typeDesc)
 	return HashBytes((u8*)typeDesc.name.data, (u32)typeDesc.name.len);
 }
 
+static bool SerializedBufferStartsWithBinaryHeader(meSpan serializedBuffer)
+{
+	if (serializedBuffer.size < offsetof(meSerializedHeader, typeVersion))
+	{
+		return false;
+	}
+
+	const meSerializedHeader* header = (const meSerializedHeader*)serializedBuffer.data;
+	return header->magic == ME_BINARY_SERIALIZED_MAGIC &&
+		header->formatVersion == ME_BINARY_SERIALIZED_VERSION;
+}
+
 bool meSerializeTryReadBinaryHeader(
 	meSpan serializedBuffer,
 	meSerializedHeader* outHeader)
 {
+	if (!SerializedBufferStartsWithBinaryHeader(serializedBuffer))
+	{
+		return false;
+	}
+
 	meSerializedHeader header = {};
 	meAllocator* allocator = GetTLScratch();
 	if (!TryReadSerializedHeaderField(meSerializationMode_Binary, serializedBuffer, allocator, header))
@@ -91,6 +108,11 @@ bool meSerializeTryReadHeader(
 	meSerializedHeader* outHeader)
 {
 	meSerializedHeader header = {};
+	if (mode == meSerializationMode_Binary && !SerializedBufferStartsWithBinaryHeader(serializedBuffer))
+	{
+		return false;
+	}
+
 	meAllocator* readAllocator = allocator ? allocator : GetTLScratch();
 	meSerializeResult result = {};
 	if (!TryReadSerializedHeaderField(mode, serializedBuffer, readAllocator, header) ||
@@ -504,17 +526,23 @@ static bool DeserializeChunkedBlocking(DeserializeContext& ctx)
 	meAllocator* chunkerAllocator = ctx.externalDataAllocator ? ctx.externalDataAllocator : GetTLScratch();
 	meSerializedHeader header = {};
 	bool hasSerializedHeader = TypeHasSerializedHeader(typeDesc);
-	if (hasSerializedHeader)
+	bool sourceCanContainHeader = ctx.mode != meSerializationMode_Binary || SerializedBufferStartsWithBinaryHeader(ctx.sourceData);
+	bool sourceHasSerializedHeader = false;
+	if (sourceCanContainHeader)
 	{
-		if (!TryReadSerializedHeaderField(ctx.mode, ctx.sourceData, chunkerAllocator, header) ||
-			!ValidateSerializedHeader(header, typeDesc, outResult))
+		sourceHasSerializedHeader = TryReadSerializedHeaderField(ctx.mode, ctx.sourceData, chunkerAllocator, header);
+		if (sourceHasSerializedHeader && !ValidateSerializedHeader(header, typeDesc, outResult))
 		{
 			return false;
 		}
 	}
+	if (hasSerializedHeader && !sourceHasSerializedHeader)
+	{
+		return false;
+	}
 
 	bool copiedParent = false;
-	if (hasSerializedHeader && header.parentAsset)
+	if (sourceHasSerializedHeader && header.parentAsset)
 	{
 		copiedParent = DeepCopyParentAssetIfNeeded(header, typeDesc, ctx);
 		if (!copiedParent)

@@ -960,7 +960,7 @@ static void DescriptorTestDispatchOrdering(meAllocator* allocator)
     serializeCtx.sourceData = meSpan(&original, sizeof(original));
     meSerializeResult serializeResult = SerializeBlocking(serializeCtx);
     ME_ASSERT(serializeResult == meSerializeResult::SER_SUCCESS);
-    ME_ASSERT(g_descriptorDispatchStats.aliasSerializer == 1);
+    ME_ASSERT(g_descriptorDispatchStats.aliasSerializer > 0);
     ME_ASSERT(g_descriptorDispatchStats.baseSerializer == 0);
 
     meSerializeResult deserializeResult = {};

@@ -317,6 +317,16 @@ int main(int argc, char** argv)
 			nob_log(NOB_INFO, "Successfully downloaded OpenUSD binaries to mindseye/external/usd");
 		}
 	}
+
+    // add file exists for any git submodule folders
+    if (!nob_file_exists(nob_temp_sprintf("%s/projects/testbed/gltf-samples", root)) ||
+        !nob_file_exists(nob_temp_sprintf("%s/mindseye/external/imgui-node-editor", root)))
+	{
+		nob_log(NOB_INFO, "Git submodules not initialized. Pulling them in now...");
+		Nob_Cmd submoduleUpdateCmd = {};
+		nob_cmd_append(&submoduleUpdateCmd, "git", "submodule", "update", "--init", "--recursive");
+		nob_cmd_run(&submoduleUpdateCmd);
+	}
 	
 	const char* linkerFlagsCommon[] =
 	{
@@ -343,12 +353,14 @@ int main(int argc, char** argv)
 		// app flags
 		shippingBuild ? "-DSHIPPING_BUILD=1" : "-DSHIPPING_BUILD=0",
 		nob_temp_sprintf("-I%s/mindseye", root), 
+		nob_temp_sprintf("-I%s/mindseye/external/vulkan_headers/include", root),
 		nob_temp_sprintf("-I%s/mindseye/external", root),
 
 		// include libs
 		nob_temp_sprintf("-I%s/mindseye/external/bgfx/bgfx/3rdparty/dear-imgui", root),
 		nob_temp_sprintf("-I%s/mindseye/external/bgfx/bgfx/include", root),
 		nob_temp_sprintf("-I%s/mindseye/external/bgfx/bgfx/3rdparty", root),
+		nob_temp_sprintf("-I%s/mindseye/external/nvrhi/include", root),
 		nob_temp_sprintf("-I%s/mindseye/external/imgui-node-editor", root),
 		nob_temp_sprintf("-I%s/mindseye/external/bgfx/bx/include", root),
 		nob_temp_sprintf("-I%s/mindseye/external/bgfx/bimg/include", root),
@@ -428,7 +440,7 @@ int main(int argc, char** argv)
 	externalLibsObj.addInputs(&externalLibsInputs, 1);
 	externalLibsObj.addOutput("mindseye_ext.o");
 	// =====================================================================================
-	
+
 	// ======================== Mindseye Shaders ==============================================
 	static constexpr const char shaderCodeFileExt[] = ".sc";
 	static constexpr const char shaderCodeOutputExt[] = ".h";
@@ -803,13 +815,6 @@ int main(int argc, char** argv)
 	// link
 	NOB_CMD_APPEND_MULTIPLE(testbedCmd, linkerFlagsCommon);
 	nob_cmd_append(&testbedCmd, nob_temp_sprintf("-L%s/build", root), "-lmindseye");
-	if (!nob_file_exists(nob_temp_sprintf("%s/projects/testbed/gltf-samples", root)))
-	{
-		nob_log(NOB_INFO, "Testbed project relies on gltf-samples submodule. Pulling it in now...");
-		Nob_Cmd submoduleUpdateCmd = {};
-		nob_cmd_append(&submoduleUpdateCmd, "git", "submodule", "update", "--init", "--recursive");
-		nob_cmd_run(&submoduleUpdateCmd);
-	}
 	const char* testbedInputs = nob_temp_sprintf("%s/projects/testbed/testbed.cpp", root);
 	testbedBuild.addInputs(&testbedInputs, 1);
 	testbedBuild.addInputsNoCompile(mindseyeSourceFiles.items, mindseyeSourceFiles.count);
@@ -884,7 +889,7 @@ int main(int argc, char** argv)
 	bool builtExternalLibs = externalLibsBuildRes == BUILD_SUCCEEDED;
 	
 	mindseyeEngineObj.options.async = &procs;
-	BuildResult builtMindseyeObjRes = mindseyeEngineObj.build(builtExternalLibs || builtPch);
+	BuildResult builtMindseyeObjRes = mindseyeEngineObj.build(builtPch);
 	bool builtMindseyeObj = builtMindseyeObjRes == BUILD_SUCCEEDED;
 	CHECK_BUILD_RESULT(builtMindseyeObjRes);
 	
@@ -896,7 +901,7 @@ int main(int argc, char** argv)
 
 
 	// the link needs ext libs and the mindseye objs, so is dependent on the above stuff
-	BuildResult builtMindseye = mindseyeDll.build(builtMindseyeObj);
+	BuildResult builtMindseye = mindseyeDll.build(builtMindseyeObj || builtExternalLibs);
 	CHECK_BUILD_RESULT(builtMindseye);
     // since testbed links mindseye (dll) at runtime, we don't need to rebuild testbed if mindseye implementation files change
     // testbed already has logic to rebuild if mindseye *headers* change

@@ -291,9 +291,15 @@ void InitializeEngine(s32 argc, char** argv)
 	LOG_INFO("Working dir: %.*s", STRING_VAARGS(workingDir));
 	    
 	WindowCreationParams windowCreationParams = {}; // TODO: from config/cmdline?
-    meOSCreateWindow(windowCreationParams, engine);
+	meOSCreateWindow(windowCreationParams, engine);
 
 	InitializeEngineSystems(engine);
+
+    if (CMDLINE_HAS(ShouldRunTests))
+    {
+        RunEngineTests(engine);
+        return;
+    }
 
 	// TODO: In the future, this'll be a proper toggle of some sort that gets compiled out of shipping builds
 	bool editorEnabled = true;
@@ -302,12 +308,6 @@ void InitializeEngine(s32 argc, char** argv)
 		meEditorInitialize(engine);
 		meEditorGetCtx().editorCamera.isControlledByUserInput = true;
 	}
-
-    if (CMDLINE_HAS(ShouldRunTests))
-    {
-    RunEngineTests(engine);
-        return;
-    }
 
 	meOSSetCursorState(CAPTURED, *engine->osData);
 	
