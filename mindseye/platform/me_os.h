@@ -54,6 +54,7 @@ enum OSFileFlags_
 	OSFileFlags_DeleteOnFileClose = NTH_BIT(3),
 	OSFileFlags_IsDirectory       = NTH_BIT(4),
     OSFileFlags_ReadOnly          = NTH_BIT(5),
+    OSFileFlags_Temporary         = NTH_BIT(6),
 };
 
 enum OSFileCursorMode { BEGIN, CURRENT, END };
@@ -71,7 +72,6 @@ MEAPI void  ConsolePrint(StringView text);
 MEAPI void* LoadDynamicLibrary(const char* name);
 MEAPI void  UnloadDynamicLibrary(void* module);
 MEAPI void* GetFunctionPtr(void* module, StringView functionName);
-MEAPI bool  meOSCopyFile(const char* src, const char* dst);
 MEAPI void  meOSInstallUnhandledExceptionHandler(meCrashHandlerContext context);
 
 // ── Atomics ───────────────────────────────────────────────────────────
@@ -143,8 +143,11 @@ MEAPI bool       meOSEnsureDirectoriesExist(const char* pathCstr);
 MEAPI bool   meOSOpenFile(OSFileReference& file, StringView path, OSFileFlags flags = OSFileFlags(0));
 MEAPI bool   meOSCloseFile(OSFileReference& file);
 MEAPI bool   meOSDeleteFile(OSFileReference& file);
+MEAPI bool   meOSFileCopy(const OSFileReference& src, const OSFileReference& dst, bool failIfExists = false);
+MEAPI bool   meOSFileMove(const OSFileReference& src, const OSFileReference& dst, bool failIfExists = false);
 MEAPI bool   meOSReadFileContents(const OSFileReference& file, void* backingBuffer, size_t backingBufferSize);
-MEAPI bool   meOSWriteFileContent(const OSFileReference& file, void* buffer, size_t amtToWrite);
+MEAPI bool   meOSWriteFileContent(const OSFileReference& file, const void* buffer, size_t amtToWrite);
+MEAPI bool   meOSWriteFileContentAtomic(StringView path, const void* buffer, size_t amtToWrite);
 MEAPI bool   meOSSetFileCursor(const OSFileReference& file, u64 offset, OSFileCursorMode mode);
 MEAPI size_t meOSGetFileSize(const OSFileReference& file);
 MEAPI bool   meOSFileExists(const OSFileReference& file);

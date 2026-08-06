@@ -592,10 +592,7 @@ void meAssetLoader::meAssetWrite(meAsset& asset)
 	meSerializeResult res = SerializeBlocking(ctx);
 	ME_ASSERT(res == meSerializeResult::SER_SUCCESS);
 	StringView assetSerializedString((char*)ctx.serializedData.data, ctx.serializedData.size);
-	// TODO: split the actual writing out into a separate thing?
-	OSFileReference file;
-	meOSOpenFile(file, assetPath, (OSFileFlags_StompExisting | OSFileFlags_ScopedFile));
-	if (!meOSWriteFileContent(file, assetSerializedString.data, assetSerializedString.len))
+	if (!meOSWriteFileContentAtomic(assetPath, assetSerializedString.data, assetSerializedString.len))
 	{
 		LOG_ERROR("Failed to write asset to file. filename = " STRING_FMT "\nassetString = " STRING_FMT, STRING_VAARGS(assetPath), STRING_VAARGS(assetSerializedString));
 	}

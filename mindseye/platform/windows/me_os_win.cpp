@@ -565,12 +565,6 @@ void* GetFunctionPtr(void* module, StringView functionName)
     return (void*)GetProcAddress((HMODULE)module, functionName.cstr());
 }
 
-bool meOSCopyFile(const char* src, const char* dst)
-{
-    ME_PROFILE_FUNCTION();
-    return CopyFileA(src, dst, FALSE) != 0;
-}
-
 static volatile LONG* meWinAtomicPtr(meAtomicU32& atomic)
 {
     return reinterpret_cast<volatile LONG*>(&atomic.value);
@@ -812,14 +806,72 @@ bool meOSReadFileContents(const OSFileReference& file, void* backingBuffer, size
 
 bool meOSWriteFileContent(
 	const OSFileReference& file,
-	void* buffer,
+	const void* buffer,
 	size_t amtToWrite)
 {
     ME_PROFILE_FUNCTION();
     ME_ASSERT(!(file.flags & OSFileFlags_ReadOnly));
-	DWORD amtActuallyWritten = 0;
-	bool result = WriteFile(file.fileHandle, buffer, amtToWrite, &amtActuallyWritten, nullptr);
-	return result;
+	const u8* data = (const u8*)buffer;
+	size_t totalWritten = 0;
+	while (totalWritten < amtToWrite)
+	{
+		DWORD thisWrite = (DWORD)MEMIN(amtToWrite - totalWritten, (size_t)0xffffffffu);
+		DWORD amtActuallyWritten = 0;
+		bool result = WriteFile(file.fileHandle, data + totalWritten, thisWrite, &amtActuallyWritten, nullptr);
+		if (!result || amtActuallyWritten == 0)
+		{
+			DWORD err = GetLastError();
+			LOG_ERROR("[meOS] failed to write file contents %s err code = %u", file.path, err);
+			return false;
+		}
+		totalWritten += amtActuallyWritten;
+	}
+	return true;
+}
+
+bool meOSWriteFileContentAtomic(
+	StringView path,
+	const void* buffer,
+	size_t amtToWrite)
+{
+	ME_PROFILE_FUNCTION();
+	ME_ASSERT(path);
+
+	FILETIME timestampFiletime = {};
+	GetSystemTimePreciseAsFileTime(&timestampFiletime);
+	u64 timestamp = ((u64)timestampFiletime.dwHighDateTime << 32) | (u64)timestampFiletime.dwLowDateTime;
+
+	StringView tempPath = StringFormatTmp(STRING_FMT ".tmp.%llu", STRING_VAARGS(path), timestamp);
+	if (tempPath.len >= ME_PATH_MAX)
+	{
+		LOG_ERROR("[meOS] failed atomic write because temp path is too long: " STRING_FMT, STRING_VAARGS(path));
+		return false;
+	}
+
+	OSFileReference tempFile = {};
+	if (!meOSOpenFile(tempFile, tempPath, OSFileFlags_StompExisting | OSFileFlags_Temporary | OSFileFlags_DeleteOnFileClose | OSFileFlags_ScopedFile))
+	{
+		LOG_ERROR("[meOS] failed atomic write because temp file could not be opened: " STRING_FMT, STRING_VAARGS(tempPath));
+		return false;
+	}
+
+	bool success = meOSWriteFileContent(tempFile, buffer, amtToWrite);
+	if (!success)
+	{
+		return false;
+	}
+
+	OSFileReference targetFile = {};
+	targetFile.InitWithoutOpening(path);
+	if (!meOSFileMove(tempFile, targetFile))
+	{
+		LOG_ERROR("[meOS] failed atomic rename " STRING_FMT " -> " STRING_FMT,
+			STRING_VAARGS(tempPath),
+			STRING_VAARGS(path));
+		return false;
+	}
+
+	return true;
 }
 
 u64 meOSGetFileSize(const OSFileReference& file)
@@ -880,7 +932,11 @@ bool meOSOpenFile(
 	{
 		openMode = CREATE_ALWAYS;
 	}
-    file.fileHandle = CreateFileA(file.path, (flags & OSFileFlags_ReadOnly) ? GENERIC_READ : GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, 0, openMode, FILE_ATTRIBUTE_NORMAL, 0);
+    file.fileHandle = CreateFileA(file.path, (flags & OSFileFlags_ReadOnly) ? GENERIC_READ : GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, 0, openMode, 
+                        FILE_ATTRIBUTE_NORMAL | 
+                        (flags & OSFileFlags_Temporary ? FILE_ATTRIBUTE_TEMPORARY : 0) |
+                        (flags & OSFileFlags_DeleteOnFileClose ? FILE_FLAG_DELETE_ON_CLOSE : 0)
+                        , 0);
     if (file.fileHandle == INVALID_HANDLE_VALUE)
     {
         DWORD result = GetLastError();
@@ -896,10 +952,6 @@ bool meOSCloseFile(OSFileReference& file)
     ME_PROFILE_FUNCTION();
     ME_ASSERT(file.fileHandle != nullptr && file.fileHandle != INVALID_HANDLE_VALUE);
 	bool result = CloseHandle(file.fileHandle);
-	if (file.flags & OSFileFlags_DeleteOnFileClose)
-	{
-		meOSDeleteFile(file);
-	}
 	file.fileHandle = nullptr;
     return result;
 }
@@ -909,6 +961,41 @@ bool meOSDeleteFile(
 {
     ME_PROFILE_FUNCTION();
 	bool result = DeleteFileA(file.path);
+	return result;
+}
+
+bool meOSFileCopy(
+	const OSFileReference& src,
+	const OSFileReference& dst,
+	bool failIfExists)
+{
+	ME_PROFILE_FUNCTION();
+	bool result = CopyFileA(src.path, dst.path, failIfExists) != 0;
+	if (!result)
+	{
+		DWORD error = GetLastError();
+		LOG_ERROR("[meOS] failed to copy file %s -> %s err code = %u", src.path, dst.path, error);
+	}
+	return result;
+}
+
+bool meOSFileMove(
+	const OSFileReference& src,
+	const OSFileReference& dst,
+	bool failIfExists)
+{
+	ME_PROFILE_FUNCTION();
+	DWORD moveFlags = 0;
+	if (!failIfExists)
+	{
+		moveFlags |= MOVEFILE_REPLACE_EXISTING;
+	}
+	bool result = MoveFileExA(src.path, dst.path, moveFlags) != 0;
+	if (!result)
+	{
+		DWORD error = GetLastError();
+		LOG_ERROR("[meOS] failed to move file %s -> %s err code = %u", src.path, dst.path, error);
+	}
 	return result;
 }
 

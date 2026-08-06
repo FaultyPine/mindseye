@@ -98,7 +98,11 @@ static void OnHotReloadBuildComplete(s32 exitCode, void*)
     if (exitCode == 2) { LOG_INFO("[HotReload] No changes."); return; }
     if (exitCode != 0) { LOG_ERROR("[HotReload] Build failed (%d).", exitCode); return; }
 
-    if (!meOSCopyFile(data.builtDllPath, data.newDllPath))
+    OSFileReference builtDll = {};
+    OSFileReference newDll = {};
+    builtDll.InitWithoutOpening(StringFromCString(data.builtDllPath));
+    newDll.InitWithoutOpening(StringFromCString(data.newDllPath));
+    if (!meOSFileCopy(builtDll, newDll))
     {
         LOG_ERROR("[HotReload] Failed to copy dll to %s", data.newDllPath);
         return;
@@ -164,7 +168,6 @@ void RunEngine(EngineContext* engine)
 		engine->frameCount++;
         ME_PROFILE_FRAME_MARKER();
     }
-    engine->renderer->Teardown(engine);
 }
 
 static void InitializeEngineConfig(EngineContext* engine)
@@ -263,7 +266,9 @@ void RunEngineTests(EngineContext* engine)
 
 void DeinitializeEngineSystems(EngineContext* engine)
 {
+    LOG_INFO("Deinitializing Engine Systems...");
     meAssetTeardown(engine);
+    engine->renderer->Teardown(engine);
     DeinitializeEntitySystem(engine);
     meShutdownMainThreadCommandQueue();
     meOSFreeVirtualMemory(engine->rootArena.backing_mem);
@@ -316,5 +321,7 @@ void InitializeEngine(s32 argc, char** argv)
 
     RunEngine(engine);
 	engine->userApp.ActiveCallbacks().shutdownFn(engine);
-    DeinitializeEngineSystems(engine);
+    // NOTE: in theory, anything to do with persisted important state should be applied atomically. 
+    // So if the engine is written well, we *should* be able to do literally nothing for shutdown.
+    // DeinitializeEngineSystems(engine);
 }
