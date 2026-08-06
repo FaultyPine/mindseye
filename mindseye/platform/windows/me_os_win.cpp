@@ -170,8 +170,7 @@ static bool CrashWriteDump(EXCEPTION_POINTERS* exceptionInfo, StringView dumpPat
 
 static LONG WINAPI meUnhandledExceptionFilter(EXCEPTION_POINTERS* exceptionInfo)
 {
-    if (IsDebuggerPresent())
-        return EXCEPTION_CONTINUE_SEARCH;
+    bool isDebugging = IsDebuggerPresent();
 
     meCrashHandlerContext crashContext = g_crashHandlerContext;
 
@@ -186,19 +185,26 @@ static LONG WINAPI meUnhandledExceptionFilter(EXCEPTION_POINTERS* exceptionInfo)
     GetLocalTime(&time);
     DWORD pid = GetCurrentProcessId();
 
+    StringView crashFolderName;
+    if (isDebugging)
+    {
+        // if we crash in debug mode, we still capture a dump, but only the latest so we don't fill the disk
+        crashFolderName = StringFormatTmp("mindseye_crash_debugging_latest");
+    }
+    else
+    {
+        crashFolderName = StringFormatTmp("mindseye_crash_%04u%02u%02u_%02u%02u%02u_%lu",
+                        time.wYear, time.wMonth, time.wDay, time.wHour, time.wMinute, time.wSecond, pid);
+    }
     char reportBase[128] = {};
-    StringCopy(StringView(reportBase, sizeof(reportBase)), StringFormatTmp("mindseye_crash_%04u%02u%02u_%02u%02u%02u_%lu",
-        time.wYear, time.wMonth, time.wDay, time.wHour, time.wMinute, time.wSecond, pid));
+    StringCopy(StringView(reportBase, sizeof(reportBase)), crashFolderName);
     StringView reportBaseView = StringFromCString(reportBase);
 
     char dumpPath[ME_PATH_MAX] = {};
-    char stackPath[ME_PATH_MAX] = {};
     char zipPath[ME_PATH_MAX] = {};
     StringCopy(StringView(dumpPath, ME_PATH_MAX), StringFormatTmp(STRING_FMT "\\" STRING_FMT ".dmp", STRING_VAARGS(reportsDirView), STRING_VAARGS(reportBaseView)));
-    StringCopy(StringView(stackPath, ME_PATH_MAX), StringFormatTmp(STRING_FMT "\\" STRING_FMT "_stacktrace.txt", STRING_VAARGS(reportsDirView), STRING_VAARGS(reportBaseView)));
     StringCopy(StringView(zipPath, ME_PATH_MAX), StringFormatTmp(STRING_FMT "\\" STRING_FMT ".zip", STRING_VAARGS(reportsDirView), STRING_VAARGS(reportBaseView)));
     StringView dumpPathView = StringFromCString(dumpPath);
-    StringView stackPathView = StringFromCString(stackPath);
     StringView zipPathView = StringFromCString(zipPath);
 
     EXCEPTION_RECORD* record = exceptionInfo->ExceptionRecord;
@@ -209,22 +215,15 @@ static LONG WINAPI meUnhandledExceptionFilter(EXCEPTION_POINTERS* exceptionInfo)
     CrashAppendStackTrace(exceptionInfo, stackTrace);
     StringView stackTraceText = StringView(stackTrace);
 
-    bool wroteStack = false;
-    OSFileReference stackFile = {};
-    if (meOSOpenFile(stackFile, stackPathView, OSFileFlags_StompExisting))
-    {
-        bool wroteStackFile = meOSWriteFileContent(stackFile, stackTraceText.data, stackTraceText.len);
-        bool closedStackFile = meOSCloseFile(stackFile);
-        wroteStack = wroteStackFile && closedStackFile;
-    }
+    // TODO: copy the log file into the zip as well
     bool wroteDump = CrashWriteDump(exceptionInfo, dumpPathView, crashContext);
 
     StringView zipEntries[2] = {};
     u32 zipEntryCount = 0;
     if (wroteDump)
+    {
         zipEntries[zipEntryCount++] = dumpPathView;
-    if (wroteStack)
-        zipEntries[zipEntryCount++] = stackPathView;
+    }
 
     bool wroteZip = CrashCreateZip(zipPathView, zipEntries, zipEntryCount);
     StringView dumpReportPath = wroteDump ? dumpPathView : STRING_LIT("(failed to write dump)");
@@ -235,7 +234,8 @@ static LONG WINAPI meUnhandledExceptionFilter(EXCEPTION_POINTERS* exceptionInfo)
         STRING_VAARGS(dumpReportPath),
         STRING_VAARGS(zipReportPath));
 
-    if (!crashContext.isRunningTests)
+    bool shouldDisplayMsgBox = !crashContext.isRunningTests && !isDebugging;
+    if (shouldDisplayMsgBox)
     {
         char dialogText[2048] = {};
         StringCopy(StringView(dialogText, sizeof(dialogText)), StringFormatTmp(
@@ -243,6 +243,11 @@ static LONG WINAPI meUnhandledExceptionFilter(EXCEPTION_POINTERS* exceptionInfo)
             STRING_VAARGS(dumpReportPath),
             STRING_VAARGS(zipReportPath)));
         MessageBoxA(nullptr, dialogText, "Mindseye Crash", MB_OK | MB_ICONERROR | MB_TASKMODAL);
+    }
+
+    if (isDebugging)
+    {
+        return EXCEPTION_CONTINUE_SEARCH;
     }
 
     ExitProcess(record->ExceptionCode);

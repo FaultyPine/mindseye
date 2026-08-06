@@ -14,9 +14,9 @@ run `build.bat`
 ### Current focus
 
 Finishing the asset system todo:
+- refactor so instead of straight loading gltf, we "import" gltf and turn it into massets, then load(/compile) those
 - binary serialization 
     - start on a "asset compilation" pipeline. 
-    - refactor so instead of straight loading gltf, we "import" gltf and turn it into massets, then load(/compile) those
 	- meAssetCreate would do the check for .gltf in the filename, and do it there
 - enforce some read-only-ness to asset templates
 - implement "scoped asset locks" on an arbitrary MAID/meAsset
@@ -39,6 +39,7 @@ TODO: get rid of portable-file-dialogs. It pulls in a bunch of stl stuff.
 
 ### Roadmap
 - asset system
+- log to file - rotate log files
 - console command system - use CompileRun to codegen function<->console command bindings (also use for cmdline args handlers?)
 - renderer
 - scene graph
