@@ -7,12 +7,22 @@
 #include "core/me_scope_exit.h"
 #include "core/me_profile.h"
 #include "core/me_filesystem.h"
+#include "core/me_command.h"
 #include "platform/me_os.h"
 
 #define PAR_SHAPES_IMPLEMENTATION
 #include "external/par_shapes.h"
 
 #define USE_PAR_SHAPES
+
+static cgltf_material GenerateDummyGLTFMaterial()
+{
+	cgltf_material mat;
+	ME_MEMCLEAR(&mat, sizeof(mat));
+	static char name[] = "NoMaterial";
+	mat.name = name;
+	return mat;
+}
 
 void meMeshInitialize(EngineContext* engine)
 {
@@ -23,6 +33,42 @@ void meMeshInitialize(EngineContext* engine)
 meMeshPool& meMeshPoolGet()
 {
 	return *GetEngineCtx()->meshSystem;
+}
+
+static void QueueMainThreadMeshBufferUpload(
+	meMeshID meshHandle,
+	meSpan cpuData,
+	meMeshVertexLayoutType layout)
+{
+	if (!cpuData)
+	{
+		return;
+	}
+
+	meExternalCommand cmd = {};
+	cmd.type = meExternalCommandType_MainThreadCmd;
+	cmd.mainThreadCmd.fn = [meshHandle, cpuData, layout]()
+	{
+		meMesh& mesh = meMeshPoolGet().Get(meshHandle);
+		u32 bufferHandle = (u32)RendererGetMain().CreateVertexBuffer(cpuData, layout);
+		if (TEST_BIT(layout, meMeshVertexLayoutType_Index16) || TEST_BIT(layout, meMeshVertexLayoutType_Index32))
+		{
+			mesh.idxBuffer.bufferHandle = bufferHandle;
+		}
+		else if (TEST_BIT(layout, meMeshVertexLayoutType_Position))
+		{
+			mesh.vertBuffer.bufferHandle = bufferHandle;
+		}
+		else if (TEST_BIT(layout, meMeshVertexLayoutType_Normal))
+		{
+			mesh.normBuffer.bufferHandle = bufferHandle;
+		}
+		else if (TEST_BIT(layout, meMeshVertexLayoutType_TexCoord0))
+		{
+			mesh.texcoordBuffer.bufferHandle = bufferHandle;
+		}
+	};
+	meSendExternalCommand(cmd);
 }
 
 
@@ -104,7 +150,7 @@ meMeshID meMeshPool::Load(
 					bumper = bumper.Subspan(stride);
 				}
 				outMesh.vertBuffer.cpuData = allocation;
-				outMesh.vertBuffer.bufferHandle = renderer->CreateVertexBuffer(outMesh.vertBuffer.cpuData, NTH_BIT(meMeshVertexLayoutType_Position));
+				QueueMainThreadMeshBufferUpload(meshHandle, outMesh.vertBuffer.cpuData, NTH_BIT(meMeshVertexLayoutType_Position));
 			}
 			else if (attrib.type == cgltf_attribute_type_normal)
 			{
@@ -119,7 +165,7 @@ meMeshID meMeshPool::Load(
 					bumper = bumper.Subspan(stride);
 				}
 				outMesh.normBuffer.cpuData = allocation;
-				outMesh.normBuffer.bufferHandle = renderer->CreateVertexBuffer(outMesh.normBuffer.cpuData, NTH_BIT(meMeshVertexLayoutType_Normal));
+				QueueMainThreadMeshBufferUpload(meshHandle, outMesh.normBuffer.cpuData, NTH_BIT(meMeshVertexLayoutType_Normal));
 			}
 			else if (attrib.type == cgltf_attribute_type_tangent)
 			{
@@ -138,7 +184,7 @@ meMeshID meMeshPool::Load(
 					bumper = bumper.Subspan(stride);
 				}
 				outMesh.texcoordBuffer.cpuData = allocation;
-				outMesh.texcoordBuffer.bufferHandle = renderer->CreateVertexBuffer(outMesh.texcoordBuffer.cpuData, NTH_BIT(meMeshVertexLayoutType_TexCoord0));
+				QueueMainThreadMeshBufferUpload(meshHandle, outMesh.texcoordBuffer.cpuData, NTH_BIT(meMeshVertexLayoutType_TexCoord0));
 			}
 		}
 
@@ -182,9 +228,9 @@ meMeshID meMeshPool::Load(
                         break;
                 }
                 indicesBumper += stride;
-            }
+			}
 			outMesh.idxBuffer.cpuData = indicesMemory;
-			outMesh.idxBuffer.bufferHandle = renderer->CreateVertexBuffer(outMesh.idxBuffer.cpuData, NTH_BIT(indexLayoutType));
+			QueueMainThreadMeshBufferUpload(meshHandle, outMesh.idxBuffer.cpuData, NTH_BIT(indexLayoutType));
 		}
 	}
 	return meshHandle;

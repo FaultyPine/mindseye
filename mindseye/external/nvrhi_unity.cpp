@@ -1,10 +1,11 @@
 #define NVRHI_WITH_AFTERMATH 0
+#ifndef VK_USE_PLATFORM_WIN32_KHR
 #define VK_USE_PLATFORM_WIN32_KHR
+#endif
 #define NOMINMAX
-#define VULKAN_HPP_DISPATCH_LOADER_DYNAMIC 1
 
-#define VOLK_IMPLEMENTATION
-#include "Volk/volk.h"
+#include "nvrhi/src/vulkan/vulkan-backend.h"
+VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 
 #include "nvrhi/src/common/format-info.cpp"
 #include "nvrhi/src/common/misc.cpp"

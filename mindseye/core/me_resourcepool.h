@@ -101,7 +101,7 @@ private:
         {
             return resourcePoolTemplates;
         }
-        ME_ASSERT(createParams.resourceType == meResourceType_InstanceAsset)
+        ME_ASSERT(createParams.resourceType == meResourceType_InstanceAsset);
         return resourcePoolInstances;
     }
 
@@ -115,7 +115,7 @@ private:
         {
             return resourcePoolTemplates;
         }
-        ME_ASSERT(createParams.resourceType == meResourceType_InstanceAsset)
+        ME_ASSERT(createParams.resourceType == meResourceType_InstanceAsset);
         return resourcePoolInstances;
     }
 };

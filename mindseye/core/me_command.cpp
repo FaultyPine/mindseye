@@ -136,7 +136,10 @@ static void DispatchExternalCommand(const meExternalCommand& cmd)
 			HandlePickEntity(cmd.pickEntity);
 			break;
 		case meExternalCommandType_MainThreadCmd:
-			cmd.mainThreadCmd.fn(cmd.mainThreadCmd.userdata);
+			if (cmd.mainThreadCmd.fn)
+			{
+				cmd.mainThreadCmd.fn();
+			}
 			break;
 	}
 }

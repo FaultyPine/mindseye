@@ -58,7 +58,8 @@ struct meTexturePool : public meResourcePool<meTexture>
 	meGPUBuffer Load(
 		RendererFrontend* renderer,
 		StringView gltfResPath,
-		const cgltf_image& gltfImage);
+		const cgltf_image& gltfImage,
+		meTextureID textureHandle = {});
 
 	meGPUBuffer Load(const meTextureLoadParams& params);
 };
@@ -66,6 +67,7 @@ struct meTexturePool : public meResourcePool<meTexture>
 void meTextureInitialize(EngineContext* ctx);
 
 meTexturePool& meTextureGetPool();
+MEAPI void meTextureQueueGPUUpload(meTextureID textureHandle, meSpan textureMem, u32 channels, u32 width, u32 height);
 
 
 

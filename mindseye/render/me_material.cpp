@@ -3,6 +3,8 @@
 #include "external/cgltf.h"
 #include "core/me_profile.h"
 #include "render/renderer_frontend.h"
+#include "shaders/generated/main_lit_fs.sc.h"
+#include "shaders/generated/main_lit_vs.sc.h"
 
 void meMaterialInitialize(EngineContext* ctx)
 {
@@ -57,20 +59,21 @@ meMaterialID meMaterialPool::Load(
 		if (gltfMaterial.pbr_metallic_roughness.base_color_texture.texture)
 		{
 			const cgltf_texture& gltftex = *gltfMaterial.pbr_metallic_roughness.base_color_texture.texture;
-			diffuseTextureMem = texturePool.Load(renderer, gltfResPath, *gltftex.image);
+			diffuseTextureMem = texturePool.Load(renderer, gltfResPath, *gltftex.image, textureHdl);
 			StringCopy(StringView(texture.name, meTexture::METEXTURE_MAX_NAME_LEN), StringFromCString(gltftex.name));
 		}
 		else
 		{
 			// 1x1 pixel of a single color
-			float* rgba = MEALLOC(renderer->rendererPersistentAllocator, sizeof(float) * 4);
-			ME_MEMCPY((void*)rgba, &gltfMaterial.pbr_metallic_roughness.base_color_factor[0], sizeof(float) * 4);
-			u32 textureData = PackFloatsToU32(rgba[0], rgba[1], rgba[2], rgba[3]);
-			u32 tex = renderer->UploadTextureToGPU(meSpan(&textureData, sizeof(textureData)), 4, 1, 1);
-			diffuseTextureMem = meGPUBuffer{.bufferHandle = tex, .cpuData = meSpan(rgba, sizeof(float) * 4)};
+			const float* rgba = gltfMaterial.pbr_metallic_roughness.base_color_factor;
+			u32* textureData = MEALLOC(renderer->rendererPersistentAllocator, sizeof(u32));
+			*textureData = PackFloatsToU32(rgba[0], rgba[1], rgba[2], rgba[3]);
+			meSpan textureMem = meSpan(textureData, sizeof(*textureData));
+			meTextureQueueGPUUpload(textureHdl, textureMem, 4, 1, 1);
+			diffuseTextureMem = meGPUBuffer{.bufferHandle = U32_INVALID_ID, .cpuData = textureMem};
 			StringCopy(StringView(texture.name, meTexture::METEXTURE_MAX_NAME_LEN), STRING_LIT("Static Color Texture"));
 		}
-		if (diffuseTextureMem.IsValid())
+		if (diffuseTextureMem.cpuData)
 		{
 			texture.buffer = diffuseTextureMem;
 		}

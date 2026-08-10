@@ -2,7 +2,7 @@
 
 #define IMGUI_NODE_EDITOR_API MEAPI
 #include "imgui_node_editor.h"
-#include "external/bgfx/bgfx/3rdparty/dear-imgui/imgui.h"
+#include "imgui.h"
 
 #include "core/me_core.h"
 #include "core/me_app.h"

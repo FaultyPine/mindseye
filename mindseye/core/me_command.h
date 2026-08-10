@@ -5,7 +5,7 @@
 #include "core/me_math.h"
 #include "asset/me_asset.h"
 
-typedef void(*meMainThreadCommandFn)(void* userdata);
+#include <functional>
 
 enum meExternalCommandType
 {
@@ -39,8 +39,7 @@ struct meCmdPickEntity
 
 struct meCmdMainThread
 {
-	meMainThreadCommandFn fn;
-	void* userdata;
+	std::function<void()> fn;
 };
 
 struct meExternalCommand

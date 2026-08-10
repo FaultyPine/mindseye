@@ -17,7 +17,7 @@ Allocation Arena::meAlloc(u64 size)
 void Arena::meFree(void* allocation) 
 {
 	// TODO: check the allocation if it's the most recent one, if so, we can pop it
-	ME_ASSERT(backing_mem <= allocation && allocation <= (backing_mem + backing_mem_size))
+	ME_ASSERT(backing_mem <= allocation && allocation <= (backing_mem + backing_mem_size));
 }
 
 Allocation Arena::meRealloc(const Allocation& allocation, u64 newSize) 

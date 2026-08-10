@@ -173,10 +173,10 @@ C_LINKAGE void __cdecl __debugbreak(void);
 #ifdef ME_ASSERTIONS_ENABLED
     #ifdef LOG_FATAL
         #define ME_ASSERT(x) \
-            if (!(x)) MEUNLIKELY { LOG_FATAL("%s | %s:%i", #x, __FILE__, __LINE__); DEBUG_BREAK; }
+            do {if (!(x)) MEUNLIKELY { LOG_FATAL("%s | %s:%i", #x, __FILE__, __LINE__); DEBUG_BREAK; } } while(0)
     #else
         #define ME_ASSERT(x) \
-            if (!(x)) MEUNLIKELY { DEBUG_BREAK; }
+            do { if (!(x)) MEUNLIKELY { DEBUG_BREAK; } } while(0)
     #endif
     #define UNIMPLEMENTED() ME_ASSERT(!"Unimplemented!");
 #else

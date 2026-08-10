@@ -43,11 +43,6 @@ namespace ImGui {
 #pragma GCC diagnostic pop
 #endif
 
-// ---- shaders
-#include "shaders/generated/main_lit_fs.sc.h"
-#include "shaders/generated/main_lit_vs.sc.h"
-// -------------
-
 void OnWindowResize(int width, int height)
 {
     bgfx::reset(width, height);
@@ -554,10 +549,13 @@ void* BgfxRendererBackend::RenderScene(RenderInput* input)
 		}
 	}
 
+    return nullptr;
+}
+
+void BgfxRendererBackend::PresentFrame()
+{
     ArenaClear(&rendererFrameArena);
     bgfx::frame();
-
-    return nullptr;
 }
 
 struct PosTexCoord0Vertex

@@ -37,12 +37,14 @@
 #include "external/stb/stb_truetype.h"
 
 // Now include ImGui - it will skip defining STB implementations since they're already defined
-#include "bgfx/bgfx/3rdparty/dear-imgui/imgui.h"
+#include "external/imgui/imgui.h"
 #undef IMGUI_INCLUDE_IMGUI_USER_INL
-#include "bgfx/bgfx/3rdparty/dear-imgui/imgui.cpp"
-#include "bgfx/bgfx/3rdparty/dear-imgui/imgui_draw.cpp"
-#include "bgfx/bgfx/3rdparty/dear-imgui/imgui_widgets.cpp"
-#include "bgfx/bgfx/3rdparty/dear-imgui/imgui_tables.cpp"
+#include "external/imgui/imgui.cpp"
+#include "external/imgui/imgui_draw.cpp"
+#include "external/imgui/imgui_widgets.cpp"
+#include "external/imgui/imgui_tables.cpp"
+#include "external/imgui/backends/imgui_impl_vulkan.cpp"
+
 
 #undef STB_TRUETYPE_IMPLEMENTATION
 #undef STB_RECT_PACK_IMPLEMENTATION

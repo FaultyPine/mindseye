@@ -352,12 +352,14 @@ int main(int argc, char** argv)
 
 		// app flags
 		shippingBuild ? "-DSHIPPING_BUILD=1" : "-DSHIPPING_BUILD=0",
+		"-DVK_USE_PLATFORM_WIN32_KHR",
+		"-DVK_NO_PROTOTYPES",
 		nob_temp_sprintf("-I%s/mindseye", root), 
 		nob_temp_sprintf("-I%s/mindseye/external/vulkan_headers/include", root),
 		nob_temp_sprintf("-I%s/mindseye/external", root),
 
 		// include libs
-		nob_temp_sprintf("-I%s/mindseye/external/bgfx/bgfx/3rdparty/dear-imgui", root),
+		nob_temp_sprintf("-I%s/mindseye/external/imgui", root),
 		nob_temp_sprintf("-I%s/mindseye/external/bgfx/bgfx/include", root),
 		nob_temp_sprintf("-I%s/mindseye/external/bgfx/bgfx/3rdparty", root),
 		nob_temp_sprintf("-I%s/mindseye/external/nvrhi/include", root),

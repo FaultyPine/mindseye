@@ -49,4 +49,4 @@
 
 #define IMGUI_DEFINE_MATH_OPERATORS
 #define IMGUI_API MEAPI
-#include "external/bgfx/bgfx/3rdparty/dear-imgui/imgui.h"
+#include "external/imgui/imgui.h"

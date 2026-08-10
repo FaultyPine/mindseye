@@ -10,14 +10,14 @@
 
 #include "renderer_frontend.h"
 //#include "vulkan_backend/vulkan_backend.h"
-#include "bgfx_backend/bgfx_backend.h"
+#include "nvrhi_backend/nvrhi_vulkan_backend.h"
 
 
 #if !defined(ME_REFLECTING) 
 
 #include "renderer_frontend.cpp"
 //#include "vulkan_backend/vulkan_backend.cpp"
-#include "bgfx_backend/bgfx_backend.cpp"
+#include "nvrhi_backend/nvrhi_vulkan_backend.cpp"
 
 #include "me_mesh.cpp"
 #include "me_material.cpp"
