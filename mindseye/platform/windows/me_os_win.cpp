@@ -1,4 +1,5 @@
 
+#define ME_CRASHHANDLER_AUTO_ZIP 0
 
 #include "core/me_defines.h"
 #include "platform/me_os.h"
@@ -201,10 +202,10 @@ static LONG WINAPI meUnhandledExceptionFilter(EXCEPTION_POINTERS* exceptionInfo)
     StringView reportBaseView = StringFromCString(reportBase);
 
     char dumpPath[ME_PATH_MAX] = {};
-    char zipPath[ME_PATH_MAX] = {};
     StringCopy(StringView(dumpPath, ME_PATH_MAX), StringFormatTmp(STRING_FMT "\\" STRING_FMT ".dmp", STRING_VAARGS(reportsDirView), STRING_VAARGS(reportBaseView)));
-    StringCopy(StringView(zipPath, ME_PATH_MAX), StringFormatTmp(STRING_FMT "\\" STRING_FMT ".zip", STRING_VAARGS(reportsDirView), STRING_VAARGS(reportBaseView)));
     StringView dumpPathView = StringFromCString(dumpPath);
+    char zipPath[ME_PATH_MAX] = {};
+    StringCopy(StringView(zipPath, ME_PATH_MAX), StringFormatTmp(STRING_FMT "\\" STRING_FMT ".zip", STRING_VAARGS(reportsDirView), STRING_VAARGS(reportBaseView)));
     StringView zipPathView = StringFromCString(zipPath);
 
     EXCEPTION_RECORD* record = exceptionInfo->ExceptionRecord;
@@ -225,23 +226,24 @@ static LONG WINAPI meUnhandledExceptionFilter(EXCEPTION_POINTERS* exceptionInfo)
         zipEntries[zipEntryCount++] = dumpPathView;
     }
 
-    bool wroteZip = CrashCreateZip(zipPathView, zipEntries, zipEntryCount);
+    bool wroteZip = ME_CRASHHANDLER_AUTO_ZIP ? CrashCreateZip(zipPathView, zipEntries, zipEntryCount) : false;
+    if (wroteZip)
+    {
+        LOG_INFO("Mindseye wrote .zip to " STRING_FMT, STRING_VAARGS(zipPathView));
+    }
     StringView dumpReportPath = wroteDump ? dumpPathView : STRING_LIT("(failed to write dump)");
-    StringView zipReportPath = wroteZip ? zipPathView : STRING_LIT("(failed to write zip)");
 
     LOG_ERROR("\n%.*s", STRING_VAARGS(stackTraceText));
-    LOG_ERROR("Crash report written: dump=" STRING_FMT " zip=" STRING_FMT,
-        STRING_VAARGS(dumpReportPath),
-        STRING_VAARGS(zipReportPath));
+    LOG_ERROR("Crash report written: dump=" STRING_FMT,
+        STRING_VAARGS(dumpReportPath));
 
     bool shouldDisplayMsgBox = !crashContext.isRunningTests && !isDebugging;
     if (shouldDisplayMsgBox)
     {
         char dialogText[2048] = {};
         StringCopy(StringView(dialogText, sizeof(dialogText)), StringFormatTmp(
-            "Mindseye has crashed.\n\nDump:\n" STRING_FMT "\n\nArchive:\n" STRING_FMT "\n\nThe stack trace was also printed to the debugger/console.",
-            STRING_VAARGS(dumpReportPath),
-            STRING_VAARGS(zipReportPath)));
+            "Mindseye has crashed.\n\nDump:\n" STRING_FMT "\n\nThe stack trace was also printed to the debugger/console.",
+            STRING_VAARGS(dumpReportPath)));
         MessageBoxA(nullptr, dialogText, "Mindseye Crash", MB_OK | MB_ICONERROR | MB_TASKMODAL);
     }
 
