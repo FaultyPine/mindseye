@@ -143,21 +143,13 @@ static const char* RequiredVulkanDeviceExtensions[] =
     VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
     VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME,
     VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME, // Keep this explicit for ImGui even though dynamic rendering is core in Vulkan 1.3.
-    VK_KHR_MAINTENANCE_5_EXTENSION_NAME,
-    VK_KHR_UNIFIED_IMAGE_LAYOUTS_EXTENSION_NAME,
-    VK_EXT_DESCRIPTOR_HEAP_EXTENSION_NAME,
-    VK_EXT_SHADER_OBJECT_EXTENSION_NAME,
 };
 
 struct VulkanRequiredFeatures
 {
-    VkPhysicalDeviceDescriptorHeapFeaturesEXT descriptorHeap = {};
-    VkPhysicalDeviceUnifiedImageLayoutsFeaturesKHR unifiedImageLayouts = {};
-    VkPhysicalDeviceShaderObjectFeaturesEXT shaderObject = {};
     VkPhysicalDeviceRayQueryFeaturesKHR rayQuery = {};
     VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtPipeline = {};
     VkPhysicalDeviceAccelerationStructureFeaturesKHR acceleration = {};
-    VkPhysicalDeviceMaintenance5FeaturesKHR maintenance5 = {};
     VkPhysicalDeviceVulkan13Features features13 = {};
     VkPhysicalDeviceVulkan12Features features12 = {};
     VkPhysicalDeviceFeatures2 features2 = {};
@@ -167,16 +159,7 @@ static void BuildVulkanRequiredFeatureChain(VulkanRequiredFeatures& features, bo
 {
     features = {};
 
-    features.shaderObject.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_OBJECT_FEATURES_EXT;
-    features.shaderObject.pNext = &features.descriptorHeap;
-
-    features.descriptorHeap.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_HEAP_FEATURES_EXT;
-    features.descriptorHeap.pNext = &features.unifiedImageLayouts;
-
-    features.unifiedImageLayouts.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_UNIFIED_IMAGE_LAYOUTS_FEATURES_KHR;
-
     features.rayQuery.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR;
-    features.rayQuery.pNext = &features.shaderObject;
 
     features.rtPipeline.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
     features.rtPipeline.pNext = &features.rayQuery;
@@ -184,11 +167,8 @@ static void BuildVulkanRequiredFeatureChain(VulkanRequiredFeatures& features, bo
     features.acceleration.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
     features.acceleration.pNext = &features.rtPipeline;
 
-    features.maintenance5.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_5_FEATURES_KHR;
-    features.maintenance5.pNext = &features.acceleration;
-
     features.features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
-    features.features13.pNext = &features.maintenance5;
+    features.features13.pNext = &features.acceleration;
 
     features.features12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
     features.features12.pNext = &features.features13;
@@ -230,10 +210,6 @@ static void BuildVulkanRequiredFeatureChain(VulkanRequiredFeatures& features, bo
 
     features.rtPipeline.rayTracingPipeline = VK_TRUE;
     features.rayQuery.rayQuery = VK_TRUE;
-    features.shaderObject.shaderObject = VK_TRUE;
-    features.unifiedImageLayouts.unifiedImageLayouts = VK_TRUE;
-    features.maintenance5.maintenance5 = VK_TRUE;
-    features.descriptorHeap.descriptorHeap = VK_TRUE;
 }
 
 static bool RequireVulkanFeature(VkBool32 supported, const char* deviceName, const char* featureName)
@@ -355,10 +331,6 @@ static bool HasRequiredVulkanFeatures(VkPhysicalDevice physicalDevice, const VkP
 
     REQUIRE_VULKAN_FEATURE(rtPipeline, rayTracingPipeline);
     REQUIRE_VULKAN_FEATURE(rayQuery, rayQuery);
-    REQUIRE_VULKAN_FEATURE(shaderObject, shaderObject);
-    REQUIRE_VULKAN_FEATURE(unifiedImageLayouts, unifiedImageLayouts);
-    REQUIRE_VULKAN_FEATURE(maintenance5, maintenance5);
-    REQUIRE_VULKAN_FEATURE(descriptorHeap, descriptorHeap);
 
 #undef REQUIRE_VULKAN_FEATURE
 
