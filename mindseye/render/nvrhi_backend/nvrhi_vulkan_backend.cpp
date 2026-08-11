@@ -128,6 +128,243 @@ static const char* VkResultName(VkResult result)
     }
 }
 
+static void VulkanExitAfterRequiredSupportFailure()
+{
+    LOG_ERROR("Required Vulkan support is missing. You either need to update your GPU drivers, or your GPU is too old to support the required engine features.");
+    GetEngineCtx()->isRunning = false;
+}
+
+static const char* RequiredVulkanDeviceExtensions[] =
+{
+    VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+    VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
+    VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
+    VK_KHR_RAY_QUERY_EXTENSION_NAME,
+    VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
+    VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME,
+    VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME, // Keep this explicit for ImGui even though dynamic rendering is core in Vulkan 1.3.
+    VK_KHR_MAINTENANCE_5_EXTENSION_NAME,
+    VK_KHR_UNIFIED_IMAGE_LAYOUTS_EXTENSION_NAME,
+    VK_EXT_DESCRIPTOR_HEAP_EXTENSION_NAME,
+    VK_EXT_SHADER_OBJECT_EXTENSION_NAME,
+};
+
+struct VulkanRequiredFeatures
+{
+    VkPhysicalDeviceDescriptorHeapFeaturesEXT descriptorHeap = {};
+    VkPhysicalDeviceUnifiedImageLayoutsFeaturesKHR unifiedImageLayouts = {};
+    VkPhysicalDeviceShaderObjectFeaturesEXT shaderObject = {};
+    VkPhysicalDeviceRayQueryFeaturesKHR rayQuery = {};
+    VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtPipeline = {};
+    VkPhysicalDeviceAccelerationStructureFeaturesKHR acceleration = {};
+    VkPhysicalDeviceMaintenance5FeaturesKHR maintenance5 = {};
+    VkPhysicalDeviceVulkan13Features features13 = {};
+    VkPhysicalDeviceVulkan12Features features12 = {};
+    VkPhysicalDeviceFeatures2 features2 = {};
+};
+
+static void BuildVulkanRequiredFeatureChain(VulkanRequiredFeatures& features, bool enableFeatures)
+{
+    features = {};
+
+    features.shaderObject.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_OBJECT_FEATURES_EXT;
+    features.shaderObject.pNext = &features.descriptorHeap;
+
+    features.descriptorHeap.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_HEAP_FEATURES_EXT;
+    features.descriptorHeap.pNext = &features.unifiedImageLayouts;
+
+    features.unifiedImageLayouts.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_UNIFIED_IMAGE_LAYOUTS_FEATURES_KHR;
+
+    features.rayQuery.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR;
+    features.rayQuery.pNext = &features.shaderObject;
+
+    features.rtPipeline.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
+    features.rtPipeline.pNext = &features.rayQuery;
+
+    features.acceleration.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
+    features.acceleration.pNext = &features.rtPipeline;
+
+    features.maintenance5.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_5_FEATURES_KHR;
+    features.maintenance5.pNext = &features.acceleration;
+
+    features.features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+    features.features13.pNext = &features.maintenance5;
+
+    features.features12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+    features.features12.pNext = &features.features13;
+
+    features.features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+    features.features2.pNext = &features.features12;
+
+    if (!enableFeatures)
+    {
+        return;
+    }
+
+    features.features12.bufferDeviceAddress = VK_TRUE;
+    features.features12.timelineSemaphore = VK_TRUE;
+
+    features.features12.descriptorIndexing = VK_TRUE;
+    features.features12.runtimeDescriptorArray = VK_TRUE;
+    features.features12.descriptorBindingPartiallyBound = VK_TRUE;
+    features.features12.descriptorBindingVariableDescriptorCount = VK_TRUE;
+    features.features12.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE;
+    features.features12.descriptorBindingStorageImageUpdateAfterBind = VK_TRUE;
+    features.features12.descriptorBindingStorageBufferUpdateAfterBind = VK_TRUE;
+    features.features12.descriptorBindingUniformBufferUpdateAfterBind = VK_TRUE;
+    features.features12.descriptorBindingUniformTexelBufferUpdateAfterBind = VK_TRUE;
+    features.features12.descriptorBindingStorageTexelBufferUpdateAfterBind = VK_TRUE;
+    features.features12.descriptorBindingUpdateUnusedWhilePending = VK_TRUE;
+    features.features12.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
+    features.features12.shaderStorageImageArrayNonUniformIndexing = VK_TRUE;
+    features.features12.shaderStorageBufferArrayNonUniformIndexing = VK_TRUE;
+    features.features12.shaderUniformBufferArrayNonUniformIndexing = VK_TRUE;
+    features.features12.shaderUniformTexelBufferArrayNonUniformIndexing = VK_TRUE;
+    features.features12.shaderStorageTexelBufferArrayNonUniformIndexing = VK_TRUE;
+
+    features.features13.dynamicRendering = VK_TRUE;
+    features.features13.synchronization2 = VK_TRUE;
+
+    features.acceleration.accelerationStructure = VK_TRUE;
+    features.acceleration.descriptorBindingAccelerationStructureUpdateAfterBind = VK_TRUE;
+
+    features.rtPipeline.rayTracingPipeline = VK_TRUE;
+    features.rayQuery.rayQuery = VK_TRUE;
+    features.shaderObject.shaderObject = VK_TRUE;
+    features.unifiedImageLayouts.unifiedImageLayouts = VK_TRUE;
+    features.maintenance5.maintenance5 = VK_TRUE;
+    features.descriptorHeap.descriptorHeap = VK_TRUE;
+}
+
+static bool RequireVulkanFeature(VkBool32 supported, const char* deviceName, const char* featureName)
+{
+    if (supported)
+    {
+        return true;
+    }
+
+    LOG_ERROR("Vulkan device '%s' is missing required feature: %s", deviceName, featureName);
+    return false;
+}
+
+static const char* VulkanPhysicalDeviceTypeName(VkPhysicalDeviceType type)
+{
+    switch (type)
+    {
+        case VK_PHYSICAL_DEVICE_TYPE_OTHER: return "other";
+        case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU: return "integrated GPU";
+        case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU: return "discrete GPU";
+        case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU: return "virtual GPU";
+        case VK_PHYSICAL_DEVICE_TYPE_CPU: return "CPU";
+        default: return "unknown";
+    }
+}
+
+static void LogVulkanPhysicalDeviceInfo(const VkPhysicalDeviceProperties& deviceProperties)
+{
+    u32 apiMajor = VK_VERSION_MAJOR(deviceProperties.apiVersion);
+    u32 apiMinor = VK_VERSION_MINOR(deviceProperties.apiVersion);
+    u32 apiPatch = VK_VERSION_PATCH(deviceProperties.apiVersion);
+
+    if (deviceProperties.vendorID == 0x10DE)
+    {
+        u32 driverMajor = deviceProperties.driverVersion >> 22;
+        u32 driverMinor = (deviceProperties.driverVersion >> 14) & 0xff;
+        u32 driverPatch = (deviceProperties.driverVersion >> 6) & 0xff;
+        u32 driverBuild = deviceProperties.driverVersion & 0x3f;
+
+        LOG_INFO(
+            "Vulkan device '%s': type=%s, vendor=0x%04x, device=0x%04x, api=%u.%u.%u, NVIDIA driver=%u.%u.%u.%u, rawDriverVersion=0x%08x",
+            deviceProperties.deviceName,
+            VulkanPhysicalDeviceTypeName(deviceProperties.deviceType),
+            deviceProperties.vendorID,
+            deviceProperties.deviceID,
+            apiMajor,
+            apiMinor,
+            apiPatch,
+            driverMajor,
+            driverMinor,
+            driverPatch,
+            driverBuild,
+            deviceProperties.driverVersion);
+        return;
+    }
+
+    LOG_INFO(
+        "Vulkan device '%s': type=%s, vendor=0x%04x, device=0x%04x, api=%u.%u.%u, driver=%u.%u.%u, rawDriverVersion=0x%08x",
+        deviceProperties.deviceName,
+        VulkanPhysicalDeviceTypeName(deviceProperties.deviceType),
+        deviceProperties.vendorID,
+        deviceProperties.deviceID,
+        apiMajor,
+        apiMinor,
+        apiPatch,
+        VK_VERSION_MAJOR(deviceProperties.driverVersion),
+        VK_VERSION_MINOR(deviceProperties.driverVersion),
+        VK_VERSION_PATCH(deviceProperties.driverVersion),
+        deviceProperties.driverVersion);
+}
+
+static bool HasRequiredVulkanFeatures(VkPhysicalDevice physicalDevice, const VkPhysicalDeviceProperties& deviceProperties)
+{
+    bool result = true;
+    if (deviceProperties.apiVersion < VK_API_VERSION_1_3)
+    {
+        LOG_ERROR(
+            "Vulkan device '%s' supports API %u.%u.%u, but Mindseye requires Vulkan 1.3",
+            deviceProperties.deviceName,
+            VK_VERSION_MAJOR(deviceProperties.apiVersion),
+            VK_VERSION_MINOR(deviceProperties.apiVersion),
+            VK_VERSION_PATCH(deviceProperties.apiVersion));
+        result = false;
+    }
+
+    VulkanRequiredFeatures supportedFeatures = {};
+    BuildVulkanRequiredFeatureChain(supportedFeatures, false);
+    vkGetPhysicalDeviceFeatures2(physicalDevice, &supportedFeatures.features2);
+
+#define REQUIRE_VULKAN_FEATURE(featuresStruct, featureField) \
+    result &= RequireVulkanFeature(supportedFeatures.featuresStruct.featureField, deviceProperties.deviceName, #featureField)
+
+    REQUIRE_VULKAN_FEATURE(features12, bufferDeviceAddress);
+    REQUIRE_VULKAN_FEATURE(features12, timelineSemaphore);
+
+    REQUIRE_VULKAN_FEATURE(features12, descriptorIndexing);
+    REQUIRE_VULKAN_FEATURE(features12, runtimeDescriptorArray);
+    REQUIRE_VULKAN_FEATURE(features12, descriptorBindingPartiallyBound);
+    REQUIRE_VULKAN_FEATURE(features12, descriptorBindingVariableDescriptorCount);
+    REQUIRE_VULKAN_FEATURE(features12, descriptorBindingSampledImageUpdateAfterBind);
+    REQUIRE_VULKAN_FEATURE(features12, descriptorBindingStorageImageUpdateAfterBind);
+    REQUIRE_VULKAN_FEATURE(features12, descriptorBindingStorageBufferUpdateAfterBind);
+    REQUIRE_VULKAN_FEATURE(features12, descriptorBindingUniformBufferUpdateAfterBind);
+    REQUIRE_VULKAN_FEATURE(features12, descriptorBindingUniformTexelBufferUpdateAfterBind);
+    REQUIRE_VULKAN_FEATURE(features12, descriptorBindingStorageTexelBufferUpdateAfterBind);
+    REQUIRE_VULKAN_FEATURE(features12, descriptorBindingUpdateUnusedWhilePending);
+    REQUIRE_VULKAN_FEATURE(features12, shaderSampledImageArrayNonUniformIndexing);
+    REQUIRE_VULKAN_FEATURE(features12, shaderStorageImageArrayNonUniformIndexing);
+    REQUIRE_VULKAN_FEATURE(features12, shaderStorageBufferArrayNonUniformIndexing);
+    REQUIRE_VULKAN_FEATURE(features12, shaderUniformBufferArrayNonUniformIndexing);
+    REQUIRE_VULKAN_FEATURE(features12, shaderUniformTexelBufferArrayNonUniformIndexing);
+    REQUIRE_VULKAN_FEATURE(features12, shaderStorageTexelBufferArrayNonUniformIndexing);
+
+    REQUIRE_VULKAN_FEATURE(features13, dynamicRendering);
+    REQUIRE_VULKAN_FEATURE(features13, synchronization2);
+
+    REQUIRE_VULKAN_FEATURE(acceleration, accelerationStructure);
+    REQUIRE_VULKAN_FEATURE(acceleration, descriptorBindingAccelerationStructureUpdateAfterBind);
+
+    REQUIRE_VULKAN_FEATURE(rtPipeline, rayTracingPipeline);
+    REQUIRE_VULKAN_FEATURE(rayQuery, rayQuery);
+    REQUIRE_VULKAN_FEATURE(shaderObject, shaderObject);
+    REQUIRE_VULKAN_FEATURE(unifiedImageLayouts, unifiedImageLayouts);
+    REQUIRE_VULKAN_FEATURE(maintenance5, maintenance5);
+    REQUIRE_VULKAN_FEATURE(descriptorHeap, descriptorHeap);
+
+#undef REQUIRE_VULKAN_FEATURE
+
+    return result;
+}
+
 static PFN_vkVoidFunction ImGuiVulkanLoadFunction(const char* functionName, void* userData)
 {
     NvrhiVulkanState* state = (NvrhiVulkanState*)userData;
@@ -247,12 +484,21 @@ static void ReleaseTextures(NvrhiVulkanState& state)
     DynArrayClear(state.textures);
 }
 
-static bool HasDeviceExtensions(NvrhiVulkanState& state, VkPhysicalDevice physicalDevice, const char* const* requiredExtensions, u32 requiredExtensionCount)
+static bool HasDeviceExtensions(
+    NvrhiVulkanState& state,
+    VkPhysicalDevice physicalDevice,
+    const VkPhysicalDeviceProperties& deviceProperties,
+    const char* const* requiredExtensions,
+    u32 requiredExtensionCount)
 {
     u32 extensionCount = 0;
     vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &extensionCount, nullptr);
     if (extensionCount == 0)
     {
+        if (requiredExtensionCount > 0)
+        {
+            LOG_ERROR("Vulkan device '%s' does not report any device extensions", deviceProperties.deviceName);
+        }
         return requiredExtensionCount == 0;
     }
 
@@ -274,8 +520,8 @@ static bool HasDeviceExtensions(NvrhiVulkanState& state, VkPhysicalDevice physic
         }
         if (!found)
         {
+            LOG_ERROR("Vulkan device '%s' is missing required extension: %s", deviceProperties.deviceName, requiredExtensions[requiredIdx]);
             result = false;
-            break;
         }
     }
 
@@ -329,48 +575,21 @@ static bool SelectPhysicalDevice(NvrhiVulkanState& state, const char* const* dev
     for (DynArray_Foreach(physicalDevices, physicalDeviceIdx))
     {
         VkPhysicalDevice physicalDevice = physicalDevices[physicalDeviceIdx];
+        VkPhysicalDeviceProperties deviceProperties = {};
+        vkGetPhysicalDeviceProperties(physicalDevice, &deviceProperties);
+        LogVulkanPhysicalDeviceInfo(deviceProperties);
+
         u32 queueFamily = U32_INVALID_ID;
         if (!FindGraphicsPresentQueue(state, physicalDevice, state.surface, &queueFamily))
         {
+            LOG_ERROR("Vulkan device '%s' does not support a graphics queue that can present to this surface", deviceProperties.deviceName);
             continue;
         }
-        if (!HasDeviceExtensions(state, physicalDevice, deviceExtensions, deviceExtensionCount))
+        if (!HasDeviceExtensions(state, physicalDevice, deviceProperties, deviceExtensions, deviceExtensionCount))
         {
             continue;
         }
-
-        VkPhysicalDeviceRayQueryFeaturesKHR rayQuery = {};
-        rayQuery.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR;
-
-        VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtPipeline = {};
-        rtPipeline.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
-        rtPipeline.pNext = &rayQuery;
-
-        VkPhysicalDeviceAccelerationStructureFeaturesKHR acceleration = {};
-        acceleration.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
-        acceleration.pNext = &rtPipeline;
-
-        VkPhysicalDeviceVulkan13Features features13 = {};
-        features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
-        features13.pNext = &acceleration;
-
-        VkPhysicalDeviceVulkan12Features features12 = {};
-        features12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
-        features12.pNext = &features13;
-
-        VkPhysicalDeviceFeatures2 features2 = {};
-        features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-        features2.pNext = &features12;
-        vkGetPhysicalDeviceFeatures2(physicalDevice, &features2);
-
-        if (!features12.bufferDeviceAddress ||
-            !features12.descriptorIndexing ||
-            !features12.runtimeDescriptorArray ||
-            !features13.dynamicRendering ||
-            !features13.synchronization2 ||
-            !acceleration.accelerationStructure ||
-            !rtPipeline.rayTracingPipeline ||
-            !rayQuery.rayQuery)
+        if (!HasRequiredVulkanFeatures(physicalDevice, deviceProperties))
         {
             continue;
         }
@@ -616,7 +835,7 @@ void NvrhiVulkanRendererBackend::Initialize(EngineContext* engine)
     appInfo.applicationVersion = 1;
     appInfo.pEngineName = "Mindseye";
     appInfo.engineVersion = 1;
-    appInfo.apiVersion = VK_API_VERSION_1_3;
+    appInfo.apiVersion = VK_API_VERSION_1_3; // requiring 1.3 for simplicity for now. TODO: Should support 1.2 in the future, with dynamic rendering as an extension (it's a core feature in 1.3).
 
     VkInstanceCreateInfo instanceInfo = {};
     instanceInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -663,54 +882,15 @@ void NvrhiVulkanRendererBackend::Initialize(EngineContext* engine)
 #error Unsupported/todo NVRHI Vulkan platform
 #endif
 
-    static const char* deviceExtensions[] =
+    if (!SelectPhysicalDevice(*state, RequiredVulkanDeviceExtensions, ARRAY_SIZE(RequiredVulkanDeviceExtensions)))
     {
-        VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-        VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
-        VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
-        VK_KHR_RAY_QUERY_EXTENSION_NAME,
-        VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
-        VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME,
-    };
-
-    if (!SelectPhysicalDevice(*state, deviceExtensions, ARRAY_SIZE(deviceExtensions)))
-    {
-        LOG_ERROR("No Vulkan device supports graphics, presentation, and the required ray tracing features");
+        LOG_ERROR("No Vulkan device supports graphics, presentation, and all required modern Vulkan features/extensions");
+        VulkanExitAfterRequiredSupportFailure();
         return;
     }
 
-    VkPhysicalDeviceRayQueryFeaturesKHR rayQueryFeatures = {};
-    rayQueryFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR;
-    rayQueryFeatures.rayQuery = VK_TRUE;
-
-    VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtPipelineFeatures = {};
-    rtPipelineFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
-    rtPipelineFeatures.pNext = &rayQueryFeatures;
-    rtPipelineFeatures.rayTracingPipeline = VK_TRUE;
-
-    VkPhysicalDeviceAccelerationStructureFeaturesKHR accelFeatures = {};
-    accelFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
-    accelFeatures.pNext = &rtPipelineFeatures;
-    accelFeatures.accelerationStructure = VK_TRUE;
-    accelFeatures.descriptorBindingAccelerationStructureUpdateAfterBind = VK_TRUE;
-
-    VkPhysicalDeviceVulkan13Features features13 = {};
-    features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
-    features13.pNext = &accelFeatures;
-    features13.dynamicRendering = VK_TRUE;
-    features13.synchronization2 = VK_TRUE;
-
-    VkPhysicalDeviceVulkan12Features features12 = {};
-    features12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
-    features12.pNext = &features13;
-    features12.bufferDeviceAddress = VK_TRUE;
-    features12.descriptorIndexing = VK_TRUE;
-    features12.runtimeDescriptorArray = VK_TRUE;
-    features12.descriptorBindingPartiallyBound = VK_TRUE;
-    features12.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE;
-    features12.descriptorBindingStorageImageUpdateAfterBind = VK_TRUE;
-    features12.descriptorBindingStorageBufferUpdateAfterBind = VK_TRUE;
-    features12.descriptorBindingUpdateUnusedWhilePending = VK_TRUE;
+    VulkanRequiredFeatures requiredFeatures = {};
+    BuildVulkanRequiredFeatureChain(requiredFeatures, true);
 
     float queuePriority = 1.0f;
     VkDeviceQueueCreateInfo queueInfo = {};
@@ -721,16 +901,17 @@ void NvrhiVulkanRendererBackend::Initialize(EngineContext* engine)
 
     VkDeviceCreateInfo deviceInfo = {};
     deviceInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    deviceInfo.pNext = &features12;
+    deviceInfo.pNext = &requiredFeatures.features12;
     deviceInfo.queueCreateInfoCount = 1;
     deviceInfo.pQueueCreateInfos = &queueInfo;
-    deviceInfo.enabledExtensionCount = ARRAY_SIZE(deviceExtensions);
-    deviceInfo.ppEnabledExtensionNames = deviceExtensions;
+    deviceInfo.enabledExtensionCount = ARRAY_SIZE(RequiredVulkanDeviceExtensions);
+    deviceInfo.ppEnabledExtensionNames = RequiredVulkanDeviceExtensions;
 
     VkResult deviceResult = vkCreateDevice(state->physicalDevice, &deviceInfo, nullptr, &state->device);
     if (deviceResult != VK_SUCCESS)
     {
         LOG_ERROR("vkCreateDevice failed: %s", VkResultName(deviceResult));
+        VulkanExitAfterRequiredSupportFailure();
         return;
     }
 
@@ -754,8 +935,8 @@ void NvrhiVulkanRendererBackend::Initialize(EngineContext* engine)
     deviceDesc.device = state->device;
     deviceDesc.graphicsQueue = state->graphicsQueue;
     deviceDesc.graphicsQueueIndex = state->graphicsQueueFamily;
-    deviceDesc.deviceExtensions = deviceExtensions;
-    deviceDesc.numDeviceExtensions = ARRAY_SIZE(deviceExtensions);
+    deviceDesc.deviceExtensions = RequiredVulkanDeviceExtensions;
+    deviceDesc.numDeviceExtensions = ARRAY_SIZE(RequiredVulkanDeviceExtensions);
     deviceDesc.bufferDeviceAddressSupported = true;
 
     state->nvrhiDevice = nvrhi::vulkan::createDevice(deviceDesc);

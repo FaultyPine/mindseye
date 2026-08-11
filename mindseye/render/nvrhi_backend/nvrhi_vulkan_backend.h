@@ -2,6 +2,10 @@
 
 #include "mindseye/render/renderer_frontend.h"
 
+// TODO: i'd like to use as many modern vulkan features as possible for the sake of simplifying renderer code
+// since this is my hobby engine, i don't care about supporting older gpus. So i'm gonna use all the modern stuff that makes life easy
+// Dynamic Rendering, Bindless Descriptors, Buffer Device Address, Shader Objects
+
 struct NvrhiVulkanState;
 
 struct NvrhiVulkanRendererBackend : public RendererFrontend
