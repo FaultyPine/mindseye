@@ -4,3 +4,9 @@
 [submodule "mindseye/external/imgui-node-editor"]
 	path = mindseye/external/imgui-node-editor
 	url = https://github.com/thedmd/imgui-node-editor
+[submodule "mindseye/external/nvrhi"]
+	path = mindseye/external/nvrhi
+	url = https://github.com/NVIDIA-RTX/NVRHI.git
+[submodule "mindseye/external/vulkan_headers"]
+	path = mindseye/external/vulkan_headers
+	url = https://github.com/KhronosGroup/Vulkan-Headers.git
