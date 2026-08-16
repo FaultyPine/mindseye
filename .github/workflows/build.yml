@@ -13,8 +13,8 @@
 
      steps:
      - uses: actions/checkout@v4
-     - name: checkout imgui-node-editor
-       run: git submodule update --init --recursive mindseye/external/imgui-node-editor
+       with:
+        submodules: recursive
      - name: build
        run: ./build.bat
        shell: cmd
