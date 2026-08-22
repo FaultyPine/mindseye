@@ -68,19 +68,29 @@ struct BuildableArtifact
 		addInputsNoCompile(&mebuild, 1);
 	}
 
-	BuildResult build(bool force = false)
+	BuildResult build(const char* name = nullptr, bool force = false)
 	{
 		if (force || (output.count && nob_needs_rebuild(output.data, inputs.items, inputs.count) > 0))
 		{
 			bool result = false;
+            auto time = nob_nanos_since_unspecified_epoch();
 			if (compileCmd.count)
 			{
-				result = nob_cmd_run(&compileCmd);
+                result = nob_cmd_run_opt(&compileCmd, options);
 			}
 			if (result && postprocessCmd.count)
 			{
-				result = nob_cmd_run_opt(&postprocessCmd, options);
+                result = nob_cmd_run_opt(&postprocessCmd, options);
 			}
+            auto elapsed = nob_nanos_since_unspecified_epoch() - time;
+            if (options.async)
+            {
+                nob_log(NOB_INFO, "%s queued", name ? name : output.data);
+            }
+            else
+            {
+                nob_log(NOB_INFO, "%s took %fsec", name ? name : output.data, (double)elapsed / 1000000000.0);
+            }
 			return result ? BUILD_SUCCEEDED : BUILD_FAILED;
 		}
 		return DID_NOT_BUILD;
@@ -350,6 +360,8 @@ int main(int argc, char** argv)
         (mode == DEBUG ? "-D_DEBUG" : "-DNDEBUG"),
 		(mode != RELEASE ? "-fno-pie" : ""), // No ASLR in non-shipping builds
 
+        "-ftime-trace",
+
 		// app flags
 		shippingBuild ? "-DSHIPPING_BUILD=1" : "-DSHIPPING_BUILD=0",
 		"-DVK_USE_PLATFORM_WIN32_KHR",
@@ -391,9 +403,9 @@ int main(int argc, char** argv)
 	NOB_CMD_APPEND_MULTIPLE(pchCmd, compilerFlagsCommon);
 	const char* pchInput = nob_temp_sprintf("%s/mindseye/me_pch.h", root);
 	pchBuild.addInputs(&pchInput, 1);
-	pchBuild.addOutput("me_pch.h.pch");
 	const char* pchFlag = "-include-pch";
 	const char* pchFile = nob_temp_sprintf("%s/build/me_pch.h.pch", root);
+	pchBuild.addOutput(pchFile);
 	// =====================================================================================
 
 	// ======================== DRIVER ==============================================
@@ -572,7 +584,7 @@ int main(int argc, char** argv)
 	}
 	nob_cmd_append(&mindseyeCmd, "-DTRACY_EXPORTS");
 	NOB_CMD_APPEND_MULTIPLE(mindseyeCmd, compilerFlagsCommon);
-	nob_cmd_append(&mindseyeCmd, pchFlag, pchFile);
+	nob_cmd_append(&mindseyeCmd, pchFlag, pchFile); // use pch
 	// input/output
 	const char* mindseyeEngineInputs = nob_temp_sprintf("%s/mindseye/me_unity.cpp", root);
 	mindseyeEngineObj.addInputs(&mindseyeEngineInputs, 1);
@@ -831,7 +843,7 @@ int main(int argc, char** argv)
 	if (appOnly)
 	{
 		nob_set_current_dir("build");
-		BuildResult result = testbedBuild.build();
+		BuildResult result = testbedBuild.build("Testbed hotreload build");
 		if (result == BUILD_FAILED)   return 1;
 		if (result == DID_NOT_BUILD)  return 2;
 		return 0; // BUILD_SUCCEEDED
@@ -840,6 +852,7 @@ int main(int argc, char** argv)
 
 
 	// ======================== Invoke Build ==============================================
+    nob_log(NOB_INFO, "Build prep done -> Invoking build");
 	Nob_Procs procs = {};
 
 	#define CHECK_BUILD_RESULT(buildResult) \
@@ -847,18 +860,24 @@ int main(int argc, char** argv)
 		{ \
 			return 1; \
 		}
+
+    const char* definesFilepath = nob_temp_sprintf("%s/mindseye/core/me_defines.h", root);
+    bool forcePchRebuild = nob_needs_rebuild(pchBuild.output.data, &definesFilepath, 1) > 0;
+	pchBuild.options.async = &procs;
+	BuildResult pchBuildRes = pchBuild.build("Pch build", forcePchRebuild);
+	CHECK_BUILD_RESULT(pchBuildRes);
+	bool builtPch = pchBuildRes == BUILD_SUCCEEDED;
+
 	for (int i = 0; i < numShadersToCompile; i++)
 	{
 		BuildableArtifact& shaderArtifact = shaderArtifacts[i];
 		shaderArtifact.options.max_procs = 0; // implies nob_nprocs
 		shaderArtifact.options.async = &procs;
-		CHECK_BUILD_RESULT(shaderArtifact.build());
+		CHECK_BUILD_RESULT(shaderArtifact.build("Shader artifact"));
 	}
 	
-	// can check build for reflector in parallel with shaders
-	mindseyeReflectorCompile.options.max_procs = 0;
-	mindseyeReflectorCompile.options.async = &procs;
-	BuildResult reflectorBuildResult = mindseyeReflectorCompile.build();
+	// The reflector run uses this executable immediately, so keep the compile synchronous.
+	BuildResult reflectorBuildResult = mindseyeReflectorCompile.build("Reflector compile");
 	if (reflectorBuildResult == BUILD_SUCCEEDED)
 	{
 		// if we rebuilt the reflector program, we should force a full re-reflect of everything by deleting the output folder
@@ -869,7 +888,7 @@ int main(int argc, char** argv)
         }
 	}
 	CHECK_BUILD_RESULT(reflectorBuildResult);
-	CHECK_BUILD_RESULT(mindseyeReflectorRun.build(true));
+	CHECK_BUILD_RESULT(mindseyeReflectorRun.build("Reflector run", true));
 	
 	if (!nob_procs_flush(&procs))
 	{
@@ -878,20 +897,14 @@ int main(int argc, char** argv)
 	}
 	nob_set_current_dir("build");
 
-    const char* definesFilepath = nob_temp_sprintf("%s/mindseye/core/me_defines.h", root);
-    bool forcePchRebuild = nob_needs_rebuild(pchBuild.output.data, &definesFilepath, 1) > 0;
-	BuildResult pchBuildRes = pchBuild.build(forcePchRebuild);
-	CHECK_BUILD_RESULT(pchBuildRes);
-	bool builtPch = pchBuildRes == BUILD_SUCCEEDED;
-
 	// Build object files in parallel
 	externalLibsObj.options.async = &procs;
-	BuildResult externalLibsBuildRes = externalLibsObj.build(forceBuildLibs || builtPch);
+	BuildResult externalLibsBuildRes = externalLibsObj.build("Ext libs obj", forceBuildLibs || builtPch);
 	CHECK_BUILD_RESULT(externalLibsBuildRes);
 	bool builtExternalLibs = externalLibsBuildRes == BUILD_SUCCEEDED;
 	
 	mindseyeEngineObj.options.async = &procs;
-	BuildResult builtMindseyeObjRes = mindseyeEngineObj.build(builtPch);
+	BuildResult builtMindseyeObjRes = mindseyeEngineObj.build("Mindseye engine obj", builtPch);
 	bool builtMindseyeObj = builtMindseyeObjRes == BUILD_SUCCEEDED;
 	CHECK_BUILD_RESULT(builtMindseyeObjRes);
 	
@@ -903,11 +916,11 @@ int main(int argc, char** argv)
 
 
 	// the link needs ext libs and the mindseye objs, so is dependent on the above stuff
-	BuildResult builtMindseye = mindseyeDll.build(builtMindseyeObj || builtExternalLibs);
+	BuildResult builtMindseye = mindseyeDll.build("Mindseye dll", builtMindseyeObj || builtExternalLibs);
 	CHECK_BUILD_RESULT(builtMindseye);
     // since testbed links mindseye (dll) at runtime, we don't need to rebuild testbed if mindseye implementation files change
     // testbed already has logic to rebuild if mindseye *headers* change
-	BuildResult builtTestbed = testbedBuild.build(); 
+	BuildResult builtTestbed = testbedBuild.build("Testbed"); 
 	CHECK_BUILD_RESULT(builtTestbed);
 	// The engine always loads "testbed-1.dll" so that hot-reload can load a
 	// fresh copy alongside without Windows blocking an overwrite of a mapped DLL.
