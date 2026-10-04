@@ -66,7 +66,6 @@ TODO: get rid of portable-file-dialogs. It pulls in a bunch of stl stuff.
             - mappings (shared mem, etc)
                 - same as files maybe? Have a engine structure we use instead of the raw os primitives (which i would've done anyway) which always does a lazy "am i valid" check on all operations and can reinitialize from some cached metadata about the mapping
             - graphics: all handled by "stateless" renderer, rendering-related memory should not be included in regular savestate stuff
-- NVRHI renderer backend & slang?
 
 				
 					

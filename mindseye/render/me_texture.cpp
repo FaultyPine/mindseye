@@ -3,7 +3,6 @@
 #include "external/ktx/ktx.h"
 #include "external/stb/stb_image.h"
 #include "core/me_profile.h"
-#include "core/me_command.h"
 #include "render/renderer_frontend.h"
 
 void meTextureInitialize(EngineContext* ctx)
@@ -34,24 +33,6 @@ meTexturePool& meTextureGetPool()
 	return *GetEngineCtx()->textureSystem;
 }
 
-void meTextureQueueGPUUpload(meTextureID textureHandle, meSpan textureMem, u32 channels, u32 width, u32 height)
-{
-	if (!textureHandle || !textureMem)
-	{
-		return;
-	}
-
-	meExternalCommand cmd = {};
-	cmd.type = meExternalCommandType_MainThreadCmd;
-	cmd.mainThreadCmd.fn = [textureHandle, textureMem, channels, width, height]()
-	{
-		meTexture& texture = meTextureGetPool().Get(textureHandle);
-		texture.buffer.cpuData = textureMem;
-		texture.buffer.bufferHandle = (u32)RendererGetMain().UploadTextureToGPU(textureMem, channels, width, height);
-	};
-	meSendExternalCommand(cmd);
-}
-
 static u32 GetChannelsFromTextureFormat(meTextureFormat format)
 {
 	switch (format)
@@ -78,8 +59,7 @@ meGPUBuffer meTexturePool::Load(const meTextureLoadParams& params)
 meGPUBuffer meTexturePool::Load(
 	RendererFrontend* renderer,
 	StringView gltfResPath,
-	const cgltf_image& gltfImage,
-	meTextureID textureHandle)
+	const cgltf_image& gltfImage)
 {
 	ME_PROFILE_FUNCTION();
 	meTexturePool& texturePool = meTextureGetPool();
@@ -146,14 +126,7 @@ meGPUBuffer meTexturePool::Load(
 			break;
 		}
 		meSpan decompressedImgMem = meSpan(pngDecompressed, pngDecompressedSize);
-		if (textureHandle)
-		{
-			meTextureQueueGPUUpload(textureHandle, decompressedImgMem, channels, w, h);
-		}
-		else
-		{
-			resultGPUBuff.bufferHandle = (u32)renderer->UploadTextureToGPU(decompressedImgMem, channels, w, h);
-		}
+		resultGPUBuff.bufferHandle = renderer->UploadTextureToGPU(decompressedImgMem, channels, w, h);
 
 		// TODO: make this async & use ktx instead of uncompressed img data
 		// I.E. asset compilation pipeline (png -> ktx -> becomes (cached) runtime asset

@@ -1,6 +1,6 @@
 #include "me_editor.h"
 
-#include "imgui.h"
+#include "external/bgfx/bgfx/3rdparty/dear-imgui/imgui.h"
 
 #ifdef COMPILER_CLANG
 #pragma GCC diagnostic push

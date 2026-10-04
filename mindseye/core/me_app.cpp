@@ -110,7 +110,7 @@ static void OnHotReloadBuildComplete(s32 exitCode, void*)
 
     meExternalCommand cmd = {};
     cmd.type = meExternalCommandType_MainThreadCmd;
-    cmd.mainThreadCmd.fn = []() { DoUserAppDllSwap(nullptr); };
+    cmd.mainThreadCmd = { DoUserAppDllSwap, nullptr };
     meSendExternalCommand(cmd);
 }
 
@@ -162,7 +162,6 @@ void RunEngine(EngineContext* engine)
         void* renderedSceneHandle = engine->renderer->RenderScene(&renderInput);
         UNUSED(renderedSceneHandle);
 		engine->renderer->EndImguiContext();
-		engine->renderer->PresentFrame();
 		engine->engineFrameAllocator.meClear();
 		GetTLScratch()->meClear(); // clear the main engine thread's scratch buffer every frame
 		engine->lastFrameTime = time;

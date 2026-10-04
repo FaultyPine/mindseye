@@ -37,14 +37,12 @@
 #include "external/stb/stb_truetype.h"
 
 // Now include ImGui - it will skip defining STB implementations since they're already defined
-#include "external/imgui/imgui.h"
+#include "bgfx/bgfx/3rdparty/dear-imgui/imgui.h"
 #undef IMGUI_INCLUDE_IMGUI_USER_INL
-#include "external/imgui/imgui.cpp"
-#include "external/imgui/imgui_draw.cpp"
-#include "external/imgui/imgui_widgets.cpp"
-#include "external/imgui/imgui_tables.cpp"
-#include "external/imgui/backends/imgui_impl_vulkan.cpp"
-
+#include "bgfx/bgfx/3rdparty/dear-imgui/imgui.cpp"
+#include "bgfx/bgfx/3rdparty/dear-imgui/imgui_draw.cpp"
+#include "bgfx/bgfx/3rdparty/dear-imgui/imgui_widgets.cpp"
+#include "bgfx/bgfx/3rdparty/dear-imgui/imgui_tables.cpp"
 
 #undef STB_TRUETYPE_IMPLEMENTATION
 #undef STB_RECT_PACK_IMPLEMENTATION
@@ -70,7 +68,5 @@
 #include "imgui-node-editor/imgui_node_editor_api.cpp"
 #pragma clang diagnostic pop
 #include "enkiTS/src/TaskScheduler.cpp"
-
-#include "external/nvrhi_unity.cpp"
 
 #include "external/tracy/public/TracyClient.cpp"

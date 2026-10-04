@@ -49,11 +49,4 @@
 
 #define IMGUI_DEFINE_MATH_OPERATORS
 #define IMGUI_API MEAPI
-#include "external/imgui/imgui.h"
-
-
-#include <vulkan/vulkan.hpp>
-
-#include "nvrhi/nvrhi.h"
-#include "nvrhi/vulkan.h"
-#include "nvrhi/validation.h"
+#include "external/bgfx/bgfx/3rdparty/dear-imgui/imgui.h"
