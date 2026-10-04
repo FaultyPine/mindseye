@@ -3,6 +3,7 @@
 #define CGLTF_IMPLEMENTATION
 #include "external/cgltf.h"
 #include "asset/me_asset.h"
+#include "asset/me_asset_index.h"
 #include "core/me_scope_exit.h"
 #include "core/me_log.h"
 #include "core/me_profile.h"

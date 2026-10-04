@@ -3,7 +3,7 @@
 #include "mindseye/core/me_log.h"
 #include "mindseye/reflector/me_compile_run_api.h"
 
-MEREFLECT(ConsoleCommand) void MyTestConsoleCommand()
+MEREFLECT(ConsoleCommand) inline void MyTestConsoleCommand()
 {
     LOG_INFO("My Test Console Command");
 }

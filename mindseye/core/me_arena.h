@@ -63,7 +63,7 @@ MEAPI void ArenaClear(Arena* arena);
 MEAPI void ArenaClearNull(Arena* arena);
 MEAPI void ArenaFreeAll(Arena* arena);
 MEAPI const char* ArenaGetName(Arena* arena);
-u64 ArenaGetFreeSpace(Arena* arena) { return arena->backing_mem_size - arena->offset; }
+inline u64 ArenaGetFreeSpace(Arena* arena) { return arena->backing_mem_size - arena->offset; }
 
 // TODO: (and note to self)
 // Make these temp arena funcs take in a 

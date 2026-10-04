@@ -19,12 +19,12 @@ DynArrayHeader* GetHeaderPointer(const DynArray<T>& array)
 
 // ===== Create & Destroy =====
 
-Allocation DynArrayInternalAlloc(meAllocator* allocator, size_t size)
+inline Allocation DynArrayInternalAlloc(meAllocator* allocator, size_t size)
 {
     return MEALLOC(allocator, size);
 }
 
-void DynArrayInternalFree(meAllocator* allocator, Allocation data)
+inline void DynArrayInternalFree(meAllocator* allocator, Allocation data)
 {
     allocator->meFree(data);
 }
@@ -227,7 +227,7 @@ meAllocator* DynArrayGetAllocator(const DynArray<T>& array)
     return headerPtr->allocator;
 }
 
-void DynArrayTests()
+inline void DynArrayTests()
 {
     LOG_INFO("Testing DynArray...");
     DynArray<s32> arr = DynArrayCreate<s32>(GetDefaultAllocator());

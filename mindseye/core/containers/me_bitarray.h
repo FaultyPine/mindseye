@@ -41,7 +41,7 @@ struct meBitArray
 
 
 
-void TestmeBitArray() 
+inline void TestmeBitArray()
 {
     meBitArray<64> bits;
     ME_ASSERT(bits.count() == 64);

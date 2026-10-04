@@ -230,7 +230,7 @@ void meAssetInitialize(EngineContext* engine)
 void meAssetInitializeLate(EngineContext* engine)
 {
 	ME_PROFILE_FUNCTION();
-	registerAssetLoader( meEventPayload{ &engine->engineArena });
+	registerAssetLoaderGet()(meEventPayload{ &engine->engineArena });
 }
 
 void meAssetTeardown(EngineContext* engine)
