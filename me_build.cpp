@@ -594,6 +594,7 @@ int main(int argc, char** argv)
 	Nob_Cmd& mindseyeLinkCmd = mindseyeDll.compileCmd;
 	// link object files together into DLL
 	nob_cmd_append(&mindseyeLinkCmd, g_compilerExe, "-shared");
+	nob_cmd_append(&mindseyeLinkCmd, "-lole32", "-lcomdlg32");
 	NOB_CMD_APPEND_MULTIPLE(mindseyeLinkCmd, linkerFlagsCommon);
 	NOB_CMD_APPEND_MULTIPLE(mindseyeLinkCmd, compilerFlagsCommon);
 	nob_cmd_append(&mindseyeLinkCmd, nob_temp_sprintf("-L%s/mindseye/external/ktx/lib", root), "-lktx", "-lshell32");
@@ -632,6 +633,7 @@ int main(int argc, char** argv)
 		"-lpsapi",
 		"-lshell32",
 		"-lole32",
+		"-lcomdlg32",
 		"-luuid",
 		"-ladvapi32",
 		"-lws2_32",

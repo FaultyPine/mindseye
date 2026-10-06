@@ -3,20 +3,18 @@
 #include "mindseye/platform/me_os.h"
 #include "mindseye/core/me_log.h"
 
-// TODO: remove this, replace with something lighter weight. this brings in a lot of STL stuff
-#include "external/potable-file-dialogs.h"
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wmissing-field-initializers"
+#include "external/tinyfiledialogs/tinyfiledialogs.h"
+#include "external/tinyfiledialogs/tinyfiledialogs.c"
+#pragma clang diagnostic pop
 
 bool FilesystemPathPicker(const char* title, String& out)
 {
-    std::vector<std::string> openFileResult;
-    openFileResult = pfd::open_file(title, ".").result();
-    if (!openFileResult.empty())
+    char* outFilename = tinyfd_saveFileDialog(title, nullptr, 0, nullptr, nullptr);
+    if (outFilename != nullptr)
     {
-        ME_ASSERT(openFileResult.size() == 1);
-        const char* fileCstr = openFileResult[0].c_str();
-        ME_ASSERT(CStringLength(fileCstr) <= ME_PATH_MAX);
-        StringView userPath = StringFromCString(fileCstr);
-        out = userPath;
+        out = StringFromCString(outFilename);
         return true;
     }
     return false;
