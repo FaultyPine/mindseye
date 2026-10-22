@@ -34,7 +34,6 @@ Finishing the asset system todo:
     - Need to be able to wait on a job, or on a full "graph"/batch of submitted jobs
 
 
-TODO: get rid of portable-file-dialogs. It pulls in a bunch of stl stuff.
 ============================
 
 ### Roadmap
