@@ -1,0 +1,39 @@
+{
+    "configurations": [
+        {
+            "name": "Win32",
+            "includePath": [
+                "${workspaceFolder}",
+                "${workspaceFolder}/mindseye",
+                "${workspaceFolder}/mindseye/external",
+                "${workspaceFolder}/mindseye/external/bgfx/bgfx/3rdparty/dear-imgui",
+                "${workspaceFolder}/mindseye/external/bgfx/bgfx/include",
+                "${workspaceFolder}/mindseye/external/bgfx/bgfx/3rdparty",
+                "${workspaceFolder}/mindseye/external/imgui-node-editor",
+                "${workspaceFolder}/mindseye/external/bgfx/bx/include",
+                "${workspaceFolder}/mindseye/external/bgfx/bimg/include",
+                "${workspaceFolder}/mindseye/external/ktx",
+                "${workspaceFolder}/mindseye/external/tracy/public"
+            ],
+            "defines": [
+                "_DEBUG",
+                "UNICODE",
+                "_UNICODE",
+                "BUILD_DEBUG=1",
+                "SHIPPING_BUILD=0",
+                "BX_CONFIG_DEBUG=1",
+                "TRACY_ENABLE=1",
+                "MEEXPORT",
+                "_DLL",
+                "TRACY_EXPORTS",
+                "ME_COMPILERUN_GUARD"
+            ],
+            "windowsSdkVersion": "10.0.26100.0",
+            "compilerPath": "${workspaceFolder}\\tools\\clang\\bin\\clang.exe",
+            "cStandard": "c17",
+            "cppStandard": "c++20",
+            "intelliSenseMode": "windows-clang-x64"
+        }
+    ],
+    "version": 4
+}
