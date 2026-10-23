@@ -5,7 +5,7 @@ Makefile
 .ninja_log
 *.ninja
 tools/clang
-.vscode
+.vscode/settings.json
 .vs
 *.tmp
 *.raddbg
