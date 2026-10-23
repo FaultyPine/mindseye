@@ -1,3 +1,4 @@
+#include "core/me_profile.h"
 #include "me_mesh.h"
 #include "external/cgltf.h"
 #include "render/me_material.h"
@@ -5,7 +6,6 @@
 #include "render/renderer_frontend.h"
 #include "core/me_math.h"
 #include "core/me_scope_exit.h"
-#include "core/me_profile.h"
 #include "core/me_filesystem.h"
 #include "platform/me_os.h"
 

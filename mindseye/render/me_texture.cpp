@@ -1,8 +1,8 @@
+#include "core/me_profile.h"
 #include "me_texture.h"
 
 #include "external/ktx/ktx.h"
 #include "external/stb/stb_image.h"
-#include "core/me_profile.h"
 #include "render/renderer_frontend.h"
 
 void meTextureInitialize(EngineContext* ctx)

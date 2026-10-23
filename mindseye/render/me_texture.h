@@ -166,3 +166,7 @@ enum meTextureSamplingFlags_
                             | ME_SAMPLER_MIP_MASK 
                             | ME_SAMPLER_COMPARE_MASK),
 };
+
+#ifndef ME_REFLECTING
+#include "generatedtypes/me_texture.generated.h"
+#endif

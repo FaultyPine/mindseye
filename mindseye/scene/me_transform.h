@@ -3,7 +3,9 @@
 #include "core/me_defines.h"
 #include "core/me_math.h"
 
+#ifndef ME_REFLECTING
 #include "generatedtypes/me_transform.generated.h"
+#endif
 
 struct MEREFLECT(type) meTransform 
 {

@@ -1,3 +1,4 @@
+#include "core/me_profile.h"
 #include "me_scene.h"
 
 #define CGLTF_IMPLEMENTATION
@@ -6,7 +7,6 @@
 #include "asset/me_asset_index.h"
 #include "core/me_scope_exit.h"
 #include "core/me_log.h"
-#include "core/me_profile.h"
 #include "core/me_serialize.h"
 #include "scene/me_entity.h"
 #include "render/me_mesh.h"

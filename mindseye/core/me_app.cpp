@@ -1,10 +1,10 @@
+#include "core/me_profile.h"
 
 
 #include "me_core.h"
 #include "core/me_log.h"
 #include "core/me_memory.h"
 #include "core/me_cmdline.h"
-#include "core/me_profile.h"
 
 #include "platform/me_os.h"
 #include "render/renderer_frontend.h"

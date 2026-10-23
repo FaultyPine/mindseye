@@ -96,3 +96,7 @@ MEAPI meMeshPool& meMeshPoolGet();
 MEAPI void GenCubeMesh(meMeshID outMeshHandle, u32 resolution, meMaterialID materialID = {});
 MEAPI void GenSphereMesh(meMeshID outMeshHandle, u32 resolution, meMaterialID materialID = {});
 MEAPI void GenPlaneMesh(meMeshID outMeshHandle, u32 resolution, meMaterialID materialID = {});
+
+#ifndef ME_REFLECTING
+#include "generatedtypes/me_mesh.generated.h"
+#endif

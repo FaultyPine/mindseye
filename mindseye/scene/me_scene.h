@@ -7,7 +7,9 @@
 #include "render/me_camera.h"
 #include "core/containers/dynarray.h"
 #include "asset/me_asset.h"
+#ifndef ME_REFLECTING
 #include "generatedtypes/me_scene.generated.h"
+#endif
 
 typedef u32 meSceneID;
 

@@ -1,3 +1,4 @@
+#include "core/me_profile.h"
 
 #include "me_thread.h"
 #include "core/me_defines.h"

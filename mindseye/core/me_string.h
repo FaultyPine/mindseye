@@ -279,3 +279,8 @@ MEAPI u64 StringParseUInt64(StringView& str);
 MEAPI float StringParseFloat(StringView& str);
 // (supports scientific notation)
 MEAPI double StringParseDouble(StringView& str);
+#include <functional>
+namespace std {
+template<> struct hash<StringView> { MEAPI size_t operator()(const StringView& value) const; };
+template<> struct hash<String> { MEAPI size_t operator()(const String& value) const; };
+}

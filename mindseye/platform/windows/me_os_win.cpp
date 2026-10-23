@@ -1,3 +1,4 @@
+#include "core/me_profile.h"
 
 #define ME_CRASHHANDLER_AUTO_ZIP 0
 
@@ -5,7 +6,6 @@
 #include "platform/me_os.h"
 #include "core/me_memory.h"
 #include "core/me_log.h"
-#include "core/me_profile.h"
 #ifndef ME_CORE_ONLY
 #define MINIZ_NO_ZLIB_COMPATIBLE_NAMES
 #include "external/miniz/miniz.h"

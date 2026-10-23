@@ -1,7 +1,6 @@
 #pragma once
 
 #include "mindseye/core/me_defines.h"
-#include "mindseye/core/me_profile.h"
 #include "mindseye/core/me_string.h"
 #include <string_view>
 

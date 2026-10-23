@@ -69,3 +69,7 @@ void meMaterialInitialize(EngineContext* engine);
 meMaterialPool& meMaterialGetPool();
 
 StringView meMaterialGetTextureTypeName(meMaterialTextureType texType);
+
+#ifndef ME_REFLECTING
+#include "generatedtypes/me_material.generated.h"
+#endif

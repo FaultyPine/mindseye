@@ -1,7 +1,7 @@
+#include "core/me_profile.h"
 #include "me_material.h"
 
 #include "external/cgltf.h"
-#include "core/me_profile.h"
 #include "render/renderer_frontend.h"
 
 void meMaterialInitialize(EngineContext* ctx)

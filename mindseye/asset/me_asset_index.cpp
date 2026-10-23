@@ -1,8 +1,8 @@
+#include "core/me_profile.h"
 
 #include "me_asset_index.h"
 
 #include "asset/me_asset.h"
-#include "core/me_profile.h"
 #include "core/me_serialize.h"
 #include "platform/me_os.h"
 

@@ -90,3 +90,7 @@ struct meShaderPool : public meResourcePool<meShader>
 void meShaderInitialize(EngineContext* ctx);
 
 meShaderPool& meShaderGetPool();
+
+#ifndef ME_REFLECTING
+#include "generatedtypes/me_shader.generated.h"
+#endif

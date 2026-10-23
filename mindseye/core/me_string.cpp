@@ -22,22 +22,6 @@
 //STATIC_ASSERT(offsetof(meSpan, size) == sizeof(meSpan::data));
 
 
-MEMAP_BEGIN_CUSTOM_HASHER(StringView, obj) 
-{
-    size_t h1 = HashBytesL((u8*)obj.data, obj.len);
-    size_t h2 = HashBytes((u8*)&obj.len, sizeof(obj.len));
-    return h1 ^ (h2 << 1);
-}
-MEMAP_END_CUSTOM_HASHER
-
-MEMAP_BEGIN_CUSTOM_HASHER(String, obj) 
-{
-    size_t h1 = HashBytesL((u8*)obj.data, obj.len);
-    size_t h2 = HashBytes((u8*)&obj.len, sizeof(obj.len));
-    return h1 ^ (h2 << 1);
-}
-MEMAP_END_CUSTOM_HASHER
-
 bool StringView::operator==(const StringView& sv) const 
 {
     return sv.len == this->len && ME_MEMCMP(this->data, sv.data, sv.len) == 0;
@@ -1091,3 +1075,12 @@ double StringParseDouble(StringView& str)
 
 
 // end parsing
+
+size_t std::hash<StringView>::operator()(const StringView& value) const
+{
+    return HashBytesL((u8*)value.data, value.len) ^ (size_t(HashBytes((u8*)&value.len, sizeof(value.len))) << 1);
+}
+size_t std::hash<String>::operator()(const String& value) const
+{
+    return std::hash<StringView>()(StringView(value.data, value.len));
+}

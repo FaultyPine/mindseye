@@ -65,3 +65,7 @@ MEAPI bool meEntityIsFlag(EntityRef ent, EntityFlags flag);
 MEAPI bool meEntityIsFlag(const meEntity& ent, EntityFlags flag);
 
 
+
+#ifndef ME_REFLECTING
+#include "generatedtypes/me_entity.generated.h"
+#endif

@@ -1,3 +1,4 @@
+#include "core/me_profile.h"
 #include "me_asset.h"
 
 #include "asset/me_asset_index.h"
@@ -6,7 +7,6 @@
 #include "core/me_string.h"
 #include "core/me_filesystem.h"
 #include "core/me_event.h"
-#include "core/me_profile.h"
 
 
 MEEVENT_DECLARE_STATIC(registerAssetLoader);
