@@ -1,3 +1,5 @@
+#include "external/cgltf.h"
+#include "core/me_app.h"
 #include "core/me_profile.h"
 #include "me_texture.h"
 

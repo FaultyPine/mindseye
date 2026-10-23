@@ -1,3 +1,4 @@
+#include "core/me_app.h"
 #include "core/me_profile.h"
 #include "me_mesh.h"
 #include "external/cgltf.h"
@@ -13,6 +14,17 @@
 #include "external/par_shapes.h"
 
 #define USE_PAR_SHAPES
+
+static cgltf_material GenerateDummyGLTFMaterial()
+{
+	cgltf_material mat;
+	ME_MEMCLEAR(&mat, sizeof(mat));
+	#pragma clang diagnostic push
+	#pragma clang diagnostic ignored "-Wwritable-strings"
+	mat.name = "NoMaterial";
+	#pragma clang diagnostic pop
+	return mat;
+}
 
 void meMeshInitialize(EngineContext* engine)
 {

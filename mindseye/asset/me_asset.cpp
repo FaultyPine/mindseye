@@ -1,3 +1,6 @@
+#include "core/thread/me_thread.h"
+#include "core/me_serialize.h"
+#include "core/me_app.h"
 #include "core/me_profile.h"
 #include "me_asset.h"
 

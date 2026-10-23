@@ -2,14 +2,11 @@
 
 
 #include "core/me_defines.h"
-
-// NOTE: static on purpose. So it is separate from other allocated data
-// so that we don't accidentally include it in record/replay savestates
-static OSStateView g_osData;
-
+#include "platform/me_os.h"
 #ifdef OS_WINDOWS
-#include "windows/me_os_win.cpp"
+#include <windows.h>
 #endif
+
 #include "core/me_log.h"
 
 

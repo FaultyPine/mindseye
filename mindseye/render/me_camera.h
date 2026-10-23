@@ -1,8 +1,11 @@
 #pragma once
 
+#include "core/me_math.h"
+
 #include "core/me_defines.h"
 
 struct meMouseInput;
+struct OSStateView;
 struct MEREFLECT(type) meCamera 
 {
     f32 speed = 10.0f;

@@ -1,3 +1,5 @@
+#include "core/me_app.h"
+#include "core/me_filesystem.h"
 #include "core/me_profile.h"
 
 #include "me_asset_index.h"

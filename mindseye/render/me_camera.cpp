@@ -1,3 +1,4 @@
+#include "core/me_app.h"
 #include "me_camera.h"
 #include "platform/me_input.h"
 

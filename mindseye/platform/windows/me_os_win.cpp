@@ -4,6 +4,10 @@
 
 #include "core/me_defines.h"
 #include "platform/me_os.h"
+#include "core/me_filesystem.h"
+
+// OS state stays outside the engine allocator for record/replay.
+static OSStateView g_osData;
 #include "core/me_memory.h"
 #include "core/me_log.h"
 #ifndef ME_CORE_ONLY

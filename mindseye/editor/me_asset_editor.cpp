@@ -1,3 +1,4 @@
+#include "res/IconsFontAwesome6.h"
 #include "me_asset_editor.h"
 
 #define IMGUI_NODE_EDITOR_API MEAPI

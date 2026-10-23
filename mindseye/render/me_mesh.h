@@ -1,5 +1,7 @@
 #pragma once
 
+struct RendererFrontend;
+
 #include "core/me_core.h"
 #include "me_gpu.h"
 #include "core/me_resourcepool.h"

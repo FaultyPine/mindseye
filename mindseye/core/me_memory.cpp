@@ -1,3 +1,5 @@
+#include "core/me_app.h"
+#include "core/me_arena.h"
 #include "me_memory.h"
 #include "core/containers/me_stack.h"
 #include "core/me_core.h"

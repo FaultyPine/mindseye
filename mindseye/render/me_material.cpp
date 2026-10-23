@@ -1,3 +1,7 @@
+#include "shaders/generated/main_lit_fs.sc.h"
+#include "shaders/generated/main_lit_vs.sc.h"
+#include "core/me_app.h"
+#include "render/me_texture.h"
 #include "core/me_profile.h"
 #include "me_material.h"
 

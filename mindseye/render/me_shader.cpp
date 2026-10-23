@@ -1,3 +1,5 @@
+#include "render/renderer_frontend.h"
+#include "core/me_app.h"
 #include "me_shader.h"
 #include "shaders/generated/baddata_fs.sc.h"
 #include "shaders/generated/baddata_vs.sc.h"

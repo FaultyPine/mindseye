@@ -2,6 +2,10 @@
 
 #include "mindseye/core/me_defines.h"
 #include "mindseye/core/me_memory.h"
+#include "platform/me_os.h"
+#include "core/containers/dynarray.h"
+
+struct EditorRenderContext;
 
 
 // TODO: if the reflector respected inherited types somehow, we wouldn't need to manually specify the string serializer/deserializer

@@ -1,16 +1,8 @@
-#define ME_CORE_ONLY
+#include "platform/me_os.h"
+#include "core/me_arena.h"
+#include "core/me_filesystem.h"
+#include "reflector/reflection_types.h"
 
-// Include STB_SPRINTF implementation for the reflector
-#define STB_SPRINTF_IMPLEMENTATION
-#define STBSP__PUBLICDEC extern "C"
-#include "mindseye/external/stb/stb_sprintf.h"
-#undef STB_SPRINTF_IMPLEMENTATION
-#undef STBSP__PUBLICDEC
-
-#include "mindseye/me_unity.cpp"
-
-#include "clang/AST/AST.h"
-#include "clang/AST/Type.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Interpreter/Interpreter.h"
 #include "clang-c/Index.h"
@@ -19,10 +11,39 @@
 #include "llvm/Support/TargetSelect.h"
 
 #include "me_compile_run_api.h"
-#include "reflection_types.h"
 
 #include <memory>
 #include <vector>
+#include <string>
+
+// A reflection run regenerates all in-memory results; unchanged files keep their
+// timestamps so implementation-only changes do not fan out into every object.
+static bool outputFailed = false;
+static unsigned changedOutputs = 0;
+static std::vector<std::string> generatedOutputs;
+
+static bool WriteGeneratedFile(const char* path, const char* data, size_t size)
+{
+    generatedOutputs.emplace_back(path);
+    FILE* input = fopen(path, "rb");
+    bool equal = input != nullptr;
+    size_t offset = 0;
+    char buffer[4096];
+    while (equal && offset < size)
+    {
+        size_t count = size - offset < sizeof(buffer) ? size - offset : sizeof(buffer);
+        equal = fread(buffer, 1, count, input) == count && memcmp(buffer, data + offset, count) == 0;
+        offset += count;
+    }
+    if (input) { equal = equal && fgetc(input) == EOF && !ferror(input); fclose(input); }
+    if (equal) return true;
+    FILE* output = fopen(path, "wb");
+    bool success = output && fwrite(data, 1, size, output) == size;
+    if (output && fclose(output) != 0) success = false;
+    if (!success) { LOG_ERROR("Failed to write generated file: %s", path); outputFailed = true; return false; }
+    ++changedOutputs;
+    return true;
+}
 
 #pragma comment(lib, "user32.lib")
 #pragma comment(lib, "kernel32.lib")
@@ -1138,8 +1159,8 @@ int main(int argc, char *argv[])
     DynArray<CompileCommand> compileCommands = CompileDatabaseToCommandsList(&reflectorArena, compileCmdsDatabaseFilePath);
     if (DynArrayGetSize(compileCommands) == 0)
     {
-        LOG_WARN("[Reflector] No compile commands found");
-        return 0;
+        LOG_ERROR("[Reflector] No compile commands found");
+        return 1;
     }
 
     const char *reflectorHeaderFilename = "Reflector.h";
@@ -1152,7 +1173,7 @@ int main(int argc, char *argv[])
     DynArrayPush(reflectorFilePath, (char *)reflectorHeaderFilename, CStringLength(reflectorHeaderFilename));
     DynArrayPush(reflectorFilePath, '\0');
     auto idx = clang_createIndex(0, 0);
-    u32 clangOptions = 0 | CXTranslationUnit_DetailedPreprocessingRecord | CXTranslationUnit_IncludeBriefCommentsInCodeCompletion | CXTranslationUnit_KeepGoing
+    u32 clangOptions = CXTranslationUnit_KeepGoing
         //| CXTranslationUnit_SingleFileParse
         ;
 
@@ -1165,29 +1186,25 @@ int main(int argc, char *argv[])
     u32 numCompileCommands = DynArrayGetSize(compileCommands);
     for (u32 i = 0; i < numCompileCommands; i++)
     {
-        u32 stridx = 0;
         StringView args = compileCommands[i].arguments;
-        while (stridx < args.len && stridx >= 0)
+        StringBuilder token(&reflectorArena);
+        bool quoted = false;
+        for (u32 j = 0; j <= args.len; ++j)
         {
-            StringView currentArgsView = args.OffsetView(stridx);
-            stridx += EatCharsOffset(currentArgsView, ' ');
-            s32 nextSpace = FindInString(args, STRING_LIT(" "), stridx);
-            if (nextSpace < 0)
-                break;
-            s32 len = nextSpace - stridx;
-            StringView subArg = args.OffsetView(stridx, len);
-
-            bool isDefineFlag = FindInString(subArg, STRING_LIT("-D")) != -1;
-            bool isIncludeDir = FindInString(subArg, STRING_LIT("-I")) != -1;
-            bool isStdVer = FindInString(subArg, STRING_LIT("-std")) != -1;
-            if (isDefineFlag || isIncludeDir || isStdVer)
+            char c = j < args.len ? args[j] : ' ';
+            if (c == '"') { quoted = !quoted; continue; }
+            if (!quoted && isspace((unsigned char)c))
             {
-                void *strmem = MEALLOC(&reflectorArena, len + 1);
-                ME_MEMCLEAR(strmem, len + 1);
-                ME_MEMCPY(strmem, args.data + stridx, len);
-                DynArrayPush(clangArgs, (const char *)strmem);
+                if ((token.len >= 2 && (strncmp(token.data, "-D", 2) == 0 || strncmp(token.data, "-I", 2) == 0)) || (token.len >= 4 && strncmp(token.data, "-std", 4) == 0))
+                {
+                    char* copy = (char*)MEALLOC(&reflectorArena, token.len + 1);
+                    memcpy(copy, token.data, token.len);
+                    copy[token.len] = 0;
+                    DynArrayPush(clangArgs, (const char*)copy);
+                }
+                token.len = 0;
             }
-            stridx = nextSpace;
+            else token.Append(StringView(&c, 1));
         }
     }
 
@@ -1195,7 +1212,7 @@ int main(int argc, char *argv[])
     DynArrayPush(clangArgs, "c++");
     DynArrayPush(clangArgs, "-DME_REFLECTING");
 
-    CXTranslationUnit tu;
+    CXTranslationUnit tu = nullptr;
     CXErrorCode result = CXError_Failure;
     {
         result = clang_parseTranslationUnit2(idx, reflectorFilePath, clangArgs, DynArrayGetSize(clangArgs), 0, 0, clangOptions, &tu);
@@ -1208,7 +1225,20 @@ int main(int argc, char *argv[])
     ctx.clangArgs = clangArgs;
     ctx.projectRootDir = absProjectRootPath;
     ctx.headerOutputFolder.CopyOfCStr(headerOutputFolder, &reflectorArena);
-    // clang_checkDiagnostics(tu);
+    bool diagnosticsFailed = false;
+    if (tu) for (unsigned i = 0; i < clang_getNumDiagnostics(tu); ++i)
+    {
+        auto diagnostic = clang_getDiagnostic(tu, i);
+        if (clang_getDiagnosticSeverity(diagnostic) >= CXDiagnostic_Error)
+        {
+            auto message = clang_formatDiagnostic(diagnostic, clang_defaultDiagnosticDisplayOptions());
+            LOG_ERROR("%s", clang_getCString(message));
+            clang_disposeString(message);
+            diagnosticsFailed = true;
+        }
+        clang_disposeDiagnostic(diagnostic);
+    }
+    if (diagnosticsFailed) { clang_disposeTranslationUnit(tu); clang_disposeIndex(idx); return 1; }
     if (result == CXError_Success)
     {
         auto cursor = clang_getTranslationUnitCursor(tu);
@@ -1246,9 +1276,15 @@ int main(int argc, char *argv[])
         break;
         }
     }
+    bool success = result == CXError_Success && !outputFailed;
+    if (success && argc > 4) {
+        std::string manifest;
+        for (const auto& path : generatedOutputs) manifest += path + "\n";
+        success = WriteGeneratedFile(argv[4], manifest.data(), manifest.size());
+    }
+    if (tu) clang_disposeTranslationUnit(tu);
     clang_disposeIndex(idx);
-
-    return 0;
+    return success ? 0 : 1;
 }
 
 // ===================================================================
@@ -1267,46 +1303,10 @@ void GeneratedReflectionHeaders(
 {
     meOSEnsureDirectoriesExist(headerOutputFolder);
 
-    StringBuilder sb(ctx.allocator);
-
     u32 numProcessedFiles = 0;
     for (const auto &[headerID, fileReflection] : ctx.reflectedFiles)
-    {
-        // TODO: this is ripe for super easy parallelism here
-        // chunk up allocators for each thread, and have them all generate & write out each header
-        bool didGenerate = ProcessReflectedFile(fileReflection, headerOutputFolder, ctx.allocator);
-        numProcessedFiles += didGenerate ? 1 : 0;
-
-        if (!fileReflection.reflectedTypes.empty() /*&& didGenerate*/)
-        {
-            StringView parsedHeaderExistingPath = fileReflection.fileName;
-            if (!parsedHeaderExistingPath || FindInString(parsedHeaderExistingPath, StringFromCString(headerOutputFolder)) != -1)
-            {
-                continue;
-            }
-            StringView parsedHeaderFilename = meFsGetFileFromFullPath(parsedHeaderExistingPath);
-            s32 extensionIdx = FindInStringRev(parsedHeaderFilename, STRING_LIT("."));
-            StringView parsedHeaderFilenameNoExt = parsedHeaderFilename.OffsetView(0, extensionIdx);
-            StringView includeText = StringFormatTmp("generatedtypes/%.*s.generated.cpp", STRING_VAARGS(parsedHeaderFilenameNoExt));
-            sb.AppendFormat("#include \"" STRING_FMT "\"\n", STRING_VAARGS(includeText));
-        }
-    }
-
-    if (numProcessedFiles > 0)
-    {
-        OSFileReference sourceFile = {};
-        StringView dstFilePath = StringFormatTmp("%s/generatedtypes_unity_sources.generated.cpp", headerOutputFolder);
-        if (!meOSOpenFile(sourceFile, dstFilePath, (OSFileFlags_StompExisting | OSFileFlags_ScopedFile)))
-        {
-            LOG_ERROR("Failed to open file %s while trying to generated reflected headers", dstFilePath);
-        }
-        else
-        {
-            meOSWriteFileContent(sourceFile, sb.data, sb.len);
-        }
-    }
-
-    LOG_INFO("[Mindseye Reflector] wrote %d generated files", numProcessedFiles);
+        numProcessedFiles += ProcessReflectedFile(fileReflection, headerOutputFolder, ctx.allocator) ? 1 : 0;
+    LOG_INFO("[Mindseye Reflector] processed %u reflected files, changed %u outputs", numProcessedFiles, changedOutputs);
 }
 
 bool IsStructural(CXCursorKind kind)
@@ -1461,13 +1461,6 @@ bool ProcessReflectedFile(
     s32 extensionIdx = FindInStringRev(parsedHeaderFilename, STRING_LIT("."));
     StringView parsedHeaderFilenameNoExt = parsedHeaderFilename.OffsetView(0, extensionIdx);
     StringView dstHeaderFilePath = StringFormatTmp("%s/%.*s.generated.h", headerOutputFolder, STRING_VAARGS(parsedHeaderFilenameNoExt));
-    const char *inputCheckFile = parsedHeaderExistingPath.cstr();
-    if (needsRebuild(dstHeaderFilePath.cstr(), &inputCheckFile, 1) == 0 && !AmIBeingDebugged()) // in a debugger, always rebuild
-    {
-        // doesn't need to be reprocessed. Already up-to-date
-        return false;
-    }
-
     // for simplicity, if anyone wants access to the reflection data for some type, they shouldn't be including
     // the actual header, not the generated one. The generated one should be included by the file it reflects
     headerContentBuilder.Append(STRING_LIT("#pragma once\n"));
@@ -1481,22 +1474,11 @@ bool ProcessReflectedFile(
     generatedAny |= generatedFwdDecls;
 
     StringView fileContent = headerContentBuilder;
-    if (fileContent)
-    {
-        OSFileReference headerFile = {};
-
-        if (!meOSOpenFile(headerFile, dstHeaderFilePath, OSFileFlags_StompExisting))
-        {
-            LOG_ERROR("Failed to open file %s while trying to generated reflected headers", dstHeaderFilePath);
-            return false;
-        }
-        // write to the file here
-        meOSWriteFileContent(headerFile, fileContent.data, fileContent.len);
-        meOSCloseFile(headerFile);
-    }
+    if (fileContent && !WriteGeneratedFile(dstHeaderFilePath.cstr(), fileContent.data, fileContent.len)) return false;
 
     StringBuilder sourceContentBuilder = StringBuilder(allocator, MEGABYTES_BYTES(1), StringBuilder::IsScopedAlloc(true));
     sourceContentBuilder.Append(STRING_LIT("// ====== THIS FILE IS AUTOGENERATED =======\n"));
+    sourceContentBuilder.Append(STRING_LIT("#include \"reflector/Reflector.h\"\n"));
     sourceContentBuilder.AppendFormat("#include \"%.*s.generated.h\"\n", STRING_VAARGS(parsedHeaderFilenameNoExt));
 
     for (const auto &[nameID, typeRefl] : fileRefl.reflectedTypes)
@@ -1771,20 +1753,8 @@ bool ProcessReflectedFile(
         }
     }
 
-    // if (generatedAny)
-    {
-        OSFileReference sourceFile = {};
-        s32 extensionIdx = FindInStringRev(parsedHeaderFilename, STRING_LIT("."));
-        StringView parsedSourceFilenameNoExt = parsedHeaderFilename.OffsetView(0, extensionIdx);
-        StringView dstFilePath = StringFormatTmp("%s/%.*s.generated.cpp", headerOutputFolder, STRING_VAARGS(parsedSourceFilenameNoExt));
-        if (!meOSOpenFile(sourceFile, dstFilePath, OSFileFlags_StompExisting))
-        {
-            LOG_ERROR("Failed to open file %s while trying to generated reflected headers", dstFilePath);
-            return false;
-        }
-        meOSWriteFileContent(sourceFile, sourceContentBuilder.data, sourceContentBuilder.len);
-        meOSCloseFile(sourceFile);
-    }
+    StringView dstSourcePath = StringFormatTmp("%s/%.*s.generated.cpp", headerOutputFolder, STRING_VAARGS(parsedHeaderFilenameNoExt));
+    if (!WriteGeneratedFile(dstSourcePath.cstr(), sourceContentBuilder.data, sourceContentBuilder.len)) return false;
     return generatedAny;
 }
 
@@ -1834,7 +1804,7 @@ bool CreateCompileRunInterpreter(
         "#ifndef ME_CORE_ONLY\n"
         "#define ME_CORE_ONLY\n"
         "#endif\n"
-        "#include \"mindseye/me_unity.cpp\"\n"
+        "#include \"mindseye/reflector/me_compile_run_prelude.h\"\n"
         "#include \"mindseye/reflector/me_compile_run_api.h\"\n\n"));
     u32 numCompileRunDecls = DynArrayGetSize(ctx.compileRunDecls);
     for (u32 i = 0; i < numCompileRunDecls; i++)

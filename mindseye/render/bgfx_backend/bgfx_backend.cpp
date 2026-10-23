@@ -1,3 +1,5 @@
+#include "core/me_app.h"
+#include "core/me_profile.h"
 
 #include "bgfx_backend.h"
 
@@ -19,29 +21,8 @@
 #include "bgfx/bgfx/src/config.h"
 #include "bgfx/bx/include/bx/bx.h"
 
-// Stub ImGuizmo functions (we don't use them yet)
-namespace ImGuizmo {
-	void Create() {}
-	void Destroy() {}
-	void BeginFrame() {}
-}
-
-// Stub ImGui docking functions (we don't use docking yet)
-namespace ImGui {
-	void InitDockContext() {}
-	void ShutdownDockContext() {}
-}
-
-#ifdef COMPILER_CLANG
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
-#endif
-#include "external/bgfx/bgfx/examples/common/imgui/imgui.cpp"
+#include "external/bgfx/bgfx/examples/common/imgui/imgui.h"
 #include "external/bgfx/bgfx/examples/common/debugdraw/debugdraw.h"
-#include "external/bgfx/bgfx/examples/common/debugdraw/debugdraw.cpp"
-#ifdef COMPILER_CLANG
-#pragma GCC diagnostic pop
-#endif
 
 // ---- shaders
 #include "shaders/generated/main_lit_fs.sc.h"
@@ -328,17 +309,6 @@ void BgfxRendererBackend::Teardown(EngineContext* engine)
 	ddShutdown();
     imguiDestroy();
     bgfx::shutdown();
-}
-
-cgltf_material GenerateDummyGLTFMaterial()
-{
-	cgltf_material mat;
-	ME_MEMCLEAR(&mat, sizeof(mat));
-	#pragma clang diagnostic push
-	#pragma clang diagnostic ignored "-Wwritable-strings"
-	mat.name = "NoMaterial";
-	#pragma clang diagnostic pop
-	return mat;
 }
 
 void BgfxRendererBackend::BeginImguiContext()

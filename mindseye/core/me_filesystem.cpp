@@ -3,10 +3,11 @@
 #include "mindseye/platform/me_os.h"
 #include "mindseye/core/me_log.h"
 
+#ifndef ME_CORE_ONLY
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wmissing-field-initializers"
 #include "external/tinyfiledialogs/tinyfiledialogs.h"
-#include "external/tinyfiledialogs/tinyfiledialogs.c"
+
 #pragma clang diagnostic pop
 
 bool FilesystemPathPicker(const char* title, String& out)
@@ -19,6 +20,8 @@ bool FilesystemPathPicker(const char* title, String& out)
     }
     return false;
 }
+
+#endif
 
 StringView meFsGetDirectorySeperator()
 {

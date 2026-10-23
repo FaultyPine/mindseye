@@ -1,5 +1,7 @@
 #pragma once
 
+#include "core/me_memory.h"
+
 #include "core/me_defines.h"
 
 template <u32 N>

@@ -1,5 +1,6 @@
 
 #include "core/me_defines.h"
+#include <ctype.h>
 #include "core/me_string.h"
 #include "core/me_memory.h"
 #include "core/me_log.h"

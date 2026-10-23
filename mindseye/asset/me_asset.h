@@ -9,7 +9,9 @@
 #include "core/containers/dynarray.h"
 #include "core/me_resourcepool.h"
 
+#ifndef ME_REFLECTING
 #include "generatedtypes/me_asset.generated.h"
+#endif
 
 #define ME_DECLARE_ASSET_TYPES \
 X(MABadData, "")\

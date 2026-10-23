@@ -1,4 +1,5 @@
 #pragma once
+#include <bgfx/bgfx.h>
 
 #include "mindseye/render/renderer_frontend.h"
 

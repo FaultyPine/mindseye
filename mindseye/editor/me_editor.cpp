@@ -1,3 +1,4 @@
+#include "core/me_app.h"
 #include "me_editor.h"
 
 #include "external/bgfx/bgfx/3rdparty/dear-imgui/imgui.h"

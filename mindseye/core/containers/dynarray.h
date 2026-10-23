@@ -158,7 +158,7 @@ void DynArrayTests();
 
 
 // ugh templates....
-#include "dynarray.cpp"
+#include "dynarray.inl"
 
 
 #endif

@@ -1,953 +1,452 @@
-// TODO: put this and the build artifacts for this builder in the tools dir
-
-// cmdline used to build ourself. Should match the invocation in build.bat
-// for debugging this builder program, add "-g" here
-
-enum meBuildMode
-{
-	DEBUG, RELEASE,
-};
-
-enum meSanitizerMode
-{
-	SANITIZER_NONE,
-	SANITIZER_ASAN,
-	SANITIZER_TSAN,
-};
-
-static char* root = nullptr;
-static char* g_compilerExe = nullptr;
-
-#define NOB_REBUILD_URSELF(binary_path, source_path) g_compilerExe, "-o", binary_path, source_path, "-std=c++20", "-g"
+static const char* compiler;
+#define NOB_REBUILD_URSELF(binary, source) compiler, "-o", binary, source, "-std=c++20", "-g"
 #define NOB_IMPLEMENTATION
-#define NOB_WARN_DEPRECATED
 #include "tools/nob.h"
-
-#include "mindseye/core/me_defines.h"
-#include <stdio.h>
-
-
-enum BuildResult
-{
-	DID_NOT_BUILD,
-	BUILD_FAILED,
-	BUILD_SUCCEEDED,
-};
-
-struct BuildableArtifact
-{
-	Nob_Cmd compileCmd = {};
-	Nob_Cmd postprocessCmd = {};
-	Nob_Cmd_Opt options = {};
-	Nob_File_Paths inputs = {};
-	Nob_String_View output = {};
-
-	void addInputs(const char** inputs, size_t numInputs)
-	{
-		for (int i = 0; i < numInputs; i++)
-		{
-			nob_cmd_append(&compileCmd, inputs[i]);
-			nob_da_append(&this->inputs, inputs[i]);
-		}
-	}
-	// for stuff like header files, we want to check them to rebuild, but not actually compile them
-	void addInputsNoCompile(const char** inputs, size_t numInputs)
-	{
-		for (int i = 0; i < numInputs; i++)
-		{
-			nob_da_append(&this->inputs, inputs[i]);
-		}
-	}
-	void addOutput(const char* output)
-	{
-		ME_ASSERT(this->output.count == 0);
-		nob_cc_output(&compileCmd, output);
-		this->output = nob_sv_from_cstr(output);
-
-		const char* mebuild = nob_temp_sprintf("%s/me_build.cpp", root);
-		addInputsNoCompile(&mebuild, 1);
-	}
-
-	BuildResult build(const char* name = nullptr, bool force = false)
-	{
-		if (force || (output.count && nob_needs_rebuild(output.data, inputs.items, inputs.count) > 0))
-		{
-			bool result = false;
-            auto time = nob_nanos_since_unspecified_epoch();
-			if (compileCmd.count)
-			{
-                result = nob_cmd_run_opt(&compileCmd, options);
-			}
-			if (result && postprocessCmd.count)
-			{
-                result = nob_cmd_run_opt(&postprocessCmd, options);
-			}
-            auto elapsed = nob_nanos_since_unspecified_epoch() - time;
-            if (options.async)
-            {
-                nob_log(NOB_INFO, "%s queued", name ? name : output.data);
-            }
-            else
-            {
-                nob_log(NOB_INFO, "%s took %fsec", name ? name : output.data, (double)elapsed / 1000000000.0);
-            }
-			return result ? BUILD_SUCCEEDED : BUILD_FAILED;
-		}
-		return DID_NOT_BUILD;
-	}
-};
-
-typedef bool(*readDirFileFilter)(const char* filename);
-void readEntireDirRecursive(const char* parent, Nob_File_Paths* paths, readDirFileFilter filefilter)
-{
-	Nob_File_Paths thisDirEntries = {};
-	if (!nob_read_entire_dir(parent, &thisDirEntries))
-	{
-		nob_log(NOB_ERROR, "Failed to read files from dir %s", parent);
-		return;
-	}
-	for (int i = 0; i < thisDirEntries.count; i++)
-	{
-		const char* item = thisDirEntries.items[i];
-		if (strncmp(item, ".", 1) == 0 || strncmp(item, "..", 2) == 0) continue;
-		const char* itemFullPath = nob_temp_sprintf("%s/%s", parent, item);
-		Nob_File_Type filetype = nob_get_file_type(itemFullPath);
-		if (filetype == NOB_FILE_DIRECTORY)
-		{
-			readEntireDirRecursive(itemFullPath, paths, filefilter);
-		}
-		else if (filetype == NOB_FILE_REGULAR)
-		{
-			if (!filefilter(itemFullPath))
-			{
-				continue;
-			}
-			nob_da_append(paths, nob_temp_strdup(itemFullPath));
-		}
-	}
-}
-
-#define NOB_CMD_APPEND_MULTIPLE(compile, arr ...) \
-for (int i = 0; i < ARRAY_SIZE(arr); i++) \
-{\
-if (arr[i]) nob_cmd_append(&compile, arr[i]);\
-}
-
-const char* usdLibraries[] =
-{
-	"usd_usd",
-	"usd_usdGeom",
-};
-
-const char* usdRuntimeDependencies[] =
-{
-	"usd_ar",
-	"usd_arch",
-	"usd_gf",
-	"usd_js",
-	"usd_kind",
-	"usd_pcp",
-	"usd_plug",
-	"usd_python",
-	"usd_sdf",
-	"usd_tf",
-	"usd_trace",
-	"usd_ts",
-	"usd_vt",
-	"usd_work",
-};
-
-void normalizePathSeperators(char* str)
-{
-	for (u32 i = 0; i < strlen(str); i++)
-	{
-		if (str[i] == '\\')
-		{
-			str[i] = '/';
-		}
-	}
-}
-
-void copyFileIfNewer(const char* src, const char* dst)
-{
-	if (!nob_file_exists(dst) || nob_needs_rebuild(dst, &src, 1) > 0)
-	{
-		nob_copy_file(src, dst);
-	}
-}
-
-const char* nob_get_filename_from_path(const char* path)
-{
-	const char* lastSlash = strrchr(path, '/');
-	if (!lastSlash) return path;
-	const char* filename = lastSlash + 1;
-	return filename;
-}
-
-void clean()
-{
-    nob_log(NOB_INFO, "Cleaning...");
-    nob_delete_dir("build");
-    nob_delete_dir("mindseye/generatedtypes");
-    nob_delete_dir("mindseye/shaders/generated");
-
-    Nob_File_Paths toolsfiles = {};
-    nob_read_entire_dir("tools", &toolsfiles);
-    for (int i = 0; i < toolsfiles.count; i++)
-    {
-        const char* toolsfile = toolsfiles.items[i];
-        if (strstr(toolsfile, "me_build"))
-        {
-            nob_delete_file(nob_temp_sprintf("%s/tools/%s", root, toolsfile));
-        }
-    }
-}
+#undef NOB_IMPLEMENTATION
+#include "tools/ninja_generate.h"
 
 int main(int argc, char** argv)
 {
-	nob_minimal_log_level = NOB_INFO;
-	g_compilerExe = argv[1];
-	NOB_GO_REBUILD_URSELF_PLUS(argc, argv, "mindseye/core/me_defines.h", "tools/nob.h");
-	root = argv[2];
-	uint64_t buildStartNs = nob_nanos_since_unspecified_epoch();
-	const char* command = argc > 3 ? argv[3] : nullptr;
-	if (command && strcmp(command, "clean") == 0)
+    if (argc < 3)
     {
-        clean();
-        return 0;
+        nob_log(NOB_ERROR, "Usage: me_build <clang> <project-root> [options]");
+        return 1;
     }
-	nob_log(NOB_INFO, "%s", g_compilerExe);
-	normalizePathSeperators(root);
-	normalizePathSeperators(g_compilerExe);
-	meBuildMode mode = DEBUG;
-	meSanitizerMode sanitizerMode = SANITIZER_NONE;
-	bool forceBuildLibs = false;
-	bool appOnly = false;
-	for (int i = 1; i < argc; i++)
-	{
-		Nob_String_View argvSv = nob_sv_from_cstr(argv[i]);
-		if (nob_sv_eq(argvSv, nob_sv_from_cstr("release")))
-		{
-			mode = RELEASE;
-			nob_log(NOB_INFO, "[Release mode]");
-		}
-		else if (nob_sv_eq(argvSv, nob_sv_from_cstr("libs")))
-		{
-			forceBuildLibs = true;
-		}
-		else if (nob_sv_eq(argvSv, nob_sv_from_cstr("asan")))
-		{
-			if (sanitizerMode != SANITIZER_NONE && sanitizerMode != SANITIZER_ASAN)
-			{
-				nob_log(NOB_ERROR, "Cannot combine 'asan' and 'tsan' in the same build.");
-				return 1;
-			}
-			sanitizerMode = SANITIZER_ASAN;
-			nob_log(NOB_INFO, "[AddressSanitizer enabled]");
-		}
-		else if (nob_sv_eq(argvSv, nob_sv_from_cstr("tsan")))
-		{
-			if (sanitizerMode != SANITIZER_NONE && sanitizerMode != SANITIZER_TSAN)
-			{
-				nob_log(NOB_ERROR, "Cannot combine 'asan' and 'tsan' in the same build.");
-				return 1;
-			}
-			sanitizerMode = SANITIZER_TSAN;
-			nob_log(NOB_INFO, "[ThreadSanitizer enabled]");
-		}
-		else if (nob_sv_eq(argvSv, nob_sv_from_cstr("app-only")))
-		{
-			appOnly = true;
-			nob_log(NOB_INFO, "[app-only: rebuilding user app DLL only]");
-		}
-	}
-	const char* sanitizerFlag = nullptr;
-	if (sanitizerMode == SANITIZER_ASAN)
-	{
-		sanitizerFlag = "-fsanitize=address";
-	}
-	else if (sanitizerMode == SANITIZER_TSAN)
-	{
-		// Clang's windows-msvc target does not support ThreadSanitizer.
-		nob_log(NOB_ERROR, "'tsan' is not supported for target x86_64-pc-windows-msvc.");
-		nob_log(NOB_ERROR, "Use 'asan' on Windows, or run a Linux/WSL toolchain for ThreadSanitizer.");
-		return 1;
-	}
-	const bool shippingBuild = mode == RELEASE;
-	nob_mkdir_if_not_exists("build");
-
-	if (!nob_file_exists("mindseye/external/vulkan_lib/Lib"))
-	{
-		nob_log(NOB_INFO, "[First time setup] downloading vulkan binaries...");
-		Nob_Cmd vulkanDownloadBatch = {};
-		nob_cmd_append(&vulkanDownloadBatch, "cmd", "/c", "call", "tools/download_vulkan.bat");
-		bool result = nob_cmd_run(&vulkanDownloadBatch);
-		if (!result)
-		{
-			nob_log(NOB_ERROR, "Failed to download vulkan binaries!");
-			return 1;
-		}
-		else
-		{
-			nob_log(NOB_INFO, "Successfully downloaded vulkan binaries to mindseye/external/vulkan_lib/Lib");
-		}
-	}
-	copyFileIfNewer("mindseye/external/vulkan_lib/Lib/vulkan-1.dll", "build/vulkan-1.dll");
-
-	if (!nob_file_exists("mindseye/external/bgfx/bin"))
-	{
-		nob_log(NOB_INFO, "[First time setup] downloading bgfx binaries...");
-		Nob_Cmd bgfxDownloadBatch = {};
-		nob_cmd_append(&bgfxDownloadBatch, "cmd", "/c", "call", "tools/download_bgfx.bat");
-		bool result = nob_cmd_run(&bgfxDownloadBatch);
-		if (!result)
-		{
-			nob_log(NOB_ERROR, "Failed to download bgfx binaries!");
-			return 1;
-		}
-		else
-		{
-			nob_log(NOB_INFO, "Successfully downloaded bgfx binaries to mindseye/external/bgfx/bin");
-		}
-	}
-
-	if (!nob_file_exists("mindseye/external/usd/include/pxr/pxr.h"))
-	{
-		nob_log(NOB_INFO, "[First time setup] downloading OpenUSD binaries...");
-		Nob_Cmd usdDownloadBatch = {};
-		nob_cmd_append(&usdDownloadBatch, "cmd", "/c", "call", "tools/download_usd.bat");
-		bool result = nob_cmd_run(&usdDownloadBatch);
-		if (!result)
-		{
-			nob_log(NOB_ERROR, "Failed to download OpenUSD binaries!");
-			return 1;
-		}
-		else
-		{
-			nob_log(NOB_INFO, "Successfully downloaded OpenUSD binaries to mindseye/external/usd");
-		}
-	}
-
-    // add file exists for any git submodule folders
-    if (!nob_file_exists(nob_temp_sprintf("%s/projects/testbed/gltf-samples", root)) ||
-        !nob_file_exists(nob_temp_sprintf("%s/mindseye/external/imgui-node-editor", root)))
-	{
-		nob_log(NOB_INFO, "Git submodules not initialized. Pulling them in now...");
-		Nob_Cmd submoduleUpdateCmd = {};
-		nob_cmd_append(&submoduleUpdateCmd, "git", "submodule", "update", "--init", "--recursive");
-		nob_cmd_run(&submoduleUpdateCmd);
-	}
-	
-	const char* linkerFlagsCommon[] =
-	{
-        "-luser32", "-lgdi32", "-ldbghelp", "-ladvapi32", "-lws2_32", "-fuse-ld=lld-link", (mode == DEBUG ? "-lmsvcrtd" : "-lmsvcrt"),
-		nob_temp_sprintf("-L%s/build", root),
-		nob_temp_sprintf("-L%s/tools/clang/lib/clang/21/lib/windows", root),
-		"-lclang_rt.builtins-x86_64",
-        (mode != RELEASE ? "-Wl,/DYNAMICBASE:NO" : ""), // No ASLR in non-shipping builds
-	};
-    
-	const char* compilerFlagsCommon[] =
-	{
-		// general flags
-		nob_temp_sprintf("-I%s", root),
-		"-std=c++20",
-		"-march=native",
-		"-Wno-deprecated-declarations",
-		"-g", "-gno-column-info",
-		"-Wall", "-Wextra", "-Wno-unused-parameter", "-Wno-microsoft-include", "-ferror-limit=500",
-		// 	for /f %%i in ('call git describe --always --dirty')   do set compile_flags_common=%compile_flags_common% -DBUILD_GIT_HASH=\"%%i\"
-        (mode == DEBUG ? "-D_DEBUG" : "-DNDEBUG"),
-		(mode != RELEASE ? "-fno-pie" : ""), // No ASLR in non-shipping builds
-
-        "-ftime-trace",
-
-		// app flags
-		shippingBuild ? "-DSHIPPING_BUILD=1" : "-DSHIPPING_BUILD=0",
-		nob_temp_sprintf("-I%s/mindseye", root), 
-		nob_temp_sprintf("-I%s/mindseye/external/vulkan_headers/include", root),
-		nob_temp_sprintf("-I%s/mindseye/external", root),
-
-		// include libs
-		nob_temp_sprintf("-I%s/mindseye/external/bgfx/bgfx/3rdparty/dear-imgui", root),
-		nob_temp_sprintf("-I%s/mindseye/external/bgfx/bgfx/include", root),
-		nob_temp_sprintf("-I%s/mindseye/external/bgfx/bgfx/3rdparty", root),
-		nob_temp_sprintf("-I%s/mindseye/external/imgui-node-editor", root),
-		nob_temp_sprintf("-I%s/mindseye/external/bgfx/bx/include", root),
-		nob_temp_sprintf("-I%s/mindseye/external/bgfx/bimg/include", root),
-		nob_temp_sprintf("-I%s/mindseye/external/ktx", root),
-		nob_temp_sprintf("-I%s/mindseye/external/enkiTS/src", root),
-		nob_temp_sprintf("-I%s/mindseye/external/tracy/public", root),
-		nob_temp_sprintf("-I%s/mindseye/external/usd/include", root),
-		"-DME_WITH_USD=1",
-		!shippingBuild ? "-DTRACY_ENABLE=1" : nullptr,
-		sanitizerFlag,
-	};
-
-
-	// ======================== PCH ==============================================
-	BuildableArtifact pchBuild = {};
-	Nob_Cmd& pchCmd = pchBuild.compileCmd;
-	nob_cmd_append(&pchCmd, g_compilerExe, "-x", "c++-header");
-	if (mode == DEBUG)
-	{
-		nob_cmd_append(&pchCmd, "-O0", "-DBUILD_DEBUG=1", "-DMEEXPORT", "-D_DLL", "-DBX_CONFIG_DEBUG=1");
-	}
-	else if (mode == RELEASE)
-	{
-		nob_cmd_append(&pchCmd, "-O2", "-DBUILD_DEBUG=0", "-DMEEXPORT", "-D_DLL", "-DBX_CONFIG_DEBUG=0");
-	}
-	NOB_CMD_APPEND_MULTIPLE(pchCmd, compilerFlagsCommon);
-	const char* pchInput = nob_temp_sprintf("%s/mindseye/me_pch.h", root);
-	pchBuild.addInputs(&pchInput, 1);
-	const char* pchFlag = "-include-pch";
-	const char* pchFile = nob_temp_sprintf("%s/build/me_pch.h.pch", root);
-	pchBuild.addOutput(pchFile);
-	// =====================================================================================
-
-	// ======================== DRIVER ==============================================
-	BuildableArtifact driver = {};
-	Nob_Cmd& driverCompile = driver.compileCmd;
-	// driver compile
-	nob_cmd_append(&driverCompile, g_compilerExe);
-	if (mode == DEBUG)
-	{ 
-		nob_cmd_append(&driverCompile, "-O0", "-DBUILD_DEBUG=1");
-	} 
-	else if (mode == RELEASE)
-	{
-		nob_cmd_append(&driverCompile, "-O2" ,"-DBUILD_DEBUG=0");
-	}
-	nob_cmd_append(&driverCompile, "-DTRACY_IMPORTS");
-	NOB_CMD_APPEND_MULTIPLE(driverCompile, compilerFlagsCommon);
-	// driver linker
-	NOB_CMD_APPEND_MULTIPLE(driverCompile, linkerFlagsCommon);
-	nob_cmd_append(&driverCompile, "-lmindseye", "-lshell32", "-Wl,/subsystem:windows");
-	// input/output
-	const char* input = nob_temp_sprintf("%s/mindseye/platform/driver.cpp", root);
-	driver.addInputs(&input, 1);
-	driver.addOutput("driver.exe");
-	// =====================================================================================
-
-	// ======================== External libraries (Object) ==============================================
-	BuildableArtifact externalLibsObj = {};
-	Nob_Cmd& externalLibsCmd = externalLibsObj.compileCmd;
-	// compile to object file
-	nob_cmd_append(&externalLibsCmd, g_compilerExe);
-	if (mode == DEBUG)
-	{
-		nob_cmd_append(&externalLibsCmd,
-		"-O0", "-DBUILD_DEBUG=1" ,"-DMEEXPORT", "-D_DLL", "-DBX_CONFIG_DEBUG=1", "-c", "-w");
-	}
-	else if (mode == RELEASE)
-	{
-		nob_cmd_append(&externalLibsCmd, 
-		"-O2", "-DBUILD_DEBUG=0", "-DMEEXPORT", "-D_DLL", "-DBX_CONFIG_DEBUG=0", "-c", "-w");
-	}
-	nob_cmd_append(&externalLibsCmd, "-DTRACY_EXPORTS");
-	NOB_CMD_APPEND_MULTIPLE(externalLibsCmd, compilerFlagsCommon);
-	// input/output
-	const char* externalLibsInputs = nob_temp_sprintf("%s/mindseye/me_external_unity.cpp", root);
-	externalLibsObj.addInputs(&externalLibsInputs, 1);
-	externalLibsObj.addOutput("mindseye_ext.o");
-	// =====================================================================================
-
-	// ======================== Mindseye Shaders ==============================================
-	static constexpr const char shaderCodeFileExt[] = ".sc";
-	static constexpr const char shaderCodeOutputExt[] = ".h";
-	const char* shaderOutputDir = nob_temp_sprintf("%s/%s", root, "mindseye/shaders/generated");
-	Nob_File_Paths shaderSourcePaths = {};
-	auto shaderSourceFileFilter = + [](const char* filename)
-	{
-		// does it have the right extension and is that extension at the very end of the filename string
-		const char* fileext = strstr(filename, shaderCodeFileExt);
-		int idxToEnd = sizeof(shaderCodeFileExt)-1;
-		char endOfFileExt = fileext ? fileext[idxToEnd] : 0;
-		return fileext != 0 && endOfFileExt == '\0';
-	};
-	readEntireDirRecursive("mindseye/shaders", &shaderSourcePaths, shaderSourceFileFilter);
-	nob_mkdir_if_not_exists("mindseye/shaders/generated");
-	static constexpr int MAX_SHADER_FILES = 500;
-	int fragmentInputsTotal = 0;
-	const char* fragmentInputs[MAX_SHADER_FILES];
-	memset(fragmentInputs, 0, sizeof(fragmentInputs));
-	int vertexInputsTotal = 0;
-	const char* vertexInputs[MAX_SHADER_FILES];
-	memset(vertexInputs, 0, sizeof(vertexInputs));
-	for (int i = 0; i < shaderSourcePaths.count; i++)
-	{
-		const char* item = shaderSourcePaths.items[i];
-		if (strstr(item, shaderCodeFileExt))
-		{
-			const char* relItemPath = nob_sv_trim_right(nob_sv_from_cstr(item), shaderCodeFileExt).data;
-			const char* absItemPath = nob_temp_sprintf("%s/%s", root, relItemPath);
-			// IMPLICIT CONVENTION: vertex shaders need _vs in their name, and fragment shaders need _fs
-			if (strstr(item, "_vs"))
-			{
-				vertexInputs[vertexInputsTotal++] = absItemPath;
-			}
-			else if (strstr(item, "_fs"))
-			{
-				fragmentInputs[fragmentInputsTotal++] = absItemPath;
-			}
-			if (vertexInputsTotal > MAX_SHADER_FILES || fragmentInputsTotal > MAX_SHADER_FILES)
-			{
-				nob_log(NOB_ERROR, "Too many shader files! Bump MAX_SHADER_FILES");
-			}
-		}
-	}
-
-	int numShadersToCompile = fragmentInputsTotal + vertexInputsTotal;
-	BuildableArtifact* shaderArtifacts = (BuildableArtifact*)nob_temp_alloc(sizeof(BuildableArtifact) * numShadersToCompile);
-	
-	const char* shaderCompiler = nob_temp_sprintf("%s/mindseye/external/bgfx/bin/shadercRelease.exe", root);
-	const char* shaderCommonFlags[] =
-	{
-		"--bin2c", "--platform", "windows", "-p", "spirv16-13", "--varyingdef", nob_temp_sprintf("%s/mindseye/shaders/varying.def.sc", root),
-	};
-	int shaderCompileIdx = 0;
-	for (int i = 0; i < ARRAY_SIZE(fragmentInputs); i++)
-	{
-		const char* fragmentInput = fragmentInputs[i];
-		if (!fragmentInput) continue;
-		BuildableArtifact& shaderBuild = shaderArtifacts[shaderCompileIdx++];
-		Nob_Cmd& mindseyeShadersCmd = shaderBuild.compileCmd;
-		nob_cmd_append(&mindseyeShadersCmd, shaderCompiler, "--type", "fragment", "-f");
-		shaderBuild.addInputs(&fragmentInput, 1);
-		NOB_CMD_APPEND_MULTIPLE(mindseyeShadersCmd, shaderCommonFlags);
-		const char* fragmentInputFilename = nob_get_filename_from_path(fragmentInput);
-		const char* output = nob_temp_sprintf("%s/%s%s", shaderOutputDir, fragmentInputFilename, shaderCodeOutputExt);
-		shaderBuild.addOutput(output);
-	}
-	for (int i = 0; i < ARRAY_SIZE(vertexInputs); i++)
-	{
-		const char* vertexInput = vertexInputs[i];
-		if (!vertexInput) continue;
-		BuildableArtifact& shaderBuild = shaderArtifacts[shaderCompileIdx++];
-		Nob_Cmd& mindseyeShadersCmd = shaderBuild.compileCmd;
-		nob_cmd_append(&mindseyeShadersCmd, shaderCompiler, "--type", "vertex", "-f");
-		shaderBuild.addInputs(&vertexInput, 1);
-		NOB_CMD_APPEND_MULTIPLE(mindseyeShadersCmd, shaderCommonFlags);
-		const char* vertexInputFilename = nob_get_filename_from_path(vertexInput);
-		const char* output = nob_temp_sprintf("%s/%s%s", shaderOutputDir, vertexInputFilename, shaderCodeOutputExt);
-		shaderBuild.addOutput(output);
-	}
-
-	// =====================================================================================
-
-	// ======================== Mindseye Engine ==============================================
-	Nob_File_Paths mindseyeSourceRootFolders = {};
-	const char* rootMindseyeSourceDir = nob_temp_sprintf("%s/mindseye", root);
-	nob_read_entire_dir(rootMindseyeSourceDir, &mindseyeSourceRootFolders);
-	Nob_File_Paths mindseyeSourceFiles = {};
-	auto mindseyeRelevantCompileFileFilter = +[](const char* filename)
-	{
-		bool result = strstr(filename, "external") == 0 &&
-			(strstr(filename, ".cpp") || strstr(filename, ".h"));
-		return result;
-	};
-	for (int i = 0; i < mindseyeSourceRootFolders.count; i++)
-	{
-		const char* item = mindseyeSourceRootFolders.items[i];
-		const char* itemFullPath = nob_temp_sprintf("%s/%s", rootMindseyeSourceDir, item);
-		if (nob_get_file_type(itemFullPath) == NOB_FILE_DIRECTORY)
-		{
-			if (strncmp(item, ".", 1) == 0 || strncmp(item, "..", 2) == 0) continue;
-			readEntireDirRecursive(itemFullPath, &mindseyeSourceFiles, mindseyeRelevantCompileFileFilter);
-		}
-		else
-		{
-			if (!mindseyeRelevantCompileFileFilter(itemFullPath))
-			{
-				continue;
-			}
-			nob_da_append(&mindseyeSourceFiles, itemFullPath);
-		}
-	}
-
-	BuildableArtifact mindseyeEngineObj = {};
-	Nob_Cmd& mindseyeCmd = mindseyeEngineObj.compileCmd;
-	// compile to object file
-	nob_cmd_append(&mindseyeCmd, g_compilerExe);
-	if (mode == DEBUG)
-	{
-		nob_cmd_append(&mindseyeCmd, 
-		"-O0", "-DBUILD_DEBUG=1", "-DMEEXPORT", "-D_USRDLL", "-D_WINDLL", "-D_DLL", "-c", "-DBX_CONFIG_DEBUG=1");
-	}
-	else if (mode == RELEASE)
-	{
-		nob_cmd_append(&mindseyeCmd, 
-		"-O2", "-DBUILD_DEBUG=0", "-DMEEXPORT", "-D_USRDLL", "-D_WINDLL", "-D_DLL", "-c", "-DBX_CONFIG_DEBUG=0");
-	}
-	nob_cmd_append(&mindseyeCmd, "-DTRACY_EXPORTS");
-	NOB_CMD_APPEND_MULTIPLE(mindseyeCmd, compilerFlagsCommon);
-	nob_cmd_append(&mindseyeCmd, pchFlag, pchFile); // use pch
-	// input/output
-	const char* mindseyeEngineInputs = nob_temp_sprintf("%s/mindseye/me_unity.cpp", root);
-	mindseyeEngineObj.addInputs(&mindseyeEngineInputs, 1);
-	mindseyeEngineObj.addInputsNoCompile(mindseyeSourceFiles.items, mindseyeSourceFiles.count);
-	mindseyeEngineObj.addOutput("mindseye.o");
-	// =====================================================================================
-
-	// ======================== Mindseye DLL (Link Step) ==============================================
-	BuildableArtifact mindseyeDll = {};
-	Nob_Cmd& mindseyeLinkCmd = mindseyeDll.compileCmd;
-	// link object files together into DLL
-	nob_cmd_append(&mindseyeLinkCmd, g_compilerExe, "-shared");
-	nob_cmd_append(&mindseyeLinkCmd, "-lole32", "-lcomdlg32");
-	NOB_CMD_APPEND_MULTIPLE(mindseyeLinkCmd, linkerFlagsCommon);
-	NOB_CMD_APPEND_MULTIPLE(mindseyeLinkCmd, compilerFlagsCommon);
-	nob_cmd_append(&mindseyeLinkCmd, nob_temp_sprintf("-L%s/mindseye/external/ktx/lib", root), "-lktx", "-lshell32");
-	nob_cmd_append(&mindseyeLinkCmd, nob_temp_sprintf("-L%s/mindseye/external/usd/lib", root));
-	for (int i = 0; i < ARRAY_SIZE(usdLibraries); i++)
-	{
-		nob_cmd_append(&mindseyeLinkCmd, nob_temp_sprintf("-l%s", usdLibraries[i]));
-	}
-	if (mode == DEBUG) 
+    compiler = argv[1];
+    NOB_GO_REBUILD_URSELF_PLUS(argc, argv, "tools/nob.h", "tools/ninja_generate.h");
+    if (!nob_set_current_dir(argv[2]))
     {
-		nob_cmd_append(&mindseyeLinkCmd, nob_temp_sprintf("-L%s/mindseye/external/bgfx/bin", root), "-lbgfxDebug", "-lbimgDebug", "-lbxDebug");
-	} 
-    else 
+        return 1;
+    }
+    const char* root = fullPath(".");
+    compiler = fullPath(compiler);
+    const char* ninjaExe = fullPath("tools/ninja/windows/ninja.exe");
+    bool release = false, asan = false, profile = false, appOnly = false, reflect = false, libs = false;
+    for (int i = 3; i < argc; ++i)
     {
-		nob_cmd_append(&mindseyeLinkCmd, nob_temp_sprintf("-L%s/mindseye/external/bgfx/bin", root), "-lbgfxRelease", "-lbimgRelease", "-lbxRelease");
-	}
-	// input objects
-	const char* mindseyeDllInputs[] = { "mindseye.o", "mindseye_ext.o" };
-	mindseyeDll.addInputs(mindseyeDllInputs, ARRAY_SIZE(mindseyeDllInputs));
-	mindseyeDll.addOutput("mindseye.dll");
-	// =====================================================================================
-
-	// ======================== Mindseye Reflector==============================================
-	BuildableArtifact mindseyeReflectorCompile = {};
-	Nob_Cmd& mindseyeReflectorCompileCmd = mindseyeReflectorCompile.compileCmd;
-	nob_cmd_append(&mindseyeReflectorCompileCmd, g_compilerExe);
-	nob_cmd_append(&mindseyeReflectorCompileCmd,
-				   nob_temp_sprintf("-I%s/mindseye", root), "-DMEEXPORT", "-DBUILD_DEBUG=1");
-	nob_cmd_append(&mindseyeReflectorCompileCmd,
-				   "-Wall", "-std=c++20", "-g", nob_temp_sprintf("-I%s", root), "-lntdll", "-Wl,/NOIMPLIB");
-	const char* clangPath = nob_temp_sprintf("%s/tools/clang", root);
-	nob_cmd_append(&mindseyeReflectorCompileCmd,
-				   nob_temp_sprintf("-I%s/include", clangPath), nob_temp_sprintf("-L%s/lib", clangPath));
-	const char* reflectorSystemLibs[] =
-	{
-		"-lpsapi",
-		"-lshell32",
-		"-lole32",
-		"-lcomdlg32",
-		"-luuid",
-		"-ladvapi32",
-		"-lws2_32",
-		"-lversion",
-		"-ldbghelp",
-		"-lntdll",
-	};
-    // this is wild. And also hurts link times ;(
-    // tools\clang\bin\llvm-config.exe --libs native orcjit executionengine mcjit interpreter
-	const char* reflectorClangLibs[] =
-	{
-		"clangInterpreter.lib",
-		"clangFrontendTool.lib",
-		"clangFrontend.lib",
-		"clangAPINotes.lib",
-		"clangSerialization.lib",
-		"clangDriver.lib",
-		"clangCodeGen.lib",
-		"clangExtractAPI.lib",
-		"clangInstallAPI.lib",
-		"clangIndex.lib",
-		"clangRewriteFrontend.lib",
-		"clangRewrite.lib",
-		"clangStaticAnalyzerFrontend.lib",
-		"clangStaticAnalyzerCheckers.lib",
-		"clangStaticAnalyzerCore.lib",
-		"clangCrossTU.lib",
-		"clangToolingCore.lib",
-		"clangParse.lib",
-		"clangSema.lib",
-		"clangAnalysis.lib",
-		"clangASTMatchers.lib",
-		"clangAST.lib",
-		"clangLex.lib",
-		"clangBasic.lib",
-		"clangEdit.lib",
-		"clangSupport.lib",
-
-		"LLVMPasses.lib",
-		"LLVMHipStdPar.lib",
-		"LLVMCoroutines.lib",
-		"LLVMipo.lib",
-		"LLVMVectorize.lib",
-		"LLVMSandboxIR.lib",
-		"LLVMLinker.lib",
-		"LLVMFrontendOpenMP.lib",
-		"LLVMFrontendDirective.lib",
-		"LLVMFrontendAtomic.lib",
-		"LLVMFrontendDriver.lib",
-		"LLVMFrontendHLSL.lib",
-		"LLVMFrontendOffloading.lib",
-		"LLVMObjectYAML.lib",
-		"LLVMWindowsDriver.lib",
-		"LLVMOrcDebugging.lib",
-		"LTO.lib",
-		"LLVMLTO.lib",
-		"LLVMX86CodeGen.lib",
-		"LLVMX86TargetMCA.lib",
-		"LLVMX86Disassembler.lib",
-		"LLVMX86AsmParser.lib",
-		"LLVMX86Desc.lib",
-		"LLVMX86Info.lib",
-		"LLVMMCA.lib",
-		"LLVMOrcJIT.lib",
-		"LLVMOrcShared.lib",
-		"LLVMOrcTargetProcess.lib",
-		"LLVMJITLink.lib",
-		"LLVMExecutionEngine.lib",
-		"LLVMRuntimeDyld.lib",
-		"LLVMAsmPrinter.lib",
-		"LLVMCodeGen.lib",
-		"LLVMCodeGenTypes.lib",
-		"LLVMCGData.lib",
-		"LLVMSelectionDAG.lib",
-		"LLVMGlobalISel.lib",
-		"LLVMInstrumentation.lib",
-		"LLVMIRPrinter.lib",
-		"LLVMCFGuard.lib",
-		"LLVMAsmParser.lib",
-		"LLVMMCParser.lib",
-		"LLVMMCDisassembler.lib",
-		"LLVMMC.lib",
-		"LLVMObject.lib",
-		"LLVMTarget.lib",
-		"LLVMTransformUtils.lib",
-		"LLVMScalarOpts.lib",
-		"LLVMInstCombine.lib",
-		"LLVMAggressiveInstCombine.lib",
-		"LLVMObjCARCOpts.lib",
-		"LLVMAnalysis.lib",
-		"LLVMCoverage.lib",
-		"LLVMProfileData.lib",
-		"LLVMSymbolize.lib",
-		"LLVMDebugInfoBTF.lib",
-		"LLVMDebugInfoPDB.lib",
-		"LLVMDebugInfoMSF.lib",
-		"LLVMDebugInfoCodeView.lib",
-		"LLVMDebugInfoGSYM.lib",
-		"LLVMDebugInfoDWARF.lib",
-		"LLVMDebugInfoDWARFLowLevel.lib",
-		"LLVMTextAPI.lib",
-		"LLVMIRReader.lib",
-		"LLVMBitWriter.lib",
-		"LLVMBitReader.lib",
-		"LLVMCore.lib",
-		"LLVMRemarks.lib",
-		"LLVMBitstreamReader.lib",
-		"LLVMOption.lib",
-		"LLVMBinaryFormat.lib",
-		"LLVMTargetParser.lib",
-		"LLVMDemangle.lib",
-		"LLVMSupport.lib",
-	};
-	for (int i = 0; i < ARRAY_SIZE(reflectorClangLibs); i++)
-	{
-		nob_cmd_append(&mindseyeReflectorCompileCmd, nob_temp_sprintf("%s/lib/%s", clangPath, reflectorClangLibs[i]));
-	}
-	nob_cmd_append(&mindseyeReflectorCompileCmd, "-llibclang");
-	NOB_CMD_APPEND_MULTIPLE(mindseyeReflectorCompileCmd, reflectorSystemLibs);
-	const char* mindseyeReflectorInputs = "mindseye/reflector/me_reflector.cpp";
-	mindseyeReflectorCompile.addInputs(&mindseyeReflectorInputs, 1);
-	mindseyeReflectorCompile.addOutput("mindseye/reflector/me_reflector.exe");
-
-	BuildableArtifact mindseyeReflectorRun = {};
-	Nob_Cmd& mindseyeReflectorRunCmd = mindseyeReflectorRun.compileCmd;
-
-	Nob_String_Builder mindseyeEngineRenderedCmd = {};
-	nob_cmd_render(mindseyeEngineObj.compileCmd, &mindseyeEngineRenderedCmd);
-	nob_sb_append_null(&mindseyeEngineRenderedCmd); // just in case...
-	const char* mindseyeBuildCommand = mindseyeEngineRenderedCmd.items;
-	const char* compileCommandsFile = "build/compile_commands_mindseye.txt";
-	if (!nob_write_entire_file(compileCommandsFile, mindseyeBuildCommand, mindseyeEngineRenderedCmd.count))
-	{
-		nob_log(NOB_ERROR, "Something went wrong while trying to write the mindseye compile commands!");
-		return 1;
-	}
-	const char* compileCommandsFileFullpath = nob_temp_sprintf("%s/%s", root, compileCommandsFile);
-	nob_cmd_append(&mindseyeReflectorRunCmd, 
-				   "mindseye/reflector/me_reflector.exe", compileCommandsFileFullpath, nob_temp_sprintf("%s/mindseye", root), nob_temp_sprintf("%s/mindseye/generatedtypes", root));
-	mindseyeReflectorRun.addInputsNoCompile(mindseyeSourceFiles.items, mindseyeSourceFiles.count);
-	mindseyeReflectorRun.addInputsNoCompile(&mindseyeReflectorInputs, 1);
-	
-	// =====================================================================================
-
-	const char* libclangSource = nob_temp_sprintf("%s/tools/clang/bin/libclang.dll", root);
-	const char* libclangDest = nob_temp_sprintf("%s/mindseye/reflector/libclang.dll", root);
-	copyFileIfNewer(libclangSource, libclangDest);
-
-	const char* ktxDllSource = nob_temp_sprintf("%s/mindseye/external/ktx/bin/ktx.dll", root);
-	const char* ktxDllDest = nob_temp_sprintf("%s/build/ktx.dll", root);
-	copyFileIfNewer(ktxDllSource, ktxDllDest);
-
-	const char* usdRoot = "mindseye/external/usd";
-	const char* usdLibDir = nob_temp_sprintf("%s/lib", usdRoot);
-	const char* usdBinDir = nob_temp_sprintf("%s/bin", usdRoot);
-	const char* usdPythonDir = nob_temp_sprintf("%s/python", usdRoot);
-	const char* dstDir = "build";
-	for (int i = 0; i < ARRAY_SIZE(usdLibraries); i++)
-	{
-		const char* dllName = nob_temp_sprintf("%s.dll", usdLibraries[i]);
-		copyFileIfNewer(nob_temp_sprintf("%s/%s", usdLibDir, dllName), nob_temp_sprintf("%s/%s", dstDir, dllName));
-	}
-	for (int i = 0; i < ARRAY_SIZE(usdRuntimeDependencies); i++)
-	{
-		const char* dllName = nob_temp_sprintf("%s.dll", usdRuntimeDependencies[i]);
-		copyFileIfNewer(nob_temp_sprintf("%s/%s", usdLibDir, dllName), nob_temp_sprintf("%s/%s", dstDir, dllName));
-	}
-	copyFileIfNewer(nob_temp_sprintf("%s/tbb.dll", usdBinDir), nob_temp_sprintf("%s/tbb.dll", dstDir));
-	copyFileIfNewer(nob_temp_sprintf("%s/python312.dll", usdPythonDir), nob_temp_sprintf("%s/python312.dll", dstDir));
-
-	// ======================== Testbed ==============================================
-	BuildableArtifact testbedBuild = {};
-	Nob_Cmd& testbedCmd = testbedBuild.compileCmd;
-	// compile
-	nob_cmd_append(&testbedCmd, g_compilerExe);
-	if (mode == DEBUG)
-	{
-		nob_cmd_append(&testbedCmd,
-						"-O0", "-DBUILD_DEBUG=1", 
-					   	//"-D_USRDLL", "-D_WINDLL", "-D_DLL", 
-					   	"-shared");
-	}
-	else if (mode == RELEASE)
-	{
-		nob_cmd_append(&testbedCmd,
-						"-O2", "-DBUILD_DEBUG=0", 
-					   	//"-D_USRDLL", "-D_WINDLL", "-D_DLL", 
-					   	"-shared");
-	}
-	nob_cmd_append(&testbedCmd, "-DTRACY_IMPORTS");
-	NOB_CMD_APPEND_MULTIPLE(testbedCmd, compilerFlagsCommon);
-	// link
-	NOB_CMD_APPEND_MULTIPLE(testbedCmd, linkerFlagsCommon);
-	nob_cmd_append(&testbedCmd, nob_temp_sprintf("-L%s/build", root), "-lmindseye");
-	const char* testbedInputs = nob_temp_sprintf("%s/projects/testbed/testbed.cpp", root);
-	testbedBuild.addInputs(&testbedInputs, 1);
-	testbedBuild.addInputsNoCompile(mindseyeSourceFiles.items, mindseyeSourceFiles.count);
-	testbedBuild.addOutput("testbed.dll");
-	// =====================================================================================
-
-	// ======================== App-Only Hot Reload Path ==================================
-	// Invoked by the engine at runtime to rebuild only the user app DLL.
-	//   0 = rebuilt successfully
-	//   1 = build error
-	//   2 = nothing changed
-	if (appOnly)
-	{
-		nob_set_current_dir("build");
-		BuildResult result = testbedBuild.build("Testbed hotreload build");
-		if (result == BUILD_FAILED)   return 1;
-		if (result == DID_NOT_BUILD)  return 2;
-		return 0; // BUILD_SUCCEEDED
-	}
-	// =====================================================================================
-
-
-	// ======================== Invoke Build ==============================================
-    nob_log(NOB_INFO, "Build prep done -> Invoking build");
-	Nob_Procs procs = {};
-
-	#define CHECK_BUILD_RESULT(buildResult) \
-		if (buildResult == BUILD_FAILED) \
-		{ \
-			return 1; \
-		}
-
-    const char* definesFilepath = nob_temp_sprintf("%s/mindseye/core/me_defines.h", root);
-    bool forcePchRebuild = nob_needs_rebuild(pchBuild.output.data, &definesFilepath, 1) > 0;
-	pchBuild.options.async = &procs;
-	BuildResult pchBuildRes = pchBuild.build("Pch build", forcePchRebuild);
-	CHECK_BUILD_RESULT(pchBuildRes);
-	bool builtPch = pchBuildRes == BUILD_SUCCEEDED;
-
-	for (int i = 0; i < numShadersToCompile; i++)
-	{
-		BuildableArtifact& shaderArtifact = shaderArtifacts[i];
-		shaderArtifact.options.max_procs = 0; // implies nob_nprocs
-		shaderArtifact.options.async = &procs;
-		CHECK_BUILD_RESULT(shaderArtifact.build("Shader artifact"));
-	}
-	
-	// The reflector run uses this executable immediately, so keep the compile synchronous.
-	BuildResult reflectorBuildResult = mindseyeReflectorCompile.build("Reflector compile");
-	if (reflectorBuildResult == BUILD_SUCCEEDED)
-	{
-		// if we rebuilt the reflector program, we should force a full re-reflect of everything by deleting the output folder
-        const char* generatedTypesFolder = nob_temp_sprintf("%s/mindseye/generatedtypes", root);
-        if (nob_file_exists(generatedTypesFolder))
+        const char* option = argv[i];
+        if (equal(option, "clean"))
         {
-            nob_delete_dir(generatedTypesFolder);
+            for (const char* folder : Strings{"build", "mindseye/generatedtypes", "mindseye/shaders/generated"})
+            {
+                if (nob_file_exists(folder) && !nob_delete_dir(fullPath(folder)))
+                {
+                    return 1;
+                }
+            }
+            return removeFile("build.ninja") ? 0 : 1;
         }
-	}
-	CHECK_BUILD_RESULT(reflectorBuildResult);
-	CHECK_BUILD_RESULT(mindseyeReflectorRun.build("Reflector run", true));
-	
-	if (!nob_procs_flush(&procs))
-	{
-		nob_log(NOB_ERROR, "Tragedy struck while waiting for build processes");
-		return 1;
-	}
-	nob_set_current_dir("build");
+        if (equal(option, "tsan"))
+        {
+            nob_log(NOB_ERROR, "ThreadSanitizer is unsupported on Windows.");
+            return 1;
+        }
+        if (equal(option, "release"))
+        {
+            release = true;
+        }
+        else if (equal(option, "asan"))
+        {
+            asan = true;
+        }
+        else if (equal(option, "profile"))
+        {
+            profile = true;
+        }
+        else if (equal(option, "app-only"))
+        {
+            appOnly = true;
+        }
+        else if (equal(option, "reflect"))
+        {
+            reflect = true;
+        }
+        else if (equal(option, "libs"))
+        {
+            libs = true;
+        }
+    }
+    // ================ Build prerequisites ======================
+    const struct
+    {
+        const char* path;
+        const char* script;
+    } setups[] = {
+        {"mindseye/external/vulkan_lib/Lib", "tools/download_vulkan.bat"},
+        {"mindseye/external/bgfx/bin", "tools/download_bgfx.bat"},
+    };
+    for (const auto& setup : setups)
+    {
+        if (!nob_file_exists(setup.path) && !run({"cmd", "/c", "call", setup.script}))
+        {
+            return 1;
+        }
+    }
+    if (!nob_file_exists("mindseye/external/imgui-node-editor/imgui_node_editor.cpp") &&
+        !run({"git", "submodule", "update", "--init", "--recursive"}))
+    {
+        return 1;
+    }
+    if (!makeDirectory("build") || !makeDirectory("mindseye/generatedtypes") ||
+        !makeDirectory("mindseye/shaders/generated"))
+    {
+        return 1;
+    }
+    Strings files;
+    if (!collectFiles(fullPath("mindseye"), files, words("external generatedtypes thirdparty generated")))
+    {
+        return 1;
+    }
 
-	// Build object files in parallel
-	externalLibsObj.options.async = &procs;
-	BuildResult externalLibsBuildRes = externalLibsObj.build("Ext libs obj", forceBuildLibs || builtPch);
-	CHECK_BUILD_RESULT(externalLibsBuildRes);
-	bool builtExternalLibs = externalLibsBuildRes == BUILD_SUCCEEDED;
-	
-	mindseyeEngineObj.options.async = &procs;
-	BuildResult builtMindseyeObjRes = mindseyeEngineObj.build("Mindseye engine obj", builtPch);
-	bool builtMindseyeObj = builtMindseyeObjRes == BUILD_SUCCEEDED;
-	CHECK_BUILD_RESULT(builtMindseyeObjRes);
-	
-	if (!nob_procs_flush(&procs))
-	{
-		nob_log(NOB_ERROR, "Tragedy struck while waiting for build processes");
-		return 1;
-	}
+    // ================ Shared compiler and linker flags ======================
+    const char* commonCompilerFlags =
+        "-std=c++20 -march=native -g -gno-column-info -Wall -Wextra -Wno-unused-parameter "
+        "-Wno-microsoft-include -Wno-deprecated-declarations -ferror-limit=500";
+    Strings common = words(commonCompilerFlags);
+    const char* releaseCompilerFlags = "-O2 -DNDEBUG -DBUILD_DEBUG=0 -DSHIPPING_BUILD=1 -DBX_CONFIG_DEBUG=0";
+    const char* debugCompilerFlags =
+        "-O0 -D_DEBUG -DBUILD_DEBUG=1 -DSHIPPING_BUILD=0 -DBX_CONFIG_DEBUG=1 -fno-pie -DTRACY_ENABLE=1";
+    append(common, words(release ? releaseCompilerFlags : debugCompilerFlags));
+    if (asan)
+    {
+        common.add("-fsanitize=address");
+    }
+    if (profile)
+    {
+        common.add("-ftime-trace");
+    }
+    const char* includeDirectories =
+        ". mindseye mindseye/external "
+        "mindseye/external/bgfx/bgfx/3rdparty/dear-imgui mindseye/external/bgfx/bgfx/include "
+        "mindseye/external/bgfx/bgfx/3rdparty mindseye/external/imgui-node-editor "
+        "mindseye/external/bgfx/bx/include "
+        "mindseye/external/bgfx/bimg/include mindseye/external/ktx "
+        "mindseye/external/tracy/public";
+    for (const char* include : words(includeDirectories))
+    {
+        common.add(nob_temp_sprintf("-I%s", fullPath(include)));
+    }
+    Strings engineFlags = common;
+    append(engineFlags, words("-DMEEXPORT -D_DLL -DTRACY_EXPORTS"));
+    Strings linkFlags = {"-fuse-ld=lld-link"};
+    linkFlags.add(release ? "-lmsvcrt" : "-lmsvcrtd");
+    if (!release)
+    {
+        linkFlags.add("-Wl,/DYNAMICBASE:NO");
+    }
+    if (asan)
+    {
+        linkFlags.add("-fsanitize=address");
+    }
 
+    // ================ Runtime dependencies ======================
+    Ninja graph(compiler, root);
+    Strings runtime;
+    auto copy = [&](const char* source, const char* dest)
+    {
+        graph.copy(source, dest);
+        runtime.add(fullPath(dest));
+    };
+    const char* clangDir = fullPath("tools/clang");
+    const char* libclang = fullPath("mindseye/reflector/libclang.dll");
+    copy("tools/clang/bin/libclang.dll", libclang);
+    copy("mindseye/external/vulkan_lib/Lib/vulkan-1.dll", "build/vulkan-1.dll");
+    copy("mindseye/external/ktx/bin/ktx.dll", "build/ktx.dll");
 
-	// the link needs ext libs and the mindseye objs, so is dependent on the above stuff
-	BuildResult builtMindseye = mindseyeDll.build("Mindseye dll", builtMindseyeObj || builtExternalLibs);
-	CHECK_BUILD_RESULT(builtMindseye);
-    // since testbed links mindseye (dll) at runtime, we don't need to rebuild testbed if mindseye implementation files change
-    // testbed already has logic to rebuild if mindseye *headers* change
-	BuildResult builtTestbed = testbedBuild.build("Testbed"); 
-	CHECK_BUILD_RESULT(builtTestbed);
-	// The engine always loads "testbed-1.dll" so that hot-reload can load a
-	// fresh copy alongside without Windows blocking an overwrite of a mapped DLL.
-	// A full build always resets the chain back to -1.
-	if (builtTestbed == BUILD_SUCCEEDED)
-	{
-		Nob_File_Paths buildEntries = {};
-		nob_read_entire_dir(".", &buildEntries);
-		Nob_String_View prefix = nob_sv_from_cstr("testbed-");
-		Nob_String_View ext    = nob_sv_from_cstr(".dll");
-		for (int i = 0; i < buildEntries.count; i++)
-		{
-			Nob_String_View sv = nob_sv_from_cstr(buildEntries.items[i]);
-			if (sv.count <= prefix.count + ext.count) continue;
-			if (memcmp(sv.data, prefix.data, prefix.count) != 0) continue;
-			if (memcmp(sv.data + sv.count - ext.count, ext.data, ext.count) != 0) continue;
-			Nob_String_View mid = { sv.count - prefix.count - ext.count, sv.data + prefix.count };
-			bool allDigits = mid.count > 0;
-			for (size_t j = 0; j < mid.count && allDigits; j++)
-				allDigits = isdigit((unsigned char)mid.data[j]);
-			if (allDigits)
-				nob_delete_file(buildEntries.items[i]);
-		}
-		copyFileIfNewer("testbed.dll", "testbed-1.dll");
-	}
-	CHECK_BUILD_RESULT(driver.build());
-	uint64_t buildEndNs = nob_nanos_since_unspecified_epoch();
-	double buildElapsedSec = (buildEndNs - buildStartNs) / 1e9;
-	nob_log(NOB_INFO, "Build finished in %.2fs", buildElapsedSec);
-	return 0;
+    // ================ Mindseye reflector ======================
+    size_t runtimeGraph = graph.text.count;
+    const char* manifest = fullPath("build/reflection.outputs");
+    const char* stamp = fullPath("build/reflection.stamp");
+    auto emitReflection = [&](Ninja& out)
+    {
+        Strings flags = words("-std=c++20 -g -Wall -DMEEXPORT -DBUILD_DEBUG=1 -DME_CORE_ONLY");
+        append(flags, {nob_temp_sprintf("-I%s", fullPath(".")), nob_temp_sprintf("-I%s", fullPath("mindseye")),
+                       nob_temp_sprintf("-I%s/include", clangDir), "-DSTBSP__PUBLICDEC=extern \"C\" MEAPI"});
+        Strings objects;
+        const char* reflectorSources =
+            "mindseye/reflector/me_reflector.cpp mindseye/platform/me_os.cpp "
+            "mindseye/platform/windows/me_os_win.cpp mindseye/core/me_log.cpp mindseye/core/me_string.cpp "
+            "mindseye/core/me_arena.cpp mindseye/core/me_core.cpp mindseye/core/me_math.cpp "
+            "mindseye/core/me_memory.cpp "
+            "mindseye/core/me_filesystem.cpp mindseye/reflector/reflection_types.cpp mindseye/thirdparty/stb.cpp";
+        for (const char* source : words(reflectorSources))
+        {
+            objects.add(out.compile(fullPath(source), flags, "reflector"));
+        }
+        Strings libraries = {"-lntdll", "-Wl,/NOIMPLIB", nob_temp_sprintf("%s/lib/libclang.lib", clangDir)};
+        const char* reflectorSystemLibraries = "-lshell32 -lole32 -luuid -ladvapi32 -lversion";
+        append(libraries, words(reflectorSystemLibraries));
+        const char* reflectorLibraries =
+            "clangInterpreter.lib clangFrontendTool.lib clangFrontend.lib clangAPINotes.lib clangSerialization.lib "
+            "clangDriver.lib clangCodeGen.lib clangExtractAPI.lib clangInstallAPI.lib clangIndex.lib "
+            "clangRewriteFrontend.lib clangRewrite.lib clangStaticAnalyzerFrontend.lib "
+            "clangStaticAnalyzerCheckers.lib clangStaticAnalyzerCore.lib clangCrossTU.lib clangToolingCore.lib "
+            "clangParse.lib clangSema.lib clangAnalysis.lib clangASTMatchers.lib clangAST.lib clangLex.lib "
+            "clangBasic.lib clangEdit.lib clangSupport.lib LLVMPasses.lib LLVMHipStdPar.lib LLVMCoroutines.lib "
+            "LLVMipo.lib LLVMVectorize.lib LLVMSandboxIR.lib LLVMLinker.lib LLVMFrontendOpenMP.lib "
+            "LLVMFrontendDirective.lib LLVMFrontendAtomic.lib LLVMFrontendDriver.lib LLVMFrontendHLSL.lib "
+            "LLVMFrontendOffloading.lib LLVMObjectYAML.lib LLVMWindowsDriver.lib LLVMOrcDebugging.lib LLVMLTO.lib "
+            "LLVMX86CodeGen.lib LLVMX86AsmParser.lib LLVMX86Desc.lib LLVMX86Info.lib LLVMOrcJIT.lib "
+            "LLVMOrcShared.lib LLVMOrcTargetProcess.lib LLVMJITLink.lib LLVMExecutionEngine.lib LLVMRuntimeDyld.lib "
+            "LLVMAsmPrinter.lib LLVMCodeGen.lib LLVMCodeGenTypes.lib LLVMCGData.lib LLVMSelectionDAG.lib "
+            "LLVMGlobalISel.lib LLVMInstrumentation.lib LLVMIRPrinter.lib LLVMCFGuard.lib LLVMAsmParser.lib "
+            "LLVMMCParser.lib LLVMMCDisassembler.lib LLVMMC.lib LLVMObject.lib LLVMTarget.lib "
+            "LLVMTransformUtils.lib LLVMScalarOpts.lib LLVMInstCombine.lib LLVMAggressiveInstCombine.lib "
+            "LLVMObjCARCOpts.lib LLVMAnalysis.lib LLVMCoverage.lib LLVMProfileData.lib LLVMDebugInfoCodeView.lib "
+            "LLVMDebugInfoDWARF.lib LLVMDebugInfoDWARFLowLevel.lib LLVMTextAPI.lib LLVMIRReader.lib "
+            "LLVMBitWriter.lib LLVMBitReader.lib LLVMCore.lib LLVMRemarks.lib LLVMBitstreamReader.lib "
+            "LLVMOption.lib LLVMBinaryFormat.lib LLVMTargetParser.lib LLVMDemangle.lib LLVMSupport.lib";
+        for (const char* library : words(reflectorLibraries))
+        {
+            libraries.add(nob_temp_sprintf("%s/lib/%s", clangDir, library));
+        }
+        const char* executable = fullPath("mindseye/reflector/me_reflector.exe");
+        out.link(executable, libraries, objects);
+        // ================ Reflection generation ======================
+        Strings inputs = {executable, fullPath("build/reflection.flags"), fullPath("build/reflection.inputs")};
+        Nob_String_Builder headerList = {};
+        for (const char* file : files)
+        {
+            if ((endsWith(file, ".h") || endsWith(file, ".inl")))
+            {
+                inputs.add(file);
+                nob_sb_appendf(&headerList, "%s\n", file);
+            }
+        }
+        bool wroteHeaders = write("build/reflection.inputs", headerList);
+        nob_sb_free(headerList);
+        if (!wroteHeaders)
+        {
+            return false;
+        }
+        Strings reflectArgs = {compiler};
+        append(reflectArgs, engineFlags);
+        reflectArgs.add(fullPath("mindseye/core/me_core.cpp"));
+        if (!write("build/reflection.flags", render(reflectArgs)))
+        {
+            return false;
+        }
+        Strings outputs = {stamp, manifest};
+        append(outputs, lines(manifest));
+        out.edge("run", outputs, inputs, {libclang});
+        out.variable("cmd", nob_temp_sprintf("cmd /d /s /c \"\"%s\" %s && type nul > \"%s\"\"", executable,
+                                             render({fullPath("build/reflection.flags"), fullPath("mindseye"),
+                                                     fullPath("mindseye/generatedtypes"), manifest}),
+                                             stamp));
+        out.variable("label", "REFLECT");
+        return out.valid;
+    };
+    // Reflection discovers its output set
+    if (!appOnly)
+    {
+        if (!emitReflection(graph) || !graph.save("build/reflection.ninja"))
+        {
+            return 1;
+        }
+        if (reflect && !removeFile(stamp))
+        {
+            return 1;
+        }
+        if (!runNinja(ninjaExe, "build/reflection.ninja", stamp))
+        {
+            return 1;
+        }
+        // successful reflection run may have changed its output set
+        graph.text.count = runtimeGraph;
+        if (!emitReflection(graph))
+        {
+            return 1;
+        }
+    }
+
+    Strings shaderOutputs;
+    if (!appOnly)
+    {
+        // ================ Mindseye shaders ======================
+        Strings shaderInputs;
+        Strings shaderFiles;
+        if (!collectFiles(fullPath("mindseye/shaders"), shaderFiles))
+        {
+            return 1;
+        }
+        for (const char* path : shaderFiles)
+        {
+            if (endsWith(path, ".sc"))
+            {
+                shaderInputs.add(path);
+            }
+        }
+        const char* shaderc = fullPath("mindseye/external/bgfx/bin/shadercRelease.exe");
+        for (const char* source : shaderInputs)
+        {
+            const char* name = nob_path_name(source);
+            bool vertex = strstr(name, "_vs") != nullptr;
+            if (!vertex && strstr(name, "_fs") == nullptr)
+            {
+                continue;
+            }
+            const char* output = fullPath(nob_temp_sprintf("mindseye/shaders/generated/%s.h", name));
+            Strings inputs = shaderInputs;
+            inputs.add(shaderc);
+            graph.edge("run", {output}, inputs);
+            graph.variable("cmd", render({shaderc, "--type", vertex ? "vertex" : "fragment", "-f", source, "--bin2c",
+                                          "--platform", "windows", "-p", "spirv16-13", "--varyingdef",
+                                          fullPath("mindseye/shaders/varying.def.sc"), "-o", output}));
+            graph.variable("label", nob_temp_sprintf("SHADER %s", name));
+            shaderOutputs.add(output);
+        }
+        // ================ Mindseye precompiled header ======================
+        const char* pch = fullPath("build/me_pch.h.pch");
+        const char* pchSource = fullPath("mindseye/me_pch.h");
+        Strings pchArgs = engineFlags;
+        append(pchArgs,
+               {"-x", "c++-header", pchSource, "-o", pch, "-MMD", "-MF", nob_temp_sprintf("%s.d", pch), "-MT", pch});
+        graph.edge("cc", {pch}, {pchSource, compiler});
+        graph.ccCommand(pchArgs, pch);
+        graph.variable("depfile", nob_temp_sprintf("%s.d", pch));
+        // ================ Mindseye engine core ======================
+        Strings objects, order = shaderOutputs;
+        append(order, {stamp, pch});
+        Strings compileFlags = engineFlags;
+        append(compileFlags, {"-include-pch", pch});
+        for (const char* source : files)
+        {
+            if (!endsWith(source, ".cpp") || equal(source, fullPath("mindseye/reflector/me_reflector.cpp")) ||
+                equal(source, fullPath("mindseye/platform/driver.cpp")) ||
+                strstr(source, "/vulkan_backend/") != nullptr)
+            {
+                continue;
+            }
+            objects.add(graph.compile(source, compileFlags, "engine", order));
+        }
+        // ================ Generated reflection sources ======================
+        for (const char* source : lines(manifest))
+        {
+            if (endsWith(source, ".cpp"))
+            {
+                objects.add(graph.compile(source, compileFlags, "generated", order));
+            }
+        }
+        // ================ External libraries ======================
+        Strings vendorFlags = engineFlags;
+        const char* vendorCompilerFlags =
+            "-w -DIMGUI_DEFINE_MATH_OPERATORS -DIMGUI_API=MEAPI -DIMGUI_NODE_EDITOR_API=MEAPI "
+            "-DIMGUI_DISABLE_SSE -DUSE_LOCAL_STB=0";
+        append(vendorFlags, words(vendorCompilerFlags));
+        append(vendorFlags,
+               {"-include", fullPath("mindseye/core/me_defines.h"), "-DSTBSP__PUBLICDEC=extern \"C\" MEAPI"});
+        const char* vendorSources =
+            "mindseye/thirdparty/stb.cpp mindseye/thirdparty/miniz.cpp mindseye/thirdparty/imgui_stubs.cpp "
+            "mindseye/external/bgfx/bgfx/3rdparty/dear-imgui/imgui.cpp "
+            "mindseye/external/bgfx/bgfx/3rdparty/dear-imgui/imgui_draw.cpp "
+            "mindseye/external/bgfx/bgfx/3rdparty/dear-imgui/imgui_widgets.cpp "
+            "mindseye/external/bgfx/bgfx/3rdparty/dear-imgui/imgui_tables.cpp "
+            "mindseye/external/imgui-node-editor/imgui_canvas.cpp "
+            "mindseye/external/imgui-node-editor/crude_json.cpp "
+            "mindseye/external/imgui-node-editor/imgui_node_editor.cpp "
+            "mindseye/external/imgui-node-editor/imgui_node_editor_api.cpp "
+            "mindseye/external/tracy/public/TracyClient.cpp "
+            "mindseye/external/tinyfiledialogs/tinyfiledialogs.c "
+            "mindseye/external/bgfx/bgfx/examples/common/imgui/imgui.cpp "
+            "mindseye/external/bgfx/bgfx/examples/common/debugdraw/debugdraw.cpp";
+        for (const char* source : words(vendorSources))
+        {
+            Strings flags = vendorFlags;
+            if (endsWith(source, ".c"))
+            {
+                append(flags, {"-x", "c++"});
+            }
+            if (strstr(source, "dear-imgui/imgui.cpp") != nullptr)
+            {
+                append(flags, {"-include", fullPath("mindseye/thirdparty/imgui_config.h")});
+            }
+            const char* object = graph.compile(fullPath(source), flags, "vendor");
+            if (libs && !removeFile(object))
+            {
+                return 1;
+            }
+            objects.add(object);
+        }
+        // ================ Mindseye engine DLL ======================
+        Strings flags = linkFlags;
+        const char* engineSystemLibraries =
+            "-shared -luser32 -lgdi32 -ldbghelp -ladvapi32 -lws2_32 -lshell32 -lole32 -lcomdlg32";
+        append(flags, words(engineSystemLibraries));
+        for (const char* library : words("ktx bgfx bimg bx"))
+        {
+            const char* path = equal(library, "ktx") ? "mindseye/external/ktx/lib/ktx.lib"
+                                                     : nob_temp_sprintf("mindseye/external/bgfx/bin/%s%s.lib", library,
+                                                                        release ? "Release" : "Debug");
+            flags.add(fullPath(path));
+        }
+        graph.link(fullPath("build/mindseye.dll"), flags, objects, {fullPath("build/mindseye.lib")});
+    }
+    // ================ Testbed application DLL ======================
+    Strings appFlags = common;
+    appFlags.add("-DTRACY_IMPORTS");
+    Strings appLink = linkFlags;
+    appLink.add(fullPath("build/mindseye.lib"));
+    Strings appOrder = appOnly ? Strings{} : Strings{stamp};
+    const char* appObject = graph.compile(fullPath("projects/testbed/testbed.cpp"), appFlags, "app", appOrder);
+    Strings dllFlags = appLink;
+    dllFlags.add("-shared");
+    const char* appDll = fullPath("build/testbed.dll");
+    graph.link(appDll, dllFlags, {appObject});
+    Strings defaults = {appDll};
+    if (!appOnly)
+    {
+        // ================ Mindseye driver ======================
+        const char* driver = graph.compile(fullPath("mindseye/platform/driver.cpp"), appFlags, "app", {stamp});
+        appLink.add("-lshell32");
+        appLink.add("-Wl,/subsystem:windows");
+        graph.link(fullPath("build/driver.exe"), appLink, {driver});
+        defaults.add(fullPath("build/driver.exe"));
+        append(defaults, runtime);
+    }
+    // ================ Generate and invoke Ninja ======================
+    graph.defaults(defaults);
+    const char* graphPath = appOnly ? "build/app-only.ninja" : "build.ninja";
+    if (!graph.save(graphPath))
+    {
+        return 1;
+    }
+    uint64_t before = fileTime(appDll);
+    if (!runNinja(ninjaExe, graphPath))
+    {
+        return 1;
+    }
+    bool rebuilt = fileTime(appDll) != before;
+    if (appOnly)
+    {
+        return rebuilt ? 0 : 2;
+    }
+    // ================ Hot reload DLL copies ======================
+    if (rebuilt)
+    {
+        Nob_File_Paths entries = {};
+        if (!nob_read_entire_dir("build", &entries))
+        {
+            return 1;
+        }
+        bool success = true;
+        for (size_t i = 0; i < entries.count; ++i)
+        {
+            const char* name = entries.items[i];
+            if (strncmp(name, "testbed-", 8) != 0 || !endsWith(name, ".dll"))
+            {
+                continue;
+            }
+            size_t digits = strspn(name + 8, "0123456789");
+            if (digits && equal(name + 8 + digits, ".dll"))
+            {
+                success = removeFile(nob_temp_sprintf("build/%s", name)) && success;
+            }
+        }
+        nob_da_free(entries);
+        if (!success || !nob_copy_file(appDll, "build/testbed-1.dll"))
+        {
+            return 1;
+        }
+    }
+    return 0;
 }

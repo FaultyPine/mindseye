@@ -13,6 +13,9 @@ run `build.bat`
 
 ### Current focus
 
+- hashmap impl
+- refcounted & "unique" ptr impl
+
 Finishing the asset system todo:
 - refactor so instead of straight loading gltf, we "import" gltf and turn it into massets, then load(/compile) those
 - binary serialization 
@@ -40,8 +43,9 @@ Finishing the asset system todo:
 - asset system
 - log to file - rotate log files
 - console command system - use CompileRun to codegen function<->console command bindings (also use for cmdline args handlers?)
-- renderer
+- ECS
 - scene graph
+- renderer
 - engine-wide savestates
 	- user can only "request" a save, that gets serviced at a fixed point after the frame (can't save in middle of frame)
 	- stuff that needs to be saved/delt with:
@@ -89,7 +93,7 @@ Finishing the asset system todo:
 
 - general purpose allocators
 	- string allocator
-	- tcmalloc or rpmalloc as "default" allocator
+	- mimalloc as "default" allocator
 - Entity/Object model
 	- mostly ecs, but
 		- entities are objects with a transform, a list of entity components, and a list of entity systems that can act on those components

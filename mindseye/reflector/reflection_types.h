@@ -567,3 +567,5 @@ bool meTypeDescriptorEquals(
     ME_ASSERT(false);
     return false;
 }
+
+extern meTypeDescriptor TD_DYNARRAY;

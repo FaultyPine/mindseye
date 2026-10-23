@@ -1,3 +1,4 @@
+#include "core/me_app.h"
 #include "renderer_frontend.h"
 
 #include "core/me_core.h"

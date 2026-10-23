@@ -1,5 +1,6 @@
 
 #include "me_log.h"
+#include "core/me_filesystem.h"
 
 #include "core/me_memory.h"
 #include "core/me_string.h"
@@ -35,18 +36,7 @@ static const char* level_strings[6] = {"[FATAL]", "[ERROR]", "[WARN]", "[INFO]",
 
 #ifdef OS_WINDOWS
 
-#ifndef STD_INPUT_HANDLE
-#define STD_INPUT_HANDLE    (-10)
-#define STD_OUTPUT_HANDLE   (-11)
-#define STD_ERROR_HANDLE    (-12)
-#endif
-EXT_IMPORT int
-SetConsoleTextAttribute(
-    void* hConsoleOutput,
-    unsigned short wAttributes);
-EXT_IMPORT void*
-GetStdHandle(
-    unsigned long nStdHandle);
+#include <windows.h>
 static int terminal_colors[6] = {4, 4, 6, 2, 1, 1};
 #else
 static const char* terminal_colors[6] = {"\033[0;31m", "\033[0;31m", "\033[0;33m", "\033[0;32m", "\033[0;34m", "\033[0;34m"};

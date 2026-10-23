@@ -1,4 +1,3 @@
-#pragma once
 
 #include "me_entity.h"
 #include "core/me_core.h"
