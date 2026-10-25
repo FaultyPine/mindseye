@@ -13,7 +13,6 @@ run `build.bat`
 
 ### Current focus
 
-- hashmap impl
 - refcounted & "unique" ptr impl
 - per-thread(?) data stacks for tmp allocator/scratch space
     - https://github.com/aardappel/goose
@@ -81,7 +80,6 @@ Finishing the asset system todo:
     - reload = compile <user dll>.dll -> rename to <user dll>-(X+1).dll -> tell engine -> engine increments hot-reload count (X) and loads the new <user dll>-X.dll
     - with below savestate memory trick, don't need to do any pointer fixup or anything
 - savestates:
-    - TODO: make sure meMap is allocator-aware. Rn it's using std which does system allocs
     - Pass a single GameMemory* to user app. Internally that's just a memory-mapped file at a fixed VA.
         - investigate how to create a huge "virtual" memory-mapped file. I.E. 50gb virtual mapping, but we only use some, and only that used first portion is committed
     - all allocators sub-allocate from that one
