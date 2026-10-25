@@ -23,6 +23,7 @@
 #include "core/me_serialize.h"
 #include "core/me_chunker.h"
 #include "core/containers/me_blocklist.h"
+#include "core/containers/me_map.h"
 #include "tests/me_descriptor_tests.h"
 #include "core/me_command.h"
 
@@ -263,6 +264,7 @@ void RunEngineTests(EngineContext* engine)
     DynArrayTests();
     HybridArrayTests();
     TestBlocklist();
+    meMapTests();
     meDescriptorTests();
 }
 

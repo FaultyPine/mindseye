@@ -90,14 +90,15 @@ MAID
 		ME_ASSERT(id <= ME_UINT_MAX);
 		this->id = id;
     }
+
+    static inline u64 Hash(const MAID& obj)
+    {
+        size_t h1 = std::hash<u64>{}(obj.GetType());
+        size_t h2 = std::hash<u64>{}(obj.GetID());
+        return HashCombine(h1, h2);
+    }
 };
 
-MEMAP_BEGIN_CUSTOM_HASHER(MAID, obj) 
-{
-    size_t h1 = std::hash<u64>{}(obj.GetType());
-	size_t h2 = std::hash<u64>{}(obj.GetID());
-	return HashCombine(h1, h2);
-} MEMAP_END_CUSTOM_HASHER
 
 STATIC_ASSERT(sizeof(MAID) == sizeof(u64));
 constexpr MAID MAID_INVALID = {};
@@ -211,14 +212,14 @@ meAsset
 	}
 	operator const Eye() const { return runtimeHandle; }
 	operator const MAID() const { return id; }
-};
 
-MEMAP_BEGIN_CUSTOM_HASHER(meAsset, obj) 
-{
-    size_t h1 = std::hash<u64>{}(obj.id);
-	size_t h2 = std::hash<u64>{}(obj.runtimeHandle.GetIndex());
-	return HashCombine(h1, h2);
-} MEMAP_END_CUSTOM_HASHER
+    static inline u64 Hash(const meAsset& obj)
+    {
+        size_t h1 = std::hash<u64>{}(obj.id);
+        size_t h2 = std::hash<u64>{}(obj.runtimeHandle.GetIndex());
+        return HashCombine(h1, h2);
+    }
+};
 
 template <meAssetType AssetTypeV>
 struct meTypedAsset : public meAsset

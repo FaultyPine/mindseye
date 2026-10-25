@@ -9,7 +9,9 @@
 // stores capacity/size in a DynArrayHeader as the first member of DynArray
 
 #define DynArray_Foreach(array, iteratorVarName) u32 iteratorVarName = 0; !!(array) && iteratorVarName < DynArrayGetSize(array); iteratorVarName++
-#define DynArrayDefaultCapacity (10)
+// NOTE: capacity will always be power-of-two
+constexpr static u32 DYNARRAY_GROWTH_FACTOR = 2;
+#define DynArrayDefaultCapacity (8)
 
 // TODO: maybe some magic at the beginning would be a good idea
 struct DynArrayHeader
@@ -35,10 +37,12 @@ struct DynArray
 	}
 	T& operator[](u32 index)
 	{
+        ME_ASSERT(index < header.size);
 		return data[index];
 	}
 	const T & operator[](u32 index) const
 	{
+        ME_ASSERT(index < header.size);
 		return data[index];
 	}
 	operator T*()
@@ -132,11 +136,6 @@ u32 DynArrayGetStride(const DynArray<T>& array);
 template <typename T>
 meAllocator* DynArrayGetAllocator(DynArray<T>& array);
 
-template <typename T>
-inline T& DynArrayGet(DynArray<T>& array, u32 index)
-{
-    return array[index];
-}
 
 // ==========================================================================
 

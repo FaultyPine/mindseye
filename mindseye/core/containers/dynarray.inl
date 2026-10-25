@@ -90,7 +90,6 @@ bool DynArrayPushAt(
 #endif
     while (header->size + numObjs > header->capacity)
     {
-		constexpr static u32 DYNARRAY_GROWTH_FACTOR = 2;
 		u32 newCapacity = header->capacity * DYNARRAY_GROWTH_FACTOR;
 		newCapacity = MEMAX(newCapacity, header->size + numObjs);
         array = DynArrayResize(array, newCapacity);

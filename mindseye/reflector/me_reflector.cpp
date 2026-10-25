@@ -360,6 +360,7 @@ static std::unordered_map<StringView, meTypeDescriptor *> builtinStructs =
         {STRING_LIT("StringView"), &TD_STRINGVIEW},
         {STRING_LIT("meSpan"), &TD_SPAN},
         {STRING_LIT("DynArray"), &TD_DYNARRAY},
+        {STRING_LIT("meMap"), &TD_MEMAP},
         {STRING_LIT("glm::vec"), &TD_VEC3},
         {STRING_LIT("glm::qua"), &TD_QUAT},
         // meTypedAsset<T> inherits from meAsset and has the same binary layout.

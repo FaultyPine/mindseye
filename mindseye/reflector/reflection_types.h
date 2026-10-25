@@ -569,3 +569,4 @@ bool meTypeDescriptorEquals(
 }
 
 extern meTypeDescriptor TD_DYNARRAY;
+extern meTypeDescriptor TD_MEMAP;

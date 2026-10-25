@@ -3,6 +3,7 @@
 #include "core/me_string.h"
 #include "core/me_math.h"
 #include "core/me_log.h"
+#include "core/containers/dynarray.h"
 
 meTypeDescriptorRegistry& meTypeDescriptorGetRegistry()
 {
@@ -508,3 +509,17 @@ meTypeDescriptor TD_DYNARRAY = { .name = STRING_LIT("DynArray"), .flags = meType
 };
 
 ME_REGISTER_STATIC_TYPE_DESCRIPTOR(DynArray<int>, TD_DYNARRAY);
+
+using meMapIntInt = meMap<u32, u32>;
+// size of key/value types shouldn't change size of the map structure
+static_assert(sizeof(meMap<u32, u32>) == sizeof(meMap<u64, u64>));
+
+meTypeDescriptor TD_MEMAP = {
+    .name = STRING_LIT("meMap"),
+    .flags = meTypeDescriptorFlag_ExternalPtr,
+    .size = sizeof(meMapIntInt),
+    .align = alignof(meMapIntInt),
+};
+
+ME_REGISTER_STATIC_TYPE_DESCRIPTOR(meMapIntInt, TD_MEMAP);
+
