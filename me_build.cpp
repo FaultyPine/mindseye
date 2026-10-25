@@ -173,7 +173,8 @@ int main(int argc, char** argv)
         {
             objects.add(out.compile(fullPath(source), flags, "reflector"));
         }
-        Strings libraries = {"-lntdll", "-Wl,/NOIMPLIB", nob_temp_sprintf("%s/lib/libclang.lib", clangDir)};
+        Strings libraries = {"-lntdll", "-Wl,/NOIMPLIB", "-Wl,/DEBUG",
+                             nob_temp_sprintf("%s/lib/libclang.lib", clangDir)};
         const char* reflectorSystemLibraries = "-lshell32 -lole32 -luuid -ladvapi32 -lversion";
         append(libraries, words(reflectorSystemLibraries));
         const char* reflectorLibraries =
@@ -201,7 +202,7 @@ int main(int argc, char** argv)
             libraries.add(nob_temp_sprintf("%s/lib/%s", clangDir, library));
         }
         const char* executable = fullPath("mindseye/reflector/me_reflector.exe");
-        out.link(executable, libraries, objects);
+        out.link(executable, libraries, objects, {fullPath("mindseye/reflector/me_reflector.pdb")});
         // ================ Reflection generation ======================
         Strings inputs = {executable, fullPath("build/reflection.flags"), fullPath("build/reflection.inputs")};
         Nob_String_Builder headerList = {};

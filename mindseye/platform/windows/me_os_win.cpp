@@ -270,8 +270,6 @@ void meOSInstallUnhandledExceptionHandler(meCrashHandlerContext context)
 #ifndef ME_CORE_ONLY
 #include "core/me_app.h"
 
-constexpr u32 WINDOW_CURSOR_WRAP_BUFFER = 2;
-
 void OnResize(HWND hwnd, UINT flag, int width, int height)
 {
     EngineContext* ctx = GetEngineCtx();

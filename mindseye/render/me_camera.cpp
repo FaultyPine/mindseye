@@ -2,9 +2,6 @@
 #include "me_camera.h"
 #include "platform/me_input.h"
 
-// TODO: once i have input
-const s32 TAB_OUT_OF_WINDOW_KEY = 0; //TINY_KEY_TAB;
-
 
 glm::vec3 meCamera::GetNormalizedLookDir() 
 {

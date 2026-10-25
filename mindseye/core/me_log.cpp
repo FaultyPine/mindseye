@@ -32,8 +32,6 @@ void SetLogLevel(LogLevel level, bool toggle)
 
 #define TERMINAL_COLORED_OUTPUT_ENABLED 1
 
-static const char* level_strings[6] = {"[FATAL]", "[ERROR]", "[WARN]", "[INFO]", "[DEBUG]", "[TRACE]"};
-
 #ifdef OS_WINDOWS
 
 #include <windows.h>

@@ -68,6 +68,14 @@ typedef wchar_t wchar;
 
 #define NODISCARD [[nodiscard]]
 
+#if defined(COMPILER_GCC) || defined(COMPILER_CLANG)
+    #define ME_UNREACHABLE() __builtin_unreachable()
+#elif defined(COMPILER_MSVC)
+    #define ME_UNREACHABLE() __assume(false)
+#else
+    #define ME_UNREACHABLE() do { ME_ASSERT(false && "Unreachable"); } while(0) 
+#endif
+
 #define MELIKELY [[likely]]
 #define MEUNLIKELY [[unlikely]]
 

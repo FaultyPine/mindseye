@@ -59,8 +59,6 @@ MEAPI bool meRayIntersectsAABB(const meRay& ray, glm::vec3 aabbMin, glm::vec3 aa
 
 namespace Math {
 
-
-
 MEAPI bool isOverlappingRectSize2D(const glm::vec2& pos1, const glm::vec2& size1, const glm::vec2& pos2, const glm::vec2& size2);
 MEAPI bool isOverlappingRect2D(const glm::vec2& startPos1, const glm::vec2& endPos1, const glm::vec2& startPos2, const glm::vec2& endPos2);
 MEAPI bool isPointInRectangle(const glm::vec2& point, const glm::vec2& rectStart, const glm::vec2& rectEnd);

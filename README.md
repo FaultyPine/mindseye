@@ -15,6 +15,8 @@ run `build.bat`
 
 - hashmap impl
 - refcounted & "unique" ptr impl
+- per-thread(?) data stacks for tmp allocator/scratch space
+    - https://github.com/aardappel/goose
 
 Finishing the asset system todo:
 - refactor so instead of straight loading gltf, we "import" gltf and turn it into massets, then load(/compile) those
