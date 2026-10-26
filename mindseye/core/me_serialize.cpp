@@ -216,7 +216,7 @@ static bool DeepCopyParentAssetIfNeeded(
 
     ScopedAssetOpaqueLockR parentData(*parentAsset);
 	DeepCopyContext copyCtx = {};
-	copyCtx.srcData = parentData.Get();
+	copyCtx.srcData = parentData.Get().get();
 	copyCtx.outputData = ctx.outputData;
 	copyCtx.allocator = ctx.externalDataAllocator;
 	meTypeDescriptorDeepCopy(typeDesc, copyCtx);

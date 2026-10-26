@@ -281,25 +281,25 @@ void BgfxRendererBackend::Teardown(EngineContext* engine)
 		// NOTE: mesh badData is a copy of a pool entry (see meMeshInitialize),
 		// so we skip it here to avoid double-destroying the same handles.
 		for (auto& slot : meshPool.resourcePoolInstances)
-			DestroyMeshGPUResources(slot.obj);
+			DestroyMeshGPUResources(*slot.obj);
 		for (auto& slot : meshPool.resourcePoolTemplates)
-			DestroyMeshGPUResources(slot.obj);
+			DestroyMeshGPUResources(*slot.obj);
 	}
 	{
 		meTexturePool& texPool = meTextureGetPool();
 		DestroyTextureGPUResources(texPool.GetBadData());
 		for (auto& slot : texPool.resourcePoolInstances)
-			DestroyTextureGPUResources(slot.obj);
+			DestroyTextureGPUResources(*slot.obj);
 		for (auto& slot : texPool.resourcePoolTemplates)
-			DestroyTextureGPUResources(slot.obj);
+			DestroyTextureGPUResources(*slot.obj);
 	}
 	{
 		meShaderPool& shaderPool = meShaderGetPool();
 		DestroyShaderGPUResources(shaderPool.GetBadData());
 		for (auto& slot : shaderPool.resourcePoolInstances)
-			DestroyShaderGPUResources(slot.obj);
+			DestroyShaderGPUResources(*slot.obj);
 		for (auto& slot : shaderPool.resourcePoolTemplates)
-			DestroyShaderGPUResources(slot.obj);
+			DestroyShaderGPUResources(*slot.obj);
 	}
 
 	// Destroy the screen-space quad sampler if it was created

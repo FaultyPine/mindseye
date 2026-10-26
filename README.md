@@ -22,10 +22,6 @@ Finishing the asset system todo:
     - start on a "asset compilation" pipeline. 
 	- meAssetCreate would do the check for .gltf in the filename, and do it there
 - enforce some read-only-ness to asset templates
-- implement "scoped asset locks" on an arbitrary MAID/meAsset
-    - ref count meAssets, LRU cache?
-- make a unique_ptr equivalent so a struct can clearly "own" some heap data.
-    - maybe also a ptr wrapper that contains a builtin "free" callback - maybe meSpanOwning should do this
 
 - Implement proper job system
     - should be lock free and use work stealing algo
@@ -35,7 +31,7 @@ Finishing the asset system todo:
     - a job should be able to enqueue child jobs from itself
     - A job should be able to yield or return out as "suspended". I.E. if that job needs to wait for some other child job to complete before it finishes.
     - Need to be able to wait on a job, or on a full "graph"/batch of submitted jobs
-
+    - a "job group"(?) should be able to set an "affinity" so that if a job is waiting on another job, it can specify if it is allowed to run other unrelated jobs while waiting or not. This is important for preventing certain deadlock situations when separate tasks might wait on something the other task is "working on". 
 
 ============================
 
@@ -161,4 +157,3 @@ https://github.com/KhronosGroup/KTX-Software - texture compression
 - implicit surfaces/metaballs
 	- combined with modern amplification/mesh shaders, this could be really interesting for rendering?
 		- ^ would basically be marching cubes on the GPU
-

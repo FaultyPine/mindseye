@@ -68,7 +68,8 @@ static bool DrawAssetNode(meAsset asset, AssetEditorContext& ctx)
     meAssetLoader* loader = lockedAsset.Loader();
     if (!lockedAsset || !loader || !loader->assetTypeDesc) return false;
 
-    void* dataOpaque = lockedAsset.Get();
+	meSharedPtr<void> dataOwner = lockedAsset.Get();
+    void* dataOpaque = dataOwner.get();
     if (!dataOpaque) return false;
 
     u8* dataPtr = (u8*)dataOpaque;
@@ -785,4 +786,3 @@ static bool DrawTypeDescriptorFieldData(
 	changed |= DrawTypeDescriptorFieldContextMenu("##field_context_value", field, fieldData, parentType, ctx);
 	return changed;
 }
-

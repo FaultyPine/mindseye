@@ -75,36 +75,32 @@ void ScopedAssetOpaqueLockR::InitTemplateAsset()
 		return;
 	}
 
-	meAsset* registeredAsset = meAssetTryGetTemplate(maid);
-	if (registeredAsset && registeredAsset->isLoaded())
+	meAssetRequestLoadTemplate(&maid, 1);
+	if (!meAssetWaitUntilLoadstage({ &maid, 1 }, Loaded))
 	{
-		asset = *registeredAsset;
+		return;
 	}
-	else
+
+	meAssetSystem& sys = meAssetSystemGet();
+	meAssetTypeRegistry& reg = sys.registries[maid.GetType()];
 	{
-		meAssetRequestLoadTemplate(&maid, 1);
-		if (!meAssetWaitUntilLoadstage({ &maid, 1 }, Loaded))
+		RWLockRead lock(reg.lock);
+		auto it = reg.assets.find(maid);
+		if (it == reg.assets.end() || !it->second.isLoaded())
 		{
 			return;
 		}
-
-		meAssetSystem& sys = meAssetSystemGet();
-		meAssetTypeRegistry& reg = sys.registries[maid.GetType()];
-		{
-			RWLockRead lock(reg.lock);
-			auto it = reg.assets.find(maid);
-			if (it == reg.assets.end() || !it->second.isLoaded())
-			{
-				return;
-			}
-			asset = it->second;
-		}
+		asset = it->second;
 	}
 
 	meAssetLoader* loader = Loader();
 	if (loader && loader->resourcePool)
 	{
-		resource = loader->resourcePool->GetOpaque(asset.runtimeHandle);
+		if (!asset.runtimeContent)
+		{
+			asset.runtimeContent = loader->resourcePool->GetShared(asset.runtimeHandle);
+		}
+		resource = asset.runtimeContent;
 	}
 }
 
@@ -120,7 +116,11 @@ void ScopedAssetOpaqueLockR::InitLoadedRuntime()
 	if (loader && loader->resourcePool)
 	{
 		Eye handle = asset.isLoaded() ? asset.runtimeHandle : EYE_INVALID;
-		resource = loader->resourcePool->GetOpaque(handle);
+		if (!asset.runtimeContent)
+		{
+			asset.runtimeContent = loader->resourcePool->GetShared(handle);
+		}
+		resource = asset.runtimeContent;
 	}
 }
 
@@ -176,7 +176,11 @@ void ScopedAssetOpaqueLockW::InitTemplateAsset()
 	meAssetLoader* loader = Loader();
 	if (loader && loader->resourcePool)
 	{
-		resource = loader->resourcePool->GetOpaque(asset.runtimeHandle);
+		if (!asset.runtimeContent)
+		{
+			asset.runtimeContent = loader->resourcePool->GetShared(asset.runtimeHandle);
+		}
+		resource = asset.runtimeContent;
 	}
 }
 
@@ -192,7 +196,11 @@ void ScopedAssetOpaqueLockW::InitLoadedRuntime()
 	if (loader && loader->resourcePool)
 	{
 		Eye handle = asset.isLoaded() ? asset.runtimeHandle : EYE_INVALID;
-		resource = loader->resourcePool->GetOpaque(handle);
+		if (!asset.runtimeContent)
+		{
+			asset.runtimeContent = loader->resourcePool->GetShared(handle);
+		}
+		resource = asset.runtimeContent;
 	}
 }
 
@@ -279,11 +287,13 @@ meAsset meAssetCreateNewAsset(
 	meResourcePoolBase* resourcePool = loader->resourcePool;
 
 	Eye newRuntimeResource = resourcePool->Load({.resourceType = resourceType});
-	void* opaqueAssetData = resourcePool->GetOpaque(newRuntimeResource);
+	meSharedPtr<void> assetContent = resourcePool->GetShared(newRuntimeResource);
+	void* opaqueAssetData = assetContent.get();
 	meSerializedHeader* assetHeader = (meSerializedHeader*)opaqueAssetData;
 	assetHeader->assetHeader = newMaid;
 
 	meAsset newAsset = meAsset(newRuntimeResource, newMaid);
+	newAsset.runtimeContent = meMove(assetContent);
     if (templateFilename)
     {
         meFsNormalizePathSeperators(templateFilename);
@@ -292,9 +302,14 @@ meAsset meAssetCreateNewAsset(
         meAssetIndexRegisterRelation(templateFilename, newAsset.id);
     }
 
-    meAssetTypeRegistry& reg = assetSystem.registries[type];
-    RWLockWrite lock(reg.lock);
-    reg.assets[newMaid] = newAsset; // copy
+    // NOTE: currently only template assets are tracked by the global asset registry
+    // instance ones are kept alive by their references in the resource pools/callers
+	if (resourceType == meResourceType_TemplateAsset)
+	{
+		meAssetTypeRegistry& reg = assetSystem.registries[type];
+		RWLockWrite lock(reg.lock);
+		reg.assets[newMaid] = newAsset;
+	}
 	return newAsset;
 }
 
@@ -515,7 +530,8 @@ void meAssetLoader::meAssetLoad(meAsset& asset)
 	// and would itself enqueue more asset compiling jobs for the individual parts of the asset
 	meResourcePoolBase* pool = resourcePool;
 	asset.runtimeHandle = pool->Load({.resourceType = meResourceType_TemplateAsset});
-	void* outAsset = pool->GetOpaque(asset.runtimeHandle);
+	asset.runtimeContent = pool->GetShared(asset.runtimeHandle);
+	void* outAsset = asset.runtimeContent.get();
 	StringView diskPath = meAssetIndexGetFilesystemPath(asset.id);
 	StringView assetPath = meAssetGetAbsPathForResource(diskPath);
 	// Set ownerMaid before deserializing so that meAssetDeserializerFn
@@ -538,6 +554,10 @@ void meAssetLoader::meAssetLoad(meAsset& asset)
 	else
 	{
 		LOG_WARN("Failed to load asset " STRING_FMT, STRING_VAARGS(diskPath));
+		Eye failedHandle = asset.runtimeHandle;
+		asset.runtimeContent.reset();
+		asset.runtimeHandle = EYE_INVALID;
+		pool->Destroy(failedHandle);
 	}
 	// we'll almost certainly need the (template) deps for this asset if we're loading it, so just start those now
 	meSpanTyped<MAID> deps = meAssetIndexGetDependencies(asset.id);
@@ -556,6 +576,7 @@ void meAssetUnloadBlocking(meSpanTyped<meAsset> assets)
     for (u32 i = 0; i < assets.size; i++)
     {
         meAsset& asset = assets[i];
+		Eye handle = asset.runtimeHandle;
         // modify registry first, so we don't have assets in the registry with invalid data
         if (asset.IsTemplateAsset())
         {
@@ -563,12 +584,19 @@ void meAssetUnloadBlocking(meSpanTyped<meAsset> assets)
             {
                 RWLockWrite lock(assetSystem.registries[asset.id.GetType()].lock);
                 registryAsset->loadStage = Unloaded;
-                registryAsset->runtimeHandle = {};
+                registryAsset->runtimeContent.reset();
+                registryAsset->runtimeHandle = EYE_INVALID;
             }
         }
-        meAssetLoader* loader = assetSystem.assetLoaders[asset.id.GetType()];
-        ME_ASSERT(loader);
-        loader->resourcePool->Destroy(asset.runtimeHandle);
+		asset.runtimeContent.reset();
+		asset.runtimeHandle = EYE_INVALID;
+		asset.loadStage = Unloaded;
+		if (handle != EYE_INVALID && meAssetTypeIsValid(asset.id.GetType()))
+		{
+			meAssetLoader* loader = assetSystem.assetLoaders[asset.id.GetType()];
+			ME_ASSERT(loader);
+			loader->resourcePool->Destroy(handle);
+		}
     }
 }
 
@@ -583,7 +611,12 @@ void meAssetLoader::meAssetWrite(meAsset& asset)
 	}
 	ME_ASSERT(assetTypeDesc->fields[0].thisType == &TD_MESERIALIZEDHEADER);
 
-	void* assetData = pool->GetOpaque(asset.runtimeHandle);
+	meSharedPtr<void> content = asset.runtimeContent;
+	if (!content)
+	{
+		content = pool->GetShared(asset.runtimeHandle);
+	}
+	void* assetData = content.get();
 	StringView diskPath = meAssetIndexGetFilesystemPath(asset.id);
 	StringView assetPath = meAssetGetAbsPathForResource(diskPath);
 	meAllocator* tempAllocator = GetTLScratch();
@@ -707,4 +740,3 @@ StringView meAssetEnsurePathHasGoodExtension(
     return StringFormatTmp(STRING_FMT "." STRING_FMT ME_ASSET_EXTENSION, 
         STRING_VAARGS(noExtStr), STRING_VAARGS(meAssetFileExtFromType(inputType)));
 }
-

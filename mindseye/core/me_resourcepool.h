@@ -2,13 +2,22 @@
 
 #include "core/me_core.h"
 #include "core/containers/me_blocklist.h"
+#include "core/me_ptrs.h"
 
 template <typename T>
 struct meResourceSlot
 {
-	T obj = {};
+	meSharedPtr<T> obj = {};
 	u16 generation = 0;
 	bool inUse = false;
+
+	meResourceSlot& operator=(const meResourceSlot& other)
+	{
+		obj = other.obj;
+		// Preserve the generation when a deleted block-list slot is reused.
+		inUse = other.inUse;
+		return *this;
+	}
 };
 
 enum meResourceType : u8
@@ -34,7 +43,7 @@ struct meResourceCreateParams
 struct meResourcePoolBase
 {
 	virtual Eye Load(meResourceCreateParams createParams) { UNIMPLEMENTED(); return {}; }
-	virtual void* GetOpaque(Eye handle) const { return nullptr; };
+	virtual meSharedPtr<void> GetShared(Eye handle) const { return {}; }
 	meAllocator* GetPayloadAllocator() const { return resourcePayloadAllocator; }
 
 	virtual Eye Create(meResourceCreateParams createParams) = 0;
@@ -74,10 +83,7 @@ struct meResourcePool : public meResourcePoolBase
 	virtual Eye Load(meResourceCreateParams createParams) override { return Create(createParams); }
 	ResourceType& Get(Eye handle);
 	const ResourceType& Get(Eye handle) const;
-	virtual void* GetOpaque(Eye handle) const override
-	{
-		return (void*)&Get(handle);
-	}
+	meSharedPtr<void> GetShared(Eye handle) const override;
 
 	// each resource pool should assign a default "no data" object
 	// in it's constructor
@@ -89,7 +95,7 @@ struct meResourcePool : public meResourcePoolBase
 	void Destroy(Eye handle) override;
 
 private:
-	void Destroy(meResourceSlot<ResourceType>& res);
+	meSharedPtr<ResourceType> CreateResource();
 
     ResourcePoolType& GetAssociatedResourcePool(Eye eye)
     {
@@ -127,18 +133,19 @@ meResourcePool<ResourceType>::meResourcePool(
 {
 	resourcePoolTemplates = ResourcePoolType(resourceAllocator);
 	resourcePoolInstances = ResourcePoolType(resourceAllocator);
+	resourcePayloadAllocator = payloadAllocator;
     // push bad data (default constructed resource) as the first thing in all pools
     // this way, an Eye of "0" is "valid", in that we don't need to assert, we can gracefully handle it elsewhere
     for (u32 i = 0; i <= 1; i++)
     {
         ResourcePoolType& resourcePool = GetAssociatedResourcePool({ .resourceType = (meResourceType)i });
         meResourceSlot<ResourceType> badData = {};
+        badData.obj = CreateResource();
         badData.inUse = true;
         u32 idx = resourcePool.push(meMove(badData)); 
         UNUSED(idx);
         ME_ASSERT(idx == 0);
     }
-	resourcePayloadAllocator = payloadAllocator;
 }
 
 template <typename ResourceType>
@@ -149,6 +156,7 @@ Eye meResourcePool<ResourceType>::Create(meResourceCreateParams createParams)
 	u32 resourceIdx = resourcePool.push(meMove(newResourceInstance));
     ME_ASSERT(resourceIdx != 0);
 	meResourceSlot<ResourceType>& resource = resourcePool.get(resourceIdx);
+	resource.obj = CreateResource();
 	return Eye(resourceIdx, resource.generation, createParams.resourceType == meResourceType_TemplateAsset);
 }
 
@@ -160,7 +168,7 @@ void meResourcePool<ResourceType>::Clear()
         ResourcePoolType& resourcePool = GetAssociatedResourcePool({ .resourceType = (meResourceType)i });
         for (auto& res : resourcePool)
         {
-            Destroy(res);
+            res.obj.reset();
         }
         resourcePool.clear();
     }
@@ -175,24 +183,33 @@ concept HasDestroyFn = requires(T t)
 };
 
 template <typename ResourceType>
-void meResourcePool<ResourceType>::Destroy(meResourceSlot<ResourceType>& res)
+meSharedPtr<ResourceType> meResourcePool<ResourceType>::CreateResource()
 {
-    if constexpr (HasDestroyFn<ResourceType>)
-    {
-        res.obj.Destroy();
-    }
-    res.obj.~ResourceType();
-    res.generation++;
-    res.inUse = false;
+	meAllocator* allocator = resourcePayloadAllocator;
+	ResourceType* resource = MENEW(allocator, ResourceType);
+	return meSharedPtr<ResourceType>(resource, [allocator](ResourceType* ptr)
+	{
+		if constexpr (HasDestroyFn<ResourceType>)
+		{
+			ptr->Destroy();
+		}
+		MEDELETE(allocator, ResourceType, ptr);
+	});
 }
 
 template <typename ResourceType>
 void meResourcePool<ResourceType>::Destroy(Eye handle)
 {
+	if (handle.GetIndex() == 0)
+	{
+		return;
+	}
     ResourcePoolType& resourcePool = GetAssociatedResourcePool(handle);
 	auto idx = handle.GetIndex();
 	meResourceSlot<ResourceType>& resource = resourcePool.get(idx);
-	Destroy(resource);
+	resource.obj.reset();
+	resource.generation++;
+	resource.inUse = false;
 	resourcePool.markDeleted(idx);
 }
 
@@ -204,7 +221,7 @@ ResourceType& meResourcePool<ResourceType>::Get(Eye handle)
 	meResourceSlot<ResourceType>& resource = resourcePool.get(idx);
     u32 generation = handle.GetGeneration();
 	ME_ASSERT(resource.generation == generation);
-	return resource.obj;
+	return *resource.obj;
 }
 
 template <typename ResourceType>
@@ -213,6 +230,15 @@ const ResourceType& meResourcePool<ResourceType>::Get(Eye handle) const
     const ResourcePoolType& resourcePool = GetAssociatedResourcePool(handle);
 	auto idx = handle.GetIndex();
 	const meResourceSlot<ResourceType>& resource = resourcePool.get(idx);
+	ME_ASSERT(resource.generation == handle.GetGeneration());
+	return *resource.obj;
+}
+
+template <typename ResourceType>
+meSharedPtr<void> meResourcePool<ResourceType>::GetShared(Eye handle) const
+{
+	const ResourcePoolType& resourcePool = GetAssociatedResourcePool(handle);
+	const meResourceSlot<ResourceType>& resource = resourcePool.get(handle.GetIndex());
 	ME_ASSERT(resource.generation == handle.GetGeneration());
 	return resource.obj;
 }

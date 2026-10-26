@@ -7,6 +7,7 @@
 #include "core/me_event.h"
 #include "core/containers/me_array.h"
 #include "core/containers/dynarray.h"
+#include "core/me_ptrs.h"
 #include "core/me_resourcepool.h"
 
 #ifndef ME_REFLECTING
@@ -150,6 +151,8 @@ meAsset
     // OR an "instance" asset, which is generally a copy of a template asset, used at runtime
 	MEREFLECT(exclude)
 	Eye runtimeHandle = EYE_INVALID;
+	MEREFLECT(exclude)
+	meSharedPtr<void> runtimeContent = {};
 	MEREFLECT(exclude)
     meAssetLoadStage loadStage = Unloaded;
 	
@@ -351,7 +354,7 @@ inline bool meAssetTypeIsValid(meAssetType type)
 
 struct ScopedAssetOpaqueLockR
 {
-	const void* resource = nullptr;
+	meSharedPtr<void> resource = {};
 	meAsset asset = {};
 
 	MEAPI explicit ScopedAssetOpaqueLockR(const meAsset& asset);
@@ -359,9 +362,9 @@ struct ScopedAssetOpaqueLockR
 	ScopedAssetOpaqueLockR(const ScopedAssetOpaqueLockR&) = delete;
 	ScopedAssetOpaqueLockR& operator=(const ScopedAssetOpaqueLockR&) = delete;
 
-	const void* Get() const { return resource; }
+	const meSharedPtr<void>& Get() const { return resource; }
 	MEAPI meAssetLoader* Loader() const;
-	explicit operator bool() const { return resource != nullptr; }
+	explicit operator bool() const { return (bool)resource; }
 
 private:
 	void Init(const meAsset& sourceAsset);
@@ -371,7 +374,7 @@ private:
 
 struct ScopedAssetOpaqueLockW
 {
-	void* resource = nullptr;
+	meSharedPtr<void> resource = {};
 	meAsset asset = {};
 
 	MEAPI explicit ScopedAssetOpaqueLockW(const meAsset& asset);
@@ -379,10 +382,10 @@ struct ScopedAssetOpaqueLockW
 	ScopedAssetOpaqueLockW(const ScopedAssetOpaqueLockW&) = delete;
 	ScopedAssetOpaqueLockW& operator=(const ScopedAssetOpaqueLockW&) = delete;
 
-	void* Get() const { return resource; }
+	const meSharedPtr<void>& Get() const { return resource; }
 	MEAPI meAssetLoader* Loader() const;
 	const meAsset& Asset() const { return asset; }
-	explicit operator bool() const { return resource != nullptr; }
+	explicit operator bool() const { return (bool)resource; }
 
 private:
 	void Init(const meAsset& sourceAsset);
@@ -397,8 +400,9 @@ struct ScopedAssetLockR
 
 	explicit ScopedAssetLockR(const meAsset& asset) : opaque(asset) {}
 
-	const T* Get() const { return (const T*)opaque.Get(); }
-	const T* operator->() const { ME_ASSERT(Get()); return Get(); }
+    // static_pointer_cast preserves the shared ownership
+	meSharedPtr<const T> Get() const { return std::static_pointer_cast<const T>(opaque.Get()); }
+	const T* operator->() const { ME_ASSERT(Get()); return Get().get(); }
 	const T& operator*() const { ME_ASSERT(Get()); return *Get(); }
 	explicit operator bool() const { return (bool)opaque; }
 };
@@ -410,8 +414,9 @@ struct ScopedAssetLockW
 
 	explicit ScopedAssetLockW(const meAsset& asset) : opaque(asset) {}
 
-	T* Get() const { return (T*)opaque.Get(); }
-	T* operator->() const { ME_ASSERT(Get()); return Get(); }
+    // static_pointer_cast preserves the shared ownership
+	meSharedPtr<T> Get() const { return std::static_pointer_cast<T>(opaque.Get()); }
+	T* operator->() const { ME_ASSERT(Get()); return Get().get(); }
 	T& operator*() const { ME_ASSERT(Get()); return *Get(); }
 	const meAsset& Asset() const { return opaque.Asset(); }
 	explicit operator bool() const { return (bool)opaque; }

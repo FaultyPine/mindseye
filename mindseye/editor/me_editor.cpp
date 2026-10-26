@@ -245,8 +245,8 @@ static void DrawAssetInspector(EditorContext& editor, InspectorWindow& inspector
 		ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthFixed, 180.0f);
 		ScopedAssetOpaqueLockW lockedAsset(asset);
         meTypeDescriptor* assetTypeDesc = lockedAsset.Loader() ? lockedAsset.Loader()->assetTypeDesc : nullptr;
-        void* assetData = lockedAsset.Get();
-		bool didUserChangeSomething = assetTypeDesc && assetData && DrawStructFields(*assetTypeDesc, (u8*)assetData);
+		meSharedPtr<void> assetData = lockedAsset.Get();
+		bool didUserChangeSomething = assetTypeDesc && assetData && DrawStructFields(*assetTypeDesc, (u8*)assetData.get());
         if (didUserChangeSomething)
         {
             // Not supporting template asset editing in the inspector - it's only for runtime stuff 
