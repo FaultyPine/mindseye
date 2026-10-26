@@ -6,7 +6,14 @@ struct MEREFLECT(type)
 meRelPtr
 {
     using OffsetType = s64;
-    OffsetType offset;
+    OffsetType offset = 0;
+
+    meRelPtr() = default;
+    template <typename T>
+    meRelPtr(T* ptr)
+    {
+        offset = ptr ? (OffsetType)((char*)ptr - (char*)&offset) : 0;
+    }
 
     template <typename T>
     T* Get()
@@ -54,3 +61,11 @@ meRelPtr
 };
 
 void meRelPtrTests();
+
+#include <memory>
+
+template <typename T>
+using meUniquePtr = std::unique_ptr<T>;
+
+template <typename T>
+using meSharedPtr = std::shared_ptr<T>;

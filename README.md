@@ -13,7 +13,6 @@ run `build.bat`
 
 ### Current focus
 
-- refcounted & "unique" ptr impl
 - per-thread(?) data stacks for tmp allocator/scratch space
     - https://github.com/aardappel/goose
 

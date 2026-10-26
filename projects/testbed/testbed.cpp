@@ -14,23 +14,11 @@ void testbed_onsceneload(meEventPayload payload)
 void testbed_init(EngineContext* engine)
 {
     meEventSubscribe(engine->userApp.ActiveCallbacks().onSceneLoaded, testbed_onsceneload);
-    //GameGlobals& globals = *MENEW(&engine->gameArena, GameGlobals);
-	// meTypedAsset<MAEntity> testEntity = meEntityCreateBlankInstance(STRING_LIT("bruh"));
-	// DynArrayPush(engine->sceneSystem->CurrentScene().entities, testEntity);
-	// meEntity& entity = meEntityGet(testEntity);
-	// entity.transform = meTransform(glm::vec3(0.0));
-    // meAsset newMesh = meAssetCreateNewAsset(MAMesh, meResourceType_InstanceAsset);
-    // GenPlaneMesh(newMesh, 2);
-	// entity.mesh = newMesh;
-	// entity.authoritativeBounds = meMeshPoolGet().Get(newMesh).meshBounds;
+    
 }
 
 void testbed_update(EngineContext* engine)
 {
-	//GameGlobals& globals = *((GameGlobals*)engine->gameArena.backing_mem);
-	//ME_ASSERT(globals.IsValid());
-	//meEntity& entity = meEntityGet(globals.testEntity);
-	//entity.transform.position.x += sin(GetTimeSec());
     auto& entities = engine->sceneSystem->CurrentScene().entities;
     for (DynArray_Foreach(entities, i))
     {
@@ -42,6 +30,7 @@ void testbed_update(EngineContext* engine)
         }
     }
 }
+
 void testbed_shutdown(EngineContext* engine)
 {
 

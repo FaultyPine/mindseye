@@ -204,6 +204,28 @@ if (!(x)) MEUNLIKELY { DEBUG_BREAK; }
 
 #define BREAKABLE_SCOPE_END } while (false);
 
+#ifndef GET_RETURN_ADDRESS
+
+#if defined(COMPILER_CLANG) || defined(COMPILER_GCC)
+    #if defined(__has_builtin)
+        #if __has_builtin(__builtin_return_address)
+            #define GET_RETURN_ADDRESS() __builtin_return_address(0)
+        #endif
+    #else
+        #define GET_RETURN_ADDRESS() __builtin_return_address(0)
+    #endif
+#elif defined(COMPILER_MSVC)
+    #include <intrin.h>
+    #pragma intrinsic(_ReturnAddress)
+    #define GET_RETURN_ADDRESS() _ReturnAddress()
+#else
+    // allows us to compile but will probably crash which is fine
+    #define GET_RETURN_ADDRESS() ((void*)0)
+#endif
+
+#endif // GET_RETURN_ADDRESS
+
+
 // counts zeroes going "left-to-right" (most significant -> least significant bits)
 #if defined(COMPILER_CLANG) || defined(COMPILER_GCC)
 #define CLZ32(x) ((x) == 0 ? 32 : __builtin_clz(x))
