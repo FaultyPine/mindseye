@@ -13,7 +13,8 @@
                 "${workspaceFolder}/mindseye/external/bgfx/bx/include",
                 "${workspaceFolder}/mindseye/external/bgfx/bimg/include",
                 "${workspaceFolder}/mindseye/external/ktx",
-                "${workspaceFolder}/mindseye/external/tracy/public"
+                "${workspaceFolder}/mindseye/external/tracy/public",
+                "${workspaceFolder}/mindseye/external/entt/src"
             ],
             "defines": [
                 "_DEBUG",

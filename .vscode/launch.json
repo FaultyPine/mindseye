@@ -14,7 +14,8 @@
             //"preLaunchTask": "build_all",
             "cwd": "${workspaceFolder}",
             "environment": [],
-            "console": "integratedTerminal"
+            "console": "integratedTerminal",
+            "visualizerFile": "${workspaceFolder}/mindseye/external/entt/natvis/entity.natvis" 
         },
         {
             "name": "reflector",

@@ -121,7 +121,8 @@ int main(int argc, char** argv)
         "mindseye/external/bgfx/bgfx/3rdparty mindseye/external/imgui-node-editor "
         "mindseye/external/bgfx/bx/include "
         "mindseye/external/bgfx/bimg/include mindseye/external/ktx "
-        "mindseye/external/tracy/public";
+        "mindseye/external/tracy/public "
+        "mindseye/external/entt/src ";
     for (const char* include : words(includeDirectories))
     {
         common.add(nob_temp_sprintf("-I%s", fullPath(include)));
