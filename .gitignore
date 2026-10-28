@@ -12,6 +12,7 @@ tools/clang
 *.10x
 *.rdbg
 *.cap
+*.rsp
 *.ilk
 *.pdb
 me_build.exe
