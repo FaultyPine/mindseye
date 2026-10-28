@@ -84,7 +84,7 @@ bool DynArrayPushAt(
 #if ARRAY_CHECKS
     if (index > header->size)
     {
-        LOG_FATAL("Tried to push element outside the bounds of a dynarray. index = %u  arr size = %u", index, header->size);
+        LOG_FATAL(Default, "Tried to push element outside the bounds of a dynarray. index = {}  arr size = {}", index, header->size);
         return false;
     }
 #endif
@@ -144,7 +144,7 @@ void __DynArrayPopAt(DynArray<T>& array, u32 index, void* out)
 #if ARRAY_CHECKS
     if (index >= arrSize)
     {
-        LOG_FATAL("Tried to pop at invalid dynarray index. index = %u  arr size = %u", index, arrSize);
+        LOG_FATAL(Default, "Tried to pop at invalid dynarray index. index = {}  arr size = {}", index, arrSize);
         return;
     }
 #endif
@@ -228,7 +228,7 @@ meAllocator* DynArrayGetAllocator(const DynArray<T>& array)
 
 inline void DynArrayTests()
 {
-    LOG_INFO("Testing DynArray...");
+    LOG_INFO(Default, "Testing DynArray...");
     DynArray<s32> arr = DynArrayCreate<s32>(GetDefaultAllocator());
     s32 x = 1;
     DynArrayPush(arr, x);
@@ -249,7 +249,7 @@ inline void DynArrayTests()
     for (int i = 0; i < 4; i++)
     {
         ME_ASSERT(expected_2[i] == arr[i]);
-        LOG_INFO("%i",arr[i]);
+        LOG_INFO(Default, "{}",arr[i]);
     }
     ME_ASSERT(DynArrayGetCapacity(arr) == DynArrayDefaultCapacity);
     ME_ASSERT(DynArrayGetStride(arr) == sizeof(s32));
@@ -275,11 +275,11 @@ inline void DynArrayTests()
     ME_ASSERT(DynArrayGetSize(arr) == 0);
 
     s32 shouldntChange = 12345678;
-    LOG_INFO("Expecting two fatal errors here:");
+    LOG_INFO(Default, "Expecting two fatal errors here:");
     DynArrayPop(arr, shouldntChange);
     DynArrayPopAt(arr, 0, &shouldntChange);
     ME_ASSERT(shouldntChange == 12345678);
 
-    LOG_INFO("DynArray Tests complete");
+    LOG_INFO(Default, "DynArray Tests complete");
 }
 

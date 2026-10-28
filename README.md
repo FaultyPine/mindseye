@@ -6,7 +6,8 @@
 Must be on windows.
 run `build.bat`
 
-### Current features
+
+### Current internal tech
 - clang reflection
 - asset system (uses reflection data)
 - compile-time arbitrary code execution
@@ -17,11 +18,10 @@ run `build.bat`
     - https://github.com/aardappel/goose
 
 Finishing the asset system todo:
-- refactor so instead of straight loading gltf, we "import" gltf and turn it into massets, then load(/compile) those
 - binary serialization 
     - start on a "asset compilation" pipeline. 
+        - refactor so instead of straight loading gltf, we "import" gltf and turn it into massets, then load(/compile) those
 	- meAssetCreate would do the check for .gltf in the filename, and do it there
-- enforce some read-only-ness to asset templates
 
 - Implement proper job system
     - should be lock free and use work stealing algo
@@ -37,7 +37,6 @@ Finishing the asset system todo:
 
 ### Roadmap
 - asset system
-- log to file - rotate log files
 - console command system - use CompileRun to codegen function<->console command bindings (also use for cmdline args handlers?)
 - ECS
 - scene graph

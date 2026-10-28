@@ -25,8 +25,11 @@
 #include "core/containers/me_map.h"
 #include "tests/me_descriptor_tests.h"
 #include "core/me_command.h"
+#include "core/me_scope_exit.h"
 
 #include "generatedtypes/me_app.generated.h"
+
+ME_DEFINE_LOG_CATEGORY(App);
 
 static EngineContext g_eng;
 EngineContext* GetEngineCtx()
@@ -77,10 +80,11 @@ static void DoUserAppDllSwap(void*)
 
     if (!newHandle)
     {
-        LOG_ERROR("[HotReload] Failed to load %s", data.newDllPath);
+        LOG_ERROR(App, "[HotReload] Failed to load {}", data.newDllPath);
         return;
     }
 
+    FlushLogger();
     UnloadDynamicLibrary(app.slots[app.activeSlot].dllHandle);
     app.slots[app.activeSlot] = {};
 
@@ -88,7 +92,7 @@ static void DoUserAppDllSwap(void*)
     app.dllCounter = data.newCounter;
     app.activeSlot = data.newSlot;
 
-    LOG_INFO("[HotReload] Reloaded -> %s", data.newDllPath);
+    LOG_INFO(App, "[HotReload] Reloaded -> {}", data.newDllPath);
 }
 
 // fires on the process watcher thread when the build exits
@@ -97,8 +101,8 @@ static void OnHotReloadBuildComplete(s32 exitCode, void*)
     HotReloadData& data = GetEngineCtx()->hotReload;
 
     // 0 = rebuilt, 2 = nothing changed, 1 = error
-    if (exitCode == 2) { LOG_INFO("[HotReload] No changes."); return; }
-    if (exitCode != 0) { LOG_ERROR("[HotReload] Build failed (%d).", exitCode); return; }
+    if (exitCode == 2) { LOG_INFO(App, "[HotReload] No changes."); return; }
+    if (exitCode != 0) { LOG_ERROR(App, "[HotReload] Build failed ({}).", exitCode); return; }
 
     OSFileReference builtDll = {};
     OSFileReference newDll = {};
@@ -106,7 +110,7 @@ static void OnHotReloadBuildComplete(s32 exitCode, void*)
     newDll.InitWithoutOpening(StringFromCString(data.newDllPath));
     if (!meOSFileCopy(builtDll, newDll))
     {
-        LOG_ERROR("[HotReload] Failed to copy dll to %s", data.newDllPath);
+        LOG_ERROR(App, "[HotReload] Failed to copy dll to {}", data.newDllPath);
         return;
     }
 
@@ -127,7 +131,7 @@ void CheckForUserAppReload(EngineContext* engine)
     #ifdef OS_WINDOWS
     String command = StringFormatTmp("cmd.exe /C \"%s\" app-only", buildBatPath.cstr());
     #else
-    LOG_ERROR("Hot reload not supported on this platform");
+    LOG_ERROR(App, "Hot reload not supported on this platform");
     return;
     #endif
 
@@ -140,7 +144,7 @@ void CheckForUserAppReload(EngineContext* engine)
     snprintf(data.newDllPath, ME_PATH_MAX, "%.*s/%.*s-%d.dll",
         (int)exeFolder.len, exeFolder.data, STRING_VAARGS(engine->appConfig.appName), data.newCounter);
 
-    LOG_INFO("[HotReload] Building...");
+    LOG_INFO(App, "[HotReload] Building...");
     meOSRunProcessAsync(nullptr, command, OnHotReloadBuildComplete, nullptr);
 }
 
@@ -186,7 +190,7 @@ static void InitializeEngineConfig(EngineContext* engine)
 	}
 	if (!userProjectConfigPath)
 	{
-		LOG_ERROR("Couldn't find mindseye.ini.");
+		LOG_ERROR(App, "Couldn't find mindseye.ini.");
 	}
 	else
 	{
@@ -200,7 +204,7 @@ static void InitializeEngineConfig(EngineContext* engine)
 		DeserializeFromFileBlocking(userProjectConfigPath, deserializeCtx);
         if (result.result != meSerializeResult::ResultType::SER_SUCCESS)
         {
-            LOG_WARN("failed to deserialize user config!");
+            LOG_WARN(App, "failed to deserialize user config!");
             return;
         }
         // "userApp" referring to a program that uses the mindseye engine
@@ -216,7 +220,7 @@ static void InitializeEngineConfig(EngineContext* engine)
 		DeserializeFromFileBlocking(userAppConfigPathAbs, deserializeCtx);
         if (result.result != meSerializeResult::ResultType::SER_SUCCESS)
         {
-            LOG_WARN("failed to deserialize app config!");
+            LOG_WARN(App, "failed to deserialize app config!");
             return;
         }
 
@@ -227,7 +231,7 @@ static void InitializeEngineConfig(EngineContext* engine)
 		void* gameLib = LoadDynamicLibrary(userAppDllPath.cstr());
 		if (!gameLib)
 		{
-			LOG_ERROR("Failed to load game library %.*s", STRING_VAARGS(userAppDllPath));
+			LOG_ERROR(App, "Failed to load game library {}", LogSV(userAppDllPath));
             return;
 		}
         engine->userApp.slots[0].dllHandle = gameLib;
@@ -269,7 +273,7 @@ void RunEngineTests(EngineContext* engine)
 
 void DeinitializeEngineSystems(EngineContext* engine)
 {
-    LOG_INFO("Deinitializing Engine Systems...");
+    LOG_INFO(App, "Deinitializing Engine Systems...");
     meAssetTeardown(engine);
     engine->renderer->Teardown(engine);
     DeinitializeEntitySystem(engine);
@@ -289,14 +293,19 @@ void InitializeEngine(s32 argc, char** argv)
     crashHandlerContext.isRunningTests = CMDLINE_HAS(ShouldRunTests);
     meOSInstallUnhandledExceptionHandler(crashHandlerContext);
 
-    InitializeLogger();
+    if (!InitializeLogger()) return;
 	StringView workingDir = meOSGetWorkingDir();
-	LOG_INFO("Working dir: %.*s", STRING_VAARGS(workingDir));
+	LOG_INFO(App, "Working dir: {}", LogSV(workingDir));
 	    
 	WindowCreationParams windowCreationParams = {}; // TODO: from config/cmdline?
 	meOSCreateWindow(windowCreationParams, engine);
 
 	InitializeEngineSystems(engine);
+
+    ME_ON_SCOPE_EXIT([](){
+        //engine->assetSystem->assetCompilerJobs.Shutdown();
+        ShutdownLogger();
+    });
 
     if (CMDLINE_HAS(ShouldRunTests))
     {

@@ -1,103 +1,126 @@
-
 #include "me_log.h"
-#include "core/me_filesystem.h"
 
-#include "core/me_memory.h"
-#include "core/me_string.h"
+#include "quill/Backend.h"
+#include "quill/Frontend.h"
+#include "quill/sinks/ConsoleSink.h"
+#include "quill/sinks/RotatingFileSink.h"
 #include "platform/me_os.h"
-#include "external/stb/stb_sprintf.h"
 
-static u32 LOG_LEVELS_ENABLED = 0;
-static u32 LOG_CATEGORIES_ENABLED = 0;
-
-DECLARE_LOG_CATEGORY(Default)
-
-bool InitializeLogger()
+namespace
 {
-	// default all on, TODO: engine config
-	LOG_LEVELS_ENABLED = ~0;
-	LOG_CATEGORIES_ENABLED = ~0;
-	meOSInitializeLogging();
-    return true;
-}
-void ShutdownLogger()
-{
-    // nothing going on here for now. When logging to file exists this will do something
+// Shared ownership and sink types are required by Quill's API.
+std::shared_ptr<quill::Sink> fileSink;
+std::shared_ptr<quill::Sink> consoleSink;
+const quill::PatternFormatterOptions pattern{
+    "%(time) [%(thread_id)] [%(log_level)] [%(logger)] %(short_source_location) %(message)",
+    "%H:%M:%S.%Qms", quill::Timezone::LocalTime};
 }
 
-void SetLogLevel(LogLevel level, bool toggle)
+ME_DEFINE_LOG_CATEGORY(Default);
+
+MEAPI void LogCompileRunMessage(const char* category, const char* message, fmtquill::format_args args)
 {
-    SET_BIT(LOG_LEVELS_ENABLED, level, toggle);
-}
-
-#define TERMINAL_COLORED_OUTPUT_ENABLED 1
-
-#ifdef OS_WINDOWS
-
-#include <windows.h>
-static int terminal_colors[6] = {4, 4, 6, 2, 1, 1};
-#else
-static const char* terminal_colors[6] = {"\033[0;31m", "\033[0;31m", "\033[0;33m", "\033[0;32m", "\033[0;34m", "\033[0;34m"};
-#endif
-
-void SetTerminalColor(LogLevel level)
-{
-#ifdef OS_WINDOWS
-    void* hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
-    if (level < 0)
+    if (!meOSHasStdout())
     {
-        int defaultWhite = 7;
-        SetConsoleTextAttribute(hConsole, defaultWhite);
-    }
-    else
-    {
-        SetConsoleTextAttribute(hConsole, terminal_colors[level]);
-    }
-#else
-    if (level < 0)
-    {
-        ConsolePrint("\033[0m");
-    }
-    else
-    {
-        ConsolePrint(terminal_colors[level]);
-    }
-#endif
-}
-
-void LogMessage(LogLevel level, const char* file, u32 line, u32 logCategory, const char* lineEnd, const char* message, ...)
-{
-    if ((LOG_LEVELS_ENABLED & (1 << level)) == 0 ||
-		(LOG_CATEGORIES_ENABLED & (1 << logCategory)) == 0)
-    {
-        static bool OneTimeWarning = false;
-        if (!OneTimeWarning && LOG_LEVELS_ENABLED == 0)
-        {
-            OneTimeWarning = true;
-            ConsolePrint(STRING_LIT("[WARNING] No log levels enabled, logs will not be displayed")); // did you forget InitializeLogger()?
-        }
         return;
     }
+    fmtquill::print("[{}] ", category);
+    fmtquill::vprint(message, args);
+    fmtquill::print("\n");
+    fflush(stdout);
+}
 
-    constexpr s32 LOG_MSG_LIMIT = 16000;
-    char msgBuffer[LOG_MSG_LIMIT]; // hardcoded log limit...
+bool InitializeLogger(const LoggerConfig& config)
+{
+    if (fileSink)
+    {
+        return true;
+    }
+    if (!config.filename || !*config.filename || config.maxFileSize < 512)
+    {
+        return false;
+    }
+    // log file always sits next to the executable
+    char filename[ME_PATH_MAX];
+    const char* logPath = config.filename;
+    StringView folder = meOSGetExeFileFolder();
+    if (folder.len + 1 + CStringLength(logPath) >= sizeof(filename))
+    {
+        return false;
+    }
+    StringFormatIntoBuf({filename, sizeof(filename)}, STRING_FMT "/%s", STRING_VAARGS(folder), logPath);
+    logPath = filename;
 
-    va_list args;
-    va_start(args, message);
-    s32 bytesWritten = stbsp_vsnprintf(msgBuffer, LOG_MSG_LIMIT, message, args);
-    va_end(args);
-    ME_ASSERT(bytesWritten < LOG_MSG_LIMIT);
-	StringView fileStr = StringFromCString(file);
-	fileStr = meFsGetFileFromFullPath(fileStr);
-	StringView outMsg = StringFormatTmp("[%.*s:%i] %s%s", STRING_VAARGS(fileStr), line, msgBuffer, lineEnd);
-	ME_ASSERT(outMsg.cstr());
+    quill::RotatingFileSinkConfig fileConfig;
+    fileConfig.set_open_mode('a');
+    fileConfig.set_rotation_on_creation(true);
+    fileConfig.set_rotation_max_file_size(config.maxFileSize);
+    fileConfig.set_max_backup_files(config.maxBackupFiles);
+    fileSink = quill::Frontend::create_or_get_sink<quill::RotatingFileSink>(logPath, fileConfig);
+    if (meOSHasStdout())
+    {
+        consoleSink = quill::Frontend::create_or_get_sink<quill::ConsoleSink>("stdout");
+    }
+    quill::Backend::start();
+    return true;
+}
 
-    // append (optional)color and log level to message
-#if TERMINAL_COLORED_OUTPUT_ENABLED
-    SetTerminalColor(level);
-    ConsolePrint(outMsg);
-    SetTerminalColor((LogLevel)-1);
-#else
-    ConsolePrint(outMsg);
-#endif
+quill::Logger* GetLogCategoryLogger(const char* name)
+{
+    if (!fileSink)
+    {
+        return nullptr;
+    }
+    if (auto* logger = quill::Frontend::get_logger(name))
+    {
+        return logger;
+    }
+    auto* logger = consoleSink
+        ? quill::Frontend::create_or_get_logger(name, {fileSink, consoleSink}, pattern)
+        : quill::Frontend::create_or_get_logger(name, fileSink, pattern);
+    logger->set_log_level(quill::LogLevel::TraceL3);
+    return logger;
+}
+
+void SetLogLevel(quill::LogLevel minimumLevel)
+{
+    if (fileSink)
+    {
+        fileSink->set_log_level_filter(minimumLevel);
+    }
+    if (consoleSink)
+    {
+        consoleSink->set_log_level_filter(minimumLevel);
+    }
+}
+
+void SetLogCategoryEnabled(const char* name, bool enabled)
+{
+    if (auto* logger = GetLogCategoryLogger(name))
+    {
+        logger->set_log_level(enabled ? quill::LogLevel::TraceL3 : quill::LogLevel::None);
+    }
+}
+
+void FlushLogger()
+{
+    for (auto* logger : quill::Frontend::get_all_loggers())
+    {
+        logger->flush_log();
+    }
+}
+
+void ShutdownLogger()
+{
+    if (!fileSink)
+    {
+        return;
+    }
+    for (auto* logger : quill::Frontend::get_all_loggers())
+    {
+        quill::Frontend::remove_logger_blocking(logger);
+    }
+    quill::Backend::stop();
+    fileSink.reset();
+    consoleSink.reset();
 }

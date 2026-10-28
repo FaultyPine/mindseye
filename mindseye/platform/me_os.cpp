@@ -9,16 +9,9 @@
 
 #include "core/me_log.h"
 
+ME_DEFINE_LOG_CATEGORY(Platform);
 
 
-void meOSInitializeLogging()
-{
-	#ifdef OS_WINDOWS
-	
-	#else
-	#error "unimplemented os meOSInitializeLogging"
-	#endif
-}
 
 StringView meOSFsDirectorySeperator()
 {
@@ -65,7 +58,7 @@ bool meOSSetFileCursor(
 	bool success = result != INVALID_SET_FILE_POINTER;
 	if (!success)
 	{
-		LOG_WARN("Failed to set file cursor %s", file.path);
+		LOG_WARN(Platform, "Failed to set file cursor {}", file.path);
 	}
 	return success;
 }

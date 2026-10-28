@@ -8,6 +8,8 @@
 
 #include <stddef.h>
 
+ME_DEFINE_LOG_CATEGORY(DescriptorTests);
+
 struct meDescriptorDispatchValue
 {
     s32 value = 0;
@@ -1008,56 +1010,56 @@ static void DescriptorTestDispatchOrdering(meAllocator* allocator)
 
 void meDescriptorTests()
 {
-    LOG_INFO("Testing meTypeDescriptor serialization and operations...");
+    LOG_INFO(DescriptorTests, "Testing meTypeDescriptor serialization and operations...");
 
     meAllocator* allocator = GetDefaultAllocator();
-    LOG_INFO("Testing generated descriptor lifecycle hooks...");
+    LOG_INFO(DescriptorTests, "Testing generated descriptor lifecycle hooks...");
     DescriptorTestGeneratedLifecycleHookPresence();
-    LOG_INFO("Testing type descriptor registry...");
+    LOG_INFO(DescriptorTests, "Testing type descriptor registry...");
     DescriptorTestTypeDescriptorRegistry();
-    LOG_INFO("Testing setToDefaultsFn...");
+    LOG_INFO(DescriptorTests, "Testing setToDefaultsFn...");
     DescriptorTestSetToDefaults();
-    LOG_INFO("Testing serialization, deserialization, and equals...");
+    LOG_INFO(DescriptorTests, "Testing serialization, deserialization, and equals...");
     DescriptorTestSerializeDeserializeEquals(allocator);
-    LOG_INFO("Testing binary serialization, deserialization, and equals...");
+    LOG_INFO(DescriptorTests, "Testing binary serialization, deserialization, and equals...");
     DescriptorTestBinarySerializeDeserializeEquals(allocator);
-    LOG_INFO("Testing text serialization fixture edge cases...");
+    LOG_INFO(DescriptorTests, "Testing text serialization fixture edge cases...");
     DescriptorTestSerializationFixtureRoundTrip(allocator, meSerializationMode_Text);
-    LOG_INFO("Testing text serialization rejects invalid UTF-8 bytes...");
+    LOG_INFO(DescriptorTests, "Testing text serialization rejects invalid UTF-8 bytes...");
     DescriptorTestTextInvalidUtf8BytesFail(allocator);
-    LOG_INFO("Testing binary serialization fixture edge cases...");
+    LOG_INFO(DescriptorTests, "Testing binary serialization fixture edge cases...");
     DescriptorTestSerializationFixtureRoundTrip(allocator, meSerializationMode_Binary);
-    LOG_INFO("Testing empty strings and containers in text serialization...");
+    LOG_INFO(DescriptorTests, "Testing empty strings and containers in text serialization...");
     DescriptorTestEmptyValuesRoundTrip(allocator, meSerializationMode_Text);
-    LOG_INFO("Testing empty strings and containers in binary serialization...");
+    LOG_INFO(DescriptorTests, "Testing empty strings and containers in binary serialization...");
     DescriptorTestEmptyValuesRoundTrip(allocator, meSerializationMode_Binary);
-    LOG_INFO("Testing wrong serialization mode failures...");
+    LOG_INFO(DescriptorTests, "Testing wrong serialization mode failures...");
     DescriptorTestWrongModeFails(allocator);
-    LOG_INFO("Testing truncated text and binary data failures...");
+    LOG_INFO(DescriptorTests, "Testing truncated text and binary data failures...");
     DescriptorTestTruncatedDataFails(allocator, meSerializationMode_Text);
     DescriptorTestTruncatedDataFails(allocator, meSerializationMode_Binary);
-    LOG_INFO("Testing version mismatch failures...");
+    LOG_INFO(DescriptorTests, "Testing version mismatch failures...");
     DescriptorTestVersionMismatchFails(allocator, meSerializationMode_Text);
     DescriptorTestVersionMismatchFails(allocator, meSerializationMode_Binary);
-    LOG_INFO("Testing type mismatch failures...");
+    LOG_INFO(DescriptorTests, "Testing type mismatch failures...");
     DescriptorTestTypeMismatchFails(allocator, meSerializationMode_Text);
     DescriptorTestTypeMismatchFails(allocator, meSerializationMode_Binary);
-    LOG_INFO("Testing deepCopyFn...");
+    LOG_INFO(DescriptorTests, "Testing deepCopyFn...");
     DescriptorTestDeepCopy(allocator);
-    LOG_INFO("Testing generated deepCopyFn with nested owned fields...");
+    LOG_INFO(DescriptorTests, "Testing generated deepCopyFn with nested owned fields...");
     DescriptorTestGeneratedDeepCopyNestedOwnership(allocator);
-    LOG_INFO("Testing serialized header lifecycle hooks...");
+    LOG_INFO(DescriptorTests, "Testing serialized header lifecycle hooks...");
     DescriptorTestSerializedHeaderLifecycle(allocator);
-    LOG_INFO("Testing destroyFn...");
+    LOG_INFO(DescriptorTests, "Testing destroyFn...");
     DescriptorTestDestroy(allocator);
-    LOG_INFO("Testing generated destroyFn member dispatch...");
+    LOG_INFO(DescriptorTests, "Testing generated destroyFn member dispatch...");
     DescriptorTestGeneratedDestroyUsesMemberDestroy(allocator);
-    LOG_INFO("Testing meFsPath manual lifecycle overrides...");
+    LOG_INFO(DescriptorTests, "Testing meFsPath manual lifecycle overrides...");
     DescriptorTestMeFsPathManualLifecycleOverrides(allocator);
-    LOG_INFO("Testing iterateContentFn, pushElementFn, and removeElementFn...");
+    LOG_INFO(DescriptorTests, "Testing iterateContentFn, pushElementFn, and removeElementFn...");
     DescriptorTestContainerFunctions(allocator);
-    LOG_INFO("Testing descriptor dispatch ordering...");
+    LOG_INFO(DescriptorTests, "Testing descriptor dispatch ordering...");
     DescriptorTestDispatchOrdering(allocator);
 
-    LOG_INFO("meTypeDescriptor tests complete");
+    LOG_INFO(DescriptorTests, "meTypeDescriptor tests complete");
 }

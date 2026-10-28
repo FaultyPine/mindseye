@@ -69,6 +69,8 @@ struct meCrashHandlerContext
 };
 
 MEAPI void  ConsolePrint(StringView text);
+MEAPI bool  meOSHasStdout();
+MEAPI void  meOSAttachParentConsole();
 MEAPI void* LoadDynamicLibrary(const char* name);
 MEAPI void  UnloadDynamicLibrary(void* module);
 MEAPI void* GetFunctionPtr(void* module, StringView functionName);
@@ -128,7 +130,6 @@ MEAPI s32   meOSWaitForProcess(void* processHandle);
 
 // ── Window / tick ─────────────────────────────────────────────────────────────
 
-MEAPI void meOSInitializeLogging();
 MEAPI s32  meOSMain(s32 argc, char** argv);
 MEAPI void meOSCreateWindow(WindowCreationParams creationParams, EngineContext* engine);
 MEAPI void meOSTick(EngineContext* engine);

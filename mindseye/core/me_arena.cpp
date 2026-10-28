@@ -4,6 +4,8 @@
 #include "core/me_string.h"
 #include "core/me_memory.h"
 
+ME_DEFINE_LOG_CATEGORY(Arena);
+
 void ArenaTLScratch::meClear(bool deleteMemory)
 {
 	Arena::meClear(deleteMemory);
@@ -99,7 +101,7 @@ void* ArenaAlloc(Arena* arena, size_t alloc_size)
     bool is_out_of_mem = offset + alloc_size > arena->backing_mem_size;
     if (is_out_of_mem) 
     {
-        LOG_FATAL("Out of memory in arena %s\n", ArenaGetName(arena));
+        LOG_FATAL(Arena, "Out of memory in arena {}\n", ArenaGetName(arena));
         // maybe we automatically resize here? Better plan: call an "outofmemoryhandler" on the backingAllocator
         return nullptr;
     }

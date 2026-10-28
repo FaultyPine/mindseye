@@ -8,6 +8,8 @@
 #include "core/me_serialize.h"
 #include "platform/me_os.h"
 
+ME_DEFINE_LOG_CATEGORY(AssetIndex);
+
 #define ME_ASSET_INDEX_DEBUGLOG 0
 
 meAssetIndex& meAssetIndexGet()
@@ -150,7 +152,7 @@ void OnFoundAssetFile(
 	meAssetLoader* loader = meAssetSystemGet().assetLoaders[type];
 	if (!loader || !loader->assetTypeDesc)
 	{
-		LOG_WARN("Tried to index " STRING_FMT " but no asset loader was registered", STRING_VAARGS(filepath));
+		LOG_WARN(AssetIndex, "Tried to index {} but no asset loader was registered", LogSV(filepath));
 		return;
 	}
 	const meTypeDescriptor& typeDesc = *loader->assetTypeDesc;
@@ -158,7 +160,7 @@ void OnFoundAssetFile(
 	meMemoryMappedFile mapping = {};
 	if (!meOSMapFile(mapping, assetPath, OSFileFlags_OnlyIfExists | OSFileFlags_ReadOnly | OSFileFlags_ScopedFile))
 	{
-		LOG_WARN("Tried to read " STRING_FMT " for asset index but failed", STRING_VAARGS(filepath));
+		LOG_WARN(AssetIndex, "Tried to read {} for asset index but failed", LogSV(filepath));
 		return;
 	}
 
@@ -166,12 +168,12 @@ void OnFoundAssetFile(
 	meSpan sourceData(mapping.ptr, mapping.size);
 	if (!meSerializeTryReadHeader(meSerializationMode_Text, sourceData, typeDesc, GetTLScratch(), &header))
 	{
-		LOG_WARN("Tried to read " STRING_FMT " for asset index but failed", STRING_VAARGS(filepath));
+		LOG_WARN(AssetIndex, "Tried to read {} for asset index but failed", LogSV(filepath));
 		return;
 	}
 	if (!header.assetHeader)
 	{
-		LOG_ERROR("Failed to read asset header from " STRING_FMT, STRING_VAARGS(filepath));
+		LOG_ERROR(AssetIndex, "Failed to read asset header from {}", LogSV(filepath));
 		return;
 	}
 
@@ -214,7 +216,7 @@ void meAssetIndexInitialize(EngineContext* engine)
 		DynArray<OSFileReference> dataFiles = DynArrayCreate<OSFileReference>(GetTLScratch());
 		if (!meFsRecursiveDirectoryWalk(dataDirectory, dataFiles))
 		{
-			LOG_ERROR("Failed to discover all data files from data dir " STRING_FMT, STRING_VAARGS(dataDir));
+			LOG_ERROR(AssetIndex, "Failed to discover all data files from data dir {}", LogSV(dataDir));
 		}
 		u32 numAssetsDiscovered = 0;
 		// discover asset files
@@ -232,12 +234,12 @@ void meAssetIndexInitialize(EngineContext* engine)
 				numAssetsDiscovered++;
 			}
 		}
-		LOG_INFO("[AssetIndex] Discovered %d assets", numAssetsDiscovered);
+		LOG_INFO(AssetIndex, "[AssetIndex] Discovered {} assets", numAssetsDiscovered);
 	}
     #if ME_ASSET_INDEX_DEBUGLOG
     for (const auto& [asset,path] : meAssetIndexGetRO().assetToPathMap)
     {
-        LOG_INFO("%llu %u | " STRING_FMT, asset.GetID(), asset.GetType(), STRING_VAARGS(path));
+        LOG_INFO(AssetIndex, "{} {} | {}", asset.GetID(), asset.GetType(), LogSV(path));
     }
     #endif
 }

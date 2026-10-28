@@ -14,6 +14,7 @@
                 "${workspaceFolder}/mindseye/external/bgfx/bimg/include",
                 "${workspaceFolder}/mindseye/external/ktx",
                 "${workspaceFolder}/mindseye/external/tracy/public",
+                "${workspaceFolder}/mindseye/external/quill/include",
                 "${workspaceFolder}/mindseye/external/entt/src"
             ],
             "defines": [

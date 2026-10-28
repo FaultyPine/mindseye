@@ -13,6 +13,8 @@
 #include "render/me_mesh.h"
 #include "platform/me_os.h"
 
+ME_DEFINE_LOG_CATEGORY(Scene);
+
 void meSceneInitialize(EngineContext* engine)
 {
 	engine->sceneSystem = MENEW(&engine->engineArena, meSceneManager);
@@ -57,7 +59,7 @@ void meSceneManager::ChangeCurrentSceneAsync(StringView filename)
 	MAID sceneIdent = meAssetIndexGetMAIDFromPath(filename);
     if (!sceneIdent || sceneIdent.GetType() != MAScene)
     {
-        LOG_WARN("Failed to change scene. Scene file " STRING_FMT " doesn't map to a valid scene asset", STRING_VAARGS(filename));
+        LOG_WARN(Scene, "Failed to change scene. Scene file {} doesn't map to a valid scene asset", LogSV(filename));
         return;
     }
 	UnloadCurrentScene();
@@ -190,12 +192,12 @@ void meScenePool::Load(
 		}
 		if (parseResult != cgltf_result_success)
 		{
-			LOG_WARN("Failed to load gltf buffers from %.*s", STRING_VAARGS(resourcePathAbs));
+			LOG_WARN(Scene, "Failed to load gltf buffers from {}", LogSV(resourcePathAbs));
 		}
     }
 	else
 	{
-		LOG_WARN("Failed to parse gltf from %.*s", STRING_VAARGS(resourcePathAbs));
+		LOG_WARN(Scene, "Failed to parse gltf from {}", LogSV(resourcePathAbs));
 	}
 	const cgltf_scene& scene = *gltfData->scene;
 	DynArray<meTypedAsset<MAEntity>>& entities = outScene.entities;

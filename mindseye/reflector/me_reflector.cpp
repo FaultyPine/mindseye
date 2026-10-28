@@ -16,6 +16,8 @@
 #include <vector>
 #include <string>
 
+ME_DEFINE_LOG_CATEGORY(Reflector);
+
 // A reflection run regenerates all in-memory results; unchanged files keep their
 // timestamps so implementation-only changes do not fan out into every object.
 static bool outputFailed = false;
@@ -40,7 +42,7 @@ static bool WriteGeneratedFile(const char* path, const char* data, size_t size)
     FILE* output = fopen(path, "wb");
     bool success = output && fwrite(data, 1, size, output) == size;
     if (output && fclose(output) != 0) success = false;
-    if (!success) { LOG_ERROR("Failed to write generated file: %s", path); outputFailed = true; return false; }
+    if (!success) { LOG_ERROR(Reflector, "Failed to write generated file: {}", path); outputFailed = true; return false; }
     ++changedOutputs;
     return true;
 }
@@ -202,15 +204,15 @@ struct ClangParsingContext
 
 void meReflectedType::Print() const
 {
-    LOG_INFO("%.*s\n\t[excluded = %i] [editorName = %.*s] [tooltip = %.*s] offset = %i size = %u align = %u",
-             STRING_VAARGS(name), IsExcluded(), STRING_VAARGS(editorName), STRING_VAARGS(tooltip), offsetBits, size, align);
+    LOG_INFO(Reflector, "{}\n\t[excluded = {}] [editorName = {}] [tooltip = {}] offset = {} size = {} align = {}",
+             LogSV(name), IsExcluded(), LogSV(editorName), LogSV(tooltip), offsetBits, size, align);
     if (children)
     {
         s32 numChildren = DynArrayGetSize(children);
         for (s32 i = 0; i < numChildren; i++)
         {
             const meReflectedType *typeRefl = children[i];
-            LOG_INFO("Child:");
+            LOG_INFO(Reflector, "Child:");
             typeRefl->Print();
         }
     }
@@ -265,7 +267,7 @@ void clang_checkDiagnostics(CXTranslationUnit &tu)
     size_t num_diagnostics = clang_getNumDiagnostics(tu);
     if (num_diagnostics > 0)
     {
-        LOG_INFO("Clang diagnostics:");
+        LOG_INFO(Reflector, "Clang diagnostics:");
     }
     for (size_t i = 0; i < num_diagnostics; ++i)
     {
@@ -276,7 +278,7 @@ void clang_checkDiagnostics(CXTranslationUnit &tu)
         CXDiagnostic diagnostic = clang_getDiagnostic(tu, i);
         CXSourceLocation location = clang_getDiagnosticLocation(diagnostic);
         clang_getExpansionLocation(location, &file, &line, &column, &offset);
-        LOG_WARN("line %u:%u %s", line, column, clang_getCString(clang_getDiagnosticSpelling(diagnostic)));
+        LOG_WARN(Reflector, "line {}:{} {}", line, column, clang_getCString(clang_getDiagnosticSpelling(diagnostic)));
         clang_disposeDiagnostic(diagnostic);
     }
 }
@@ -624,7 +626,7 @@ void StoreReflectedTypeInfo(
                     }
                     if (!handledAsIntegral && reflTypePtr->innerType == nullptr)
                     {
-                        LOG_WARN("incomplete template arg for " STRING_FMT, STRING_VAARGS(reflTypePtr->name));
+                        LOG_WARN(Reflector, "incomplete template arg for {}", LogSV(reflTypePtr->name));
                     }
                     continue;
                 }
@@ -690,7 +692,7 @@ void StoreReflectedTypeInfo(
             }
             if (numTemplateArgs > 1 && reflTypePtr->innerType == nullptr)
             {
-                LOG_ERROR("Haven't yet implemented multi-template arg reflection | " STRING_FMT, STRING_VAARGS(reflTypePtr->name));
+                LOG_ERROR(Reflector, "Haven't yet implemented multi-template arg reflection | {}", LogSV(reflTypePtr->name));
                 UNIMPLEMENTED();
             }
         }
@@ -717,9 +719,8 @@ void StoreReflectedTypeInfo(
     {
         String headerPath = GetHeaderPathForCursor(cr, allocator);
         u32 lineNum = GetLineNumberForCursor(cr);
-        LOG_WARN("Encountered incomplete type '%.*s' (size=%lli, line %u) in '%.*s'. This may indicate missing includes, unresolved template dependencies, or forward declarations. "
-                 "Check that all required headers are included and templates are properly instantiated.",
-                 STRING_VAARGS(cursorName), typeSize, lineNum, STRING_VAARGS(headerPath));
+        LOG_WARN(Reflector, "Encountered incomplete type '{}' (size={}, line {}) in '{}'. This may indicate missing includes, unresolved template dependencies, or forward declarations. Check that all required headers are included and templates are properly instantiated.",
+                 LogSV(cursorName), typeSize, lineNum, LogSV(headerPath));
         // Don't assert - just return early since we can't properly reflect an incomplete type
         // return;
     }
@@ -728,7 +729,7 @@ void StoreReflectedTypeInfo(
     if (typeSizeBits != -1)
     {
         StringView bitfieldTypeName = GetCursorDisplayName(parentCr, allocator);
-        LOG_ERROR("Bitfields are not supported in reflected types. %.*s::%.*s", STRING_VAARGS(bitfieldTypeName), STRING_VAARGS(cursorName));
+        LOG_ERROR(Reflector, "Bitfields are not supported in reflected types. {}::{}", LogSV(bitfieldTypeName), LogSV(cursorName));
         return;
     }
     s64 typeAlign = clang_Type_getAlignOf(crType);
@@ -904,7 +905,7 @@ bool StoreCompileRunDecl(CXCursor functionCursor, ClangParsingContext& ctx)
     CXCursorKind kind = clang_getCursorKind(functionCursor);
     if (kind != CXCursor_FunctionDecl)
     {
-        LOG_ERROR("MEREFLECT(CompileRun) is only supported on free functions for now");
+        LOG_ERROR(Reflector, "MEREFLECT(CompileRun) is only supported on free functions for now");
         return false;
     }
 
@@ -916,7 +917,7 @@ bool StoreCompileRunDecl(CXCursor functionCursor, ClangParsingContext& ctx)
     decl.line = GetLineNumberForCursor(functionCursor);
     if (!decl.functionSource)
     {
-        LOG_ERROR("Failed to extract source for compile-run function %.*s", STRING_VAARGS(decl.functionName));
+        LOG_ERROR(Reflector, "Failed to extract source for compile-run function {}", LogSV(decl.functionName));
         return false;
     }
 
@@ -931,7 +932,7 @@ bool LogLLVMError(llvm::Error err, const char *context)
         return false;
     }
     std::string msg = llvm::toString(std::move(err));
-    LOG_ERROR("%s: %s", context, msg.c_str());
+    LOG_ERROR(Reflector, "{}: {}", context, msg.c_str());
     return true;
 }
 
@@ -981,7 +982,7 @@ void OnFindInterestingDecl(CXCursor cr, CXCursor parent, CXClientData clientData
         // {
         // 	CXString parentKindStr = clang_getCursorKindSpelling(parentKind);
         // 	const char* parentKindCStr = clang_getCString(parentKindStr);
-        // 	LOG_ERROR("Unsupported reflection annotation on cursor %.*s type %s", STRING_VAARGS(cursorName), parentKindCStr);
+        // 	LOG_ERROR(Reflector, "Unsupported reflection annotation on cursor {} type {}", LogSV(cursorName), parentKindCStr);
         // }
     }
     else
@@ -1086,20 +1087,20 @@ DynArray<CompileCommand> CompileDatabaseToCommandsList(
     OSFileReference compileCmdsFile = {};
     if (!meOSOpenFile(compileCmdsFile, compileDatabasePath, OSFileFlags_OnlyIfExists | OSFileFlags_ScopedFile | OSFileFlags_ReadOnly))
     {
-        LOG_ERROR("Failed to open compile commands database file %s", compileDatabasePath.cstr());
+        LOG_ERROR(Reflector, "Failed to open compile commands database file {}", compileDatabasePath.cstr());
         return cmds;
     }
     u64 fileSize = meOSGetFileSize(compileCmdsFile);
     if (fileSize == 0)
     {
-        LOG_ERROR("Compile commands database file is empty %s", compileDatabasePath.cstr());
+        LOG_ERROR(Reflector, "Compile commands database file is empty {}", compileDatabasePath.cstr());
         return cmds;
     }
     char *compileCmdsContentsMem = (char *)MEALLOC(allocator, fileSize + 1);
     StringView compileCmdsContentsStr = StringView(compileCmdsContentsMem, fileSize);
     if (!meOSReadFileContents(compileCmdsFile, compileCmdsContentsMem, fileSize))
     {
-        LOG_ERROR("Failed to read compile commands database file %s", compileDatabasePath.cstr());
+        LOG_ERROR(Reflector, "Failed to read compile commands database file {}", compileDatabasePath.cstr());
         return cmds;
     }
     compileCmdsContentsMem[fileSize] = '\0';
@@ -1107,21 +1108,21 @@ DynArray<CompileCommand> CompileDatabaseToCommandsList(
     s32 idx = FindInString(compileCmdsContentsStr, STRING_LIT(" "));
     if (idx < 0)
     {
-        LOG_ERROR("Compile commands database did not contain compiler arguments");
+        LOG_ERROR(Reflector, "Compile commands database did not contain compiler arguments");
         return cmds;
     }
     cmd.arguments = compileCmdsContentsStr.OffsetView(idx + 1);
     s32 cppIdx = FindInString(compileCmdsContentsStr, STRING_LIT(".cpp"));
     if (cppIdx < 0)
     {
-        LOG_ERROR("Compile commands database did not contain a C++ source file");
+        LOG_ERROR(Reflector, "Compile commands database did not contain a C++ source file");
         return cmds;
     }
     s32 endFileIdx = cppIdx + 4;
     s32 startFileIdx = FindInStringRev(compileCmdsContentsStr, STRING_LIT(" "), compileCmdsContentsStr.len - endFileIdx);
     if (startFileIdx < 0)
     {
-        LOG_ERROR("Compile commands database source file path was malformed");
+        LOG_ERROR(Reflector, "Compile commands database source file path was malformed");
         return cmds;
     }
     startFileIdx += 1;
@@ -1138,18 +1139,18 @@ bool RunCompileRunDecls(ClangParsingContext& ctx);
 // ================================================================================
 int main(int argc, char *argv[])
 {
-    InitializeLogger();
+    LoggerConfig loggerConfig;
+    loggerConfig.filename = "MindseyeReflectorDebug.txt";
+    if (!InitializeLogger(loggerConfig)) return 1;
+    struct LoggerShutdown { ~LoggerShutdown() { ShutdownLogger(); } } loggerShutdown;
     if (argc < 4)
     {
-        LOG_ERROR(
-            "Not enough args...\n"
-            "Arg1 should be path to compile_command.txt\n"
-            "Arg2 should be the project's root directory\n"
-            "Arg3 should be the output directory for generated header files");
+        LOG_ERROR(Reflector,
+            "Not enough args...\nArg1 should be path to compile_command.txt\nArg2 should be the project's root directory\nArg3 should be the output directory for generated header files");
         return 1;
     }
     StringView compileCmdsDatabaseFilePath = StringFromCString(argv[1]);
-    LOG_INFO("[Mindseye Reflector] Reflecting %.*s", STRING_VAARGS(compileCmdsDatabaseFilePath));
+    LOG_INFO(Reflector, "[Mindseye Reflector] Reflecting {}", LogSV(compileCmdsDatabaseFilePath));
     const char *projectRootDir = argv[2];
     const char *headerOutputFolder = argv[3];
 
@@ -1160,7 +1161,7 @@ int main(int argc, char *argv[])
     DynArray<CompileCommand> compileCommands = CompileDatabaseToCommandsList(&reflectorArena, compileCmdsDatabaseFilePath);
     if (DynArrayGetSize(compileCommands) == 0)
     {
-        LOG_ERROR("[Reflector] No compile commands found");
+        LOG_ERROR(Reflector, "[Reflector] No compile commands found");
         return 1;
     }
 
@@ -1233,7 +1234,7 @@ int main(int argc, char *argv[])
         if (clang_getDiagnosticSeverity(diagnostic) >= CXDiagnostic_Error)
         {
             auto message = clang_formatDiagnostic(diagnostic, clang_defaultDiagnosticDisplayOptions());
-            LOG_ERROR("%s", clang_getCString(message));
+            LOG_ERROR(Reflector, "{}", clang_getCString(message));
             clang_disposeString(message);
             diagnosticsFailed = true;
         }
@@ -1256,23 +1257,23 @@ int main(int argc, char *argv[])
         switch (result)
         {
         case CXError_Failure:
-            LOG_ERROR("Clang Unknown failure");
+            LOG_ERROR(Reflector, "Clang Unknown failure");
             break;
 
         case CXError_Crashed:
-            LOG_ERROR("Clang crashed");
+            LOG_ERROR(Reflector, "Clang crashed");
             break;
 
         case CXError_InvalidArguments:
-            LOG_ERROR("Clang Invalid arguments");
+            LOG_ERROR(Reflector, "Clang Invalid arguments");
             break;
 
         case CXError_ASTReadError:
-            LOG_ERROR("Clang AST read error");
+            LOG_ERROR(Reflector, "Clang AST read error");
             break;
         default:
         {
-            LOG_INFO("Clang AST read success");
+            LOG_INFO(Reflector, "Clang AST read success");
         }
         break;
         }
@@ -1307,7 +1308,7 @@ void GeneratedReflectionHeaders(
     u32 numProcessedFiles = 0;
     for (const auto &[headerID, fileReflection] : ctx.reflectedFiles)
         numProcessedFiles += ProcessReflectedFile(fileReflection, headerOutputFolder, ctx.allocator) ? 1 : 0;
-    LOG_INFO("[Mindseye Reflector] processed %u reflected files, changed %u outputs", numProcessedFiles, changedOutputs);
+    LOG_INFO(Reflector, "[Mindseye Reflector] processed {} reflected files, changed {} outputs", numProcessedFiles, changedOutputs);
 }
 
 bool IsStructural(CXCursorKind kind)
@@ -1392,6 +1393,7 @@ bool GenerateForwardDecls(
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+
 #endif
 s32 needsRebuild(const char *output_path, const char **input_paths, size_t input_paths_count)
 {
@@ -1775,7 +1777,6 @@ bool CreateCompileRunInterpreter(
     }
     //interpreterArgs.push_back("-DME_REFLECTING");
     interpreterArgs.push_back("-DME_COMPILE_RUN");
-
     clang::IncrementalCompilerBuilder builder;
     builder.SetCompilerArgs(interpreterArgs);
 
@@ -1825,7 +1826,7 @@ bool CreateCompileRunInterpreter(
             STRING_VAARGS(decl.functionName));
     }
 
-    //LOG_INFO(STRING_FMT, STRING_VAARGS(code)); // for debugging - prints the string passed to the interpreter
+    //LOG_INFO(Reflector, "{}", LogSV(code)); // for debugging - prints the string passed to the interpreter
     llvm::StringRef codeRef(code.data, code.len);
     if (LogLLVMError(interpreter->ParseAndExecute(codeRef), "Compile-run ParseAndExecute failed"))
     {
@@ -1877,7 +1878,7 @@ bool RunCompileRunDecls(ClangParsingContext& ctx)
     u32 numCompileRunDecls = DynArrayGetSize(ctx.compileRunDecls);
     if (numCompileRunDecls == 0)
     {
-        LOG_INFO("No compile-run work to do");
+        LOG_INFO(Reflector, "No compile-run work to do");
         return true;
     }
 
@@ -1887,7 +1888,7 @@ bool RunCompileRunDecls(ClangParsingContext& ctx)
     LLVMInitializeX86AsmPrinter();
     LLVMInitializeX86AsmParser();
 
-    //LOG_INFO("[Mindseye Reflector] running %u compile-run function(s)", numCompileRunDecls);
+    //LOG_INFO(Reflector, "[Mindseye Reflector] running {} compile-run function(s)", numCompileRunDecls);
     std::unique_ptr<clang::Interpreter> interpreter;
     std::vector<CompileRunEntryFn> entryFns;
     if (!CreateCompileRunInterpreter(ctx, interpreter, entryFns))

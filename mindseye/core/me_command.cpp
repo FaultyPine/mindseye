@@ -12,6 +12,8 @@
 #include "core/me_filesystem.h"
 #include "editor/me_editor.h"
 
+ME_DEFINE_LOG_CATEGORY(Command);
+
 struct meCommandQueues
 {
     moodycamel::ConcurrentQueue<meExternalCommand> externalCommandQueue;
@@ -36,13 +38,13 @@ static void HandleSaveAsset(const meCmdSaveAsset& cmd)
 {
     if (!cmd.asset.IsTemplateAsset())
     {
-        LOG_WARN("Support for saving non-template assets isn't fully done");
+        LOG_WARN(Command, "Support for saving non-template assets isn't fully done");
     }
     MAID maid = cmd.asset;
 	meAsset* asset = meAssetTryGetTemplate(maid);
 	if (!asset)
 	{
-        LOG_WARN("Tried to save asset, but the header doesn't point to a valid loaded asset");
+        LOG_WARN(Command, "Tried to save asset, but the header doesn't point to a valid loaded asset");
 		return;
 	}
 

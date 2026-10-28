@@ -10,6 +10,9 @@
 static OSStateView g_osData;
 #include "core/me_memory.h"
 #include "core/me_log.h"
+#include <io.h>
+#include <stdio.h>
+ME_DEFINE_LOG_CATEGORY(WindowsPlatform);
 #ifndef ME_CORE_ONLY
 #define MINIZ_NO_ZLIB_COMPATIBLE_NAMES
 #include "external/miniz/miniz.h"
@@ -233,13 +236,13 @@ static LONG WINAPI meUnhandledExceptionFilter(EXCEPTION_POINTERS* exceptionInfo)
     bool wroteZip = ME_CRASHHANDLER_AUTO_ZIP ? CrashCreateZip(zipPathView, zipEntries, zipEntryCount) : false;
     if (wroteZip)
     {
-        LOG_INFO("Mindseye wrote .zip to " STRING_FMT, STRING_VAARGS(zipPathView));
+        LOG_INFO(WindowsPlatform, "Mindseye wrote .zip to {}", LogSV(zipPathView));
     }
     StringView dumpReportPath = wroteDump ? dumpPathView : STRING_LIT("(failed to write dump)");
 
-    LOG_ERROR("\n%.*s", STRING_VAARGS(stackTraceText));
-    LOG_ERROR("Crash report written: dump=" STRING_FMT,
-        STRING_VAARGS(dumpReportPath));
+    LOG_ERROR(WindowsPlatform, "\n{}", LogSV(stackTraceText));
+    LOG_ERROR(WindowsPlatform, "Crash report written: dump={}",
+        LogSV(dumpReportPath));
 
     bool shouldDisplayMsgBox = !crashContext.isRunningTests && !isDebugging;
     if (shouldDisplayMsgBox)
@@ -279,7 +282,7 @@ void OnResize(HWND hwnd, UINT flag, int width, int height)
 	}
 	ctx->osData->windowWidth = width;
 	ctx->osData->windowHeight = height;
-	LOG_INFO("OnWindowResize OS %ix%i", width, height);
+	LOG_INFO(WindowsPlatform, "OnWindowResize OS {}x{}", width, height);
 }
 
 //WndProc function
@@ -336,7 +339,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		{
 			if (!osState->useRawInput)
 			{
-				LOG_WARN("Not using raw input but receiving raw input mouse msgs...");
+				LOG_WARN(WindowsPlatform, "Not using raw input but receiving raw input mouse msgs...");
 				break;
 			}
 			UINT dwSize = sizeof(RAWINPUT);
@@ -366,7 +369,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
         {
 			if (osState->useRawInput)
 			{
-				LOG_WARN("Using raw input but receiving standard mouse msgs?");
+				LOG_WARN(WindowsPlatform, "Using raw input but receiving standard mouse msgs?");
 				break;
 			}
 			// Do not use the LOWORD or HIWORD macros to extract the x- and y- coordinates of the cursor position because these macros return incorrect results on systems with multiple monitors. Systems with multiple monitors can have negative x- and y- coordinates, and LOWORD and HIWORD treat the coordinates as unsigned quantities. https://learn.microsoft.com/en-us/windows/win32/inputdev/wm-mousemove
@@ -450,7 +453,7 @@ void meOSCreateWindow(WindowCreationParams creationParams, EngineContext* engine
     if (hwnd == NULL)
     {
 		DWORD result = GetLastError();
-		LOG_ERROR("Failed to open OS window %i", result);
+		LOG_ERROR(WindowsPlatform, "Failed to open OS window {}", result);
         return;
     }
     HCURSOR hArrowCursor = LoadCursor(NULL, IDC_ARROW);
@@ -515,6 +518,7 @@ void meOSTick(EngineContext* engine)
 
 s32 meOSMain(s32 argc, char** argv)
 {
+    meOSAttachParentConsole();
     InitializeEngine(argc, argv);
     return 0;
 }
@@ -528,7 +532,7 @@ void* meOSReserveVirtualMemory(u64 size)
 	if (result == nullptr) MEUNLIKELY
 	{
 		DWORD err = GetLastError();
-		LOG_ERROR("meOS ran out of memory! %u", err);
+		LOG_ERROR(WindowsPlatform, "meOS ran out of memory! {}", err);
 	}
 	return result;
 }
@@ -543,7 +547,7 @@ void* meOSCommitVirtualMemory(void* ptr, u64 size)
 	if (result == nullptr) MEUNLIKELY
 	{
 		DWORD err = GetLastError();
-		LOG_ERROR("meOS ran out of memory! %u", err);
+		LOG_ERROR(WindowsPlatform, "meOS ran out of memory! {}", err);
 	}
 	return result;
 }
@@ -551,6 +555,35 @@ void* meOSCommitVirtualMemory(void* ptr, u64 size)
 void meOSFreeVirtualMemory(void* data)
 {
 	VirtualFree(data, 0, MEM_RELEASE);
+}
+
+bool meOSHasStdout()
+{
+    int descriptor = _fileno(stdout);
+    if (descriptor < 0) 
+    {
+        return false;
+    }
+    HANDLE handle = reinterpret_cast<HANDLE>(_get_osfhandle(descriptor));
+    return handle && handle != INVALID_HANDLE_VALUE && GetFileType(handle) != FILE_TYPE_UNKNOWN;
+}
+
+void meOSAttachParentConsole()
+{
+    if (meOSHasStdout())
+    {
+        return;
+    }
+    if (!AttachConsole(ATTACH_PARENT_PROCESS) && GetLastError() != ERROR_ACCESS_DENIED)
+    {
+        return;
+    }
+    FILE* stream;
+    freopen_s(&stream, "CONOUT$", "w", stdout);
+    if (_fileno(stderr) < 0)
+    {
+        freopen_s(&stream, "CONOUT$", "w", stderr);
+    }
 }
 
 void* LoadDynamicLibrary(const char* name)
@@ -659,6 +692,7 @@ u64 meOSAtomicDecrement(meAtomicU64& atomic)
     return (u64)InterlockedDecrement64(meWinAtomicPtr(atomic));
 }
 
+
 bool meOSMapFile(meMemoryMappedFile& out, StringView path, OSFileFlags flags)
 {
     ME_PROFILE_FUNCTION();
@@ -666,7 +700,7 @@ bool meOSMapFile(meMemoryMappedFile& out, StringView path, OSFileFlags flags)
     ME_ASSERT(path);
     if (!meOSOpenFile(out, path, flags))
     {
-        LOG_ERROR("meOSMapFile: failed to open " STRING_FMT, STRING_VAARGS(path));
+        LOG_ERROR(WindowsPlatform, "meOSMapFile: failed to open {}", LogSV(path));
         return false;
     }
     out.size = meOSGetFileSize(out);
@@ -680,7 +714,7 @@ bool meOSMapFile(meMemoryMappedFile& out, StringView path, OSFileFlags flags)
     HANDLE mapping = CreateFileMappingA(out.fileHandle, nullptr, protect, 0, 0, nullptr);
     if (!mapping)
     {
-        LOG_ERROR("meOSMapFile: CreateFileMappingA failed for " STRING_FMT " (%lu)", STRING_VAARGS(path), GetLastError());
+        LOG_ERROR(WindowsPlatform, "meOSMapFile: CreateFileMappingA failed for {} ({})", LogSV(path), GetLastError());
         meOSUnmapFile(out);
         return false;
     }
@@ -689,7 +723,7 @@ bool meOSMapFile(meMemoryMappedFile& out, StringView path, OSFileFlags flags)
     void* ptr = MapViewOfFile(mapping, desiredAccess, 0, 0, 0);
     if (!ptr)
     {
-        LOG_ERROR("meOSMapFile: MapViewOfFile failed for " STRING_FMT " (%lu)", STRING_VAARGS(path), GetLastError());
+        LOG_ERROR(WindowsPlatform, "meOSMapFile: MapViewOfFile failed for {} ({})", LogSV(path), GetLastError());
         CloseHandle(mapping);
         meOSUnmapFile(out);
         return false;
@@ -766,7 +800,7 @@ void* meOSRunProcessAsync(const char* workingDir, StringView command, meProcessE
     BOOL ok = CreateProcessA(nullptr, cmdBuf, nullptr, nullptr, FALSE, 0, nullptr, workingDir, &si, &pi);
     if (!ok)
     {
-        LOG_ERROR("[meOS] Failed to spawn process (err=%lu)", GetLastError());
+        LOG_ERROR(WindowsPlatform, "[meOS] Failed to spawn process (err={})", GetLastError());
         return nullptr;
     }
 
@@ -802,7 +836,7 @@ bool meOSReadFileContents(const OSFileReference& file, void* backingBuffer, size
     if (!ReadFile(file.fileHandle, backingBuffer, backingBufferSize, &numBytesRead, nullptr))
     {
         DWORD result = GetLastError();
-        LOG_ERROR("[meOS] failed to read file contents %s err code = %u", file.path, result);
+        LOG_ERROR(WindowsPlatform, "[meOS] failed to read file contents {} err code = {}", file.path, result);
 		return false;
     }
     return numBytesRead == backingBufferSize;
@@ -825,7 +859,7 @@ bool meOSWriteFileContent(
 		if (!result || amtActuallyWritten == 0)
 		{
 			DWORD err = GetLastError();
-			LOG_ERROR("[meOS] failed to write file contents %s err code = %u", file.path, err);
+			LOG_ERROR(WindowsPlatform, "[meOS] failed to write file contents {} err code = {}", file.path, err);
 			return false;
 		}
 		totalWritten += amtActuallyWritten;
@@ -848,14 +882,14 @@ bool meOSWriteFileContentAtomic(
 	StringView tempPath = StringFormatTmp(STRING_FMT ".tmp.%llu", STRING_VAARGS(path), timestamp);
 	if (tempPath.len >= ME_PATH_MAX)
 	{
-		LOG_ERROR("[meOS] failed atomic write because temp path is too long: " STRING_FMT, STRING_VAARGS(path));
+		LOG_ERROR(WindowsPlatform, "[meOS] failed atomic write because temp path is too long: {}", LogSV(path));
 		return false;
 	}
 
 	OSFileReference tempFile = {};
 	if (!meOSOpenFile(tempFile, tempPath, OSFileFlags_StompExisting | OSFileFlags_Temporary | OSFileFlags_DeleteOnFileClose | OSFileFlags_ScopedFile))
 	{
-		LOG_ERROR("[meOS] failed atomic write because temp file could not be opened: " STRING_FMT, STRING_VAARGS(tempPath));
+		LOG_ERROR(WindowsPlatform, "[meOS] failed atomic write because temp file could not be opened: {}", LogSV(tempPath));
 		return false;
 	}
 
@@ -869,9 +903,9 @@ bool meOSWriteFileContentAtomic(
 	targetFile.InitWithoutOpening(path);
 	if (!meOSFileMove(tempFile, targetFile))
 	{
-		LOG_ERROR("[meOS] failed atomic rename " STRING_FMT " -> " STRING_FMT,
-			STRING_VAARGS(tempPath),
-			STRING_VAARGS(path));
+		LOG_ERROR(WindowsPlatform, "[meOS] failed atomic rename {} -> {}",
+			LogSV(tempPath),
+			LogSV(path));
 		return false;
 	}
 
@@ -896,7 +930,7 @@ u64 meOSGetFileSize(const OSFileReference& file)
     }
     if (!result)
     {
-        LOG_WARN("Failed to get file size %s", file.path);
+        LOG_WARN(WindowsPlatform, "Failed to get file size {}", file.path);
         return 0;
     }
     return fileSize.QuadPart;
@@ -944,7 +978,7 @@ bool meOSOpenFile(
     if (file.fileHandle == INVALID_HANDLE_VALUE)
     {
         DWORD result = GetLastError();
-        LOG_INFO("[meOS] failed to open file %s err code = %u", file.path, result);
+        LOG_INFO(WindowsPlatform, "[meOS] failed to open file {} err code = {}", file.path, result);
 		return false;
     }
     file.flags = flags;
@@ -978,7 +1012,7 @@ bool meOSFileCopy(
 	if (!result)
 	{
 		DWORD error = GetLastError();
-		LOG_ERROR("[meOS] failed to copy file %s -> %s err code = %u", src.path, dst.path, error);
+		LOG_ERROR(WindowsPlatform, "[meOS] failed to copy file {} -> {} err code = {}", src.path, dst.path, error);
 	}
 	return result;
 }
@@ -998,7 +1032,7 @@ bool meOSFileMove(
 	if (!result)
 	{
 		DWORD error = GetLastError();
-		LOG_ERROR("[meOS] failed to move file %s -> %s err code = %u", src.path, dst.path, error);
+		LOG_ERROR(WindowsPlatform, "[meOS] failed to move file {} -> {} err code = {}", src.path, dst.path, error);
 	}
 	return result;
 }
@@ -1013,8 +1047,8 @@ bool meOSReadDirectory(
 	HANDLE hFind = FindFirstFileA(folderQuery.data, &ffd);
     if (hFind == INVALID_HANDLE_VALUE)
 	{
-        LOG_ERROR("ReadDirectory error %d | Invalid file handle: " STRING_FMT, 
-				  GetLastError(), STRING_VAARGS(folderQuery));
+        LOG_ERROR(WindowsPlatform, "ReadDirectory error {} | Invalid file handle: {}",
+				  GetLastError(), LogSV(folderQuery));
 		return false;
     }
     do
@@ -1034,7 +1068,7 @@ bool meOSReadDirectory(
     DWORD dwError = GetLastError();
     if (dwError != ERROR_NO_MORE_FILES) 
 	{
-        LOG_ERROR("FindNextFile error. Error is %d\n", dwError);
+        LOG_ERROR(WindowsPlatform, "FindNextFile error. Error is {}\n", dwError);
 		return false;
     }
 
@@ -1078,7 +1112,7 @@ StringView meOSGetWorkingDir()
 		{
 			// failure
 			DWORD error = GetLastError();
-			LOG_ERROR("Failed to get working directory. Err %i", error);
+			LOG_ERROR(WindowsPlatform, "Failed to get working directory. Err {}", error);
 			return {};
 		} 
 		else if (dwRet > ME_PATH_MAX) 
@@ -1188,7 +1222,7 @@ bool meOSFileDelete(
 	if (!result)
 	{
 		DWORD error = GetLastError();
-		LOG_ERROR("Failed to delete file %s %i", file.path, error);
+		LOG_ERROR(WindowsPlatform, "Failed to delete file {} {}", file.path, error);
 	}
 	return result;
 }
@@ -1248,7 +1282,7 @@ void meOSSetCursorState(
 		if (!RegisterRawInputDevices(&rid, 1, sizeof(rid)))
 		{
 			osState.useRawInput = false;
-			LOG_WARN("Failed to register raw input device");
+			LOG_WARN(WindowsPlatform, "Failed to register raw input device");
 		}
 		else
 		{
@@ -1281,7 +1315,7 @@ void meOSSetCursorState(
 
 		if (!RegisterRawInputDevices(Rid, 1, sizeof(Rid[0])))
 		{
-			LOG_ERROR("Failed to unregister raw input device");
+			LOG_ERROR(WindowsPlatform, "Failed to unregister raw input device");
 		}
 		else
 		{

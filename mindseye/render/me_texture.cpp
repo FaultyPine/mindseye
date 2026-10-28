@@ -7,6 +7,8 @@
 #include "external/stb/stb_image.h"
 #include "render/renderer_frontend.h"
 
+ME_DEFINE_LOG_CATEGORY(TextureSystem);
+
 void meTextureInitialize(EngineContext* ctx)
 {
 	ctx->textureSystem = MENEW(&ctx->engineArena, meTexturePool, &ctx->engineArena, &ctx->engineArena);
@@ -91,7 +93,7 @@ meGPUBuffer meTexturePool::Load(
 		OSFileReference file;
 		if (!meOSOpenFile(file, textureResourcePath, OSFileFlags_OnlyIfExists | OSFileFlags_ReadOnly))
 		{
-			LOG_ERROR("Failed to open texture file %.*s", STRING_VAARGS(textureResourcePath));
+			LOG_ERROR(TextureSystem, "Failed to open texture file {}", LogSV(textureResourcePath));
 			break;
 		}
 		if (size == 0)
@@ -105,7 +107,7 @@ meGPUBuffer meTexturePool::Load(
 		Allocation filebuf = MEALLOC(GetTLScratch(), size);
 		if (!meOSReadFileContents(file, filebuf, size))
 		{
-			LOG_ERROR("Failed to read texture file %.*s", STRING_VAARGS(textureResourcePath));
+			LOG_ERROR(TextureSystem, "Failed to read texture file {}", LogSV(textureResourcePath));
 			break;
 		}
 		meOSCloseFile(file);
@@ -124,7 +126,7 @@ meGPUBuffer meTexturePool::Load(
 		if (pngDecompressed == nullptr)
 		{
 			const char* loadFailure = stbi_failure_reason();
-			LOG_ERROR("Failed to load img | %s", loadFailure);
+			LOG_ERROR(TextureSystem, "Failed to load img | {}", loadFailure);
 			break;
 		}
 		meSpan decompressedImgMem = meSpan(pngDecompressed, pngDecompressedSize);
@@ -204,7 +206,7 @@ meGPUBuffer meTexturePool::Load(
 	}
 	else
 	{
-		LOG_ERROR("Tried to load a texture without a file payload... so there's nothing to load?");
+		LOG_ERROR(TextureSystem, "Tried to load a texture without a file payload... so there's nothing to load?");
 	}
 	resultGPUBuff.cpuData = imageData;
 	BREAKABLE_SCOPE_END

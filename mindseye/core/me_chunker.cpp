@@ -2,6 +2,8 @@
 
 // TODO: Get rid of json. It's not a great format for engine data assets.
 #include <external/json.hpp>
+
+ME_DEFINE_LOG_CATEGORY(Chunker);
 using json = nlohmann::json;
 
 STATIC_ASSERT(sizeof(bool) == 1, "meChunker: unexpected bool size");
@@ -121,7 +123,7 @@ bool meChunker::TextStateInitForRead(TextState& state, meAllocator* allocator, m
     }
     catch (const json::parse_error& e)
     {
-        LOG_ERROR("JSON parse error: %s", e.what());
+        LOG_ERROR(Chunker, "JSON parse error: {}", e.what());
         TextStateDestroy(state);
         return false;
     }
@@ -552,7 +554,7 @@ meOwningSpan meChunker::DoTextFinalize(meAllocator* allocator)
     }
     catch (const json::exception& e)
     {
-        LOG_ERROR("Text serialization failed while writing document: %s", e.what());
+        LOG_ERROR(Chunker, "Text serialization failed while writing document: {}", e.what());
         m_isValid = false;
         return {};
     }

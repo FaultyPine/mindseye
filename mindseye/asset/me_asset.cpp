@@ -11,6 +11,8 @@
 #include "core/me_filesystem.h"
 #include "core/me_event.h"
 
+ME_DEFINE_LOG_CATEGORY(Asset);
+
 
 MEEVENT_DECLARE_STATIC(registerAssetLoader);
 
@@ -368,7 +370,7 @@ meJobId meAssetRequestLoadTemplate(
 		meAssetLoadStage stage = Unloaded;
 		if (!loader)
 		{
-			LOG_ERROR("Tried to load asset type that doesn't have an implemented loader");
+			LOG_ERROR(Asset, "Tried to load asset type that doesn't have an implemented loader");
 			return {}; // dev error, should never happen, unrecoverable
 		}
 		meAsset* asset = meAssetTryGetTemplate(assetIdent);
@@ -473,7 +475,7 @@ meJobId meAssetRequestWriteTemplate(
 		meAssetLoadStage stage = Unloaded;
 		if (!loader)
 		{
-			LOG_ERROR("Tried to write asset type that doesn't have an implemented loader");
+			LOG_ERROR(Asset, "Tried to write asset type that doesn't have an implemented loader");
 			return {}; // engine dev error, should never happen
 		}
 		meAsset* asset = meAssetTryGetTemplate(assetIdent);
@@ -553,7 +555,7 @@ void meAssetLoader::meAssetLoad(meAsset& asset)
 	}
 	else
 	{
-		LOG_WARN("Failed to load asset " STRING_FMT, STRING_VAARGS(diskPath));
+		LOG_WARN(Asset, "Failed to load asset {}", LogSV(diskPath));
 		Eye failedHandle = asset.runtimeHandle;
 		asset.runtimeContent.reset();
 		asset.runtimeHandle = EYE_INVALID;
@@ -606,7 +608,7 @@ void meAssetLoader::meAssetWrite(meAsset& asset)
 	meResourcePoolBase* pool = resourcePool;
 	if (!asset.isLoaded())
 	{
-		LOG_WARN("Attempted to write an unloaded asset");
+		LOG_WARN(Asset, "Attempted to write an unloaded asset");
 		return;
 	}
 	ME_ASSERT(assetTypeDesc->fields[0].thisType == &TD_MESERIALIZEDHEADER);
@@ -630,7 +632,7 @@ void meAssetLoader::meAssetWrite(meAsset& asset)
 	StringView assetSerializedString((char*)ctx.serializedData.data, ctx.serializedData.size);
 	if (!meOSWriteFileContentAtomic(assetPath, assetSerializedString.data, assetSerializedString.len))
 	{
-		LOG_ERROR("Failed to write asset to file. filename = " STRING_FMT "\nassetString = " STRING_FMT, STRING_VAARGS(assetPath), STRING_VAARGS(assetSerializedString));
+		LOG_ERROR(Asset, "Failed to write asset to file. filename = {}\nassetString = {}", LogSV(assetPath), LogSV(assetSerializedString));
 	}
 }
 
@@ -654,7 +656,7 @@ meAsset* meAssetTryGetTemplate(MAID assetID)
 void meAssetSetResourceDir(StringView dir)
 {
     GetEngineCtx()->assetSystem->resourceDir = dir;
-	LOG_INFO("Set resource dir = " STRING_FMT, STRING_VAARGS(dir));
+	LOG_INFO(Asset, "Set resource dir = {}", LogSV(dir));
 }
 
 StringView meAssetGetResourceDir()

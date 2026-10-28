@@ -13,6 +13,8 @@
 #define PAR_SHAPES_IMPLEMENTATION
 #include "external/par_shapes.h"
 
+ME_DEFINE_LOG_CATEGORY(MeshSystem);
+
 #define USE_PAR_SHAPES
 
 static cgltf_material GenerateDummyGLTFMaterial()
@@ -401,7 +403,7 @@ struct meMeshAssetLoader : public meAssetLoader
             Allocation gltfBuffer = MEALLOC(allocator, filesize);
             if (!meOSReadFileContents(file, gltfBuffer.data, gltfBuffer.size))
             {
-                LOG_ERROR("[meScene] failed to load gltf scene %.*s", STRING_VAARGS(resourcePathAbs));
+                LOG_ERROR(MeshSystem, "[meScene] failed to load gltf scene {}", LogSV(resourcePathAbs));
             }
             cgltf_options options = {};
             cgltf_data* gltfData = nullptr;
@@ -422,17 +424,17 @@ struct meMeshAssetLoader : public meAssetLoader
                 parseResult = cgltf_load_buffers(&options, gltfData, resourcePathAbs.cstr());
                 if (parseResult != cgltf_result_success)
                 {
-                    LOG_WARN("Failed to load gltf buffers from %.*s", STRING_VAARGS(resourcePathAbs));
+                    LOG_WARN(MeshSystem, "Failed to load gltf buffers from {}", LogSV(resourcePathAbs));
                 }
             }
             else
             {
-                LOG_WARN("Failed to parse gltf from %.*s", STRING_VAARGS(resourcePathAbs));
+                LOG_WARN(MeshSystem, "Failed to parse gltf from {}", LogSV(resourcePathAbs));
             }
             ME_ASSERT(gltfData->meshes_count);
             if (gltfData->meshes_count > 1)
             {
-                LOG_WARN("Loading a gltf mesh which contains multiple meshes will ignore all but the first mesh");
+                LOG_WARN(MeshSystem, "Loading a gltf mesh which contains multiple meshes will ignore all but the first mesh");
             }
             StringView gltfResPath = msFsGetDirFromPath(resourcePathAbs);
 			meMeshPoolGet().Load(GetEngineCtx()->renderer, gltfResPath, gltfData->meshes[0]);

@@ -5,6 +5,8 @@
 #include "core/me_core.h"
 #include "platform/me_os.h"
 
+ME_DEFINE_LOG_CATEGORY(Memory);
+
 ScopedAllocation::ScopedAllocation(meAllocator* allocator, u64 size)
 {
     this->allocator = allocator;
@@ -86,7 +88,7 @@ bool BufferCopy(meSpan dst, meSpan src)
 {
 	if (src.size > dst.size)
     {
-        LOG_ERROR("Source buffer smaller than dst buffer!");
+        LOG_ERROR(Memory, "Source buffer smaller than dst buffer!");
         return false;
     }
     // source length will always be less than or equal to dst len

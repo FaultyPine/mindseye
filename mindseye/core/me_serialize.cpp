@@ -9,6 +9,8 @@
 #include "core/me_chunker.h"
 #include "core/me_scope_exit.h"
 
+ME_DEFINE_LOG_CATEGORY(Serialize);
+
 static bool ChunkWithTypeDescriptor(
 	const meTypeDescriptor& td,
 	meChunker& chunker,
@@ -159,14 +161,14 @@ static bool ValidateSerializedHeader(
 	}
 	if (header.typeNameHash != meSerializeTypeNameHash(typeDesc))
 	{
-		LOG_ERROR("Type mismatch deserializing. Expected %.*s", STRING_VAARGS(typeDesc.name));
+		LOG_ERROR(Serialize, "Type mismatch deserializing. Expected {}", LogSV(typeDesc.name));
 		outResult.result = meSerializeResult::SER_FAILURE;
 		return false;
 	}
 	if (header.typeVersion != typeDesc.version)
 	{
-		LOG_ERROR("Version mismatch deserializing type %.*s. Expected version %d but got version %d",
-			STRING_VAARGS(typeDesc.name), typeDesc.version, header.typeVersion);
+		LOG_ERROR(Serialize, "Version mismatch deserializing type {}. Expected version {} but got version {}",
+			LogSV(typeDesc.name), typeDesc.version, header.typeVersion);
 		outResult.result = meSerializeResult::SER_VERSION_MISMATCH;
 		return false;
 	}
@@ -184,7 +186,7 @@ static bool DeepCopyParentAssetIfNeeded(
 	}
 	if (header.parentAsset.GetType() != header.assetHeader.GetType())
 	{
-		LOG_ERROR("Parent asset type does not match child asset type");
+		LOG_ERROR(Serialize, "Parent asset type does not match child asset type");
 		ctx.outResult->result = meSerializeResult::SER_FAILURE;
 		return false;
 	}
@@ -193,7 +195,7 @@ static bool DeepCopyParentAssetIfNeeded(
 	meAssetRequestLoadTemplate(&parentMaid, 1);
 	if (!meAssetWaitUntilLoadstage({ &parentMaid, 1 }, Loaded))
 	{
-		LOG_ERROR("Failed to load parent asset while deserializing inherited asset");
+		LOG_ERROR(Serialize, "Failed to load parent asset while deserializing inherited asset");
 		ctx.outResult->result = meSerializeResult::SER_FAILURE;
 		return false;
 	}
@@ -201,7 +203,7 @@ static bool DeepCopyParentAssetIfNeeded(
 	meAsset* parentAsset = meAssetTryGetTemplate(parentMaid);
 	if (!parentAsset || !parentAsset->runtimeHandle)
 	{
-		LOG_ERROR("Parent asset was not available after load");
+		LOG_ERROR(Serialize, "Parent asset was not available after load");
 		ctx.outResult->result = meSerializeResult::SER_FAILURE;
 		return false;
 	}
@@ -209,7 +211,7 @@ static bool DeepCopyParentAssetIfNeeded(
 	meAssetLoader* loader = meAssetSystemGet().assetLoaders[parentMaid.GetType()];
 	if (!loader || loader->assetTypeDesc != &typeDesc)
 	{
-		LOG_ERROR("Parent asset loader does not match deserialized asset type");
+		LOG_ERROR(Serialize, "Parent asset loader does not match deserialized asset type");
 		ctx.outResult->result = meSerializeResult::SER_FAILURE;
 		return false;
 	}
@@ -691,7 +693,7 @@ bool serializationDisallowed(
 	const meTypeDescriptor& td,
 	SerializeContext& ctx)
 {
-	LOG_ERROR("Serialization is disallowed for type %.*s", STRING_VAARGS(td.name));
+	LOG_ERROR(Serialize, "Serialization is disallowed for type {}", LogSV(td.name));
 	ME_ASSERT(!"Serialization is disallowed for this type descriptor");
 	return false;
 }
@@ -700,7 +702,7 @@ bool deserializationDisallowed(
 	const meTypeDescriptor& td,
 	DeserializeContext& ctx)
 {
-	LOG_ERROR("Deserialization is disallowed for type %.*s", STRING_VAARGS(td.name));
+	LOG_ERROR(Serialize, "Deserialization is disallowed for type {}", LogSV(td.name));
 	ME_ASSERT(!"Deserialization is disallowed for this type descriptor");
 	return false;
 }
@@ -807,7 +809,7 @@ bool meAssetDeserializerFn(const meTypeDescriptor& td, DeserializeContext& ctx)
     MAID templateMaid = {};
 	if (!ChunkWithTypeDescriptor(TD_MAID, *ctx.chunker, &templateMaid, ctx.externalDataAllocator, nullptr, ctx.outResult))
 	{
-		LOG_ERROR("meAsset reference malformed");
+		LOG_ERROR(Serialize, "meAsset reference malformed");
 		return false;
 	}
 

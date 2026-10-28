@@ -3,6 +3,8 @@
 #include "core/me_log.h"
 #include "core/thread/me_thread.h"
 
+ME_DEFINE_LOG_CATEGORY(JobSystem);
+
 meJobSystem::~meJobSystem()
 {
 	Shutdown();
@@ -16,7 +18,7 @@ void meJobSystem::Initialize(meAllocator* allocator, u32 numThreads)
 	this->allocator = allocator;
 	meOSAtomicStore(isRunning, 1);
 	
-	LOG_INFO("[meJobSystem] Spinning up %u threads", numThreads);
+	LOG_INFO(JobSystem, "[meJobSystem] Spinning up {} threads", numThreads);
 	for (u32 threadID = 0; threadID < numThreads; threadID++) 
 	{
         workers[threadID] = std::thread([this, threadID]

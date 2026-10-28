@@ -14,7 +14,7 @@ static bool CheckArrayResize(HybridArray<T, fixedSize>& array)
         if (!allocator)
         {
             // if we tried to resize without an allocator, that's no good
-            LOG_ERROR("Tried to resize HybridArray with no allocator assigned!");
+            LOG_ERROR(Default, "Tried to resize HybridArray with no allocator assigned!");
             return false;
         }
         array.capacity = array.internalSize * FIXEDGROWABLE_GROWTH_FACTOR;
@@ -72,7 +72,7 @@ void HybridArray<T, fixedSize>::insert(const T& element, u32 index)
     }
     if (index >= internalSize)
     {
-        LOG_ERROR("Attempted to insert into HybridArray at invalid index");
+        LOG_ERROR(Default, "Attempted to insert into HybridArray at invalid index");
         return;
     }
     u64 prevSize = internalSize++;
@@ -93,7 +93,7 @@ T HybridArray<T, fixedSize>::erase_and_fill(u32 index)
 {
     if (index >= internalSize)
     {
-        LOG_ERROR("attempted to erase invalid index");
+        LOG_ERROR(Default, "attempted to erase invalid index");
         return {};
     }
     T tmp = at(index); // copy
@@ -108,7 +108,7 @@ T HybridArray<T, fixedSize>::erase(u32 index)
 {
     if (index >= internalSize)
     {
-        LOG_ERROR("attempted to erase invalid index");
+        LOG_ERROR(Default, "attempted to erase invalid index");
         return {};
     }
     T tmp = at(index); // copy

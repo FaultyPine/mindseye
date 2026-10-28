@@ -22,6 +22,8 @@
 #include "core/me_scope_exit.h"
 #include "core/me_filesystem.h"
 
+ME_DEFINE_LOG_CATEGORY(Editor);
+
 EditorContext& meEditorGetCtx()
 {
 	return *GetEngineCtx()->editor;
@@ -252,7 +254,7 @@ static void DrawAssetInspector(EditorContext& editor, InspectorWindow& inspector
             // Not supporting template asset editing in the inspector - it's only for runtime stuff 
             if (assetName)
             {
-                LOG_INFO("User edited runtime object " STRING_FMT, STRING_VAARGS(assetName));
+                LOG_INFO(Editor, "User edited runtime object {}", LogSV(assetName));
             }
         }
 

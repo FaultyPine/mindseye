@@ -181,7 +181,7 @@ C_LINKAGE void __cdecl __debugbreak(void);
 #ifdef ME_ASSERTIONS_ENABLED
     #ifdef LOG_FATAL
         #define ME_ASSERT(x) \
-            if (!(x)) MEUNLIKELY { LOG_FATAL("%s | %s:%i", #x, __FILE__, __LINE__); DEBUG_BREAK; }
+            if (!(x)) MEUNLIKELY { LOG_FATAL(Default, "{} | {}:{}", #x, __FILE__, __LINE__); DEBUG_BREAK; }
     #else
         #define ME_ASSERT(x) \
             if (!(x)) MEUNLIKELY { DEBUG_BREAK; }
@@ -190,14 +190,6 @@ C_LINKAGE void __cdecl __debugbreak(void);
 #else
     #define ME_ASSERT(x) UNUSED(x)
     #define UNIMPLEMENTED()
-#endif
-
-#ifdef LOG_FATAL
-#define ME_RTASSERT(x) \
-if (!(x)) MEUNLIKELY { LOG_FATAL("%s | %s:%i", #x, __FILE__, __LINE__); DEBUG_BREAK; }
-#else
-#define ME_RTASSERT(x) \
-if (!(x)) MEUNLIKELY { DEBUG_BREAK; }
 #endif
 
 #define BREAKABLE_SCOPE do {

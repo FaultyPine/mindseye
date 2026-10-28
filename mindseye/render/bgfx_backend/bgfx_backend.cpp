@@ -27,6 +27,8 @@
 // ---- shaders
 #include "shaders/generated/main_lit_fs.sc.h"
 #include "shaders/generated/main_lit_vs.sc.h"
+
+ME_DEFINE_LOG_CATEGORY(Bgfx);
 // -------------
 
 void OnWindowResize(int width, int height)
@@ -404,7 +406,7 @@ u64 BgfxRendererBackend::CreateShaderProgram(meSpan fsMem, meSpan vsMem)
 	bgfx::ProgramHandle program = bgfx::createProgram(vsHandle, fsHandle, true);
 	if (!bgfx::isValid(program))
 	{
-		LOG_ERROR("Shader program was ill-formed somehow...");
+		LOG_ERROR(Bgfx, "Shader program was ill-formed somehow...");
 	}
 	return program.idx;
 }

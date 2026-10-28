@@ -5,7 +5,7 @@
 
 MEREFLECT(ConsoleCommand) inline void MyTestConsoleCommand()
 {
-    LOG_INFO("My Test Console Command");
+    LOG_INFO(Default, "My Test Console Command");
 }
 
 #if ME_COMPILERUN_GUARD
@@ -18,7 +18,7 @@ MEREFLECT(CompileRun) void meCompileRunSmokeTest(meCompileRunContext* ctx)
     }
     else if (ctx->stage == meCompileRunStage_Finalize)
     {
-        LOG_INFO("[CompileRun] Hello from normal Mindseye engine code after visiting %u annotated decl(s)", numVisitedDecls);
+        LOG_INFO(Default, "[CompileRun] Hello from normal Mindseye engine code after visiting {} annotated decl(s)", numVisitedDecls);
     }
 }
 
@@ -68,14 +68,14 @@ MEREFLECT(CompileRun) void meCompileRunSmokeTest2(meCompileRunContext* ctx)
             CXString baseTypeSpelling = clang_getTypeSpelling(baseType);
             const char *baseTypeCStr = clang_getCString(baseTypeSpelling);
             StringView baseTypeName = StringFromCString(baseTypeCStr);
-            LOG_INFO("Found asset type: " STRING_FMT, STRING_VAARGS(baseTypeName));
+            LOG_INFO(Default, "Found asset type: {}", LogSV(baseTypeName));
             clang_disposeString(baseTypeSpelling);
             numMeAssetTypes++;
         }
     }
     else if (ctx->stage == meCompileRunStage_Finalize)
     {
-        LOG_INFO("[CompileRun] Found %u reflected meAsset type(s)", numMeAssetTypes);
+        LOG_INFO(Default, "[CompileRun] Found {} reflected meAsset type(s)", numMeAssetTypes);
     }
 }
 
@@ -97,7 +97,7 @@ MEREFLECT(CompileRun) void meConsoleCommandMetaGenerator(meCompileRunContext* ct
         }
         CXString spelling = clang_getCursorSpelling(ctx->cursor);
         const char *spellingStr = clang_getCString(spelling);
-        LOG_INFO("Found ConsoleCommand: %s", spellingStr);
+        LOG_INFO(Default, "Found ConsoleCommand: {}", spellingStr);
         clang_disposeString(spelling);
     }
 }

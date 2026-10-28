@@ -20,6 +20,8 @@ me_build.exe
 *.blend1
 *.old
 temp/
+MindseyeDebug*.txt
+MindseyeReflectorDebug*.txt
 
 mindseye/external/vulkan_lib/Lib
 mindseye/external/usd/

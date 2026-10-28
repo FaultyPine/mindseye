@@ -10,6 +10,8 @@
 #include "volk/volk.h"
 #include "vkBootstrap/VkBootstrap.cpp"
 
+ME_DEFINE_LOG_CATEGORY(Vulkan);
+
 struct RendererKitchen 
 {
     VkQueue graphics_queue;
@@ -80,7 +82,7 @@ void VulkanBackendInitialize(EngineContext* engine)
     auto swap_ret = swapchain_builder.build();
     if (!swap_ret) 
     {
-        LOG_ERROR("Error building swapchain %s", swap_ret.error().message().c_str());
+        LOG_ERROR(Vulkan, "Error building swapchain {}", swap_ret.error().message().c_str());
         return;
     }
     vkb::Swapchain vkb_swapchain = swap_ret.value();

@@ -122,6 +122,7 @@ int main(int argc, char** argv)
         "mindseye/external/bgfx/bx/include "
         "mindseye/external/bgfx/bimg/include mindseye/external/ktx "
         "mindseye/external/tracy/public "
+        "mindseye/external/quill/include "
         "mindseye/external/entt/src ";
     for (const char* include : words(includeDirectories))
     {
@@ -162,6 +163,7 @@ int main(int argc, char** argv)
     {
         Strings flags = words("-std=c++20 -g -Wall -DMEEXPORT -DBUILD_DEBUG=1 -DME_CORE_ONLY");
         append(flags, {nob_temp_sprintf("-I%s", fullPath(".")), nob_temp_sprintf("-I%s", fullPath("mindseye")),
+                       nob_temp_sprintf("-I%s", fullPath("mindseye/external/quill/include")),
                        nob_temp_sprintf("-I%s/include", clangDir), "-DSTBSP__PUBLICDEC=extern \"C\" MEAPI"});
         Strings objects;
         const char* reflectorSources =

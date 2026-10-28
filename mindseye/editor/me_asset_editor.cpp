@@ -13,6 +13,8 @@
 #include "asset/me_asset.h"
 #include "asset/me_asset_index.h"
 
+ME_DEFINE_LOG_CATEGORY(AssetEditor);
+
 namespace ed = ax::NodeEditor;
 
 // ID encoding: bases occupy distinct high bits so ranges don't overlap.
@@ -326,7 +328,7 @@ static void ResetValueToDefault(
 		return;
 	}
 
-    LOG_WARN("Type without a setToDefaultsFn, this isn't expected. " STRING_FMT, STRING_VAARGS(type.name));
+    LOG_WARN(AssetEditor, "Type without a setToDefaultsFn, this isn't expected. {}", LogSV(type.name));
 	ME_MEMCLEAR(data, type.size);
 }
 
