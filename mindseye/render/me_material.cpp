@@ -67,11 +67,12 @@ meMaterialID meMaterialPool::Load(
 		else
 		{
 			// 1x1 pixel of a single color
-			float* rgba = MEALLOC(renderer->rendererPersistentAllocator, sizeof(float) * 4);
-			ME_MEMCPY((void*)rgba, &gltfMaterial.pbr_metallic_roughness.base_color_factor[0], sizeof(float) * 4);
-			u32 textureData = PackFloatsToU32(rgba[0], rgba[1], rgba[2], rgba[3]);
-			u32 tex = renderer->UploadTextureToGPU(meSpan(&textureData, sizeof(textureData)), 4, 1, 1);
-			diffuseTextureMem = meGPUBuffer{.bufferHandle = tex, .cpuData = meSpan(rgba, sizeof(float) * 4)};
+            const float* rgba = gltfMaterial.pbr_metallic_roughness.base_color_factor;
+            u32* pixel = MEALLOC(renderer->rendererPersistentAllocator, sizeof(u32));
+            *pixel = PackFloatsToU32(rgba[0], rgba[1], rgba[2], rgba[3]);
+            meSpan pixels(pixel, sizeof(u32));
+            u32 tex = renderer->UploadTextureToGPU(pixels, 4, 1, 1);
+            diffuseTextureMem = meGPUBuffer{.bufferHandle = tex, .cpuData = pixels};
 			StringCopy(StringView(texture.name, meTexture::METEXTURE_MAX_NAME_LEN), STRING_LIT("Static Color Texture"));
 		}
 		if (diffuseTextureMem.IsValid())
