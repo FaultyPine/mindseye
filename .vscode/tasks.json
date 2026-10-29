@@ -1,0 +1,13 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+        {
+            "type": "process",
+            "label": "build mindseye",
+            "command": "build.bat",
+            "group": "build",
+            "problemMatcher": [],
+            "detail": "build task"
+        }
+    ]
+}
