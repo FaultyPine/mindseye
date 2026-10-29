@@ -157,6 +157,10 @@ int main(int argc, char** argv)
 
     // ================ Mindseye reflector ======================
     size_t runtimeGraph = graph.text.count;
+    const char* mimallocSource = fullPath("mindseye/external/mimalloc/src/static.c");
+    Strings mimallocFlags = words("-std=c11 -g -DMI_STATIC_LIB");
+    append(mimallocFlags, words(release ? "-O2 -DNDEBUG" : "-O0"));
+    mimallocFlags.add(nob_temp_sprintf("-I%s", fullPath("mindseye/external/mimalloc/include")));
     const char* manifest = fullPath("build/reflection.outputs");
     const char* stamp = fullPath("build/reflection.stamp");
     auto emitReflection = [&](Ninja& out)
@@ -165,7 +169,7 @@ int main(int argc, char** argv)
         append(flags, {nob_temp_sprintf("-I%s", fullPath(".")), nob_temp_sprintf("-I%s", fullPath("mindseye")),
                        nob_temp_sprintf("-I%s", fullPath("mindseye/external/quill/include")),
                        nob_temp_sprintf("-I%s/include", clangDir), "-DSTBSP__PUBLICDEC=extern \"C\" MEAPI"});
-        Strings objects;
+        Strings objects = {out.compile(mimallocSource, mimallocFlags, "reflector")};
         const char* reflectorSources =
             "mindseye/reflector/me_reflector.cpp mindseye/platform/me_os.cpp "
             "mindseye/platform/windows/me_os_win.cpp mindseye/core/me_log.cpp mindseye/core/me_string.cpp "
@@ -178,7 +182,7 @@ int main(int argc, char** argv)
         }
         Strings libraries = {"-lntdll", "-Wl,/NOIMPLIB", "-Wl,/DEBUG",
                              nob_temp_sprintf("%s/lib/libclang.lib", clangDir)};
-        const char* reflectorSystemLibraries = "-lshell32 -lole32 -luuid -ladvapi32 -lversion";
+        const char* reflectorSystemLibraries = "-lshell32 -lole32 -luuid -ladvapi32 -lversion -lpsapi -luser32 -lbcrypt";
         append(libraries, words(reflectorSystemLibraries));
         const char* reflectorLibraries =
             "clangInterpreter.lib clangFrontendTool.lib clangFrontend.lib clangAPINotes.lib clangSerialization.lib "
@@ -332,6 +336,9 @@ int main(int argc, char** argv)
             }
         }
         // ================ External libraries ======================
+        Strings allocatorFlags = mimallocFlags;
+        if (asan) append(allocatorFlags, {"-fsanitize=address", "-DMI_TRACK_ASAN=1"});
+        objects.add(graph.compile(mimallocSource, allocatorFlags, "vendor"));
         Strings vendorFlags = engineFlags;
         const char* vendorCompilerFlags =
             "-w -DIMGUI_DEFINE_MATH_OPERATORS -DIMGUI_API=MEAPI -DIMGUI_NODE_EDITOR_API=MEAPI "
@@ -374,7 +381,7 @@ int main(int argc, char** argv)
         // ================ Mindseye engine DLL ======================
         Strings flags = linkFlags;
         const char* engineSystemLibraries =
-            "-shared -luser32 -lgdi32 -ldbghelp -ladvapi32 -lws2_32 -lshell32 -lole32 -lcomdlg32";
+            "-shared -luser32 -lgdi32 -ldbghelp -ladvapi32 -lws2_32 -lshell32 -lole32 -lcomdlg32 -lpsapi -lbcrypt";
         append(flags, words(engineSystemLibraries));
         for (const char* library : words("ktx bgfx bimg bx"))
         {

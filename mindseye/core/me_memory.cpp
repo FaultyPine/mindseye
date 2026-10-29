@@ -4,6 +4,7 @@
 #include "core/containers/me_stack.h"
 #include "core/me_core.h"
 #include "platform/me_os.h"
+#include "external/mimalloc/include/mimalloc.h"
 
 ME_DEFINE_LOG_CATEGORY(Memory);
 
@@ -47,10 +48,37 @@ meAllocator* GetSystemAllocator()
     return &system;
 }
 
+struct meMimallocAllocator : meAllocator
+{
+    meMimallocAllocator() : meAllocator(STRING_LIT("mimalloc")) {}
+
+    Allocation meAlloc(u64 size) override
+    {
+        void* data = mi_malloc(size);
+        return Allocation(data, data ? size : 0);
+    }
+
+    Allocation meRealloc(const Allocation& allocation, u64 newSize) override
+    {
+        if (newSize == 0)
+        {
+            mi_free(allocation.data);
+            return {};
+        }
+        void* data = mi_realloc(allocation.data, newSize);
+        return Allocation(data, data ? newSize : 0);
+    }
+
+    void meFree(void* allocation) override
+    {
+        mi_free(allocation);
+    }
+};
+
 meAllocator* GetDefaultAllocator()
 {
-    // TODO: fancier modern allocator
-    return GetSystemAllocator();
+    static meMimallocAllocator allocator;
+    return &allocator;
 }
 
 // TODO: for some reason this isn't being initialized right

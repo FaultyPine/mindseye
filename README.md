@@ -14,9 +14,6 @@ run `build.bat`
 
 ### Current focus
 
-- per-thread(?) data stacks for tmp allocator/scratch space
-    - https://github.com/aardappel/goose
-
 Finishing the asset system todo:
 - binary serialization 
     - start on a "asset compilation" pipeline. 
