@@ -34,6 +34,7 @@ struct MEREFLECT(type) meMaterial : public meBaseAsset
 	char name[MEMATERIAL_MAX_NAME_LEN];
 	meTypedAsset<MAShader> shaderHandle = {};
 	meTypedAsset<MATexture> textureHandles[NUM_MATERIAL_TEXTURE_TYPES];
+    glm::vec3 albedoTint = glm::vec3(1);
 
 	meMaterial()
 	{
@@ -65,6 +66,8 @@ struct meMaterialPool : public meResourcePool<meMaterial>
 		const cgltf_material& gltfMaterial);
 };
 
+
+MEAPI meMaterialID meMaterialCreateDefault(StringView name, glm::vec3 color = glm::vec3(1));
 
 void meMaterialInitialize(EngineContext* engine);
 

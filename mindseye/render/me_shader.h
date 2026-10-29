@@ -35,7 +35,7 @@ enum meShaderFlags_
 };
 
 struct meShaderUniform;
-typedef void(*meShaderUniformUpdateCb)(meShaderUniform* uniform, void* userData);
+typedef void(*meShaderUniformUpdateCb)(meShaderUniform* uniform, const meMaterial& material, void* userData);
 
 struct meShaderUniform
 {
@@ -49,7 +49,7 @@ struct meShaderUniform
 	u32 flags = 0;
 
 	// returns if we should reupload to gpu or not
-	bool RefreshInternalUniformData()
+	bool RefreshInternalUniformData(const meMaterial& material)
 	{
 		if (TEST_BIT(flags, meShaderFlags_AlwaysReupload)
 			|| TEST_BIT(flags, meShaderFlags_IsDirty))
@@ -57,7 +57,7 @@ struct meShaderUniform
 			SET_BIT(flags, meShaderFlags_IsDirty, false);
 			if (updateCb)
 			{
-				updateCb(this, userData);
+				updateCb(this, material, userData);
 			}
 			return true;
 		}
@@ -85,9 +85,14 @@ struct meShaderPool : public meResourcePool<meShader>
 	{
 		return MAShader;
 	}
+
+    // TODO: this sort of cache could probably be moved to the meResourcePool itself
+    meMap<u64, meShaderID> shaderCache = {};
 };
 
 void meShaderInitialize(EngineContext* ctx);
+
+meShaderID meShaderCreate(meSpan shaderBytecodeFS, meSpan shaderBytecodeVS);
 
 meShaderPool& meShaderGetPool();
 

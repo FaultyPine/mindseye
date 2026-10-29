@@ -8,15 +8,14 @@
 
 ME_DEFINE_LOG_CATEGORY(Memory);
 
-ScopedAllocation::ScopedAllocation(meAllocator* allocator, u64 size)
+ScopedAllocation::ScopedAllocation(u64 size, meAllocator* allocator) : Allocation(MEALLOC(allocator, size))
 {
     this->allocator = allocator;
-    this->allocation = MEALLOC(allocator, size);
 }
 
 ScopedAllocation::~ScopedAllocation()
 {
-    MEFREE(allocator, allocation.data);
+    MEFREE(allocator, data);
 }
 
 Allocation meSystemAllocator::meAlloc(u64 size)

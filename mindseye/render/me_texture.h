@@ -63,6 +63,8 @@ struct meTexturePool : public meResourcePool<meTexture>
 		const cgltf_image& gltfImage);
 
 	meGPUBuffer Load(const meTextureLoadParams& params);
+
+    meTextureID plainWhite1x1 = {};
 };
 
 void meTextureInitialize(EngineContext* ctx);

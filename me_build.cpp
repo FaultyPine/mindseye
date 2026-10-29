@@ -130,7 +130,7 @@ int main(int argc, char** argv)
     }
     Strings engineFlags = common;
     append(engineFlags, words("-DMEEXPORT -D_DLL -DTRACY_EXPORTS"));
-    Strings linkFlags = {"-fuse-ld=lld-link"};
+    Strings linkFlags = {"-fuse-ld=lld-link", "-Wl,/DEBUG"};
     linkFlags.add(release ? "-lmsvcrt" : "-lmsvcrtd");
     if (!release)
     {
@@ -390,7 +390,8 @@ int main(int argc, char** argv)
                                                                         release ? "Release" : "Debug");
             flags.add(fullPath(path));
         }
-        graph.link(fullPath("build/mindseye.dll"), flags, objects, {fullPath("build/mindseye.lib")});
+        graph.link(fullPath("build/mindseye.dll"), flags, objects,
+                   {fullPath("build/mindseye.lib"), fullPath("build/mindseye.pdb")});
     }
     // ================ Testbed application DLL ======================
     Strings appFlags = common;
@@ -402,7 +403,7 @@ int main(int argc, char** argv)
     Strings dllFlags = appLink;
     dllFlags.add("-shared");
     const char* appDll = fullPath("build/testbed.dll");
-    graph.link(appDll, dllFlags, {appObject});
+    graph.link(appDll, dllFlags, {appObject}, {fullPath("build/testbed.pdb")});
     Strings defaults = {appDll};
     if (!appOnly)
     {
@@ -410,7 +411,7 @@ int main(int argc, char** argv)
         const char* driver = graph.compile(fullPath("mindseye/platform/driver.cpp"), appFlags, "app", {stamp});
         appLink.add("-lshell32");
         appLink.add("-Wl,/subsystem:windows");
-        graph.link(fullPath("build/driver.exe"), appLink, {driver});
+        graph.link(fullPath("build/driver.exe"), appLink, {driver}, {fullPath("build/driver.pdb")});
         defaults.add(fullPath("build/driver.exe"));
         append(defaults, runtime);
     }

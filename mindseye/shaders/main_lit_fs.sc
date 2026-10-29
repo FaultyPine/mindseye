@@ -2,55 +2,37 @@ $input v_pos, v_view, v_normal, v_color0, v_texcoord0
 
 #include "common.sh"
 
-uniform vec4 u_time;
 SAMPLER2D(texDiffuse, 0);
+uniform vec4 albedoTint;
 
-vec2 blinn(vec3 _lightDir, vec3 _normal, vec3 _viewDir)
-{
-	float ndotl = dot(_normal, _lightDir);
-	vec3 reflected = _lightDir - 2.0*ndotl*_normal; // reflect(_lightDir, _normal);
-	float rdotv = dot(reflected, _viewDir);
-	return vec2(ndotl, rdotv);
-}
-
-float fresnel(float _ndotl, float _bias, float _pow)
-{
-	float facing = (1.0 - _ndotl);
-	return max(_bias + (1.0 - _bias) * pow(facing, _pow), 0.0);
-}
-
-vec4 lit(float _ndotl, float _rdotv, float _m)
-{
-	float diff = max(0.0, _ndotl);
-	float spec = step(0.0, _ndotl) * max(0.0, _rdotv * _m);
-	return vec4(1.0, diff, spec, 1.0);
-}
+const vec3 lightDirection = vec3(-0.45, 0.85, 0.35); // worldspace direction toward the light
+const vec3 lightColor = vec3(0.82, 0.76, 0.64);
+const vec3 groundAmbientColor = vec3(0.18, 0.16, 0.14);
+const vec3 skyAmbientColor = vec3(0.40, 0.46, 0.54);
+const float specularShininess = 48.0;
+const float specularStrength = 0.12;
+const float specularLightThreshold = 0.001;
 
 void main()
 {
+    vec3 normal = normalize(v_normal);
+    vec3 lightDir = normalize(lightDirection);
+    vec3 viewDir = normalize(v_view);
+    vec3 albedo = texture2D(texDiffuse, v_texcoord0).rgb * albedoTint.rgb;
 
-	vec3 lightDir = normalize(vec3(0.0, -0.5, -1.0));
-	vec3 normal = normalize(v_normal);
-	vec3 view = normalize(v_view);
-	vec2 bln = blinn(lightDir, normal, view);
-	vec4 lc = lit(bln.x, bln.y, 1.0);
-	float fres = fresnel(bln.x, 0.2, 5.0);
+    // remap normal.y [-1, 1] -> [0, 1] to blend ground and sky lighting
+    float skyBlend = normal.y * 0.5 + 0.5;
+    vec3 ambient = mix(groundAmbientColor, skyAmbientColor, skyBlend);
 
-	float index = ( (sin(v_pos.x*3.0+u_time.x)*0.3+0.7)
-				+ (  cos(v_pos.y*3.0+u_time.x)*0.4+0.6)
-				+ (  cos(v_pos.z*3.0+u_time.x)*0.2+0.8)
-				)*M_PI;
+    float diffuseAmount = max(dot(normal, lightDir), 0.0);
+    vec3 diffuse = lightColor * diffuseAmount;
 
-	vec3 color = vec3(sin(index*8.0)*0.4 + 0.6
-					, sin(index*4.0)*0.4 + 0.6
-					, sin(index*2.0)*0.4 + 0.6
-					) * v_color0.xyz;
+    // blinn phong
+    vec3 halfwayDir = normalize(lightDir + viewDir);
+    float specularAmount = pow(max(dot(normal, halfwayDir), 0.0), specularShininess);
+    specularAmount *= step(specularLightThreshold, diffuseAmount);
+    vec3 specular = vec3_splat(specularAmount * specularStrength);
 
-	//gl_FragColor.xyz = pow(vec3(0.07, 0.06, 0.08) + color*lc.y + fres*pow(lc.z, 128.0), vec3_splat(1.0/2.2) );
-
-	vec4 diffuseSample = texture2D(texDiffuse, v_texcoord0.xy);
-	// diffuseSample *= vec4(lc.rgb, 1.0);
-	gl_FragColor.xyz = diffuseSample.rgb;
-
-	gl_FragColor.w = 1.0;
+    vec3 color = albedo * (ambient + diffuse) + specular;
+    gl_FragColor = vec4(color, 1.0);
 }

@@ -5,18 +5,62 @@
 #include "shaders/generated/baddata_vs.sc.h"
 #include "asset/me_asset.h"
 
+
+void meShaderSetupDefaultUniforms(meShader& shader)
+{
+    if (DynArrayGetSize(shader.uniformHandles) == 0)
+    {
+        RendererFrontend& renderer = RendererGetMain();
+        meShaderPool& shaderPool = meShaderGetPool();
+        meShaderUniform timeU = meShaderUniform();
+        timeU.uniformData = MEALLOC(shaderPool.resourcePayloadAllocator, sizeof(glm::vec4));
+        timeU.handle = renderer.CreateShaderUniform(STRING_LIT("u_time"), meUniformDataType::UNIFORM_VEC4);
+        SET_BIT(timeU.flags, meShaderFlags_AlwaysReupload, true);
+        timeU.updateCb = + [](meShaderUniform* uniform, const meMaterial& material, void* userData) {
+            *((glm::vec4*)uniform->uniformData) = glm::vec4(GetTimeSec(), 0, 0, 0);
+        };
+        DynArrayPush(shader.uniformHandles, timeU);
+
+        meShaderUniform albedoTint = meShaderUniform();
+        albedoTint.uniformData = MEALLOC(shaderPool.resourcePayloadAllocator, sizeof(glm::vec4));
+        albedoTint.handle = renderer.CreateShaderUniform(STRING_LIT("albedoTint"), meUniformDataType::UNIFORM_VEC4);
+        SET_BIT(albedoTint.flags, meShaderFlags_AlwaysReupload, true);
+        albedoTint.updateCb = + [](meShaderUniform* uniform, const meMaterial& material, void* userData) {
+            *((glm::vec4*)uniform->uniformData) = glm::vec4(material.albedoTint, 1.0f);
+        };
+        DynArrayPush(shader.uniformHandles, albedoTint);
+    }
+}
+
 void meShaderInitialize(EngineContext* ctx)
 {
 	ctx->shaderSystem = MENEW(&ctx->engineArena, meShaderPool, &ctx->engineArena, &ctx->engineArena);
 	
 	// create a "null" shader
-	meShader badShader = {}; 
-	badShader.program = ctx->renderer->CreateShaderProgram(baddata_fs, baddata_vs);
-	badShader.uniformHandles = DynArrayCreate<meShaderUniform>(ctx->shaderSystem->resourcePayloadAllocator);
-	ctx->shaderSystem->GetBadData() = badShader;
+    meShader& badShader = ctx->shaderSystem->GetBadData();
+    badShader.program = ctx->renderer->CreateShaderProgram(baddata_fs, baddata_vs);
+    badShader.uniformHandles = DynArrayCreate<meShaderUniform>(ctx->shaderSystem->resourcePayloadAllocator);
+    meShaderSetupDefaultUniforms(badShader);
 }
 
-
+meShaderID meShaderCreate(meSpan shaderBytecodeFS, meSpan shaderBytecodeVS)
+{
+    u64 shaderHash = HashBytes(shaderBytecodeVS, shaderBytecodeVS.size);
+    shaderHash = HashCombine(shaderHash, HashBytes(shaderBytecodeFS, shaderBytecodeFS.size));
+    meShaderPool& shaderPool = meShaderGetPool();
+    auto it = shaderPool.shaderCache.find(shaderHash);
+    if (it != shaderPool.shaderCache.end())
+    {
+        return it->second;
+    }
+    meShaderID shaderHdl = shaderPool.Load({.resourceType = meResourceType_InstanceAsset});
+    meShader& shader = shaderPool.Get(shaderHdl);
+    shader.program = RendererGetMain().CreateShaderProgram(shaderBytecodeFS, shaderBytecodeVS);
+	shader.uniformHandles = DynArrayCreate<meShaderUniform>(GetEngineCtx()->shaderSystem->resourcePayloadAllocator);
+    shaderPool.shaderCache[shaderHash] = shaderHdl;
+    meShaderSetupDefaultUniforms(shader);
+    return shaderHdl;
+}
 
 meShaderPool& meShaderGetPool()
 {

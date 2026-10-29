@@ -393,7 +393,7 @@ private:
 	void InitLoadedRuntime();
 };
 
-template <typename T>
+template <typename AssetType>
 struct ScopedAssetLockR
 {
 	ScopedAssetOpaqueLockR opaque;
@@ -401,13 +401,13 @@ struct ScopedAssetLockR
 	explicit ScopedAssetLockR(const meAsset& asset) : opaque(asset) {}
 
     // static_pointer_cast preserves the shared ownership
-	meSharedPtr<const T> Get() const { return std::static_pointer_cast<const T>(opaque.Get()); }
-	const T* operator->() const { ME_ASSERT(Get()); return Get().get(); }
-	const T& operator*() const { ME_ASSERT(Get()); return *Get(); }
+	meSharedPtr<const AssetType> Get() const { return std::static_pointer_cast<const AssetType>(opaque.Get()); }
+	const AssetType* operator->() const { ME_ASSERT(Get()); return Get().get(); }
+	const AssetType& operator*() const { ME_ASSERT(Get()); return *Get(); }
 	explicit operator bool() const { return (bool)opaque; }
 };
 
-template <typename T>
+template <typename AssetType>
 struct ScopedAssetLockW
 {
 	ScopedAssetOpaqueLockW opaque;
@@ -415,9 +415,9 @@ struct ScopedAssetLockW
 	explicit ScopedAssetLockW(const meAsset& asset) : opaque(asset) {}
 
     // static_pointer_cast preserves the shared ownership
-	meSharedPtr<T> Get() const { return std::static_pointer_cast<T>(opaque.Get()); }
-	T* operator->() const { ME_ASSERT(Get()); return Get().get(); }
-	T& operator*() const { ME_ASSERT(Get()); return *Get(); }
+	meSharedPtr<AssetType> Get() const { return std::static_pointer_cast<AssetType>(opaque.Get()); }
+	AssetType* operator->() const { ME_ASSERT(Get()); return Get().get(); }
+	AssetType& operator*() const { ME_ASSERT(Get()); return *Get(); }
 	const meAsset& Asset() const { return opaque.Asset(); }
 	explicit operator bool() const { return (bool)opaque; }
 };

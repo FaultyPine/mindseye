@@ -476,22 +476,18 @@ void* BgfxRendererBackend::RenderScene(RenderInput* input)
 			}
 			const meTypedAsset<MATexture>& diffuseTexture = material->textureHandles[meMaterialTextureType::Diffuse];
 			ScopedAssetLockR<meTexture> diffuseTex(diffuseTexture);
-			bgfx::TextureHandle bgfxDiffuseTex = {};
-			if (diffuseTex)
-			{
-				bgfxDiffuseTex = bgfx::TextureHandle { static_cast<u16>(diffuseTex->buffer.bufferHandle) };
-			}
+
 			ScopedAssetLockW<meShader> shader(material->shaderHandle);
 			if (!shader)
 			{
 				continue;
 			}
-			for (DynArray_Foreach(shader->uniformHandles, uniformIdx))
-			{
-				meShaderUniform& uniform = shader->uniformHandles[uniformIdx];
-				if (!uniform.RefreshInternalUniformData()) continue;
-				bgfx::setUniform(bgfx::UniformHandle(uniform.handle), uniform.uniformData);
-			}
+            for (DynArray_Foreach(shader->uniformHandles, uniformIdx))
+            {
+                meShaderUniform& uniform = shader->uniformHandles[uniformIdx];
+                if (!uniform.RefreshInternalUniformData(*material)) continue;
+                bgfx::setUniform(bgfx::UniformHandle(uniform.handle), uniform.uniformData);
+            }
 
 			bgfx::ProgramHandle program = bgfx::ProgramHandle(shader->program);
 			//renderScreenSpaceQuad(proj, 0, program, 0, 0, 256, 256, bgfxDiffuseTex);
@@ -514,7 +510,7 @@ void* BgfxRendererBackend::RenderScene(RenderInput* input)
 			}
 			if (diffuseTex && diffuseTex->IsValid())
 			{
-				bgfx::setTexture(0, bgfx::UniformHandle { static_cast<u16>(diffuseTex->sampler) }, bgfxDiffuseTex, diffuseTex->samplingFlags);
+				bgfx::setTexture(0, bgfx::UniformHandle { static_cast<u16>(diffuseTex->sampler) }, bgfx::TextureHandle{static_cast<u16>(diffuseTex->buffer.bufferHandle)}, diffuseTex->samplingFlags);
 			}
 			bgfx::setState(BGFX_STATE_WRITE_RGB
 						   | BGFX_STATE_WRITE_A

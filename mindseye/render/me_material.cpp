@@ -40,11 +40,9 @@ meMaterialID meMaterialPool::Load(
 	const cgltf_material& gltfMaterial)
 {
 	ME_PROFILE_FUNCTION();
-	meMaterialPool& materialPool = meMaterialGetPool();
-	meMaterialID materialHdl = materialPool.Load({.resourceType = meResourceType_InstanceAsset});
-	meMaterial& material = materialPool.Get(materialHdl);
-	StringCopy(StringView(material.name, meMaterial::MEMATERIAL_MAX_NAME_LEN), StringFromCString(gltfMaterial.name));
-	
+    meMaterialID materialHdl = meMaterialCreateDefault(StringFromCString(gltfMaterial.name));
+	meMaterial& material = meMaterialGetPool().Get(materialHdl);
+
 	if (gltfMaterial.has_pbr_metallic_roughness)
 	{
 		meTexturePool& texturePool = meTextureGetPool();
@@ -79,24 +77,6 @@ meMaterialID meMaterialPool::Load(
 		{
 			texture.buffer = diffuseTextureMem;
 		}
-		
-		// TODO: deduplicate, see comment in me_resourcepool.h
-		u64 litProgram = renderer->CreateShaderProgram(meSpan(main_lit_fs), meSpan(main_lit_vs));
-		meShaderPool& shaderPool = meShaderGetPool();
-		meShaderID shaderHandle = shaderPool.Load({ .resourceType = meResourceType_InstanceAsset });
-		meShader& shader = shaderPool.Get(shaderHandle);
-		shader.uniformHandles = DynArrayCreate<meShaderUniform>(shaderPool.resourcePayloadAllocator);
-		meShaderUniform timeU = meShaderUniform();
-		timeU.uniformData = MEALLOC(shaderPool.resourcePayloadAllocator, sizeof(glm::vec4));;
-		timeU.handle = renderer->CreateShaderUniform(STRING_LIT("u_time"), meUniformDataType::UNIFORM_VEC4);
-		SET_BIT(timeU.flags, meShaderFlags_AlwaysReupload, true);
-		timeU.updateCb = + [](meShaderUniform* uniform, void* userData) {
-			*((glm::vec4*)uniform->uniformData) = glm::vec4(GetTimeSec(), 0, 0, 0);
-		};
-		DynArrayPush(shader.uniformHandles, timeU);
-		shader.program = litProgram;
-
-		material.shaderHandle = meTypedAsset<MAShader>(meAsset(shaderHandle, MAShader));
 	}
 	return materialHdl;
 }
@@ -113,3 +93,17 @@ struct meMaterialAssetLoader : public meAssetLoader
 };
 
 MEEVENT_REGISTER_STATIC(registerAssetLoader, meMaterialAssetLoader::RegisterAssetLoader);
+
+meMaterialID meMaterialCreateDefault(StringView name, glm::vec3 color)
+{
+    meMaterialPool& materialPool = meMaterialGetPool();
+	meMaterialID materialHdl = materialPool.Load({.resourceType = meResourceType_InstanceAsset});
+	meMaterial& material = materialPool.Get(materialHdl);
+    StringCopy(StringView(material.name, meMaterial::MEMATERIAL_MAX_NAME_LEN), name);
+    material.albedoTint = color;
+    meShaderID shaderHandle = meShaderCreate(meSpan(main_lit_fs), meSpan(main_lit_vs));
+    material.shaderHandle = meTypedAsset<MAShader>(meAsset(shaderHandle, MAShader));
+    material.textureHandles[Diffuse] = meTextureGetPool().plainWhite1x1;
+
+    return materialHdl;
+}

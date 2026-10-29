@@ -52,11 +52,10 @@ struct meSystemAllocator : public meAllocator
 	meSystemAllocator() : meAllocator(STRING_LIT("System Allocator")) {}
 };
 
-struct ScopedAllocation
+struct ScopedAllocation : public Allocation
 {
-    Allocation allocation;
     meAllocator* allocator;
-    ScopedAllocation(meAllocator* allocator, u64 size);
+    ScopedAllocation(u64 size, meAllocator* allocator);
     ~ScopedAllocation();
 };
 
