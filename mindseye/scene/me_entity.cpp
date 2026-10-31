@@ -61,7 +61,7 @@ meTypedAsset<MAEntity> meEntityCreateBlankInstance(
 		ent.name = StringFormatTmp("UnnamedEntity%i", (u32)newEntityAsset.runtimeHandle);
     }
     // default bounds is bounds of default mesh
-    ent.authoritativeBounds = meMeshPoolGet().Get(ent.mesh).meshBounds;
+    ent.authoritativeBoundsOS = meMeshPoolGet().Get(ent.mesh).meshBounds;
     return newEntityAsset;
 }
 

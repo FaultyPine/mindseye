@@ -35,6 +35,7 @@ struct MEREFLECT(type) meMaterial : public meBaseAsset
 	meTypedAsset<MAShader> shaderHandle = {};
 	meTypedAsset<MATexture> textureHandles[NUM_MATERIAL_TEXTURE_TYPES];
     glm::vec3 albedoTint = glm::vec3(1);
+    glm::vec4 editorData = glm::vec4(0);
 
 	meMaterial()
 	{

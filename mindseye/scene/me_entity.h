@@ -30,10 +30,10 @@ struct MEREFLECT(type) meEntity : public meBaseAsset
     MEREFLECT(tooltip = "The 'appearance' of the entity")
     meTypedAsset<MAMesh> mesh = {};
 	// gameplay-focused bounds. Rendering bounds including anims may be different (stored on mesh)
-    BoundingBox authoritativeBounds = {}; 
+    // in object-space
+    BoundingBox authoritativeBoundsOS = {}; 
     EntityFlags flags = 0;
 	String name = {};
-    
 };
 
 

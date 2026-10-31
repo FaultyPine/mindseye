@@ -95,9 +95,16 @@ void meMeshInitialize(EngineContext* engine);
 
 MEAPI meMeshPool& meMeshPoolGet();
 
+// for generated meshes: Resolution is clamped for 16-bit indices
+
+// origin at 0,0
 MEAPI void GenCubeMesh(meMeshID outMeshHandle, u32 resolution, meMaterialID materialID = {});
+// origin at 0,0
 MEAPI void GenSphereMesh(meMeshID outMeshHandle, u32 resolution, meMaterialID materialID = {});
+// origin at 0,0
 MEAPI void GenPlaneMesh(meMeshID outMeshHandle, u32 resolution, meMaterialID materialID = {});
+// origin at 0,0
+MEAPI void GenCylinderMesh(meMeshID outMeshHandle, u32 resolution, meMaterialID materialID = {});
 
 #ifndef ME_REFLECTING
 #include "generatedtypes/me_mesh.generated.h"

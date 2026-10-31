@@ -205,183 +205,99 @@ meMeshID meMeshPool::Load(
 }
 
 
-MEAPI void GenCubeMesh(
-    meMeshID outMeshHandle,
-    u32 resolution, 
-    meMaterialID materialID)
+static void LoadGeneratedMesh(meMeshID handle, par_shapes_mesh* shape,
+    meMaterialID material, StringView name)
 {
-	meMeshPool& meshPool = meMeshPoolGet();
-
-    par_shapes_mesh* cube = par_shapes_create_cube();
-    ME_ON_SCOPE_EXIT([cube](){
-		par_shapes_free_mesh(cube);
-	});
-    //par_shapes_compute_normals(cube);
-    meAllocator* allocator = meshPool.GetPayloadAllocator();
-	Allocation verticesData = MEALLOC(allocator, cube->ntriangles * 3 * 3 * sizeof(float));
-	Allocation texcoordData = MEALLOC(allocator, cube->ntriangles * 3 * 2 * sizeof(float));
-	Allocation normalsData = MEALLOC(allocator, cube->ntriangles * 3 * 3 * sizeof(float));
-	s32 vertexCount = cube->ntriangles * 3;
-
-	for (int k = 0; k < vertexCount; k++)
+    ME_ASSERT(shape);
+    ME_ON_SCOPE_EXIT([shape]() { par_shapes_free_mesh(shape); });
+    if (!shape->normals)
     {
-        ((float*)verticesData)[k*3] = cube->points[cube->triangles[k]*3];
-        ((float*)verticesData)[k*3 + 1] = cube->points[cube->triangles[k]*3 + 1];
-        ((float*)verticesData)[k*3 + 2] = cube->points[cube->triangles[k]*3 + 2];
-
-        ((float*)normalsData)[k*3] = cube->normals[cube->triangles[k]*3];
-        ((float*)normalsData)[k*3 + 1] = cube->normals[cube->triangles[k]*3 + 1];
-        ((float*)normalsData)[k*3 + 2] = cube->normals[cube->triangles[k]*3 + 2];
-
-        ((float*)texcoordData)[k*2] = cube->tcoords[cube->triangles[k]*2];
-        ((float*)texcoordData)[k*2 + 1] = cube->tcoords[cube->triangles[k]*2 + 1];
+        par_shapes_compute_normals(shape);
     }
 
-	float aabb[6];
-	par_shapes_compute_aabb(cube, aabb);
-
-	meshPool.Load(outMeshHandle, verticesData, {}, normalsData, texcoordData, materialID, STRING_LIT("GeneratedCubeMesh"));
-	meMesh& outMesh = meshPool.Get(outMeshHandle);
-	outMesh.meshBounds = BoundingBox(glm::vec3(aabb[0], aabb[1], aabb[2]), glm::vec3(aabb[3], aabb[4], aabb[5]));
-}
-
-void GenPlaneMesh(
-    meMeshID outMeshHandle,
-    u32 resolution,
-    meMaterialID materialID) 
-{
-	meMeshPool& meshPool = meMeshPoolGet();
-
-	s32 resX = resolution;
-	s32 resZ = resolution;
-	float length = 1.0f;
-	float width = 1.0f;
-	par_shapes_mesh* plane = par_shapes_create_plane(resX, resZ);   // No normals/texcoords generated!!!
-    par_shapes_scale(plane, width, length, 1.0f);
-    par_shapes_translate(plane, -width/2, 0.0f, length/2);
-
-	ME_ON_SCOPE_EXIT([plane](){
-		par_shapes_free_mesh(plane);
-	});
-	meAllocator* allocator = meshPool.GetPayloadAllocator();
-	Allocation verticesData = MEALLOC(allocator, plane->ntriangles * 3 * 3 * sizeof(float));
-	Allocation texcoordData = MEALLOC(allocator, plane->ntriangles * 3 * 2 * sizeof(float));
-	Allocation normalsData = MEALLOC(allocator, plane->ntriangles * 3 * 3 * sizeof(float));
-	s32 vertexCount = plane->ntriangles * 3;
-
-	for (int k = 0; k < vertexCount; k++)
+    meMeshPool& pool = meMeshPoolGet();
+    meAllocator* allocator = pool.GetPayloadAllocator();
+    Allocation positions = MEALLOC(allocator, shape->npoints * 3 * sizeof(float));
+    Allocation normals = MEALLOC(allocator, shape->npoints * 3 * sizeof(float));
+    Allocation uvs = MEALLOC(allocator, shape->npoints * 2 * sizeof(float));
+    Allocation indices = MEALLOC(allocator, shape->ntriangles * 3 * sizeof(u16));
+    static_assert(sizeof(PAR_SHAPES_T) == sizeof(u16));
+    ME_MEMCPY(positions.data, shape->points, positions.size);
+    ME_MEMCPY(normals.data, shape->normals, normals.size);
+    ME_MEMCPY(indices.data, shape->triangles, indices.size);
+    if (shape->tcoords)
     {
-        ((float*)verticesData)[k*3] = plane->points[plane->triangles[k]*3];
-        ((float*)verticesData)[k*3 + 1] = plane->points[plane->triangles[k]*3 + 1];
-        ((float*)verticesData)[k*3 + 2] = plane->points[plane->triangles[k]*3 + 2];
-
-        ((float*)normalsData)[k*3] = plane->normals[plane->triangles[k]*3];
-        ((float*)normalsData)[k*3 + 1] = plane->normals[plane->triangles[k]*3 + 1];
-        ((float*)normalsData)[k*3 + 2] = plane->normals[plane->triangles[k]*3 + 2];
-
-        ((float*)texcoordData)[k*2] = plane->tcoords[plane->triangles[k]*2];
-        ((float*)texcoordData)[k*2 + 1] = plane->tcoords[plane->triangles[k]*2 + 1];
+        ME_MEMCPY(uvs.data, shape->tcoords, uvs.size);
+    }
+    else
+    {
+        ME_MEMCLEAR(uvs.data, uvs.size);
     }
 
-	float aabb[6];
-	par_shapes_compute_aabb(plane, aabb);
-
-	meshPool.Load(outMeshHandle, verticesData, {}, normalsData, texcoordData, materialID, STRING_LIT("GeneratedPlaneMesh"));
-	meMesh& outMesh = meshPool.Get(outMeshHandle);
-	outMesh.meshBounds = BoundingBox(glm::vec3(aabb[0], aabb[1], aabb[2]), glm::vec3(aabb[3], aabb[4], aabb[5]));
+    float bounds[6];
+    par_shapes_compute_aabb(shape, bounds);
+    pool.Load(handle, positions, indices, normals, uvs, material, name);
+    pool.Get(handle).meshBounds = BoundingBox(glm::make_vec3(bounds), glm::make_vec3(bounds + 3));
 }
 
-
-void GenSphereMesh(
-    meMeshID outMeshHandle,
-    u32 resolution,
-    meMaterialID materialID)
+void GenCubeMesh(meMeshID handle, u32 resolution, meMaterialID material)
 {
-	meMeshPool& meshPool = meMeshPoolGet();
-    f32 radius = 1.0f;
-    u32 stackCount = resolution;
-    u32 sectorCount = resolution;
-    DynArray<meFatVertex> vertices = DynArrayCreate<meFatVertex>(meshPool.GetPayloadAllocator(), stackCount * sectorCount);
-    DynArray<u32> indices = DynArrayCreate<u32>(meshPool.GetPayloadAllocator(), stackCount * sectorCount);
+    par_shapes_mesh* shape = par_shapes_create_cube();
+    // cube center from (0.5, 0.5) -> (0, 0)
+    par_shapes_translate(shape, -0.5f, -0.5, -0.5f);
+    LoadGeneratedMesh(handle, shape, material, STRING_LIT("GeneratedCubeMesh"));
+}
 
-    float x, y, z, xy;                              // vertex position
-    float nx, ny, nz, lengthInv = 1.0f / radius;    // vertex normal
-    float s, t;                                     // vertex texCoord
+void GenPlaneMesh(meMeshID handle, u32 resolution, meMaterialID material)
+{
+    s32 segments = (s32)glm::clamp(resolution, 1u, 128u);
+    par_shapes_mesh* shape = par_shapes_create_plane(segments, segments);
+    const float axis[] = {1, 0, 0};
+    par_shapes_rotate(shape, -PI / 2, axis);
+    par_shapes_translate(shape, -0.5f, 0, 0.5f);
+    LoadGeneratedMesh(handle, shape, material, STRING_LIT("GeneratedPlaneMesh"));
+}
 
-    float sectorStep = 2 * PI / sectorCount;
-    float stackStep = PI / stackCount;
-    float sectorAngle, stackAngle;
+void GenSphereMesh(meMeshID handle, u32 resolution, meMaterialID material)
+{
+    s32 segments = (s32)glm::clamp(resolution, 3u, 128u);
+    LoadGeneratedMesh(handle, par_shapes_create_parametric_sphere(segments, segments),
+        material, STRING_LIT("GeneratedSphereMesh"));
+}
 
-    for(u32 i = 0; i <= stackCount; ++i)
+void GenCylinderMesh(meMeshID handle, u32 resolution, meMaterialID material)
+{
+    s32 segments = (s32)glm::clamp(resolution, 3u, 128u);
+    par_shapes_mesh* shape = par_shapes_create_cylinder(segments, 1);
+    // cylinder is initially z-up, radius 1, and extends from 0 to 1
+    const float bottom[] = {0, 0, 0};
+    const float top[] = {0, 0, 1};
+    const float up[] = {0, 0, 1};
+    par_shapes_mesh* caps[] = 
     {
-        stackAngle = PI / 2 - i * stackStep;        // starting from pi/2 to -pi/2
-        xy = radius * cosf(stackAngle);             // r * cos(u)
-        z = radius * sinf(stackAngle);              // r * sin(u)
+        par_shapes_create_disk(1, segments, bottom, up),
+        par_shapes_create_disk(1, segments, top, up)
+    };
+    // both bottom and top caps are created facing up, so explicitly flip the bottom one 180deg around X to face down
+    // just passing a down axis to par_shapes_create_disk doesn't cut it. It uses a cross product with a hardcoded {0,0,-1} which produces the wrong result
+    const float capAxis[] = {1, 0, 0};
+    par_shapes_rotate(caps[0], PI, capAxis);
 
-        // add (sectorCount+1) vertices per stack
-        // first and last vertices have same position and normal, but different tex coords
-        for(u32 j = 0; j <= sectorCount; ++j)
+    for (par_shapes_mesh* cap : caps)
+    {
+        cap->tcoords = PAR_MALLOC(float, cap->npoints * 2);
+        for (s32 i = 0; i < cap->npoints; ++i)
         {
-            sectorAngle = j * sectorStep;           // starting from 0 to 2pi
-            meFatVertex v = {};
-            // vertex position (x, y, z)
-            x = xy * cosf(sectorAngle);             // r * cos(u) * cos(v)
-            y = xy * sinf(sectorAngle);             // r * cos(u) * sin(v)
-            glm::vec3 vertexPosition = glm::vec3(x,y,z);
-            v.position = vertexPosition;
-
-            // normalized vertex normal (nx, ny, nz)
-            nx = x * lengthInv;
-            ny = y * lengthInv;
-            nz = z * lengthInv;
-            glm::vec3 normal = glm::vec3(nx, ny, nz);
-            v.normal = normal;
-
-            // vertex tex coord (s, t) range between [0, 1]
-            s = (float)j / sectorCount;
-            t = (float)i / stackCount;
-            glm::vec2 texcoord = glm::vec2(s,t);
-            v.texCoords = texcoord;
-
-            DynArrayPush(vertices, v);
+            cap->tcoords[i * 2] = cap->points[i * 3] * 0.5f + 0.5f;
+            cap->tcoords[i * 2 + 1] = cap->points[i * 3 + 1] * 0.5f + 0.5f;
         }
+        par_shapes_merge_and_free(shape, cap);
     }
-
-    u32 k1, k2;
-    for(u32 i = 0; i < stackCount; ++i)
-    {
-        k1 = i * (sectorCount + 1);     // beginning of current stack
-        k2 = k1 + sectorCount + 1;      // beginning of next stack
-
-        for(u32 j = 0; j < sectorCount; ++j, ++k1, ++k2)
-        {
-            // 2 triangles per sector excluding first and last stacks
-            // k1 => k2 => k1+1
-            if(i != 0)
-            {
-                DynArrayPush(indices, k1);
-				DynArrayPush(indices, k2);
-				DynArrayPush(indices, k1 + 1);
-            }
-
-            // k1+1 => k2 => k2+1
-            if(i != (stackCount-1))
-            {
-                DynArrayPush(indices, k1 + 1);
-				DynArrayPush(indices, k2);
-				DynArrayPush(indices, k2 + 1);
-            }
-        }
-    }
-    //vertices.shrink_to_fit();
-    //indices.shrink_to_fit();
-	meSpan vertexSpan = meSpan((s8*)vertices.data, DynArrayGetSize(vertices) * sizeof(*vertices));
-	meSpan indexSpan = meSpan((s8*)indices.data, DynArrayGetSize(indices) * sizeof(*indices));
-    meshPool.Load(outMeshHandle, vertexSpan, indexSpan, {}, {}, materialID, STRING_LIT("GeneratedSphereMesh"));
-	meMesh& outMesh = meshPool.Get(outMeshHandle);
-	outMesh.meshBounds = BoundingBox(glm::vec3(-radius, -radius, -radius), glm::vec3(radius, radius, radius));
+    const float axis[] = {1, 0, 0};
+    par_shapes_rotate(shape, -PI / 2, axis);
+    par_shapes_translate(shape, 0, -0.5f, 0);
+    LoadGeneratedMesh(handle, shape, material, STRING_LIT("GeneratedCylinderMesh"));
 }
-
 
 struct meMeshAssetLoader : public meAssetLoader
 {

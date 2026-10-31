@@ -101,8 +101,11 @@ meSceneRaycastHit meSceneRaycast(meScene& scene, const meRay& ray)
 		if (!entData || meEntityIsFlag(*entData, EntityFlags_HIDDEN) || meEntityIsFlag(*entData, EntityFlags_DISABLED))
 			continue;
 
-		glm::vec3 worldMin = entData->transform.position + entData->authoritativeBounds.min;
-		glm::vec3 worldMax = entData->transform.position + entData->authoritativeBounds.max;
+        ScopedAssetLockR<meMesh> mesh(entData->mesh);
+        const BoundingBox& bounds = mesh->meshBounds;
+        glm::mat4 toWorld = entData->transform.ToWorldFromModelMatrix();
+		glm::vec3 worldMin = entData->transform.position + glm::vec3(toWorld * glm::vec4(bounds.min, 1.0));
+		glm::vec3 worldMax = entData->transform.position + glm::vec3(toWorld * glm::vec4(bounds.max, 1.0));
 
 		f32 t = 0.0f;
 		if (meRayIntersectsAABB(ray, worldMin, worldMax, t))
@@ -220,7 +223,7 @@ void meScenePool::Load(
             // TODO: right now, we have this asset without an asset id, it's just a runtime concept
             // in the future, we won't be "loading from gltf". We'll "import" gltf into mindseye assets, and load those, so this concept of a meAsset with no MAID will go away
             entity.mesh = meAsset(meshHandle, MAMesh);
-			entity.authoritativeBounds = mesh.meshBounds; // may change due to anims. Default initialized to mesh bounds
+			entity.authoritativeBoundsOS = mesh.meshBounds; // may change due to anims. Default initialized to mesh bounds
 		}
 		DynArrayPush(entities, entityAsset);
 	}

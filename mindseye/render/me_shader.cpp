@@ -12,23 +12,27 @@ void meShaderSetupDefaultUniforms(meShader& shader)
     {
         RendererFrontend& renderer = RendererGetMain();
         meShaderPool& shaderPool = meShaderGetPool();
-        meShaderUniform timeU = meShaderUniform();
-        timeU.uniformData = MEALLOC(shaderPool.resourcePayloadAllocator, sizeof(glm::vec4));
-        timeU.handle = renderer.CreateShaderUniform(STRING_LIT("u_time"), meUniformDataType::UNIFORM_VEC4);
-        SET_BIT(timeU.flags, meShaderFlags_AlwaysReupload, true);
-        timeU.updateCb = + [](meShaderUniform* uniform, const meMaterial& material, void* userData) {
+        auto setup = [&renderer, &shaderPool, &shader](StringView uniformName, meShaderFlags flags, meShaderUniformUpdateCb updateCb)
+        {
+            meShaderUniform uniform = meShaderUniform();
+            uniform.uniformData = MEALLOC(shaderPool.resourcePayloadAllocator, sizeof(glm::vec4));
+            uniform.handle = renderer.CreateShaderUniform(uniformName, meUniformDataType::UNIFORM_VEC4);
+            uniform.flags = flags;
+            uniform.updateCb = updateCb;
+            DynArrayPush(shader.uniformHandles, uniform);
+        };
+        setup(STRING_LIT("u_time"), NTH_BIT(meShaderFlags_AlwaysReupload), +[](meShaderUniform* uniform, const meMaterial& material, void* userData) 
+        {
             *((glm::vec4*)uniform->uniformData) = glm::vec4(GetTimeSec(), 0, 0, 0);
-        };
-        DynArrayPush(shader.uniformHandles, timeU);
-
-        meShaderUniform albedoTint = meShaderUniform();
-        albedoTint.uniformData = MEALLOC(shaderPool.resourcePayloadAllocator, sizeof(glm::vec4));
-        albedoTint.handle = renderer.CreateShaderUniform(STRING_LIT("albedoTint"), meUniformDataType::UNIFORM_VEC4);
-        SET_BIT(albedoTint.flags, meShaderFlags_AlwaysReupload, true);
-        albedoTint.updateCb = + [](meShaderUniform* uniform, const meMaterial& material, void* userData) {
+        });
+        setup(STRING_LIT("albedoTint"), NTH_BIT(meShaderFlags_AlwaysReupload), +[](meShaderUniform* uniform, const meMaterial& material, void* userData) 
+        {
             *((glm::vec4*)uniform->uniformData) = glm::vec4(material.albedoTint, 1.0f);
-        };
-        DynArrayPush(shader.uniformHandles, albedoTint);
+        });
+        setup(STRING_LIT("editorData"), NTH_BIT(meShaderFlags_AlwaysReupload), +[](meShaderUniform* uniform, const meMaterial& material, void* userData) 
+        {
+            *((glm::vec4*)uniform->uniformData) = material.editorData;
+        });
     }
 }
 

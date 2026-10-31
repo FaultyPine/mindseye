@@ -23,3 +23,5 @@ EditorContext& meEditorGetCtx();
 
 void meEditorInitialize(EngineContext* ctx);
 void meEditorTick(EngineContext* ctx);
+
+void meEditorOnEntitySelect(EntityRef entity, bool isSelected);

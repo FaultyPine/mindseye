@@ -22,7 +22,7 @@ enum meUniformDataType
     NUM_UNIFORM_DATA_TYPES,
 };
 
-enum meShaderFlags : u32;
+using meShaderFlags = u32;
 enum meShaderFlags_
 {
 	// if set, reupload to gpu every frame

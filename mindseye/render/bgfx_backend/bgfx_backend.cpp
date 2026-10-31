@@ -469,7 +469,7 @@ void* BgfxRendererBackend::RenderScene(RenderInput* input)
 		ScopedAssetLockR<meMesh> mesh(entity->mesh);
 		if (mesh && mesh->IsLoaded())
 		{
-			ScopedAssetLockR<meMaterial> material(mesh->material);
+			ScopedAssetLockW<meMaterial> material(mesh->material);
 			if (!material)
 			{
 				continue;

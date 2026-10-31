@@ -390,3 +390,12 @@ void meEditorTick(EngineContext* engine)
 	ImGui::PopStyleVar();
 
 }
+
+void meEditorOnEntitySelect(EntityRef entityRef, bool isSelected)
+{
+    meEntity& entity = meEntityGet(entityRef);
+    SET_BIT(entity.flags, EntityFlags_Selected, true);
+    ScopedAssetLockW<meMesh> mesh(entity.mesh);
+    ScopedAssetLockW<meMaterial> material(mesh->material);
+    material->editorData.x = isSelected ? 1.0 : 0.0;
+}

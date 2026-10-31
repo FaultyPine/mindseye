@@ -89,19 +89,11 @@ static void HandlePickEntity(const meCmdPickEntity& cmd)
     {
         if (editor.editorSelectedObj.isLoaded())
         {
-            ScopedAssetLockW<meEntity> oldPickedEntity(editor.editorSelectedObj);
-            if (oldPickedEntity)
-            {
-                SET_BIT(oldPickedEntity->flags, EntityFlags_Selected, false);
-            }
+            meEditorOnEntitySelect(editor.editorSelectedObj, false);
         }
         if (hit)
         {
-            ScopedAssetLockW<meEntity> newlyPickedEntity(hit.entity);
-            if (newlyPickedEntity)
-            {
-                SET_BIT(newlyPickedEntity->flags, EntityFlags_Selected, true);
-            }
+            meEditorOnEntitySelect(hit.entity, true);
         }
 	}
 	editor.editorSelectedObj = hit.entity;
