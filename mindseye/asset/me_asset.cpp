@@ -644,7 +644,7 @@ meAsset* meAssetTryGetTemplate(MAID assetID)
     }
 	meAssetSystem& assetSystem = meAssetSystemGet();
 	meAssetTypeRegistry& reg = assetSystem.registries[assetID.GetType()];
-	RWLockRead(reg.lock);
+	RWLockRead lock(reg.lock);
 	auto it = reg.assets.find(assetID);
 	if (it == reg.assets.end())
 	{
