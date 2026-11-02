@@ -1502,14 +1502,12 @@ bool ProcessReflectedFile(
                 {
                     meReflectedType &childReflType = *typeRefl.children[i];
 
-                    // NOTE: this whole padding thing might be made a lot better if I just use clang's
-                    // info like the offsetBits with the sizeBits and extract padding info from there instead of calculating it myself.
-
-                    // this is an assumption to make implementation simpler. If this assert hits, there's likely a bitfield with a non-multiple-of-eight size. It could be supported, but requires more thought into the math here.
-                    u32 childAlign = childReflType.align;
-                    u32 childPadding = (childAlign - (currentOffsetBytes % childAlign)) % childAlign;
-                    currentOffsetBytes += childReflType.size;
-                    currentOffsetBytes += childPadding;
+                    // Use Clang's offsets, including padding between base and derived members.
+                    ME_ASSERT(childReflType.offsetBits % 8 == 0);
+                    u32 childOffsetBytes = childReflType.offsetBits / 8;
+                    ME_ASSERT(childOffsetBytes >= currentOffsetBytes);
+                    u32 childPadding = childOffsetBytes - currentOffsetBytes;
+                    currentOffsetBytes = childOffsetBytes + childReflType.size;
 
                     if (childPadding)
                     {
