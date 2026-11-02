@@ -1,7 +1,7 @@
 $input v_pos, v_texcoord0, v_view
 #include "common.sh"
 SAMPLER2D(texDiffuse, 0);
-float3 albedoTint = float3(1.0); 
+uniform vec4 albedoTint = vec4(1.0);
 
 void main()
 {
