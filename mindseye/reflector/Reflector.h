@@ -21,7 +21,6 @@
 #include "core/containers/me_blocklist.h"
 #include "core/containers/me_map.h"
 #include "core/me_serialize.h"
-#include "tests/me_descriptor_tests.h"
 #include "core/me_cmdline.h"
 #include "core/me_command.h"
 #include "core/me_app.h"
