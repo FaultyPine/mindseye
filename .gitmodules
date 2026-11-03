@@ -4,6 +4,9 @@
 [submodule "mindseye/external/imgui-node-editor"]
 	path = mindseye/external/imgui-node-editor
 	url = https://github.com/thedmd/imgui-node-editor
+[submodule "mindseye/external/quill"]
+	path = mindseye/external/quill
+	url = https://github.com/odygrd/quill
 [submodule "mindseye/external/vulkan_headers"]
 	path = mindseye/external/vulkan_headers
 	url = https://github.com/KhronosGroup/Vulkan-Headers.git
