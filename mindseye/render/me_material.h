@@ -4,7 +4,6 @@ struct RendererFrontend;
 
 #include "core/me_resourcepool.h"
 #include "asset/me_asset.h"
-struct cgltf_material;
 
 typedef Eye meMaterialID;
 
@@ -61,10 +60,7 @@ struct meMaterialPool : public meResourcePool<meMaterial>
 		return MAMaterial;
 	}
 
-	meMaterialID Load(
-		RendererFrontend* renderer,
-		StringView gltfResPath,
-		const cgltf_material& gltfMaterial);
+
 };
 
 

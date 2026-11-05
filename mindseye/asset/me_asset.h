@@ -123,6 +123,7 @@ enum meAssetLoadStage
 {
     Unloaded = 0, 
 	Loading, 
+	Compiling,
 	Loaded, 
 	Unloading, 
 	
@@ -152,10 +153,14 @@ meAsset
 	MEREFLECT(exclude)
 	Eye runtimeHandle = EYE_INVALID;
 	MEREFLECT(exclude)
-	meSharedPtr<void> runtimeContent = {};
-	MEREFLECT(exclude)
     meAssetLoadStage loadStage = Unloaded;
+    
+    // keep a ref to the asset content that's stored in the resource pool so even if someone frees it from the pool, we keep it around for ourselves
+    // your not meant to directly access the asset content through this
+	MEREFLECT(exclude) meSharedPtr<void> runtimeContent = {};
 	
+    meSharedPtr<meBaseAsset> GetRuntimeContent() {  return std::static_pointer_cast<meBaseAsset>(runtimeContent); }
+
     bool IsTemplateAsset() const { return runtimeHandle.IsTemplateAsset(); }
 
 	meAsset(const MAID identifier) : 
@@ -239,8 +244,17 @@ struct meTypedAsset : public meAsset
 
 struct meAssetLoader
 {
-    // called on asset threads
-	virtual void meAssetLoad(meAsset&);
+    // not overridden by asset type loaders - common across all asset types
+	void meAssetLoad(meAsset&);
+	// compiles the asset from source content on disk into memory
+    // not overridden by asset type loaders - common across all asset types
+    bool meAssetCompile(meAsset&);
+    // overridden by asset type loaders, do specialized logic here for turning source asset data into compiled data ready for runtime
+    virtual bool meAssetPrepareCompiledData(meAsset&) { return true; }
+    // overridden by asset type loaders. Do logic that should run before an asset is considered "ready for use"
+    // EX: uploading data to GPU
+    // Runs after compilation, before the asset becomes Loaded.
+    virtual bool meAssetInitializeRuntime(meAsset&) { return true; }
 	// TODO: return a serialized buffer, rather than writing to disk inside this func
 	virtual void meAssetWrite(meAsset&);
 	virtual void meAssetOnLoad(meAsset&) {}

@@ -5,7 +5,6 @@ struct RendererFrontend;
 #include "core/me_resourcepool.h"
 #include "asset/me_asset.h"
 #include "me_gpu.h"
-struct cgltf_image;
 
 typedef Eye meTextureID;
 struct MEREFLECT(type) meTexture : public meBaseAsset
@@ -19,7 +18,8 @@ struct MEREFLECT(type) meTexture : public meBaseAsset
 	MEREFLECT(exclude)
 	u64 sampler = U64_INVALID_ID;
 	u32 samplingFlags = ME_UINT_MAX;
-	// will likely also put tex format, width/height, etc
+	u32 width = 0;
+    u32 height = 0;
 	bool IsValid() const { return buffer.IsValid() && sampler != U64_INVALID_ID; }
 };
 
@@ -57,10 +57,6 @@ struct meTexturePool : public meResourcePool<meTexture>
 		return MATexture;
 	}
 
-	meGPUBuffer Load(
-		RendererFrontend* renderer,
-		StringView gltfResPath,
-		const cgltf_image& gltfImage);
 
 	meGPUBuffer Load(const meTextureLoadParams& params);
 

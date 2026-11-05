@@ -23,7 +23,6 @@ struct Arena : public meAllocator
 
     MEAPI Allocation meAlloc(u64 size) override;
     MEAPI void meFree(void* allocation) override;
-    MEAPI Allocation meRealloc(const Allocation& allocation, u64 newSize) override;
     MEAPI void meClear(bool deleteMemory = false) override;
 };
 

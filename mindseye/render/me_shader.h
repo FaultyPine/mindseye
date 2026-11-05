@@ -92,6 +92,7 @@ struct meShaderPool : public meResourcePool<meShader>
 
 void meShaderInitialize(EngineContext* ctx);
 
+// creates a shader from some bytecode. Note: this is cached based on the hash of the bytecode
 meShaderID meShaderCreate(meSpan shaderBytecodeFS, meSpan shaderBytecodeVS);
 
 meShaderPool& meShaderGetPool();

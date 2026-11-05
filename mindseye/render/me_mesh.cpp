@@ -2,6 +2,7 @@
 #include "core/me_profile.h"
 #include "me_mesh.h"
 #include "external/cgltf.h"
+#include "asset/me_asset_import_gltf.h"
 #include "render/me_material.h"
 #include "core/containers/dynarray.h"
 #include "render/renderer_frontend.h"
@@ -17,16 +18,6 @@ ME_DEFINE_LOG_CATEGORY(MeshSystem);
 
 #define USE_PAR_SHAPES
 
-static cgltf_material GenerateDummyGLTFMaterial()
-{
-	cgltf_material mat;
-	ME_MEMCLEAR(&mat, sizeof(mat));
-	#pragma clang diagnostic push
-	#pragma clang diagnostic ignored "-Wwritable-strings"
-	mat.name = "NoMaterial";
-	#pragma clang diagnostic pop
-	return mat;
-}
 
 void meMeshInitialize(EngineContext* engine)
 {
@@ -38,8 +29,6 @@ meMeshPool& meMeshPoolGet()
 {
 	return *GetEngineCtx()->meshSystem;
 }
-
-
 
 void meMeshPool::Load(
     meMeshID outMeshHandle,
@@ -79,131 +68,6 @@ void meMeshPool::Load(
 	outMesh.material = meTypedAsset<MAMaterial>(materialIDOpt);
 	outMesh.name = nameOpt;
 }
-
-meMeshID meMeshPool::Load(
-	RendererFrontend* renderer,
-	StringView gltfResPath,
-	const cgltf_mesh& inMesh)
-{
-	ME_PROFILE_FUNCTION();
-	meMaterialPool& materialPool = meMaterialGetPool();
-	meMeshPool& meshPool = meMeshPoolGet();
-	meMeshID meshHandle = meshPool.Load({.resourceType = meResourceType_InstanceAsset});
-	meMesh& outMesh = meshPool.Get(meshHandle);
-	meAllocator* meshPayloadAllocator = meshPool.GetPayloadAllocator();
-
-	outMesh.name = String(StringFromCString(inMesh.name), renderer->rendererPersistentAllocator);
-	BoundingBox& meshBounds = outMesh.meshBounds;
-	for (u64 meshPrimIdx = 0; meshPrimIdx < inMesh.primitives_count; meshPrimIdx++)
-	{
-		const cgltf_primitive& prim = inMesh.primitives[meshPrimIdx];
-		outMesh.material = meTypedAsset<MAMaterial>(materialPool.Load(renderer, gltfResPath, prim.material ? *prim.material : GenerateDummyGLTFMaterial()));
-		// attribs like position, texcoords, normals
-		for (u64 attributeIdx = 0; attributeIdx < prim.attributes_count; attributeIdx++)
-		{
-			const cgltf_attribute& attrib = prim.attributes[attributeIdx];
-			StringView attribName = StringView(attrib.name, CStringLength(attrib.name));
-			if (attrib.type == cgltf_attribute_type_position)
-			{
-				const cgltf_accessor* accessor = attrib.data;
-				u64 stride = sizeof(f32) * 3;
-				u64 dataSize = stride * accessor->count;
-				Allocation allocation = MEALLOC(meshPayloadAllocator, dataSize);
-				Allocation bumper = allocation;
-				for (u64 posIdx = 0; posIdx < accessor->count; posIdx++)
-				{
-					cgltf_accessor_read_float(accessor, posIdx, bumper, 3);
-					meshBounds.min = glm::min(meshBounds.min, glm::make_vec3((float*)bumper.data));
-					meshBounds.max = glm::max(meshBounds.max, glm::make_vec3((float*)bumper.data));
-					bumper = bumper.Subspan(stride);
-				}
-				outMesh.vertBuffer.cpuData = allocation;
-				outMesh.vertBuffer.bufferHandle = renderer->CreateVertexBuffer(outMesh.vertBuffer.cpuData, NTH_BIT(meMeshVertexLayoutType_Position));
-			}
-			else if (attrib.type == cgltf_attribute_type_normal)
-			{
-				const cgltf_accessor* accessor = attrib.data;
-				u64 stride = sizeof(f32) * 3;
-				u64 dataSize = stride * accessor->count;
-				Allocation allocation = MEALLOC(meshPayloadAllocator, dataSize);
-				Allocation bumper = allocation;
-				for (u64 posIdx = 0; posIdx < accessor->count; posIdx++)
-				{
-					cgltf_accessor_read_float(accessor, posIdx, bumper, 3);
-					bumper = bumper.Subspan(stride);
-				}
-				outMesh.normBuffer.cpuData = allocation;
-				outMesh.normBuffer.bufferHandle = renderer->CreateVertexBuffer(outMesh.normBuffer.cpuData, NTH_BIT(meMeshVertexLayoutType_Normal));
-			}
-			else if (attrib.type == cgltf_attribute_type_tangent)
-			{
-
-			}
-			else if (attrib.type == cgltf_attribute_type_texcoord)
-			{
-				const cgltf_accessor* accessor = attrib.data;
-				u64 stride = sizeof(f32) * 2;
-				u64 dataSize = stride * accessor->count;
-				Allocation allocation = MEALLOC(meshPayloadAllocator, dataSize);
-				Allocation bumper = allocation;
-				for (u64 posIdx = 0; posIdx < accessor->count; posIdx++)
-				{
-					cgltf_accessor_read_float(accessor, posIdx, bumper, 2);
-					bumper = bumper.Subspan(stride);
-				}
-				outMesh.texcoordBuffer.cpuData = allocation;
-				outMesh.texcoordBuffer.bufferHandle = renderer->CreateVertexBuffer(outMesh.texcoordBuffer.cpuData, NTH_BIT(meMeshVertexLayoutType_TexCoord0));
-			}
-		}
-
-		// indices
-		if (prim.indices)
-		{
-			const cgltf_accessor* accessor = prim.indices;
-            u64 stride = accessor->stride;
-            u64 indicesMemSize = accessor->count * stride;
-            Allocation indicesMemory = MEALLOC(meshPayloadAllocator, indicesMemSize);
-            u8* indicesBumper = (u8*)indicesMemory.data;
-            meMeshVertexLayoutType indexLayoutType = meMeshVertexLayoutType_Index16;
-            switch (accessor->component_type)
-            {
-                case cgltf_component_type_r_16u:
-                    indexLayoutType = meMeshVertexLayoutType_Index16;
-                    break;
-                    case cgltf_component_type_r_32u:
-                    indexLayoutType = meMeshVertexLayoutType_Index32;
-                    break;
-                default:
-                    ME_ASSERT(false && "Unsupported index buffer stride");
-                    break;
-            }
-            for (u64 idx = 0; idx < accessor->count; idx++)
-            {
-                u32 readIdx = (u32)cgltf_accessor_read_index(accessor, idx);
-                switch (accessor->component_type)
-                {
-                    case cgltf_component_type_r_8u:
-                        *(u8*)indicesBumper = (u8)readIdx;
-                        break;
-                    case cgltf_component_type_r_16u:
-                        *(u16*)indicesBumper = (u16)readIdx;
-                        break;
-                    case cgltf_component_type_r_32u:
-                        *(u32*)indicesBumper = (u32)readIdx;
-                        break;
-                    default:
-                        // Handle error
-                        break;
-                }
-                indicesBumper += stride;
-            }
-			outMesh.idxBuffer.cpuData = indicesMemory;
-			outMesh.idxBuffer.bufferHandle = renderer->CreateVertexBuffer(outMesh.idxBuffer.cpuData, NTH_BIT(indexLayoutType));
-		}
-	}
-	return meshHandle;
-}
-
 
 static void LoadGeneratedMesh(meMeshID handle, par_shapes_mesh* shape,
     meMaterialID material, StringView name)
@@ -301,67 +165,103 @@ void GenCylinderMesh(meMeshID handle, u32 resolution, meMaterialID material)
 
 struct meMeshAssetLoader : public meAssetLoader
 {
-	using meAssetLoader::meAssetLoader;
+    using meAssetLoader::meAssetLoader;
 
-	virtual void meAssetLoad(meAsset& asset) override
-	{
-		ME_PROFILE_FUNCTION();
-		meAssetLoader::meAssetLoad(asset);
-		meAllocator* allocator = resourcePool->GetPayloadAllocator();
-        ScopedAssetLockR<meMesh> outMesh(asset);
-		if (FindInString(outMesh->externalMeshPath, STRING_LIT(".gltf")) != -1 ||
-			FindInString(outMesh->externalMeshPath, STRING_LIT(".glb")) != -1)
-		{
+    virtual bool meAssetPrepareCompiledData(meAsset& asset) override
+    {
+        ME_PROFILE_FUNCTION();
+        meAllocator* allocator = resourcePool->GetPayloadAllocator();
+        meMesh* outMesh = (meMesh*)asset.runtimeContent.get();
+        if (FindInString(outMesh->externalMeshPath, STRING_LIT(".gltf")) != -1 ||
+            FindInString(outMesh->externalMeshPath, STRING_LIT(".glb")) != -1)
+        {
             StringView resourcePathAbs = meAssetGetAbsPathForResource(outMesh->externalMeshPath);
             OSFileReference file;
-            meOSOpenFile(file, resourcePathAbs, (OSFileFlags_OnlyIfExists | OSFileFlags_ScopedFile | OSFileFlags_ReadOnly));
+            if (!meOSOpenFile(file, resourcePathAbs, (OSFileFlags_OnlyIfExists | OSFileFlags_ScopedFile | OSFileFlags_ReadOnly)))
+            {
+                return false;
+            }
+
             u64 filesize = meOSGetFileSize(file);
             Allocation gltfBuffer = MEALLOC(allocator, filesize);
+            ME_ON_SCOPE_EXIT([allocator, &gltfBuffer]() { MEFREE(allocator, gltfBuffer); });
             if (!meOSReadFileContents(file, gltfBuffer.data, gltfBuffer.size))
             {
-                LOG_ERROR(MeshSystem, "[meScene] failed to load gltf scene {}", LogSV(resourcePathAbs));
+                LOG_ERROR(MeshSystem, "failed to load gltf mesh file data {}", LogSV(resourcePathAbs));
+                return false;
             }
+
             cgltf_options options = {};
             cgltf_data* gltfData = nullptr;
+            ME_ON_SCOPE_EXIT([&gltfData]() { cgltf_free(gltfData); });
 
-            ME_ON_SCOPE_EXIT([allocator, gltfData, &gltfBuffer]()
-            {
-                cgltf_free(gltfData);
-                MEFREE(allocator, gltfBuffer);
-            });
             cgltf_result parseResult = {};
-			{
-				ME_PROFILE_SCOPE("cgltf_parse mesh");
-				parseResult = cgltf_parse(&options, gltfBuffer.data, gltfBuffer.size, &gltfData);
-			}
+            {
+                ME_PROFILE_SCOPE("cgltf_parse mesh");
+                parseResult = cgltf_parse(&options, gltfBuffer.data, gltfBuffer.size, &gltfData);
+            }
             if (parseResult == cgltf_result_success)
             {
-				ME_PROFILE_SCOPE("cgltf_load_buffers mesh");
+                ME_PROFILE_SCOPE("cgltf_load_buffers mesh");
                 parseResult = cgltf_load_buffers(&options, gltfData, resourcePathAbs.cstr());
                 if (parseResult != cgltf_result_success)
                 {
                     LOG_WARN(MeshSystem, "Failed to load gltf buffers from {}", LogSV(resourcePathAbs));
+                    return false;
                 }
             }
             else
             {
                 LOG_WARN(MeshSystem, "Failed to parse gltf from {}", LogSV(resourcePathAbs));
+                return false;
             }
-            ME_ASSERT(gltfData->meshes_count);
+
+            if (!gltfData->meshes_count)
+            {
+                return false;
+            }
             if (gltfData->meshes_count > 1)
             {
-                LOG_WARN(MeshSystem, "Loading a gltf mesh which contains multiple meshes will ignore all but the first mesh");
+                LOG_WARN(MeshSystem,  "Loading a gltf mesh which contains multiple meshes will ignore all but the first mesh");
             }
             StringView gltfResPath = msFsGetDirFromPath(resourcePathAbs);
-			meMeshPoolGet().Load(GetEngineCtx()->renderer, gltfResPath, gltfData->meshes[0]);
-		}
-	}
+            return meAssetImportGltfMesh(*outMesh, gltfResPath, gltfData->meshes[0]);
+        }
+        return true;
+    }
 
-	static void RegisterAssetLoader(meEventPayload payload)
-	{
-		meAllocator* allocator = (meAllocator*)payload.payload;
-		meAssetRegisterLoader(MENEW(allocator, meMeshAssetLoader, &TD_MEMESH, &meMeshPoolGet(), meAssetType::MAMesh));
-	}
+    bool meAssetInitializeRuntime(meAsset& asset) override
+    {
+
+        meMesh& mesh = *(meMesh*)asset.runtimeContent.get();
+        auto upload = [](meGPUBuffer& buffer, u32 layout) {
+            if (buffer.cpuData && buffer.bufferHandle == U32_INVALID_ID)
+            {
+                buffer.bufferHandle = RendererGetMain().CreateVertexBuffer(buffer.cpuData, NTH_BIT(layout));
+            }
+            return !buffer.cpuData || buffer.bufferHandle != U32_INVALID_ID;
+        };
+        if (!upload(mesh.vertBuffer, meMeshVertexLayoutType_Position) ||
+            !upload(mesh.normBuffer, meMeshVertexLayoutType_Normal) ||
+            !upload(mesh.texcoordBuffer, meMeshVertexLayoutType_TexCoord0) || !upload(mesh.idxBuffer, mesh.indexLayout))
+        {
+            return false;
+        }
+        if (!mesh.material.runtimeHandle)
+        {
+            return true;
+        }
+        mesh.material.runtimeContent = meMaterialGetPool().GetShared(mesh.material.runtimeHandle);
+        return meAssetSystemGet().assetLoaders[MAMaterial]->meAssetInitializeRuntime(mesh.material);
+    }
+
+
+
+    static void RegisterAssetLoader(meEventPayload payload)
+    {
+        meAllocator* allocator = (meAllocator*)payload.payload;
+        meAssetRegisterLoader(MENEW(allocator, meMeshAssetLoader, &TD_MEMESH, &meMeshPoolGet(), meAssetType::MAMesh));
+    }
 };
 
 MEEVENT_REGISTER_STATIC(registerAssetLoader, meMeshAssetLoader::RegisterAssetLoader);

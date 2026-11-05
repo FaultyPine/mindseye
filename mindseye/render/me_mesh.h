@@ -9,7 +9,6 @@ struct RendererFrontend;
 #include "scene/me_transform.h"
 #include "core/me_filesystem.h"
 
-struct cgltf_mesh;
 
 typedef Eye meMeshID;
 
@@ -40,6 +39,7 @@ struct MEREFLECT(type) meMesh : public meBaseAsset
     MEREFLECT(exclude)
 	meGPUBuffer texcoordBuffer = {};
 
+    u32 indexLayout = meMeshVertexLayoutType_Index16;
     BoundingBox meshBounds = {};
     
 	meTypedAsset<MAMaterial> material = {};
@@ -75,10 +75,6 @@ struct meMeshPool : public meResourcePool<meMesh>
 		return MAMesh;
 	}
 
-	meMeshID Load(
-		RendererFrontend* renderer,
-		StringView gltfResPath,
-		const cgltf_mesh& inMesh);
 
 	void Load(
         meMeshID outMeshHandle,

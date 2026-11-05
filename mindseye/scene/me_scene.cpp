@@ -5,6 +5,7 @@
 #define CGLTF_IMPLEMENTATION
 #include "external/cgltf.h"
 #include "asset/me_asset.h"
+#include "asset/me_asset_import_gltf.h"
 #include "asset/me_asset_index.h"
 #include "core/me_scope_exit.h"
 #include "core/me_log.h"
@@ -140,18 +141,41 @@ struct meSceneAssetLoader : public meAssetLoader
 {
 	using meAssetLoader::meAssetLoader;
 
-	virtual void meAssetLoad(meAsset& asset) override
+	virtual bool meAssetPrepareCompiledData(meAsset& asset) override
 	{
 		ME_PROFILE_FUNCTION();
-		meAssetLoader::meAssetLoad(asset);
 		meAllocator* allocator = resourcePool->GetPayloadAllocator();
-        ScopedAssetLockW<meScene> outScene(asset);
+        meScene* outScene = (meScene*)asset.runtimeContent.get();
 		if (FindInString(outScene->externalScenePath, STRING_LIT(".gltf")) != -1 ||
 			FindInString(outScene->externalScenePath, STRING_LIT(".glb")) != -1)
 		{
-			meScenePoolGet().Load(allocator, outScene->externalScenePath, *outScene);
+			return meScenePoolGet().Load(allocator, outScene->externalScenePath, *outScene);
 		}
+        return true;
 	}
+
+    bool meAssetInitializeRuntime(meAsset& asset) override
+    {
+        meScene& scene = *(meScene*)asset.runtimeContent.get();
+        for (DynArray_Foreach(scene.entities, i))
+        {
+            Eye entityHandle = scene.entities[i].runtimeHandle;
+            if (!entityHandle)
+            {
+                continue; // MAID references are loaded through the asset system.
+            }
+            meEntity& entity = meEntityGetPool().Get(entityHandle);
+            if (entity.mesh.runtimeHandle)
+            {
+                entity.mesh.runtimeContent = meMeshPoolGet().GetShared(entity.mesh.runtimeHandle);
+            }
+            if (entity.mesh.runtimeHandle && !meAssetSystemGet().assetLoaders[MAMesh]->meAssetInitializeRuntime(entity.mesh))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
 
 	static void RegisterAssetLoader(meEventPayload payload)
 	{
@@ -162,7 +186,7 @@ struct meSceneAssetLoader : public meAssetLoader
 
 MEEVENT_REGISTER_STATIC(registerAssetLoader, meSceneAssetLoader::RegisterAssetLoader);
 
-void meScenePool::Load(
+bool meScenePool::Load(
 	meAllocator* sceneAllocator,
 	StringView resourcePathRel,
 	meScene& outScene)
@@ -170,13 +194,16 @@ void meScenePool::Load(
 	ME_PROFILE_FUNCTION();
 	String resourcePathAbs = meAssetGetAbsPathForResource(resourcePathRel);
 	meMemoryMappedFile mapping;
-    meOSMapFile(mapping, resourcePathAbs, (OSFileFlags_OnlyIfExists | OSFileFlags_ScopedFile | OSFileFlags_ReadOnly));
+    if (!meOSMapFile(mapping, resourcePathAbs, (OSFileFlags_OnlyIfExists | OSFileFlags_ScopedFile | OSFileFlags_ReadOnly)))
+    {
+        return false;
+    }
 	meSpan gltfBuffer(mapping.ptr, mapping.size);
 
     cgltf_options options = {};
     cgltf_data* gltfData = nullptr;
 
-    ME_ON_SCOPE_EXIT([gltfData]()
+    ME_ON_SCOPE_EXIT([&gltfData]()
 	{
 		cgltf_free(gltfData);
 	});
@@ -196,12 +223,18 @@ void meScenePool::Load(
 		if (parseResult != cgltf_result_success)
 		{
 			LOG_WARN(Scene, "Failed to load gltf buffers from {}", LogSV(resourcePathAbs));
+            return false;
 		}
     }
 	else
 	{
 		LOG_WARN(Scene, "Failed to parse gltf from {}", LogSV(resourcePathAbs));
+        return false;
 	}
+	if (!gltfData->scene)
+    {
+        return false;
+    }
 	const cgltf_scene& scene = *gltfData->scene;
 	DynArray<meTypedAsset<MAEntity>>& entities = outScene.entities;
 	StringView gltfResPath = msFsGetDirFromPath(resourcePathAbs);
@@ -218,13 +251,21 @@ void meScenePool::Load(
 		if (node.mesh)
 		{
 			const cgltf_mesh& gltfmesh = *node.mesh;
-			meMeshID meshHandle = meshPool.Load(GetEngineCtx()->renderer, gltfResPath, gltfmesh);
+			meMeshID meshHandle = meshPool.Load({.resourceType = meResourceType_InstanceAsset});
+            meAsset meshAsset(meshHandle, MAMesh);
+            meshAsset.runtimeContent = meshPool.GetShared(meshHandle);
+            if (!meAssetImportGltfMesh(meshPool.Get(meshHandle), gltfResPath, gltfmesh))
+            {
+                meshPool.Destroy(meshHandle);
+                return false;
+            }
 			meMesh& mesh = meshPool.Get(meshHandle);
             // TODO: right now, we have this asset without an asset id, it's just a runtime concept
             // in the future, we won't be "loading from gltf". We'll "import" gltf into mindseye assets, and load those, so this concept of a meAsset with no MAID will go away
-            entity.mesh = meAsset(meshHandle, MAMesh);
+            entity.mesh = meshAsset;
 			entity.authoritativeBoundsOS = mesh.meshBounds; // may change due to anims. Default initialized to mesh bounds
 		}
 		DynArrayPush(entities, entityAsset);
 	}
+    return true;
 }

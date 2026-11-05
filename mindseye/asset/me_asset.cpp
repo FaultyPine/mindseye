@@ -83,17 +83,10 @@ void ScopedAssetOpaqueLockR::InitTemplateAsset()
 		return;
 	}
 
-	meAssetSystem& sys = meAssetSystemGet();
-	meAssetTypeRegistry& reg = sys.registries[maid.GetType()];
-	{
-		RWLockRead lock(reg.lock);
-		auto it = reg.assets.find(maid);
-		if (it == reg.assets.end() || !it->second.isLoaded())
-		{
-			return;
-		}
-		asset = it->second;
-	}
+    if (meAsset* templateAsset = meAssetTryGetTemplate(maid))
+    {
+        asset = *templateAsset;
+    }
 
 	meAssetLoader* loader = Loader();
 	if (loader && loader->resourcePool)
@@ -163,17 +156,10 @@ void ScopedAssetOpaqueLockW::InitTemplateAsset()
 		return;
 	}
 
-	meAssetSystem& sys = meAssetSystemGet();
-	meAssetTypeRegistry& reg = sys.registries[maid.GetType()];
-	{
-		RWLockRead lock(reg.lock);
-		auto it = reg.assets.find(maid);
-		if (it == reg.assets.end() || !it->second.isLoaded())
-		{
-			return;
-		}
-		asset = it->second;
-	}
+    if (meAsset* templateAsset = meAssetTryGetTemplate(maid))
+    {
+        asset = *templateAsset;
+    }
 
 	meAssetLoader* loader = Loader();
 	if (loader && loader->resourcePool)
@@ -269,7 +255,10 @@ void meAssetRegisterLoader(meAssetLoader* loader)
 
 MAID sCreateNewAssetID(meAssetType type)
 {
-	// TODO: this shouldn't be random. Base it on an incrementing int in the asset index
+	// TODO: this shouldn't be random. 
+    // for template assets, it should be a unique id across all template assets ever created
+    //          Base it on an incrementing int in the asset index?
+    // for instance assets, it can be unique just for this run of the engine
 	f64 time = GetTimeUsec();
 	u32 randomNumber = HashBytes((u8*)&time, sizeof(time));
 	MAID newMaid = MAID(randomNumber, type);
@@ -338,12 +327,12 @@ meAssetLoadStage meAssetLoader::meAssetWaitForLoadstage(
             //GetAssetSystem().assetCompilerJobs.WaitOnJob(assetJobId);
             asset = meAssetTryGetTemplate(maid);
         }
-        if (asset->loadStage != Loaded)
+        if (!asset || asset->loadStage != loadStage)
         {
             return Unloaded;
         }
     }
-    return Loaded;
+    return loadStage;
 }
 
 meAssetLoadStage meAssetLoader::meAssetWaitForLoadstage(
@@ -405,11 +394,15 @@ meJobId meAssetRequestLoadTemplate(
 				ME_ASSERT(asset);
 				jobData.loader->meAssetLoad(*asset);
 				ME_ASSERT(asset->id);
-				ME_ASSERT(asset->loadStage == Loaded && asset->runtimeHandle);
+				if (!asset->isLoaded())
+				{
+					return;
+				}
 				// each asset type can respond to loaded events
 				jobData.loader->meAssetOnLoad(*asset);
 				// globally, systems can also respond
 				assetSystem.assetFinishedLoadingEvent(meEventPayload((void*)&jobData.ident));
+                // and this individual request can also respond
 				if (jobData.cb)
 				{
 					jobData.cb(*asset);
@@ -523,52 +516,88 @@ meJobId meAssetRequestWriteTemplate(
 	return {};
 }
 
+bool meAssetLoader::meAssetCompile(meAsset& asset)
+{
+    ME_PROFILE_FUNCTION();
+    ME_ASSERT(asset.id.GetType() == assetType);
+    meAsset* loaded = meAssetTryGetTemplate(asset.id);
+    // if the asset already has some loaded data, that implies we've already compiled it before, so early out
+    if (loaded && loaded->isLoaded())
+    {
+        if (&asset != loaded)
+        {
+            asset = *loaded;
+        }
+        return true;
+    }
+    asset.loadStage = Compiling;
+    if (!asset.runtimeContent)
+    {
+        asset.runtimeHandle = resourcePool->Load({.resourceType = meResourceType_TemplateAsset});
+        asset.runtimeContent = resourcePool->GetShared(asset.runtimeHandle);
+    }
+
+    StringView diskPath = meAssetIndexGetFilesystemPath(asset.id);
+    StringView assetPath = meAssetGetAbsPathForResource(diskPath);
+    meSerializeResult result;
+    result.ownerMaid = asset.id;
+    DeserializeContext ctx = {};
+    ctx.mode = meSerializationMode_Text;
+    ctx.typeDesc = assetTypeDesc;
+    ctx.externalDataAllocator = resourcePool->GetPayloadAllocator();
+    ctx.outputData = meSpan(asset.runtimeContent.get(), assetTypeDesc->size);
+    ctx.outResult = &result;
+    DeserializeFromFileBlocking(assetPath, ctx);
+    if (!result)
+    {
+        return false;
+    }
+
+    meBaseAsset* content = asset.GetRuntimeContent().get();
+    ME_ASSERT(content->header.assetHeader == asset.id);
+    return meAssetPrepareCompiledData(asset);
+}
+
 void meAssetLoader::meAssetLoad(meAsset& asset)
 {
-	ME_PROFILE_FUNCTION();
-	ME_ASSERT(asset.id.GetType() == assetType);
-	meAllocator* allocator = resourcePool->GetPayloadAllocator();
-	// TODO: implement async loading, so this would return loadStage=Loading
-	// and would itself enqueue more asset compiling jobs for the individual parts of the asset
-	meResourcePoolBase* pool = resourcePool;
-	asset.runtimeHandle = pool->Load({.resourceType = meResourceType_TemplateAsset});
-	asset.runtimeContent = pool->GetShared(asset.runtimeHandle);
-	void* outAsset = asset.runtimeContent.get();
-	StringView diskPath = meAssetIndexGetFilesystemPath(asset.id);
-	StringView assetPath = meAssetGetAbsPathForResource(diskPath);
-	// Set ownerMaid before deserializing so that meAssetDeserializerFn
-	// registers any referenced asset MAIDs in the asset index under this asset's key.
-	meSerializeResult result;
-	result.ownerMaid = asset.id;
-	DeserializeContext ctx = {};
-	ctx.mode = meSerializationMode_Text;
-	ctx.typeDesc = assetTypeDesc;
-	ctx.externalDataAllocator = allocator;
-	ctx.outputData = meSpan(outAsset, assetTypeDesc->size);
-	ctx.outResult = &result;
-	DeserializeFromFileBlocking(assetPath, ctx);
-	if (result)
-	{
-		ME_ASSERT(assetTypeDesc->fields[0].thisType == &TD_MESERIALIZEDHEADER);
-		meSerializedHeader* header = (meSerializedHeader*)outAsset;
-		ME_ASSERT(header->assetHeader == asset.id);
-	}
-	else
-	{
-		LOG_WARN(Asset, "Failed to load asset {}", LogSV(diskPath));
-		Eye failedHandle = asset.runtimeHandle;
-		asset.runtimeContent.reset();
-		asset.runtimeHandle = EYE_INVALID;
-		pool->Destroy(failedHandle);
-	}
-	// we'll almost certainly need the (template) deps for this asset if we're loading it, so just start those now
-	meSpanTyped<MAID> deps = meAssetIndexGetDependencies(asset.id);
-    if (deps)
+    ME_PROFILE_FUNCTION();
+    ME_ASSERT(asset.id.GetType() == assetType);
+    // "loading" an asset:
+    // FIRST, if the asset only exists as the source editor data + some loose files, we need to "compile" it
+    // into a version ready to be used by the engine runtime. Each asset type can do specialized logic here.
+    //  I.E. text -> binary & doing necessary prep operations EX: simplify/optimize mesh data, generate mips, versioning, etc.
+    // NEXT we load the compiled asset data (potentially from a cache), then allow each asset type to do specialized logic
+    // to prepare the loaded asset to be actually used ingame. EX: uploading data to the GPU
+    bool success = meAssetCompile(asset);
+    if (success && asset.isLoaded())
+    {
+        return;
+    }
+    if (success)
+    {
+        asset.loadStage = Loading;
+        success = meAssetInitializeRuntime(asset);
+    }
+    if (!success)
+    {
+        LOG_WARN(Asset, "Failed to compile or initialize asset {}", LogSV(meAssetIndexGetFilesystemPath(asset.id)));
+        Eye failedHandle = asset.runtimeHandle;
+        asset.runtimeContent.reset();
+        asset.runtimeHandle = EYE_INVALID;
+        asset.loadStage = Unloaded;
+        if (failedHandle != EYE_INVALID)
+        {
+            resourcePool->Destroy(failedHandle);
+        }
+        return;
+    }
+    // a cheeky assumption. If you're loading this asset, you will almost certainly end up loading it's dependencies very soon.
+    meSpanTyped<MAID> deps = meAssetIndexGetDependencies(asset.id);
+    if (deps.isValid())
     {
         meAssetRequestLoadTemplate(deps, (u32)deps.size);
     }
-	
-	asset.loadStage = result ? Loaded : Unloaded;
+    asset.loadStage = Loaded;
 }
 
 void meAssetUnloadBlocking(meSpanTyped<meAsset> assets)
@@ -629,7 +658,7 @@ void meAssetLoader::meAssetWrite(meAsset& asset)
 	ctx.sourceData = meSpan(assetData, assetTypeDesc->size);
 	meSerializeResult res = SerializeBlocking(ctx);
 	ME_ASSERT(res == meSerializeResult::SER_SUCCESS);
-	StringView assetSerializedString((char*)ctx.serializedData.data, ctx.serializedData.size);
+	StringView assetSerializedString(ctx.serializedData);
 	if (!meOSWriteFileContentAtomic(assetPath, assetSerializedString.data, assetSerializedString.len))
 	{
 		LOG_ERROR(Asset, "Failed to write asset to file. filename = {}\nassetString = {}", LogSV(assetPath), LogSV(assetSerializedString));

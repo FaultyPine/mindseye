@@ -10,7 +10,7 @@ run `build.bat`
 ### Current internal tech
 - clang reflection
 - asset system (uses reflection data)
-- compile-time arbitrary code execution
+- compile-time code execution
 
 ### Current focus
 
@@ -36,6 +36,7 @@ Finishing the asset system todo:
 - asset system
 - console command system - use CompileRun to codegen function<->console command bindings (also use for cmdline args handlers?)
 - ECS
+    - Assets could be entities too! It sounds like that was the case in the original Theif engine
 - scene graph
 - renderer
 - engine-wide savestates

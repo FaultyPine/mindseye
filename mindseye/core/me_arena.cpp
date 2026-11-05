@@ -22,12 +22,6 @@ void Arena::meFree(void* allocation)
 	ME_ASSERT(backing_mem <= allocation && allocation <= (backing_mem + backing_mem_size))
 }
 
-Allocation Arena::meRealloc(const Allocation& allocation, u64 newSize) 
-{ 
-	UNIMPLEMENTED(); 
-	return {}; 
-}
-
 void Arena::meClear(bool deleteMemory) 
 { 
 	if (deleteMemory && backingAllocator && backing_mem)

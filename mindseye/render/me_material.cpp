@@ -5,7 +5,6 @@
 #include "core/me_profile.h"
 #include "me_material.h"
 
-#include "external/cgltf.h"
 #include "render/renderer_frontend.h"
 
 void meMaterialInitialize(EngineContext* ctx)
@@ -22,7 +21,6 @@ meMaterialPool& meMaterialGetPool()
 	return *GetEngineCtx()->materialSystem;
 }
 
-
 StringView meMaterialGetTextureTypeName(meMaterialTextureType texType)
 {
 	switch (texType)
@@ -34,62 +32,48 @@ StringView meMaterialGetTextureTypeName(meMaterialTextureType texType)
 	}
 }
 
-meMaterialID meMaterialPool::Load(
-	RendererFrontend* renderer,
-	StringView gltfResPath,
-	const cgltf_material& gltfMaterial)
-{
-	ME_PROFILE_FUNCTION();
-    meMaterialID materialHdl = meMaterialCreateDefault(StringFromCString(gltfMaterial.name));
-	meMaterial& material = meMaterialGetPool().Get(materialHdl);
-
-	if (gltfMaterial.has_pbr_metallic_roughness)
-	{
-		meTexturePool& texturePool = meTextureGetPool();
-		meTextureID textureHdl = texturePool.Load({.resourceType = meResourceType_InstanceAsset});
-		meTexture& texture = texturePool.Get(textureHdl);
-
-		meMaterialTextureType texType = meMaterialTextureType::Diffuse;
-		StringView diffuseTexUniformName = meMaterialGetTextureTypeName(texType);
-
-		texture.sampler = renderer->CreateShaderUniform(diffuseTexUniformName, meUniformDataType::UNIFORM_SAMPLER);
-		material.textureHandles[texType] = meTypedAsset<MATexture>(meAsset(textureHdl, MATexture));
-
-		meGPUBuffer diffuseTextureMem = {};
-		if (gltfMaterial.pbr_metallic_roughness.base_color_texture.texture)
-		{
-			const cgltf_texture& gltftex = *gltfMaterial.pbr_metallic_roughness.base_color_texture.texture;
-			diffuseTextureMem = texturePool.Load(renderer, gltfResPath, *gltftex.image);
-			StringCopy(StringView(texture.name, meTexture::METEXTURE_MAX_NAME_LEN), StringFromCString(gltftex.name));
-		}
-		else
-		{
-			// 1x1 pixel of a single color
-            const float* rgba = gltfMaterial.pbr_metallic_roughness.base_color_factor;
-            u32* pixel = MEALLOC(renderer->rendererPersistentAllocator, sizeof(u32));
-            *pixel = PackFloatsToU32(rgba[0], rgba[1], rgba[2], rgba[3]);
-            meSpan pixels(pixel, sizeof(u32));
-            u32 tex = renderer->UploadTextureToGPU(pixels, 4, 1, 1);
-            diffuseTextureMem = meGPUBuffer{.bufferHandle = tex, .cpuData = pixels};
-			StringCopy(StringView(texture.name, meTexture::METEXTURE_MAX_NAME_LEN), STRING_LIT("Static Color Texture"));
-		}
-		if (diffuseTextureMem.IsValid())
-		{
-			texture.buffer = diffuseTextureMem;
-		}
-	}
-	return materialHdl;
-}
-
 struct meMaterialAssetLoader : public meAssetLoader
 {
-	using meAssetLoader::meAssetLoader;
+    using meAssetLoader::meAssetLoader;
 
-	static void RegisterAssetLoader(meEventPayload payload)
-	{
-		meAllocator* allocator = (meAllocator*)payload.payload;
-		meAssetRegisterLoader(MENEW(allocator, meMaterialAssetLoader, &TD_MEMATERIAL, &meMaterialGetPool(), meAssetType::MAMaterial));
-	}
+    bool meAssetInitializeRuntime(meAsset& asset) override
+    {
+        meMaterial& material = *(meMaterial*)asset.runtimeContent.get();
+        if (!material.shaderHandle.runtimeHandle && !material.shaderHandle.id)
+        {
+            meShaderID litShader = meShaderCreate(meSpan(main_lit_fs), meSpan(main_lit_vs));
+            material.shaderHandle = meTypedAsset<MAShader>(meAsset(litShader, MAShader));
+        }
+        for (u32 i = 0; i < NUM_MATERIAL_TEXTURE_TYPES; i++)
+        {
+            meTextureID textureHandle = material.textureHandles[i].runtimeHandle;
+            if (!textureHandle)
+            {
+                continue;
+            }
+            meTexturePool& textures = meTextureGetPool();
+            meAsset& textureAsset = material.textureHandles[i];
+            textureAsset.runtimeContent = textures.GetShared(textureHandle);
+            if (!meAssetSystemGet().assetLoaders[MATexture]->meAssetInitializeRuntime(textureAsset))
+            {
+                return false;
+            }
+            meTexture& texture = textures.Get(textureHandle);
+            if (texture.sampler == U64_INVALID_ID)
+            {
+                texture.sampler = RendererGetMain().CreateShaderUniform(
+                    meMaterialGetTextureTypeName((meMaterialTextureType)i), UNIFORM_SAMPLER);
+            }
+        }
+        return true;
+    }
+
+    static void RegisterAssetLoader(meEventPayload payload)
+    {
+        meAllocator* allocator = (meAllocator*)payload.payload;
+        meAssetRegisterLoader(
+            MENEW(allocator, meMaterialAssetLoader, &TD_MEMATERIAL, &meMaterialGetPool(), meAssetType::MAMaterial));
+    }
 };
 
 MEEVENT_REGISTER_STATIC(registerAssetLoader, meMaterialAssetLoader::RegisterAssetLoader);

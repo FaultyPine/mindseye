@@ -126,7 +126,7 @@ bool BufferCopy(meSpan dst, meSpan src)
 #ifndef ME_CORE_ONLY
 
 #define ROOT_ARENA_SIZE              GIGABYTES_BYTES(2)
-#define ENGINE_ARENA_SIZE            MEGABYTES_BYTES(512)
+#define ENGINE_ARENA_SIZE            MEGABYTES_BYTES(1024)
 #define ENGINE_FRAME_ARENA_SIZE      MEGABYTES_BYTES(64)
 #define ENGINE_SCENE_ARENA_SIZE      MEGABYTES_BYTES(128)
 #define GAME_ARENA_SIZE              MEGABYTES_BYTES(512)
