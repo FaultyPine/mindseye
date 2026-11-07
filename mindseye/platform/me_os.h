@@ -186,7 +186,7 @@ struct OSFileReference
 		ME_ASSERT(path[str.len] == '\0');
 	}
 	bool HasOpenFile() const { return reinterpret_cast<s64>(fileHandle) > 0; }
-	StringView GetPath() const { return StringFromCString(path); }
+	StringView GetPath() const { return StringFromCString(path, ME_PATH_MAX); }
 };
 
 struct meMemoryMappedFile : public OSFileReference
