@@ -167,67 +167,20 @@ struct meMeshAssetLoader : public meAssetLoader
 {
     using meAssetLoader::meAssetLoader;
 
-    virtual bool meAssetPrepareCompiledData(meAsset& asset) override
+    virtual bool meAssetImport(OSFileReference importThis) override
     {
         ME_PROFILE_FUNCTION();
-        meAllocator* allocator = resourcePool->GetPayloadAllocator();
-        meMesh* outMesh = (meMesh*)asset.runtimeContent.get();
-        if (FindInString(outMesh->externalMeshPath, STRING_LIT(".gltf")) != -1 ||
-            FindInString(outMesh->externalMeshPath, STRING_LIT(".glb")) != -1)
+        StringView importFileStr = importThis.GetPath();
+        if (FindInString(importFileStr, STRING_LIT(".gltf")) != -1 ||
+            FindInString(importFileStr, STRING_LIT(".glb")) != -1)
         {
-            StringView resourcePathAbs = meAssetGetAbsPathForResource(outMesh->externalMeshPath);
-            OSFileReference file;
-            if (!meOSOpenFile(file, resourcePathAbs, (OSFileFlags_OnlyIfExists | OSFileFlags_ScopedFile | OSFileFlags_ReadOnly)))
+            meAsset newAsset{};
+			if (meAssetImportGltfMesh(newAsset, importThis))
             {
-                return false;
+                return meAssetWrite(newAsset);
             }
-
-            u64 filesize = meOSGetFileSize(file);
-            Allocation gltfBuffer = MEALLOC(allocator, filesize);
-            ME_ON_SCOPE_EXIT([allocator, &gltfBuffer]() { MEFREE(allocator, gltfBuffer); });
-            if (!meOSReadFileContents(file, gltfBuffer.data, gltfBuffer.size))
-            {
-                LOG_ERROR(MeshSystem, "failed to load gltf mesh file data {}", LogSV(resourcePathAbs));
-                return false;
-            }
-
-            cgltf_options options = {};
-            cgltf_data* gltfData = nullptr;
-            ME_ON_SCOPE_EXIT([&gltfData]() { cgltf_free(gltfData); });
-
-            cgltf_result parseResult = {};
-            {
-                ME_PROFILE_SCOPE("cgltf_parse mesh");
-                parseResult = cgltf_parse(&options, gltfBuffer.data, gltfBuffer.size, &gltfData);
-            }
-            if (parseResult == cgltf_result_success)
-            {
-                ME_PROFILE_SCOPE("cgltf_load_buffers mesh");
-                parseResult = cgltf_load_buffers(&options, gltfData, resourcePathAbs.cstr());
-                if (parseResult != cgltf_result_success)
-                {
-                    LOG_WARN(MeshSystem, "Failed to load gltf buffers from {}", LogSV(resourcePathAbs));
-                    return false;
-                }
-            }
-            else
-            {
-                LOG_WARN(MeshSystem, "Failed to parse gltf from {}", LogSV(resourcePathAbs));
-                return false;
-            }
-
-            if (!gltfData->meshes_count)
-            {
-                return false;
-            }
-            if (gltfData->meshes_count > 1)
-            {
-                LOG_WARN(MeshSystem,  "Loading a gltf mesh which contains multiple meshes will ignore all but the first mesh");
-            }
-            StringView gltfResPath = msFsGetDirFromPath(resourcePathAbs);
-            return meAssetImportGltfMesh(*outMesh, gltfResPath, gltfData->meshes[0]);
         }
-        return true;
+        return false;
     }
 
     bool meAssetInitializeRuntime(meAsset& asset) override

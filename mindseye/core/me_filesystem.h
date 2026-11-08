@@ -16,7 +16,11 @@ meFsPath : public String
 };
 
 // populates `out` with result of OS path picker window
-bool FilesystemPathPicker(const char* title, String& out);
+enum FilePickerFileMustExist : bool;
+bool FilesystemPathPicker(
+    const char* title, 
+    String& out,
+    FilePickerFileMustExist fileMustExist);
 
 bool meFsPathEditorRender(EditorRenderContext& ctx);
 
@@ -24,6 +28,8 @@ MEAPI StringView meFsGetDirectorySeperator();
 
 // NOTE: will NormalizePathSeperators on the passed in path
 MEAPI StringView meFsGetFileFromFullPath(StringView path);
+
+MEAPI StringView meFsRemoveExt(StringView path);
 
 MEAPI StringView msFsGetDirFromPath(StringView path);
 

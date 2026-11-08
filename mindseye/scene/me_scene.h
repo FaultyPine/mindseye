@@ -11,15 +11,13 @@
 #include "generatedtypes/me_scene.generated.h"
 #endif
 
-typedef u32 meSceneID;
+typedef Eye meSceneID;
 
 struct MEREFLECT(type, Description="Scene Description")
 meScene : public meBaseAsset
 {
     using meBaseAsset::meBaseAsset;
 
-	// an external file that represents the scene - i.e. gltf
-	meFsPath externalScenePath = {};
 	meCamera mainCamera = {};
 
 	DynArray<meTypedAsset<MAEntity>> entities = {};
@@ -64,12 +62,6 @@ struct meScenePool : public meResourcePool<meScene>
 	{
 		return MAScene;
 	}
-
-	// loads gltf scene from the filesystem
-	bool Load(
-		meAllocator* allocator, 
-		StringView resourcePath, 
-		meScene& outScene);
 
 	Eye Load(meResourceCreateParams createParams) override
 	{

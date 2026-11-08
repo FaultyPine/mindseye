@@ -42,7 +42,7 @@ struct meResourceCreateParams
 
 struct meResourcePoolBase
 {
-	virtual Eye Load(meResourceCreateParams createParams) { UNIMPLEMENTED(); return {}; }
+	virtual Eye Load(meResourceCreateParams createParams) { return Create(createParams); }
 	virtual meSharedPtr<void> GetShared(Eye handle) const { return {}; }
 	meAllocator* GetPayloadAllocator() const { return resourcePayloadAllocator; }
 
@@ -77,10 +77,7 @@ struct meResourcePool : public meResourcePoolBase
     }
     void Clear();
 	bool Empty() const { return resourcePoolTemplates.empty() && resourcePoolInstances.empty(); }
-	// derived resource pools will overload this Load function with
-	// their own signature. Those derived functions should use Create
-	// to return & write to the handle
-	virtual Eye Load(meResourceCreateParams createParams) override { return Create(createParams); }
+
 	ResourceType& Get(Eye handle);
 	const ResourceType& Get(Eye handle) const;
 	meSharedPtr<void> GetShared(Eye handle) const override;

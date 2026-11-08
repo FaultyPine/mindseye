@@ -67,7 +67,7 @@ void CopyToRenderInput(
 }
 
 // runs on the main thread — loads new dll, swaps slot, unloads old
-static void DoUserAppDllSwap(void*)
+static void DoUserAppDllSwap()
 {
     EngineContext* engine = GetEngineCtx();
     HotReloadData& data = engine->hotReload;
@@ -115,7 +115,7 @@ static void OnHotReloadBuildComplete(s32 exitCode, void*)
 
     meExternalCommand cmd = {};
     cmd.type = meExternalCommandType_MainThreadCmd;
-    cmd.mainThreadCmd = { DoUserAppDllSwap, nullptr };
+    cmd.mainThreadCmd.fn = DoUserAppDllSwap;
     meSendExternalCommand(cmd);
 }
 

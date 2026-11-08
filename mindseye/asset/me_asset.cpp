@@ -415,6 +415,8 @@ meJobId meAssetRequestLoadTemplate(
 			else
 			{
 				meJobId compilerJobId = assetSystem.assetCompilerJobs.Execute(fn);
+                // TODO: support multiple async jobs that are all grouped into a single "task group" id to return here.
+                ME_ASSERT(numAssets == 0);
 				return compilerJobId;
 			}
 		}
@@ -508,10 +510,59 @@ meJobId meAssetRequestWriteTemplate(
 			}
 			else
 			{
+                // TODO: support multiple async jobs that are all grouped into a single "task group" id to return here.
+                ME_ASSERT(assetIdents.size == 0);
 				meJobId compilerJobId = assetSystem.assetCompilerJobs.Execute(fn);
 				return compilerJobId;
 			}
 		}
+	}
+	return {};
+}
+
+meJobId meAssetRequestImport(
+    meSpanTyped<std::tuple<OSFileReference, meAssetType>> files,
+    meAssetOnImportCb onImportCb)
+{
+    ME_PROFILE_FUNCTION();
+	meAssetSystem& assetSystem = meAssetSystemGet();
+	for (u32 i = 0; i < files.size; i++)
+	{
+        struct JobData
+        {
+            OSFileReference file;
+            meAssetType type;
+            meAssetOnImportCb cb;
+        };
+        JobData jobData = {};
+        jobData.file = std::get<0>(files[i]);
+        jobData.type = std::get<1>(files[i]);
+        jobData.cb = onImportCb;
+        auto fn = [jobData, &assetSystem]() 
+        {
+            ME_PROFILE_FUNCTION();
+            meAssetLoader* loader = meAssetTypeIsValid(jobData.type) ? assetSystem.assetLoaders[jobData.type] : nullptr;
+            bool success = loader && loader->meAssetImport(jobData.file);
+            if (!success)
+            {
+                LOG_ERROR(Asset, "Failed to import {} as {}", LogSV(jobData.file.GetPath()), LogSV(meAssetTypeToString(jobData.type)));
+            }
+            if (jobData.cb)
+            {
+                jobData.cb(jobData.file, success);
+            }
+        };
+        if (MEASSET_DEBUG_SINGLETHREADED_LOAD)
+        {
+            fn();
+        }
+        else
+        {
+            meJobId compilerJobId = assetSystem.assetCompilerJobs.Execute(fn);
+            // TODO: support multiple async jobs that are all grouped into a single "task group" id to return here.
+            ME_ASSERT(files.size == 0);
+            return compilerJobId;
+        }
 	}
 	return {};
 }
@@ -631,14 +682,14 @@ void meAssetUnloadBlocking(meSpanTyped<meAsset> assets)
     }
 }
 
-void meAssetLoader::meAssetWrite(meAsset& asset)
+bool meAssetLoader::meAssetWrite(meAsset& asset)
 {
 	ME_PROFILE_FUNCTION();
 	meResourcePoolBase* pool = resourcePool;
 	if (!asset.isLoaded())
 	{
 		LOG_WARN(Asset, "Attempted to write an unloaded asset");
-		return;
+		return false;
 	}
 	ME_ASSERT(assetTypeDesc->fields[0].thisType == &TD_MESERIALIZEDHEADER);
 
@@ -657,12 +708,18 @@ void meAssetLoader::meAssetWrite(meAsset& asset)
 	ctx.allocator = tempAllocator;
 	ctx.sourceData = meSpan(assetData, assetTypeDesc->size);
 	meSerializeResult res = SerializeBlocking(ctx);
-	ME_ASSERT(res == meSerializeResult::SER_SUCCESS);
+	if (res != meSerializeResult::SER_SUCCESS)
+	{
+		LOG_ERROR(Asset, "Failed to serialize asset {}", LogSV(assetPath));
+		return false;
+	}
 	StringView assetSerializedString(ctx.serializedData);
 	if (!meOSWriteFileContentAtomic(assetPath, assetSerializedString.data, assetSerializedString.len))
 	{
 		LOG_ERROR(Asset, "Failed to write asset to file. filename = {}\nassetString = {}", LogSV(assetPath), LogSV(assetSerializedString));
+		return false;
 	}
+	return true;
 }
 
 meAsset* meAssetTryGetTemplate(MAID assetID)

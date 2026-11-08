@@ -6,6 +6,7 @@
 #include "render/me_material.h"
 #include "render/me_mesh.h"
 #include "render/me_texture.h"
+#include "scene/me_scene.h"
 #include "core/me_scope_exit.h"
 
 ME_DEFINE_LOG_CATEGORY(AssetImportGltf);
@@ -21,7 +22,30 @@ static cgltf_material GenerateDummyGLTFMaterial()
     return mat;
 }
 
-bool meAssetImportGltfTexture(meTexture& texture, StringView gltfResPath, const cgltf_image& image)
+String AssetNameFromImportFilename(StringView path)
+{
+    StringView filename = meFsGetFileFromFullPath(path);
+    StringView fileNoExt = meFsRemoveExt(filename);
+    return fileNoExt;
+}
+
+static bool ImportDestinationAvailable(StringView name, meAssetType type)
+{
+    String path = meAssetGetAbsPathForResource(meAssetEnsurePathHasGoodExtension(name, type));
+    OSFileReference file;
+    file.InitWithoutOpening(path);
+    if (meOSFileExists(file))
+    {
+        LOG_ERROR(AssetImportGltf, "Cannot import asset. destination already exists: {}", LogSV(path));
+        return false;
+    }
+    return true;
+}
+
+bool meAssetImportGltfTexture(
+    meTexture& texture, 
+    StringView gltfResPath, 
+    const cgltf_image& image)
 {
     ME_PROFILE_FUNCTION();
     // not supporting embedded texture data rn
@@ -29,7 +53,7 @@ bool meAssetImportGltfTexture(meTexture& texture, StringView gltfResPath, const 
     {
         return false;
     }
-    StringView directory = msFsGetDirFromPath(meAssetGetAbsPathForResource(gltfResPath));
+    StringView directory = gltfResPath;
     StringView path = StringFormatTmp("%.*s/%s", STRING_VAARGS(directory), image.uri);
     OSFileReference file;
     if (!meOSOpenFile(file, path, OSFileFlags_OnlyIfExists | OSFileFlags_ReadOnly | OSFileFlags_ScopedFile))
@@ -56,7 +80,10 @@ bool meAssetImportGltfTexture(meTexture& texture, StringView gltfResPath, const 
     return true;
 }
 
-bool meAssetImportGltfMaterial(meMaterial& material, StringView gltfResPath, const cgltf_material& gltfMaterial)
+bool meAssetImportGltfMaterial(
+    meMaterial& material, 
+    StringView gltfResPath, 
+    const cgltf_material& gltfMaterial)
 {
     ME_PROFILE_FUNCTION();
     StringCopy(StringView(material.name, meMaterial::MEMATERIAL_MAX_NAME_LEN), StringFromCString(gltfMaterial.name));
@@ -101,7 +128,10 @@ bool meAssetImportGltfMaterial(meMaterial& material, StringView gltfResPath, con
     return true;
 }
 
-bool meAssetImportGltfMesh(meMesh& outMesh, StringView gltfResPath, const cgltf_mesh& inMesh)
+bool meAssetImportGltfMesh(
+    meMesh& outMesh, 
+    StringView gltfResPath, 
+    const cgltf_mesh& inMesh)
 {
     ME_PROFILE_FUNCTION();
     meMaterialPool& materialPool = meMaterialGetPool();
@@ -223,4 +253,168 @@ bool meAssetImportGltfMesh(meMesh& outMesh, StringView gltfResPath, const cgltf_
         }
     }
     return true;
+}
+
+
+bool meAssetImportGltfMesh(
+    meAsset& outAsset, 
+    OSFileReference& importThis)
+{
+    ME_ASSERT(!importThis.HasOpenFile());
+    meMeshPool& pool = meMeshPoolGet();
+
+    String newAssetName = AssetNameFromImportFilename(importThis.GetPath());
+    if (!ImportDestinationAvailable(newAssetName, MAMesh))
+    {
+        return false;
+    }
+    outAsset = meAssetCreateNewAsset(meAssetType::MAMesh, meResourceType::meResourceType_TemplateAsset, newAssetName);
+    meMesh& outMesh = pool.Get(outAsset);
+    
+    String resourcePathAbs = importThis.GetPath();
+    meMemoryMappedFile mapping;
+    if (!meOSMapFile(mapping, resourcePathAbs, (OSFileFlags_OnlyIfExists | OSFileFlags_ScopedFile | OSFileFlags_ReadOnly)))
+    {
+        return false;
+    }
+	meSpan gltfBuffer(mapping.ptr, mapping.size);
+
+    cgltf_options options = {};
+    meSharedPtr<cgltf_data> gltfData;
+
+    cgltf_result parseResult = {};
+    {
+        ME_PROFILE_SCOPE("cgltf_parse mesh");
+        cgltf_data* ptr = nullptr;
+        parseResult = cgltf_parse(&options, gltfBuffer.data, gltfBuffer.size, &ptr);
+        gltfData = meSharedPtr<cgltf_data>(ptr, cgltf_free);
+    }
+    if (parseResult == cgltf_result_success)
+    {
+        ME_PROFILE_SCOPE("cgltf_load_buffers mesh");
+        parseResult = cgltf_load_buffers(&options, gltfData.get(), resourcePathAbs.cstr());
+        if (parseResult != cgltf_result_success)
+        {
+            LOG_WARN(AssetImportGltf, "Failed to load gltf buffers from {}", LogSV(resourcePathAbs));
+            return false;
+        }
+    }
+    else
+    {
+        LOG_WARN(AssetImportGltf, "Failed to parse gltf from {}", LogSV(resourcePathAbs));
+        return false;
+    }
+
+    if (!gltfData->meshes_count)
+    {
+        return false;
+    }
+    if (gltfData->meshes_count > 1)
+    {
+        LOG_WARN(AssetImportGltf, "Loading a gltf mesh which contains multiple meshes will ignore all but the first mesh");
+    }
+    StringView gltfResPath = msFsGetDirFromPath(resourcePathAbs);
+    return meAssetImportGltfMesh(outMesh, gltfResPath, gltfData->meshes[0]);
+}
+
+bool meAssetImportGltfScene(
+    meScene& outScene, 
+    StringView resourcePathAbs, 
+    const cgltf_scene& scene)
+{
+    ME_PROFILE_FUNCTION();
+	DynArray<meTypedAsset<MAEntity>>& entities = outScene.entities;
+	StringView gltfResPath = msFsGetDirFromPath(resourcePathAbs);
+	meMeshPool& meshPool = meMeshPoolGet();
+	for (u64 nodeIdx = 0; nodeIdx < scene.nodes_count; nodeIdx++)
+	{
+		const cgltf_node& node = *scene.nodes[nodeIdx];
+		float nodeMatrix[16];
+		cgltf_node_transform_local(&node, nodeMatrix);
+		meTransform nodeTf = meTransform(glm::make_mat4(nodeMatrix));
+		meTypedAsset<MAEntity> entityAsset = meEntityCreateBlankInstance(StringFromCString(node.name));
+		meEntity& entity = meEntityGet(entityAsset);
+		entity.transform = nodeTf;
+		if (node.mesh)
+		{
+			const cgltf_mesh& gltfmesh = *node.mesh;
+			meMeshID meshHandle = meshPool.Load({.resourceType = meResourceType_InstanceAsset});
+            meAsset meshAsset(meshHandle, MAMesh);
+            meshAsset.runtimeContent = meshPool.GetShared(meshHandle);
+            if (!meAssetImportGltfMesh(meshPool.Get(meshHandle), gltfResPath, gltfmesh))
+            {
+                meshPool.Destroy(meshHandle);
+                return false;
+            }
+			meMesh& mesh = meshPool.Get(meshHandle);
+            // BOOKMARK: asset import
+            // TODO: right now, we have this asset without an asset id, it's just a runtime concept
+            // in the future, we won't be "loading from gltf". We'll "import" gltf into mindseye assets, and load those, so this concept of a meAsset with no MAID will go away
+            entity.mesh = meshAsset;
+			entity.authoritativeBoundsOS = mesh.meshBounds; // may change due to anims. Default initialized to mesh bounds
+		}
+		DynArrayPush(entities, entityAsset);
+	}
+    return true;
+}
+
+
+bool meAssetImportGltfScene(
+    meAsset& outAsset, 
+    OSFileReference& importThis)
+{
+    ME_ASSERT(!importThis.HasOpenFile());
+    meScenePool& scenePool = meScenePoolGet();
+
+    String newAssetName = AssetNameFromImportFilename(importThis.GetPath());
+    if (!ImportDestinationAvailable(newAssetName, MAScene))
+    {
+        return false;
+    }
+    outAsset = meAssetCreateNewAsset(meAssetType::MAScene, meResourceType::meResourceType_TemplateAsset, newAssetName);
+    meScene& outScene = scenePool.Get(outAsset);
+
+    String resourcePathAbs = importThis.GetPath();
+	meMemoryMappedFile mapping;
+    if (!meOSMapFile(mapping, resourcePathAbs, (OSFileFlags_OnlyIfExists | OSFileFlags_ScopedFile | OSFileFlags_ReadOnly)))
+    {
+        LOG_ERROR(AssetImportGltf, "Failed to open the file for importing " STRING_FMT, STRING_VAARGS(resourcePathAbs));
+        return false;
+    }
+	meSpan gltfBuffer(mapping.ptr, mapping.size);
+
+    cgltf_options options = {};
+    meSharedPtr<cgltf_data> gltfData{};
+
+	// parses the gltf json metadata
+    cgltf_result parseResult = {};
+	{
+		ME_PROFILE_SCOPE("cgltf_parse scene");
+        cgltf_data* ptr = nullptr;
+		parseResult = cgltf_parse(&options, gltfBuffer.data, gltfBuffer.size, &ptr);
+        gltfData = meSharedPtr<cgltf_data>(ptr, cgltf_free);
+	}
+    if (parseResult == cgltf_result_success)
+    {
+		// loads the external buffers (actual geo, textures, etc)
+		{
+			ME_PROFILE_SCOPE("cgltf_load_buffers scene");
+			parseResult = cgltf_load_buffers(&options, gltfData.get(), resourcePathAbs.cstr());
+		}
+		if (parseResult != cgltf_result_success)
+		{
+			LOG_WARN(AssetImportGltf, "Failed to load gltf buffers from {}", LogSV(resourcePathAbs));
+            return false;
+		}
+    }
+	else
+	{
+		LOG_WARN(AssetImportGltf, "Failed to parse gltf from {}", LogSV(resourcePathAbs));
+        return false;
+	}
+	if (!gltfData->scene)
+    {
+        return false;
+    }
+    return meAssetImportGltfScene(outScene, resourcePathAbs, *gltfData->scene);
 }

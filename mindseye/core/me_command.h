@@ -5,13 +5,16 @@
 #include "core/me_math.h"
 #include "asset/me_asset.h"
 
-typedef void(*meMainThreadCommandFn)(void* userdata);
+#include <functional>
+
+using meMainThreadCommandFn = std::function<void()>;
 
 enum meExternalCommandType
 {
 	meExternalCommandType_ChangeScene,
 	meExternalCommandType_SaveAsset,
 	meExternalCommandType_CreateAsset,
+    meExternalCommandType_ImportAsset,
 	meExternalCommandType_PickEntity,
 	meExternalCommandType_MainThreadCmd,
 };
@@ -40,7 +43,12 @@ struct meCmdPickEntity
 struct meCmdMainThread
 {
 	meMainThreadCommandFn fn;
-	void* userdata;
+};
+
+struct meCmdImportAsset
+{
+    meAssetType type;
+	String inPath;
 };
 
 struct meExternalCommand
@@ -52,6 +60,7 @@ struct meExternalCommand
     meCmdCreateNewAsset createAsset;
     meCmdPickEntity pickEntity;
 	meCmdMainThread mainThreadCmd;
+    meCmdImportAsset importAsset;
 };
 
 // Enqueue an external command to be dispatched on the main thread during the next flush.

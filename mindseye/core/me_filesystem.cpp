@@ -10,9 +10,21 @@
 
 #pragma clang diagnostic pop
 
-bool FilesystemPathPicker(const char* title, String& out)
+bool FilesystemPathPicker(
+    const char* title, 
+    String& out,
+    FilePickerFileMustExist fileMustExist)
 {
-    char* outFilename = tinyfd_saveFileDialog(title, nullptr, 0, nullptr, nullptr);
+    char* outFilename = nullptr;
+    if (fileMustExist)
+    {
+        int allowMultipleFiles = 0;
+        outFilename = tinyfd_openFileDialog(title, nullptr, 0, nullptr, nullptr, allowMultipleFiles);
+    }
+    else
+    {
+        outFilename = tinyfd_saveFileDialog(title, nullptr, 0, nullptr, nullptr);
+    }
     if (outFilename != nullptr)
     {
         out = StringFromCString(outFilename);
@@ -41,8 +53,8 @@ void meFsNormalizePathSeperators(StringView str)
 
 StringView meFsGetFileFromFullPath(StringView path)
 {
+	meFsNormalizePathSeperators(path);
 	StringView dirSep = meFsGetDirectorySeperator();
-	meFsNormalizePathSeperators(dirSep);
 	s32 lastDirSep = FindInStringRev(path, dirSep, 0, StringOpFlags_IdxAfterNeedle);
 	if (lastDirSep == -1)
 	{
@@ -50,6 +62,16 @@ StringView meFsGetFileFromFullPath(StringView path)
 	}
 	StringView result = path.OffsetView(lastDirSep);
 	return result;
+}
+
+StringView meFsRemoveExt(StringView path)
+{
+    s32 lastDot = FindInStringRev(path, STRING_LIT("."));
+	if (lastDot != -1)
+    {
+        return path.OffsetView(0, lastDot);
+    }
+    return path;
 }
 
 StringView msFsGetDirFromPath(StringView path)

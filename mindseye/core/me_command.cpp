@@ -1,6 +1,10 @@
 #include "me_command.h"
 #include "external/concurrentqueue/concurrentqueue.h"
 
+// TODO: these are heavy includes i think. Would be nice to not have to spread these across the editor and here.
+#include "res/IconsFontAwesome6.h"
+#include "external/ImGuiNotify.hpp"
+
 #include "core/me_app.h"
 #include "core/me_log.h"
 #include "core/me_math.h"
@@ -113,6 +117,27 @@ static void HandlePickEntity(const meCmdPickEntity& cmd)
     editor.inspectors.push_back(inspector);
 }
 
+static void OnAssetImported(const OSFileReference& file, bool success)
+{
+    String filename = meFsGetFileFromFullPath(file.GetPath());
+    meExternalCommand cmd = {};
+    cmd.type = meExternalCommandType_MainThreadCmd;
+    cmd.mainThreadCmd.fn = [filename, success]()
+    {
+        ImGui::InsertNotification({success ? ImGuiToastType::Info : ImGuiToastType::Error, 3000,
+            StringFormatTmp("%s " STRING_FMT, success ? "Imported" : "Failed to import", STRING_VAARGS(filename)).cstr()});
+    };
+    meSendExternalCommand(cmd);
+}
+
+static void HandleImportAsset(const meCmdImportAsset& cmd)
+{
+    OSFileReference importFile{};
+    importFile.InitWithoutOpening(cmd.inPath);
+    auto importRequest = std::make_tuple(importFile, cmd.type);
+    meAssetRequestImport(SPAN_FROM_TYPED_SINGLE(importRequest), OnAssetImported);
+}
+
 static void DispatchExternalCommand(const meExternalCommand& cmd)
 {
 	switch (cmd.type)
@@ -130,8 +155,16 @@ static void DispatchExternalCommand(const meExternalCommand& cmd)
 			HandlePickEntity(cmd.pickEntity);
 			break;
 		case meExternalCommandType_MainThreadCmd:
-			cmd.mainThreadCmd.fn(cmd.mainThreadCmd.userdata);
+			cmd.mainThreadCmd.fn();
 			break;
+        case meExternalCommandType_ImportAsset:
+            HandleImportAsset(cmd.importAsset);
+            break;
+        default:
+        {
+            LOG_ERROR(Command, "Unknown command type {}", (s32)cmd.type);
+            ME_ASSERT(false);
+        }
 	}
 }
 
@@ -158,5 +191,7 @@ void meFlushMainThreadCommands()
     meCommandQueues& queues = *GetEngineCtx()->commandQueues;
     meExternalCommand cmd;
     while (queues.externalCommandQueue.try_dequeue(cmd))
+    {
         DispatchExternalCommand(cmd);
+    }
 }

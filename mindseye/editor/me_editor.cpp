@@ -62,7 +62,7 @@ bool meFsPathEditorRender(EditorRenderContext& ctx)
 
     if (ImGui::SmallButton("+"))
     {
-        if (FilesystemPathPicker("Select a path", fieldData))
+        if (FilesystemPathPicker("Select a path", fieldData, FilePickerFileMustExist(true)))
         {
             return true;
         }
@@ -172,14 +172,6 @@ void meEditorInitialize(EngineContext* engine)
 	ImGui::GetIO().Fonts->AddFontFromMemoryCompressedTTF(fa_solid_900_compressed_data, fa_solid_900_compressed_size, iconFontSize, &iconsConfig, iconsRanges);
 
 	meAssetEditorInitialize(engine->editor->assetEditor);
-}
-
-
-static void PopulatePathFromUserInputIfNotValid(String& path)
-{
-    // if the scene has no disk path yet, ask the user for one
-    // kept in outer scope so the string data outlives the command dispatch
-    FilesystemPathPicker("Location to save the file", path);
 }
 
 
@@ -328,7 +320,7 @@ void meEditorTick(EngineContext* engine)
                 }
                 if (cmd.createAsset.type != MABadData)
                 {
-                    PopulatePathFromUserInputIfNotValid(cmd.createAsset.path);
+                    FilesystemPathPicker("New asset destionation", cmd.createAsset.path, FilePickerFileMustExist(false));
                     meSendExternalCommand(cmd);
                 }
                 ImGui::EndMenu();
@@ -361,13 +353,36 @@ void meEditorTick(EngineContext* engine)
                 }
                 ImGui::EndMenu();
             }
+            if (ImGui::BeginMenu("Import"))
+            {
+                meExternalCommand cmd = {};
+                cmd.type = meExternalCommandType_ImportAsset;
+                cmd.importAsset.type = MABadData;
+                for (u32 i = 0; i < NUM_ASSET_TYPES; i++)
+                {
+                    StringView assetTypeStr = meAssetTypeToString((meAssetType)i);
+                    if (ImGui::MenuItem(assetTypeStr.cstr()))
+                    {
+                        cmd.importAsset.type = (meAssetType)i;
+                        break;
+                    }
+                }
+                if (cmd.importAsset.type != MABadData)
+                {
+                    if (FilesystemPathPicker("Location of source asset to import", cmd.importAsset.inPath, FilePickerFileMustExist(true)))
+                    {
+                        meSendExternalCommand(cmd);
+                    }
+                }
+                ImGui::EndMenu();
+            }
             ImGui::EndMenu();
         }
         if (ImGui::MenuItem("Change Scene"))
         {
             meExternalCommand cmd = {};
             cmd.type = meExternalCommandType_ChangeScene;
-            PopulatePathFromUserInputIfNotValid(cmd.changeScene.path);
+            FilesystemPathPicker("Location of scene file", cmd.changeScene.path, FilePickerFileMustExist(true));
             meSendExternalCommand(cmd);
         }
 

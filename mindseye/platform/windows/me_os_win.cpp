@@ -887,7 +887,7 @@ bool meOSWriteFileContentAtomic(
 	}
 
 	OSFileReference tempFile = {};
-	if (!meOSOpenFile(tempFile, tempPath, OSFileFlags_StompExisting | OSFileFlags_Temporary | OSFileFlags_DeleteOnFileClose | OSFileFlags_ScopedFile))
+	if (!meOSOpenFile(tempFile, tempPath, OSFileFlags_StompExisting | OSFileFlags_Temporary))
 	{
 		LOG_ERROR(WindowsPlatform, "[meOS] failed atomic write because temp file could not be opened: {}", LogSV(tempPath));
 		return false;
@@ -898,6 +898,7 @@ bool meOSWriteFileContentAtomic(
 	{
 		return false;
 	}
+    meOSCloseFile(tempFile); // release the file lock, we'll need it released for the move
 
 	OSFileReference targetFile = {};
 	targetFile.InitWithoutOpening(path);

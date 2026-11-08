@@ -244,9 +244,11 @@ struct meTypedAsset : public meAsset
 
 struct meAssetLoader
 {
+    // tries to turn some file into a mindseye asset
+    virtual bool meAssetImport(OSFileReference importThis) { return false; };
     // not overridden by asset type loaders - common across all asset types
 	void meAssetLoad(meAsset&);
-	// compiles the asset from source content on disk into memory
+	// compiles the asset from source content on disk (in mindseye asset format) into memory
     // not overridden by asset type loaders - common across all asset types
     bool meAssetCompile(meAsset&);
     // overridden by asset type loaders, do specialized logic here for turning source asset data into compiled data ready for runtime
@@ -256,7 +258,7 @@ struct meAssetLoader
     // Runs after compilation, before the asset becomes Loaded.
     virtual bool meAssetInitializeRuntime(meAsset&) { return true; }
 	// TODO: return a serialized buffer, rather than writing to disk inside this func
-	virtual void meAssetWrite(meAsset&);
+	virtual bool meAssetWrite(meAsset&);
 	virtual void meAssetOnLoad(meAsset&) {}
 	meAssetLoadStage meAssetWaitForLoadstage(
 		meSpanTyped<MAID> assets, 
@@ -326,6 +328,13 @@ MEAPI bool meAssetWaitUntilLoadstage(
 MEAPI meJobId meAssetRequestWriteTemplate(
 	meSpanTyped<MAID> assetIdents,
 	meAssetOnAssetLoadCb onWriteCb = nullptr);
+
+// Called on the import worker after each attempted import, including failures.
+typedef void(*meAssetOnImportCb)(const OSFileReference& file, bool success);
+
+MEAPI meJobId meAssetRequestImport(
+    meSpanTyped<std::tuple<OSFileReference, meAssetType>> files,
+    meAssetOnImportCb onImportCb = nullptr);
 
 MEAPI meAsset* meAssetTryGetTemplate(MAID assetID);
 
