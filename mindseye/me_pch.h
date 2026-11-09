@@ -11,7 +11,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <string_view>
-#include <tuple>
 
 #include <atomic>
 #include <functional>

@@ -521,7 +521,7 @@ meJobId meAssetRequestWriteTemplate(
 }
 
 meJobId meAssetRequestImport(
-    meSpanTyped<std::tuple<OSFileReference, meAssetType>> files,
+    meSpanTyped<tuplet::tuple<OSFileReference, meAssetType>> files,
     meAssetOnImportCb onImportCb)
 {
     ME_PROFILE_FUNCTION();
@@ -535,8 +535,8 @@ meJobId meAssetRequestImport(
             meAssetOnImportCb cb;
         };
         JobData jobData = {};
-        jobData.file = std::get<0>(files[i]);
-        jobData.type = std::get<1>(files[i]);
+        jobData.file = tuplet::get<0>(files[i]);
+        jobData.type = tuplet::get<1>(files[i]);
         jobData.cb = onImportCb;
         auto fn = [jobData, &assetSystem]() 
         {

@@ -134,7 +134,7 @@ static void HandleImportAsset(const meCmdImportAsset& cmd)
 {
     OSFileReference importFile{};
     importFile.InitWithoutOpening(cmd.inPath);
-    auto importRequest = std::make_tuple(importFile, cmd.type);
+    auto importRequest = tuplet::make_tuple(importFile, cmd.type);
     meAssetRequestImport(SPAN_FROM_TYPED_SINGLE(importRequest), OnAssetImported);
 }
 

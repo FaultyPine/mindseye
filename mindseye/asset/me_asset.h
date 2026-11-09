@@ -10,6 +10,9 @@
 #include "core/me_ptrs.h"
 #include "core/me_resourcepool.h"
 
+#include "external/tuple.hpp"
+
+
 #ifndef ME_REFLECTING
 #include "generatedtypes/me_asset.generated.h"
 #endif
@@ -333,7 +336,7 @@ MEAPI meJobId meAssetRequestWriteTemplate(
 typedef void(*meAssetOnImportCb)(const OSFileReference& file, bool success);
 
 MEAPI meJobId meAssetRequestImport(
-    meSpanTyped<std::tuple<OSFileReference, meAssetType>> files,
+    meSpanTyped<tuplet::tuple<OSFileReference, meAssetType>> files,
     meAssetOnImportCb onImportCb = nullptr);
 
 MEAPI meAsset* meAssetTryGetTemplate(MAID assetID);
