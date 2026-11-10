@@ -12,37 +12,9 @@ struct HybridArray
 {
     HybridArray(meAllocator* allocator = nullptr);
     bool IsUsingInPlaceMemory() const { return elements == &fixedMem[0] || elements == nullptr; }
-    HybridArray(const HybridArray&& arr)
+    HybridArray(const HybridArray& arr) : HybridArray(arr.allocator)
     {
-        internalSize = arr.internalSize;
-        capacity = arr.capacity;
-        allocator = arr.allocator;
-        if (arr.IsUsingInPlaceMemory())
-        {
-            ME_MEMCPY(fixedMem, arr.fixedMem, sizeof(T) * internalSize);
-            elements = &fixedMem[0];
-        }
-        else
-        {
-            elements = (T*)allocator->meAlloc(sizeof(T) * capacity);
-            ME_MEMCPY(elements, arr.elements, sizeof(T) * internalSize);
-        }
-    }
-	HybridArray(const HybridArray& arr)
-    {
-        internalSize = arr.internalSize;
-        capacity = arr.capacity;
-        allocator = arr.allocator;
-        if (arr.IsUsingInPlaceMemory())
-        {
-            ME_MEMCPY(fixedMem, arr.fixedMem, sizeof(T) * internalSize);
-            elements = &fixedMem[0];
-        }
-        else
-        {
-            elements = (T*)allocator->meAlloc(sizeof(T) * capacity);
-            ME_MEMCPY(elements, arr.elements, sizeof(T) * internalSize);
-        }
+        *this = arr;
     }
     HybridArray& operator=(const HybridArray& arr)
     {
@@ -50,6 +22,8 @@ struct HybridArray
         // free existing heap allocation if any
         if (!IsUsingInPlaceMemory())
         {
+            for (u32 i = 0; i < capacity; ++i)
+                elements[i].~T();
             allocator->meFree(elements);
         }
         internalSize = arr.internalSize;
@@ -57,14 +31,16 @@ struct HybridArray
         allocator = arr.allocator;
         if (arr.IsUsingInPlaceMemory())
         {
-            ME_MEMCPY(fixedMem, arr.fixedMem, sizeof(T) * internalSize);
             elements = &fixedMem[0];
         }
         else
         {
             elements = (T*)allocator->meAlloc(sizeof(T) * capacity);
-            ME_MEMCPY(elements, arr.elements, sizeof(T) * internalSize);
+            for (u32 i = 0; i < capacity; ++i)
+                new (elements + i) T{};
         }
+        for (u32 i = 0; i < internalSize; ++i)
+            elements[i] = arr.elements[i];
         return *this;
     }
     ~HybridArray();

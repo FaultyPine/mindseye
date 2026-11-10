@@ -17,14 +17,20 @@ static bool CheckArrayResize(HybridArray<T, fixedSize>& array)
             LOG_ERROR(Default, "Tried to resize HybridArray with no allocator assigned!");
             return false;
         }
+        u32 prevCapacity = array.capacity;
         array.capacity = array.internalSize * FIXEDGROWABLE_GROWTH_FACTOR;
         // moving old buffer (could be our fixed mem or a dyn alloc) to a new allocation
         //T* prevAlloc = array.elements == &array.fixedMem[0] ? nullptr : array.elements;
         T* prevElements = array.elements;
         array.elements = (T*)allocator->meAlloc(sizeof(T) * array.capacity);
-        ME_MEMMOVE(array.elements, prevElements, sizeof(T) * array.internalSize);
+        for (u32 i = 0; i < array.capacity; ++i)
+            new (array.elements + i) T{};
+        for (u32 i = 0; i < array.internalSize; ++i)
+            array.elements[i] = prevElements[i];
         if (prevElements != &array.fixedMem[0])
         {
+            for (u32 i = 0; i < prevCapacity; ++i)
+                prevElements[i].~T();
             allocator->meFree(prevElements);
         }
         // move elements from prev buffer to new one
@@ -47,6 +53,8 @@ HybridArray<T, fixedSize>::~HybridArray()
 {
     if (!IsUsingInPlaceMemory())
     {
+        for (u32 i = 0; i < capacity; ++i)
+            elements[i].~T();
         allocator->meFree(elements);
     }
 }
@@ -82,8 +90,8 @@ void HybridArray<T, fixedSize>::insert(const T& element, u32 index)
     }
     else
     {
-        u32 elementsToMove = prevSize - index;
-        ME_MEMMOVE(&at(index + 1), &at(index), sizeof(T) * elementsToMove);
+        for (u32 i = prevSize; i > index; --i)
+            at(i) = at(i - 1);
         at(index) = element;
     }
 }
@@ -113,8 +121,8 @@ T HybridArray<T, fixedSize>::erase(u32 index)
     }
     T tmp = at(index); // copy
     // move everything from the right of this index to the left
-    size_t moveSize = sizeof(T) * (internalSize-index);
-    ME_MEMMOVE(&at(index), &at(index+1), moveSize); 
+    for (u32 i = index; i + 1 < internalSize; ++i)
+        at(i) = at(i + 1);
     internalSize--;
     return tmp;
 }
