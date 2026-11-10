@@ -5,7 +5,7 @@
 #include "core/containers/dynarray.h"
 #include "asset/me_asset.h"
 
-typedef Eye meShaderID;
+typedef meResource meShaderID;
 
 enum meUniformDataType
 {

@@ -10,7 +10,7 @@ struct RendererFrontend;
 #include "core/me_filesystem.h"
 
 
-typedef Eye meMeshID;
+typedef meResource meMeshID;
 
 typedef u32 meMeshVertexLayoutType;
 enum meMeshVertexLayoutType_

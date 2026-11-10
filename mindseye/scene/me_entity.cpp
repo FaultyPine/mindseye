@@ -12,8 +12,8 @@ meEntityPool& meEntityGetPool()
 void InitializeEntitySystem(EngineContext* engine)
 {
 	engine->entityPool = MENEW(&engine->engineArena, meEntityPool, &engine->engineArena, &engine->engineArena);
-    meEntitySetFlag(EYE_INVALID, EntityFlags_Invalid, true);
-    meEntitySetFlag(EYE_INVALID, EntityFlags_DISABLED, true);
+    meEntitySetFlag(ME_RESOURCE_INVALID, EntityFlags_Invalid, true);
+    meEntitySetFlag(ME_RESOURCE_INVALID, EntityFlags_DISABLED, true);
 }
 
 void DeinitializeEntitySystem(EngineContext* ctx)
@@ -58,7 +58,7 @@ meTypedAsset<MAEntity> meEntityCreateBlankInstance(
     }
     else
     {
-		ent.name = StringFormatTmp("UnnamedEntity%i", (u32)newEntityAsset.runtimeHandle);
+		ent.name = StringFormatTmp("UnnamedEntity%i", (u32)newEntityAsset.runtimeHandle.handle);
     }
     // default bounds is bounds of default mesh
     ent.authoritativeBoundsOS = meMeshPoolGet().Get(ent.mesh).meshBounds;

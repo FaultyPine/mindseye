@@ -138,7 +138,7 @@ void meScene::Destroy()
 meScene& meSceneManager::CurrentScene()
 {
 	meScenePool& scenePool = meScenePoolGet();
-	Eye currentSceneHandle = rootScene;
+	meResource currentSceneHandle = rootScene;
 	meScene& result = scenePool.Get(currentSceneHandle);
 	return result;
 }
@@ -168,7 +168,7 @@ struct meSceneAssetLoader : public meAssetLoader
         meScene& scene = *(meScene*)asset.runtimeContent.get();
         for (DynArray_Foreach(scene.entities, i))
         {
-            Eye entityHandle = scene.entities[i].runtimeHandle;
+            meResource entityHandle = scene.entities[i].runtimeHandle;
             if (!entityHandle)
             {
                 continue; // MAID references are loaded through the asset system.

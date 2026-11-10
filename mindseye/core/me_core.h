@@ -18,44 +18,35 @@ struct Eye
         u32 eye = 0;
         struct
         {
-            u32 index: 23;
-            u32 isAssetTemplate: 1;
+            u32 index: 24;
             u32 generation: 8;
         };
     };
     #endif
 
-	static constexpr u32 IndexNumBits = 23;
-    static constexpr u32 AssetTemplateNumBits = 1;
+	static constexpr u32 IndexNumBits = 24;
 	static constexpr u32 IndexBitsMask = (1 << IndexNumBits) - 1;
-	static constexpr u32 GenerationBitsMask = ((~0U) << (IndexNumBits + AssetTemplateNumBits));
-    // reserve a bit after the index bits for 
-    // "is this Eye for a Template Asset or an Instance Asset?"
-    static constexpr u32 AssetTemplateBitMask = (1 << (IndexNumBits + AssetTemplateNumBits)); 
+	static constexpr u32 GenerationBitsMask = ((~0U) << IndexNumBits);
 
 	Eye() = default;
     #ifdef ME_REFLECTING
-	Eye(u32 idx, u8 generation, bool isEditor) 
+	Eye(u32 idx, u8 generation)
 	{
 		eye = 0;
 		eye |= (idx & IndexBitsMask);
-		eye |= (static_cast<u32>(generation) << (IndexNumBits + AssetTemplateNumBits));
-        eye |= isEditor ? AssetTemplateBitMask : 0;
+		eye |= (static_cast<u32>(generation) << (IndexNumBits));
 	}
 	u32 GetIndex() const { return eye & IndexBitsMask; }
-	u8 GetGeneration() const { return (eye & GenerationBitsMask) >> (IndexNumBits + AssetTemplateNumBits); }
-    bool IsTemplateAsset() const { return eye & AssetTemplateBitMask; }
+	u8 GetGeneration() const { return (eye & GenerationBitsMask) >> IndexNumBits; }
     #else // ME_REFLECTING
-	Eye(u32 idx, u8 generation, bool isAssetTemplate) 
+	Eye(u32 idx, u8 generation)
 	{
 		this->eye = 0;
 		this->index = idx;
 		this->generation = generation;
-        this->isAssetTemplate = isAssetTemplate;
 	}
 	u32 GetIndex() const { return index; }
 	u8 GetGeneration() const { return generation; }
-    bool IsTemplateAsset() const { return isAssetTemplate; }
     #endif // ME_REFLECTING
 	explicit operator u32() const { return eye; }
     explicit operator u64() const { return (u64)eye; }

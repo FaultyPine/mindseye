@@ -6,7 +6,7 @@ struct RendererFrontend;
 #include "asset/me_asset.h"
 #include "me_gpu.h"
 
-typedef Eye meTextureID;
+typedef meResource meTextureID;
 struct MEREFLECT(type) meTexture : public meBaseAsset
 {
     using meBaseAsset::meBaseAsset;

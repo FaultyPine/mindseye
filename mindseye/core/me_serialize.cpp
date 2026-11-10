@@ -814,7 +814,7 @@ bool meAssetDeserializerFn(const meTypeDescriptor& td, DeserializeContext& ctx)
 	}
 
     outAsset->id = templateMaid;
-    outAsset->runtimeHandle = EYE_INVALID;
+    outAsset->runtimeHandle = ME_RESOURCE_INVALID;
     outAsset->loadStage = Unloaded;
     if (ctx.outResult)
     {
@@ -836,10 +836,10 @@ bool meAssetEqualsFn(const meTypeDescriptor& td, const void* a, const void* b)
     // Determine whether each side is a loaded instance (vs. a plain template ref).
     // Mirrors the isInstance check in meAssetSerializerFn.
     bool aIsInstance = assetA->runtimeHandle
-                    && !assetA->runtimeHandle.IsTemplateAsset()
+                    && assetA->runtimeHandle.type == meResourceType_InstanceAsset
                     && assetA->loadStage == Loaded;
     bool bIsInstance = assetB->runtimeHandle
-                    && !assetB->runtimeHandle.IsTemplateAsset()
+                    && assetB->runtimeHandle.type == meResourceType_InstanceAsset
                     && assetB->loadStage == Loaded;
 
     if (aIsInstance != bIsInstance) 
@@ -854,7 +854,7 @@ bool meAssetEqualsFn(const meTypeDescriptor& td, const void* a, const void* b)
     }
 
     // Both are loaded instances of the same template.
-    // The same Eye means the same resource-pool slot, so identical data.
+    // The same meResource means the same resource-pool slot, so identical data.
     // Alternative is to do more depthy comparison, but in practice i don't think that's necessary.
     // NOTE: that does also mean two separate loaded runtime handles with identical content will compare false. That's fine though.
     return assetA->runtimeHandle == assetB->runtimeHandle;

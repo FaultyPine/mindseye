@@ -22,7 +22,7 @@ ME_DEFINE_LOG_CATEGORY(MeshSystem);
 void meMeshInitialize(EngineContext* engine)
 {
 	engine->meshSystem = MENEW(&engine->engineArena, meMeshPool, &engine->engineArena, &engine->engineArena);
-	GenCubeMesh(EYE_INVALID, 2); // Bad data mesh is a cube
+	GenCubeMesh(ME_RESOURCE_INVALID, 2); // Bad data mesh is a cube
 }
 
 meMeshPool& meMeshPoolGet()

@@ -42,7 +42,7 @@ static void HandleSaveAsset(const meCmdSaveAsset& cmd)
 {
     if (!cmd.asset.IsTemplateAsset())
     {
-        LOG_WARN(Command, "Support for saving non-template assets isn't fully done");
+        LOG_WARN(Command, "Currently not supporting saving non-template assets");
     }
     MAID maid = cmd.asset;
 	meAsset* asset = meAssetTryGetTemplate(maid);

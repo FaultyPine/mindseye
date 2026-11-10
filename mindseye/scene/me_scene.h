@@ -11,7 +11,7 @@
 #include "generatedtypes/me_scene.generated.h"
 #endif
 
-typedef Eye meSceneID;
+typedef meResource meSceneID;
 
 struct MEREFLECT(type, Description="Scene Description")
 meScene : public meBaseAsset
@@ -30,7 +30,7 @@ struct meSceneRaycastHit
 	meTypedAsset<MAEntity> entity = {};
 	f32 distance = 0.0f;
 	glm::vec3 point = glm::vec3(0);
-	explicit operator bool() const { return entity != EYE_INVALID; }
+	explicit operator bool() const { return entity != ME_RESOURCE_INVALID; }
 };
 
 MEAPI meSceneRaycastHit meSceneRaycast(meScene& scene, const meRay& ray);
@@ -63,9 +63,9 @@ struct meScenePool : public meResourcePool<meScene>
 		return MAScene;
 	}
 
-	Eye Load(meResourceCreateParams createParams) override
+	meResource Load(meResourceCreateParams createParams) override
 	{
-		Eye e = meResourcePool<meScene>::Load(createParams);
+		meResource e = meResourcePool<meScene>::Load(createParams);
 		meScene& scene = Get(e);
 		scene.entities = DynArrayCreate<meTypedAsset<MAEntity>>(GetPayloadAllocator());
 		return e;

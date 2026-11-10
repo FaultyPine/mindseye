@@ -5,7 +5,7 @@ struct RendererFrontend;
 #include "core/me_resourcepool.h"
 #include "asset/me_asset.h"
 
-typedef Eye meMaterialID;
+typedef meResource meMaterialID;
 
 #define ME_MATERIAL_TEXTURE_TYPE_NAMES \
 X(Diffuse) \

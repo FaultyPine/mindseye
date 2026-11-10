@@ -110,7 +110,7 @@ void ScopedAssetOpaqueLockR::InitLoadedRuntime()
 	meAssetLoader* loader = Loader();
 	if (loader && loader->resourcePool)
 	{
-		Eye handle = asset.isLoaded() ? asset.runtimeHandle : EYE_INVALID;
+		meResource handle = asset.isLoaded() ? asset.runtimeHandle : ME_RESOURCE_INVALID;
 		if (!asset.runtimeContent)
 		{
 			asset.runtimeContent = loader->resourcePool->GetShared(handle);
@@ -183,7 +183,7 @@ void ScopedAssetOpaqueLockW::InitLoadedRuntime()
 	meAssetLoader* loader = Loader();
 	if (loader && loader->resourcePool)
 	{
-		Eye handle = asset.isLoaded() ? asset.runtimeHandle : EYE_INVALID;
+		meResource handle = asset.isLoaded() ? asset.runtimeHandle : ME_RESOURCE_INVALID;
 		if (!asset.runtimeContent)
 		{
 			asset.runtimeContent = loader->resourcePool->GetShared(handle);
@@ -277,7 +277,7 @@ meAsset meAssetCreateNewAsset(
 	ME_ASSERT(loader);
 	meResourcePoolBase* resourcePool = loader->resourcePool;
 
-	Eye newRuntimeResource = resourcePool->Load({.resourceType = resourceType});
+	meResource newRuntimeResource = resourcePool->Load({.resourceType = resourceType});
 	meSharedPtr<void> assetContent = resourcePool->GetShared(newRuntimeResource);
 	void* opaqueAssetData = assetContent.get();
 	meSerializedHeader* assetHeader = (meSerializedHeader*)opaqueAssetData;
@@ -632,11 +632,11 @@ void meAssetLoader::meAssetLoad(meAsset& asset)
     if (!success)
     {
         LOG_WARN(Asset, "Failed to compile or initialize asset {}", LogSV(meAssetIndexGetFilesystemPath(asset.id)));
-        Eye failedHandle = asset.runtimeHandle;
+        meResource failedHandle = asset.runtimeHandle;
         asset.runtimeContent.reset();
-        asset.runtimeHandle = EYE_INVALID;
+        asset.runtimeHandle = ME_RESOURCE_INVALID;
         asset.loadStage = Unloaded;
-        if (failedHandle != EYE_INVALID)
+        if (failedHandle != ME_RESOURCE_INVALID)
         {
             resourcePool->Destroy(failedHandle);
         }
@@ -658,22 +658,19 @@ void meAssetUnloadBlocking(meSpanTyped<meAsset> assets)
     for (u32 i = 0; i < assets.size; i++)
     {
         meAsset& asset = assets[i];
-		Eye handle = asset.runtimeHandle;
+		meResource handle = asset.runtimeHandle;
         // modify registry first, so we don't have assets in the registry with invalid data
-        if (asset.IsTemplateAsset())
+        if (meAsset* registryAsset = meAssetTryGetTemplate(asset.id))
         {
-            if (meAsset* registryAsset = meAssetTryGetTemplate(asset.id))
-            {
-                RWLockWrite lock(assetSystem.registries[asset.id.GetType()].lock);
-                registryAsset->loadStage = Unloaded;
-                registryAsset->runtimeContent.reset();
-                registryAsset->runtimeHandle = EYE_INVALID;
-            }
+            RWLockWrite lock(assetSystem.registries[asset.id.GetType()].lock);
+            registryAsset->loadStage = Unloaded;
+            registryAsset->runtimeContent.reset();
+            registryAsset->runtimeHandle = ME_RESOURCE_INVALID;
         }
 		asset.runtimeContent.reset();
-		asset.runtimeHandle = EYE_INVALID;
+		asset.runtimeHandle = ME_RESOURCE_INVALID;
 		asset.loadStage = Unloaded;
-		if (handle != EYE_INVALID && meAssetTypeIsValid(asset.id.GetType()))
+		if (handle != ME_RESOURCE_INVALID && meAssetTypeIsValid(asset.id.GetType()))
 		{
 			meAssetLoader* loader = assetSystem.assetLoaders[asset.id.GetType()];
 			ME_ASSERT(loader);

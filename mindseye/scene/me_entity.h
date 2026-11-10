@@ -20,7 +20,7 @@ enum EntityFlags_
 };
 STATIC_ASSERT(EntityFlags_NUM_ENTITY_FLAGS < 32);
 
-typedef Eye EntityRef;
+typedef meResource EntityRef;
 
 struct MEREFLECT(type) meEntity : public meBaseAsset
 {

@@ -154,7 +154,7 @@ meAsset
     // NOTE: a given meAsset can refer to a "template asset" which is an asset on disk
     // OR an "instance" asset, which is generally a copy of a template asset, used at runtime
 	MEREFLECT(exclude)
-	Eye runtimeHandle = EYE_INVALID;
+	meResource runtimeHandle = ME_RESOURCE_INVALID;
 	MEREFLECT(exclude)
     meAssetLoadStage loadStage = Unloaded;
     
@@ -164,7 +164,7 @@ meAsset
 	
     meSharedPtr<meBaseAsset> GetRuntimeContent() {  return std::static_pointer_cast<meBaseAsset>(runtimeContent); }
 
-    bool IsTemplateAsset() const { return runtimeHandle.IsTemplateAsset(); }
+    bool IsTemplateAsset() const { return runtimeHandle.type == meResourceType_TemplateAsset; }
 
 	meAsset(const MAID identifier) : 
 		id(identifier)
@@ -173,8 +173,8 @@ meAsset
 		id(identifier), loadStage(stage)
 	{}
 	// initialized with both "load-time" and "usage-time" info
-	meAsset(Eye eye, const MAID& identifier) : 
-		id(identifier), runtimeHandle(eye) 
+	meAsset(meResource resource, const MAID& identifier) :
+		id(identifier), runtimeHandle(resource)
 	{
 		if (runtimeHandle)
 		{
@@ -183,7 +183,7 @@ meAsset
 	}
 	// can be initialized as a usage-only concept. 
 	// I.E. Generating meshes/etc on-the-fly without an associated on-disk asset.
-	meAsset(Eye eye, meAssetType type) : runtimeHandle(eye)
+	meAsset(meResource resource, meAssetType type) : runtimeHandle(resource)
 	{
 		if (runtimeHandle)
 		{
@@ -203,7 +203,7 @@ meAsset
 
 	bool isLoaded() const 
 	{
-		return runtimeHandle != EYE_INVALID && loadStage == Loaded; 
+		return runtimeHandle && loadStage == Loaded;
 	}
     bool isValid() const
     {
@@ -212,7 +212,7 @@ meAsset
 	void SetReference(MAID identifier)
 	{
 		id = identifier;
-		runtimeHandle = EYE_INVALID;
+		runtimeHandle = ME_RESOURCE_INVALID;
 		loadStage = Unloaded;
 	}
 	void ResetReferenceToType(meAssetType type)
@@ -221,13 +221,13 @@ meAsset
 		id.SetID(U32_INVALID_ID);
 		id.SetType(type);
 	}
-	operator const Eye() const { return runtimeHandle; }
+	operator const meResource() const { return runtimeHandle; }
 	operator const MAID() const { return id; }
 
     static inline u64 Hash(const meAsset& obj)
     {
         size_t h1 = std::hash<u64>{}(obj.id);
-        size_t h2 = std::hash<u64>{}(obj.runtimeHandle.GetIndex());
+        size_t h2 = HashCombine((u32)obj.runtimeHandle.handle, obj.runtimeHandle.type);
         return HashCombine(h1, h2);
     }
 };
@@ -241,7 +241,7 @@ struct meTypedAsset : public meAsset
     {
         ME_ASSERT(other.id.GetType() == AssetTypeV);
     }
-    meTypedAsset(const Eye& eye) : meAsset(eye, AssetTypeV) {}
+    meTypedAsset(const meResource& resource) : meAsset(resource, AssetTypeV) {}
     using meAsset::meAsset;
 };
 

@@ -18,7 +18,7 @@ void Add(meScene& scene, StringView name, meMeshID mesh,
     glm::vec3 position, glm::vec3 scale, float tilt = 0)
 {
     auto asset = meEntityCreateBlankInstance(name);
-    meEntity& entity = meEntityGet(asset);
+    meEntity& entity = meEntityGet(asset.runtimeHandle);
     entity.mesh = meTypedAsset<MAMesh>(mesh);
     glm::quat rotation = glm::angleAxis(glm::radians(tilt), glm::vec3(0, 0, 1));
     entity.transform = meTransform(position, scale, rotation);

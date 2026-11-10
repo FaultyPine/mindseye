@@ -8,7 +8,7 @@ template <typename T>
 struct meResourceSlot
 {
 	meSharedPtr<T> obj = {};
-	u16 generation = 0;
+	u8 generation = 0;
 	bool inUse = false;
 
 	meResourceSlot& operator=(const meResourceSlot& other)
@@ -25,15 +25,28 @@ enum meResourceType : u8
     // an asset loaded from disk. Typically read-only
     // I.E. a Scene template asset might have a path to a gltf file and info about what entities 
     // are in the scene at what positions
-    meResourceType_TemplateAsset,
+    meResourceType_TemplateAsset = 0,
     // an "instance" of a template asset from disk
     // I.E. a Scene instance might have all the same data as the template asset, 
     // but the positions of all the entities in the scene are different from the initial values on disk
     // runtime-only data is also populated in these - like a mesh GPU buffer handle
     meResourceType_InstanceAsset,
+
+    meResourceType_ImportedAsset,
+
+    meResourceType_NUM_TYPES,
 };
-// we also track the resource type in Eye, with only 1 bit. So we can't have more than 2 resource types.
-static_assert(meResourceType_InstanceAsset == 1);
+
+struct meResource
+{
+    Eye handle = {};
+    meResourceType type = meResourceType_TemplateAsset;
+
+    explicit operator bool() const { return static_cast<bool>(handle); }
+    bool operator==(const meResource& other) const = default;
+};
+
+static const meResource ME_RESOURCE_INVALID = {EYE_INVALID, meResourceType_TemplateAsset};
 
 struct meResourceCreateParams
 {
@@ -42,12 +55,12 @@ struct meResourceCreateParams
 
 struct meResourcePoolBase
 {
-	virtual Eye Load(meResourceCreateParams createParams) { return Create(createParams); }
-	virtual meSharedPtr<void> GetShared(Eye handle) const { return {}; }
+	virtual meResource Load(meResourceCreateParams createParams) { return Create(createParams); }
+	virtual meSharedPtr<void> GetShared(meResource handle) const { return {}; }
 	meAllocator* GetPayloadAllocator() const { return resourcePayloadAllocator; }
 
-	virtual Eye Create(meResourceCreateParams createParams) = 0;
-	virtual void Destroy(Eye handle) = 0;
+	virtual meResource Create(meResourceCreateParams createParams) = 0;
+	virtual void Destroy(meResource handle) = 0;
     virtual ~meResourcePoolBase() {}
 
 	meAllocator* resourcePayloadAllocator = nullptr;
@@ -63,63 +76,55 @@ struct meResourcePool : public meResourcePoolBase
 {
     using ResourcePoolType = meBlockList<meResourceSlot<ResourceType>>;
     // TODO: these should be concurrent hashmap
-	ResourcePoolType resourcePoolTemplates;
-	ResourcePoolType resourcePoolInstances;
+	ResourcePoolType resourcePools[meResourceType_NUM_TYPES];
 
 	meResourcePool(
         meAllocator* resourceAllocator, 
         meAllocator* payloadAllocator);
 	meResourcePool(const meResourcePool& other) = default;
 	meResourcePool(const meResourcePool&& other) = default;
-    ~meResourcePool() override
-    {
-        Clear();
-    }
+    ~meResourcePool() override = default;
     void Clear();
-	bool Empty() const { return resourcePoolTemplates.empty() && resourcePoolInstances.empty(); }
+	bool Empty() const
+    {
+        for (const auto& pool : resourcePools)
+        {
+            if (!pool.empty()) return false;
+        }
+        return true;
+    }
 
-	ResourceType& Get(Eye handle);
-	const ResourceType& Get(Eye handle) const;
-	meSharedPtr<void> GetShared(Eye handle) const override;
+	ResourceType& Get(meResource handle);
+	const ResourceType& Get(meResource handle) const;
+	meSharedPtr<void> GetShared(meResource handle) const override;
 
 	// each resource pool should assign a default "no data" object
 	// in it's constructor
 	// EX: a 1x1 white texture
     // if it isn't assigned, the "bad data" is just a default-constructed resource
-	ResourceType& GetBadData() { return Get(EYE_INVALID); }
+	ResourceType& GetBadData() { return Get(ME_RESOURCE_INVALID); }
 
-	Eye Create(meResourceCreateParams createParams) override;
-	void Destroy(Eye handle) override;
+	meResource Create(meResourceCreateParams createParams) override;
+	void Destroy(meResource handle) override;
 
 private:
 	meSharedPtr<ResourceType> CreateResource();
 
-    ResourcePoolType& GetAssociatedResourcePool(Eye eye)
+    ResourcePoolType& GetAssociatedResourcePool(meResource resource)
     {
-        return eye.IsTemplateAsset() ? resourcePoolTemplates : resourcePoolInstances;
+        ME_ASSERT(resource.type < meResourceType_NUM_TYPES);
+        return resourcePools[resource.type];
     }
     ResourcePoolType& GetAssociatedResourcePool(const meResourceCreateParams& createParams)
     {
-        if (createParams.resourceType == meResourceType_TemplateAsset)
-        {
-            return resourcePoolTemplates;
-        }
-        ME_ASSERT(createParams.resourceType == meResourceType_InstanceAsset)
-        return resourcePoolInstances;
+        ME_ASSERT(createParams.resourceType < meResourceType_NUM_TYPES);
+        return resourcePools[createParams.resourceType];
     }
 
-    const ResourcePoolType& GetAssociatedResourcePool(Eye eye) const
+    const ResourcePoolType& GetAssociatedResourcePool(meResource resource) const
     {
-        return eye.IsTemplateAsset() ? resourcePoolTemplates : resourcePoolInstances;
-    }
-    const ResourcePoolType& GetAssociatedResourcePool(const meResourceCreateParams& createParams) const
-    {
-        if (createParams.resourceType == meResourceType_TemplateAsset)
-        {
-            return resourcePoolTemplates;
-        }
-        ME_ASSERT(createParams.resourceType == meResourceType_InstanceAsset)
-        return resourcePoolInstances;
+        ME_ASSERT(resource.type < meResourceType_NUM_TYPES);
+        return resourcePools[resource.type];
     }
 };
 
@@ -128,25 +133,16 @@ meResourcePool<ResourceType>::meResourcePool(
 	meAllocator* resourceAllocator,
 	meAllocator* payloadAllocator)
 {
-	resourcePoolTemplates = ResourcePoolType(resourceAllocator);
-	resourcePoolInstances = ResourcePoolType(resourceAllocator);
-	resourcePayloadAllocator = payloadAllocator;
-    // push bad data (default constructed resource) as the first thing in all pools
-    // this way, an Eye of "0" is "valid", in that we don't need to assert, we can gracefully handle it elsewhere
-    for (u32 i = 0; i <= 1; i++)
+    for (auto& pool : resourcePools)
     {
-        ResourcePoolType& resourcePool = GetAssociatedResourcePool({ .resourceType = (meResourceType)i });
-        meResourceSlot<ResourceType> badData = {};
-        badData.obj = CreateResource();
-        badData.inUse = true;
-        u32 idx = resourcePool.push(meMove(badData)); 
-        UNUSED(idx);
-        ME_ASSERT(idx == 0);
+        pool.allocator = resourceAllocator;
     }
+    resourcePayloadAllocator = payloadAllocator;
+    Clear();
 }
 
 template <typename ResourceType>
-Eye meResourcePool<ResourceType>::Create(meResourceCreateParams createParams)
+meResource meResourcePool<ResourceType>::Create(meResourceCreateParams createParams)
 {
     ResourcePoolType& resourcePool = GetAssociatedResourcePool(createParams);
 	meResourceSlot<ResourceType> newResourceInstance = {};
@@ -154,23 +150,24 @@ Eye meResourcePool<ResourceType>::Create(meResourceCreateParams createParams)
     ME_ASSERT(resourceIdx != 0);
 	meResourceSlot<ResourceType>& resource = resourcePool.get(resourceIdx);
 	resource.obj = CreateResource();
-	return Eye(resourceIdx, resource.generation, createParams.resourceType == meResourceType_TemplateAsset);
+	resource.inUse = true;
+	return {Eye(resourceIdx, resource.generation), createParams.resourceType};
 }
 
 template <typename ResourceType>
 void meResourcePool<ResourceType>::Clear()
 {
-    for (u32 i = 0; i <= 1; i++)
+    for (auto& resourcePool : resourcePools)
     {
-        ResourcePoolType& resourcePool = GetAssociatedResourcePool({ .resourceType = (meResourceType)i });
-        for (auto& res : resourcePool)
-        {
-            res.obj.reset();
-        }
         resourcePool.clear();
+        // Reserve index zero for the default resource in every pool.
+        meResourceSlot<ResourceType> badData = {};
+        badData.obj = CreateResource();
+        badData.inUse = true;
+        u32 idx = resourcePool.push(badData);
+        UNUSED(idx);
+        ME_ASSERT(idx == 0);
     }
-    ME_ASSERT(resourcePoolTemplates.allocator == resourcePoolInstances.allocator);
-    new (this) meResourcePool<ResourceType>(resourcePoolTemplates.allocator, resourcePayloadAllocator);
 }
 
 template <typename T>
@@ -195,14 +192,14 @@ meSharedPtr<ResourceType> meResourcePool<ResourceType>::CreateResource()
 }
 
 template <typename ResourceType>
-void meResourcePool<ResourceType>::Destroy(Eye handle)
+void meResourcePool<ResourceType>::Destroy(meResource handle)
 {
-	if (handle.GetIndex() == 0)
+	if (handle.handle.GetIndex() == 0)
 	{
 		return;
 	}
     ResourcePoolType& resourcePool = GetAssociatedResourcePool(handle);
-	auto idx = handle.GetIndex();
+	auto idx = handle.handle.GetIndex();
 	meResourceSlot<ResourceType>& resource = resourcePool.get(idx);
 	resource.obj.reset();
 	resource.generation++;
@@ -211,31 +208,31 @@ void meResourcePool<ResourceType>::Destroy(Eye handle)
 }
 
 template <typename ResourceType>
-ResourceType& meResourcePool<ResourceType>::Get(Eye handle)
+ResourceType& meResourcePool<ResourceType>::Get(meResource handle)
 {
     ResourcePoolType& resourcePool = GetAssociatedResourcePool(handle);
-	auto idx = handle.GetIndex();
+	auto idx = handle.handle.GetIndex();
 	meResourceSlot<ResourceType>& resource = resourcePool.get(idx);
-    u32 generation = handle.GetGeneration();
+    u32 generation = handle.handle.GetGeneration();
 	ME_ASSERT(resource.generation == generation);
 	return *resource.obj;
 }
 
 template <typename ResourceType>
-const ResourceType& meResourcePool<ResourceType>::Get(Eye handle) const
+const ResourceType& meResourcePool<ResourceType>::Get(meResource handle) const
 {
     const ResourcePoolType& resourcePool = GetAssociatedResourcePool(handle);
-	auto idx = handle.GetIndex();
+	auto idx = handle.handle.GetIndex();
 	const meResourceSlot<ResourceType>& resource = resourcePool.get(idx);
-	ME_ASSERT(resource.generation == handle.GetGeneration());
+	ME_ASSERT(resource.generation == handle.handle.GetGeneration());
 	return *resource.obj;
 }
 
 template <typename ResourceType>
-meSharedPtr<void> meResourcePool<ResourceType>::GetShared(Eye handle) const
+meSharedPtr<void> meResourcePool<ResourceType>::GetShared(meResource handle) const
 {
 	const ResourcePoolType& resourcePool = GetAssociatedResourcePool(handle);
-	const meResourceSlot<ResourceType>& resource = resourcePool.get(handle.GetIndex());
-	ME_ASSERT(resource.generation == handle.GetGeneration());
+	const meResourceSlot<ResourceType>& resource = resourcePool.get(handle.handle.GetIndex());
+	ME_ASSERT(resource.generation == handle.handle.GetGeneration());
 	return resource.obj;
 }
