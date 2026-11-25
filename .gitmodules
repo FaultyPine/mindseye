@@ -10,3 +10,6 @@
 [submodule "mindseye/external/vulkan_headers"]
 	path = mindseye/external/vulkan_headers
 	url = https://github.com/KhronosGroup/Vulkan-Headers.git
+[submodule "mindseye/external/taskflow"]
+	path = mindseye/external/taskflow
+	url = https://github.com/taskflow/taskflow.git

@@ -123,6 +123,7 @@ int main(int argc, char** argv)
         "mindseye/external/bgfx/bimg/include mindseye/external/ktx "
         "mindseye/external/tracy/public "
         "mindseye/external/quill/include "
+        "mindseye/external/taskflow "
         "mindseye/external/entt/src ";
     for (const char* include : words(includeDirectories))
     {

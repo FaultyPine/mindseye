@@ -341,13 +341,13 @@ bool meAssetImportGltfScene(
 			meMeshID meshHandle = meshPool.Load({.resourceType = meResourceType_InstanceAsset});
             meAsset meshAsset(meshHandle, MAMesh);
             meshAsset.runtimeContent = meshPool.GetShared(meshHandle);
+            // BOOKMARK: recursive asset import
             if (!meAssetImportGltfMesh(meshPool.Get(meshHandle), gltfResPath, gltfmesh))
             {
                 meshPool.Destroy(meshHandle);
                 return false;
             }
 			meMesh& mesh = meshPool.Get(meshHandle);
-            // BOOKMARK: asset import
             // TODO: right now, we have this asset without an asset id, it's just a runtime concept
             // in the future, we won't be "loading from gltf". We'll "import" gltf into mindseye assets, and load those, so this concept of a meAsset with no MAID will go away
             entity.mesh = meshAsset;
