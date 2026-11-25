@@ -39,6 +39,7 @@ Finishing the asset system todo:
     - Assets could be entities too! It sounds like that was the case in the original Theif engine
 - scene graph
 - renderer
+- reflector should use std lib, so changes to my stuff dont require a rebuild
 - engine-wide savestates
 	- user can only "request" a save, that gets serviced at a fixed point after the frame (can't save in middle of frame)
 	- stuff that needs to be saved/delt with:
