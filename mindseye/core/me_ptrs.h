@@ -69,3 +69,5 @@ using meUniquePtr = std::unique_ptr<T>;
 
 template <typename T>
 using meSharedPtr = std::shared_ptr<T>;
+template <typename T>
+using meWeakPtr = std::weak_ptr<T>;
