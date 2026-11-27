@@ -110,12 +110,14 @@ meSceneRaycastHit meSceneRaycast(meScene& scene, const meRay& ray)
 
         ScopedAssetLockR<meMesh> mesh(entData->mesh);
         const BoundingBox& bounds = mesh->meshBounds;
-        glm::mat4 toWorld = entData->transform.ToWorldFromModelMatrix();
-		glm::vec3 worldMin = entData->transform.position + glm::vec3(toWorld * glm::vec4(bounds.min, 1.0));
-		glm::vec3 worldMax = entData->transform.position + glm::vec3(toWorld * glm::vec4(bounds.max, 1.0));
+        // transform the ray into model space and test against the model-space bounds, which handles rotations nicely
+        glm::mat4 toModelFromWorld = glm::inverse(entData->transform.ToWorldFromModelMatrix());
+        glm::vec3 modelSpaceRayOrigin = glm::vec3(toModelFromWorld * glm::vec4(ray.origin, 1.0f));
+        glm::vec3 modelSpaceRayDirection = glm::vec3(toModelFromWorld * glm::vec4(ray.direction, 0.0f));
+        meRay modelSpaceRay = meRay{.origin = modelSpaceRayOrigin, .direction = modelSpaceRayDirection};
 
 		f32 t = 0.0f;
-		if (meRayIntersectsAABB(ray, worldMin, worldMax, t))
+		if (meRayIntersectsAABB(modelSpaceRay, bounds.min, bounds.max, t))
 		{
 			if (t < closestT)
 			{
