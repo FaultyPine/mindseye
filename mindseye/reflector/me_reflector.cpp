@@ -236,6 +236,11 @@ inline StringView GetCursorSpellingName(const CXCursor& cr, meAllocator *allocat
     return result;
 }
 
+bool IsStructural(CXCursorKind kind)
+{
+    return kind == CXCursor_StructDecl || kind == CXCursor_ClassDecl || kind == CXCursor_ClassTemplate;
+}
+
 inline u32 GetLineNumberForCursor(const CXCursor &cr)
 {
     uint32_t line, column, offset;
@@ -949,6 +954,9 @@ void OnFindInterestingDecl(CXCursor cr, CXCursor parent, CXClientData clientData
     // when the cursor is the reflection attribute, the parent cursor is the one with the actual decl we care about
     if (cursorName == STRING_LIT(ME_REFLECT_ATTR_STR))
     {
+        // Clang can attach an inherited annotation to a forward declaration.
+        if (IsStructural(clang_getCursorKind(parent)) && !clang_isCursorDefinition(parent))
+            return;
         StringView macroContents = ParseReflectionMacroContent(parent, *ctx.tu);
         StoreAnnotatedDecl(parent, ctx, macroContents);
         if (ParseReflectionMacroOp(macroContents) == STRING_LIT("CompileRun"))
@@ -1309,11 +1317,6 @@ void GeneratedReflectionHeaders(
     for (const auto &[headerID, fileReflection] : ctx.reflectedFiles)
         numProcessedFiles += ProcessReflectedFile(fileReflection, headerOutputFolder, ctx.allocator) ? 1 : 0;
     LOG_INFO(Reflector, "[Mindseye Reflector] processed {} reflected files, changed {} outputs", numProcessedFiles, changedOutputs);
-}
-
-bool IsStructural(CXCursorKind kind)
-{
-    return kind == CXCursor_StructDecl || kind == CXCursor_ClassDecl || kind == CXCursor_ClassTemplate;
 }
 
 String SanitizeAndCopyTypeDescriptorName(
