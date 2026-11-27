@@ -12,6 +12,8 @@ struct meAssetIndex
 	meMap<String, MAID> pathToAssetsMap = {};
 	meMap<MAID, u32> serializedUniqueIdentifiers = {};
 	meMap<MAID, DynArray<MAID>> dependencyMap = {};
+    meAtomicU64 nextGeneratedAssetID{};
+    bool initialized = false;
 };
 
 // Calling multiple times with the same pair currently has no special de-duping behavior
@@ -30,6 +32,8 @@ MEAPI MAID meAssetIndexGetMAIDFromPath(
 
 MEAPI u32 meAssetIndexGetUniqueID(MAID maid);
 
+MEAPI u64 meAssetIndexReserveAssetID(meAssetType type);
+
 void meAssetIndexRegisterRelation(
 	const StringView& path,
 	const MAID& maid);
@@ -38,4 +42,6 @@ meAssetType meAssetFindAssetTypeFromFilepath(
     StringView path);
 
 void meAssetIndexInitialize(EngineContext* engine);
+
 const meAssetIndex& meAssetIndexGetRO();
+meAssetIndex& meAssetIndexGet();

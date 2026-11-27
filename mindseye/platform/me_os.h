@@ -103,6 +103,14 @@ MEAPI u64 meOSAtomicIncrement(meAtomicU64& atomic);
 MEAPI u32 meOSAtomicDecrement(meAtomicU32& atomic);
 MEAPI u64 meOSAtomicDecrement(meAtomicU64& atomic);
 
+// atomic cas loop to update an atomic using the current value 'old'
+#define meOSAtomicUpdateU64(atomicToUpdate, newExpression) \
+    auto old = meOSAtomicLoad(atomicToUpdate); \
+    while (meOSAtomicCompareExchange(atomicToUpdate, newExpression, old) != old)  \
+    { \
+        old = meOSAtomicLoad(atomicToUpdate); \
+    }
+
 // ── Virtual memory ───────────────────────────────────────────────────────────
 
 MEAPI void* meOSReserveVirtualMemory(u64 size);

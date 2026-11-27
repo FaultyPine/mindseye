@@ -254,13 +254,8 @@ void meAssetRegisterLoader(meAssetLoader* loader)
 
 MAID sCreateNewAssetID(meAssetType type)
 {
-	// TODO: this shouldn't be random. 
-    // for template assets, it should be a unique id across all template assets ever created
-    //          Base it on an incrementing int in the asset index?
-    // for instance assets, it can be unique just for this run of the engine
-	f64 time = GetTimeUsec();
-	u32 randomNumber = HashBytes((u8*)&time, sizeof(time));
-	MAID newMaid = MAID(randomNumber, type);
+    u64 id = meAssetIndexReserveAssetID(type);
+	MAID newMaid = MAID(id, type);
 	return newMaid;
 }
 

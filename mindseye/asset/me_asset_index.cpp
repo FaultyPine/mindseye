@@ -14,7 +14,7 @@ ME_DEFINE_LOG_CATEGORY(AssetIndex);
 
 meAssetIndex& meAssetIndexGet()
 {
-	return *GetEngineCtx()->assetIndex;
+    return *GetEngineCtx()->assetIndex;
 }
 
 const meAssetIndex& meAssetIndexGetRO()
@@ -98,6 +98,15 @@ u32 meAssetIndexGetUniqueID(MAID maid)
 	return 0;
 }
 
+u64 meAssetIndexReserveAssetID(meAssetType type)
+{
+    auto& assetIndex = meAssetIndexGet();
+    ME_ASSERT(assetIndex.initialized); // cannot reserve asset ids before the asset index is initialized
+    u64 id = meOSAtomicIncrement(assetIndex.nextGeneratedAssetID);
+    ME_ASSERT(id != MAID_INVALID.GetID());
+    return id;
+}
+
 void meAssetIndexRegisterRelation(
 	const StringView& path,
 	const MAID& maid)
@@ -139,16 +148,15 @@ meAssetType meAssetFindAssetTypeFromFilepath(
 // TODO: async process & join at end
 void OnFoundAssetFile(
 	meAssetIndex& assetIndex,
-	const OSFileReference& file)
+	StringView assetPath,
+	StringView filepath)
 {
 	ME_PROFILE_FUNCTION();
-	StringView filepath = file.GetPath();
 	meAssetType type = meAssetFindAssetTypeFromFilepath(filepath);
 	if (type == MABadData)
 	{
 		return;
 	}
-	StringView assetPath = meAssetGetAbsPathForResource(filepath);
 	meAssetLoader* loader = meAssetSystemGet().assetLoaders[type];
 	if (!loader || !loader->assetTypeDesc)
 	{
@@ -177,6 +185,7 @@ void OnFoundAssetFile(
 		return;
 	}
 
+    meOSAtomicUpdateU64(assetIndex.nextGeneratedAssetID, Math::Max(old, header.assetHeader.GetID()));
 	assetIndex.assetToPathMap[header.assetHeader] = filepath;
 	assetIndex.pathToAssetsMap[filepath] = header.assetHeader;
 	assetIndex.serializedUniqueIdentifiers[header.assetHeader] = HashBytesL((u8*)sourceData.data, sourceData.size);
@@ -227,20 +236,25 @@ void meAssetIndexInitialize(EngineContext* engine)
 			{
 				continue;
 			}
-			StringView filename = StringFromCString(file.path);
-			if (FindInString(filename, STRING_LIT(ME_ASSET_EXTENSION)) != -1)
+			StringView assetPath = file.GetPath();
+			StringView filepath = meAssetGetRelPathForResource(assetPath);
+			if (FindInString(filepath, STRING_LIT(ME_ASSET_EXTENSION)) != -1)
 			{
-				OnFoundAssetFile(assetIndex, file);
+				OnFoundAssetFile(assetIndex, assetPath, filepath);
 				numAssetsDiscovered++;
 			}
 		}
 		LOG_INFO(AssetIndex, "[AssetIndex] Discovered {} assets", numAssetsDiscovered);
 	}
+
+    meOSAtomicUpdateU64(assetIndex.nextGeneratedAssetID, Math::Max(old, (u64)1)); // we never should give out asset index 0, start at 1
+
     #if ME_ASSET_INDEX_DEBUGLOG
     for (const auto& [asset,path] : meAssetIndexGetRO().assetToPathMap)
     {
         LOG_INFO(AssetIndex, "{} {} | {}", asset.GetID(), asset.GetType(), LogSV(path));
     }
     #endif
+    assetIndex.initialized = true;
 }
 
