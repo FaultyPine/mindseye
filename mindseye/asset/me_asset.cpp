@@ -252,20 +252,15 @@ void meAssetRegisterLoader(meAssetLoader* loader)
 	assetSystem.assetLoaders[type] = loader;
 }
 
-MAID sCreateNewAssetID(meAssetType type)
-{
-    u64 id = meAssetIndexReserveAssetID(type);
-	MAID newMaid = MAID(id, type);
-	return newMaid;
-}
-
 meAsset meAssetCreateNewAsset(
     meAssetType type, 
     meResourceType resourceType,
     StringView templateFilename)
 {
 	ME_PROFILE_FUNCTION();
-    MAID newMaid = sCreateNewAssetID(type);
+    u64 id = meAssetIndexReserveAssetID(type);
+	MAID newMaid = MAID(id, type);
+
     meAssetSystem& assetSystem = meAssetSystemGet();
 	meAssetLoader* loader = assetSystem.assetLoaders[type];
 	ME_ASSERT(loader);
