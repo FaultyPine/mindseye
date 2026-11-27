@@ -13,7 +13,6 @@ struct MEREFLECT(type) meTexture : public meBaseAsset
 
 	static constexpr u32 METEXTURE_MAX_NAME_LEN = 50;
 	char name[METEXTURE_MAX_NAME_LEN];
-	MEREFLECT(exclude)
 	meGPUBuffer buffer = {};
 	MEREFLECT(exclude)
 	u64 sampler = U64_INVALID_ID;

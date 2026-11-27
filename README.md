@@ -14,7 +14,7 @@ run `build.bat`
 
 ### Current focus
 asset system:
-- need binary payload sidecar files, so a mesh editor masset can have the actual mesh data next to it
+- BOOKMARK: need binary payload sidecar files, so a mesh editor masset can have the actual mesh data next to it
 - recursive asset import (i.e. import a gltf scene also imports the meshes/textures/materials in it)
 - binary serialization consumed by the runtime. only editor tools consume the text serialization
 

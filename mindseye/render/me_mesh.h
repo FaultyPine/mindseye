@@ -30,13 +30,9 @@ struct MEREFLECT(type) meMesh : public meBaseAsset
     using meBaseAsset::meBaseAsset;
 
 	String name;
-    MEREFLECT(exclude)
 	meGPUBuffer vertBuffer = {};
-    MEREFLECT(exclude)
 	meGPUBuffer idxBuffer = {};
-    MEREFLECT(exclude)
 	meGPUBuffer normBuffer = {};
-    MEREFLECT(exclude)
 	meGPUBuffer texcoordBuffer = {};
 
     u32 indexLayout = meMeshVertexLayoutType_Index16;
