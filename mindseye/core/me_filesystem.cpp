@@ -157,11 +157,9 @@ bool meFsRecursiveDirectoryWalk(
 			const OSFileReference& ref = result[index];
 			if (ref.flags & OSFileFlags_IsDirectory)
 			{
-				StringView fullPath = StringFormatTmp("%s" STRING_FMT "%s",
-								directory.path, STRING_VAARGS(meFsGetDirectorySeperator()), ref.path);
-				OSFileReference fullRef = {};
-				fullRef.InitWithoutOpening(fullPath);
-				success &= meFsRecursiveDirectoryWalk(fullRef, result);
+				OSFileReference childDirectory = {};
+				childDirectory.InitWithoutOpening(ref.GetPath());
+				success &= meFsRecursiveDirectoryWalk(childDirectory, result);
 			}
 		}
 	}

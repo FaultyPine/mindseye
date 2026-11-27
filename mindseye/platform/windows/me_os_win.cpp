@@ -1059,7 +1059,8 @@ bool meOSReadDirectory(
 			!StringCompare(filename, STRING_LIT((".."))))
 		{
 			OSFileReference file = {};
-			file.InitWithoutOpening(filename);
+            StringView filePath = StringFormatTmp(STRING_FMT STRING_FMT STRING_FMT, STRING_VAARGS(folder.GetPath()), STRING_VAARGS(meFsGetDirectorySeperator()), STRING_VAARGS(filename));
+			file.InitWithoutOpening(filePath);
 			bool isDirectory = ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY;
 			if (isDirectory) file.flags |= OSFileFlags_IsDirectory;
 			DynArrayPush(result, file);
