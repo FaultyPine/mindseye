@@ -143,7 +143,8 @@ int main(int argc, char** argv)
     }
 
     // ================ Runtime dependencies ======================
-    Ninja graph(compiler, root);
+    // Keep the app-only graph from compacting away the engine's dependency records.
+    Ninja graph(compiler, root, appOnly ? "build/app-only" : "build");
     Strings runtime;
     auto copy = [&](const char* source, const char* dest)
     {
