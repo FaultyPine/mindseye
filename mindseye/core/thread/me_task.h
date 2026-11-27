@@ -35,11 +35,6 @@ struct meTaskManager : public tf::Executor
 {
     using tf::Executor::Executor;
 
-    void Drain()
-    {
-        wait_for_all();
-    }
-
     // takes ownership of the passed in graph
     void Submit(meTaskGraph& graph)
     {
@@ -50,11 +45,7 @@ struct meTaskManager : public tf::Executor
     template <typename OnCompleteCallable>
     void Submit(meTaskGraph& graph, OnCompleteCallable& complete)
     {
-        if (graph.complete.valid())
-        {
-            ME_ASSERT(false && "Task graphs can only be submitted once");
-            return;
-        }
+        ME_ASSERT(!graph.complete.valid() && "Task graphs can only be submitted once");
         // Transfer the task storage to the executor so the request can outlive its handle.
         graph.complete = run(meMove(graph), meMove(complete));
     }
