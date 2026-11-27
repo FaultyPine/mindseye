@@ -16,8 +16,8 @@ ME_DEFINE_LOG_CATEGORY(Asset);
 
 MEEVENT_DECLARE_STATIC(registerAssetLoader);
 
-static bool MEASSET_DEBUG_SINGLETHREADED_LOAD = 0;
-constexpr u32 NUM_ASSET_COMPILER_THREADS = 1;
+constexpr bool MEASSET_DEBUG_SINGLETHREADED_LOAD = BUILD_DEBUG;
+constexpr u32 NUM_ASSET_COMPILER_THREADS = MEASSET_DEBUG_SINGLETHREADED_LOAD ? 1 : 4;
 
 MEAPI meAssetSystem& meAssetSystemGet()
 {
@@ -223,7 +223,7 @@ void meAssetInitialize(EngineContext* engine)
 		String rootResDir = meAssetGetProjectRootResourceDir(engine);
 		meAssetSetResourceDir(rootResDir ? StringView(rootResDir) : meOSGetWorkingDir());
 	}
-	engine->assetSystem->assetCompilerJobs.Initialize(&engine->engineArena, NUM_ASSET_COMPILER_THREADS);
+	engine->assetSystem->assetCompilerTasks = std::make_unique<meTaskManager>(NUM_ASSET_COMPILER_THREADS);
 }
 
 void meAssetInitializeLate(EngineContext* engine)
@@ -234,7 +234,6 @@ void meAssetInitializeLate(EngineContext* engine)
 
 void meAssetTeardown(EngineContext* engine)
 {
-	engine->assetSystem->assetCompilerJobs.Shutdown();
     MEDELETE(&engine->engineArena, meAssetSystem, engine->assetSystem);
 }
 
@@ -343,7 +342,7 @@ meAssetLoadStage meAssetLoader::meAssetWaitForLoadstage(
     return meAssetWaitForLoadstage({&maid, 1}, loadStage);
 }
 
-meJobId meAssetRequestLoadTemplate(
+meTaskGraph meAssetRequestLoadTemplate(
 	MAID* assetIdents, 
 	u32 numAssets,
     meAssetOnAssetLoadCb cb)
@@ -387,7 +386,7 @@ meJobId meAssetRequestLoadTemplate(
 			jobData.ident = assetIdent;
 			jobData.loader = loader;
 			jobData.cb = cb;
-			auto fn = [jobData, &assetSystem]() 
+			auto fn = [jobData, &assetSystem](tf::Subflow& subflow) 
 			{
 				ME_PROFILE_FUNCTION();
 				meAsset* asset = meAssetTryGetTemplate(jobData.ident);
@@ -408,17 +407,14 @@ meJobId meAssetRequestLoadTemplate(
 					jobData.cb(*asset);
 				}
 			};
-			if (MEASSET_DEBUG_SINGLETHREADED_LOAD)
-			{
-				fn();
-			}
-			else
-			{
-				meJobId compilerJobId = assetSystem.assetCompilerJobs.Execute(fn);
-                // TODO: support multiple async jobs that are all grouped into a single "task group" id to return here.
-                ME_ASSERT(numAssets == 0);
-				return compilerJobId;
-			}
+			meTaskGraph graph = meTaskGraph::Create();
+            graph.emplace(fn);
+            assetSystem.assetCompilerTasks->Submit(graph);
+            if (MEASSET_DEBUG_SINGLETHREADED_LOAD)
+            {
+                graph.Wait();
+            }
+            return graph;
 		}
         else if (stage == Loaded)
         {
@@ -456,7 +452,7 @@ bool meAssetWaitUntilLoadstage(
 	return true;
 }
 
-meJobId meAssetRequestWriteTemplate(
+meTaskGraph meAssetRequestWriteTemplate(
 	meSpanTyped<MAID> assetIdents,
 	meAssetOnAssetLoadCb onWriteCb)
 {
@@ -492,7 +488,7 @@ meJobId meAssetRequestWriteTemplate(
 			jobData.ident = assetIdent;
 			jobData.loader = loader;
 			jobData.cb = onWriteCb;
-			auto fn = [jobData, &assetSystem]() 
+			auto fn = [jobData, &assetSystem](tf::Subflow& flow) 
 			{
 				ME_PROFILE_FUNCTION();
 				meAsset* asset = meAssetTryGetTemplate(jobData.ident);
@@ -504,23 +500,20 @@ meJobId meAssetRequestWriteTemplate(
 				}
 				assetSystem.assetFinishedWritingEvent(meEventPayload((void*)&jobData.ident));
 			};
-			if (MEASSET_DEBUG_SINGLETHREADED_LOAD)
-			{
-				fn();
-			}
-			else
-			{
-                // TODO: support multiple async jobs that are all grouped into a single "task group" id to return here.
-                ME_ASSERT(assetIdents.size == 0);
-				meJobId compilerJobId = assetSystem.assetCompilerJobs.Execute(fn);
-				return compilerJobId;
-			}
+            meTaskGraph graph = meTaskGraph::Create();
+            graph.emplace(fn);
+            assetSystem.assetCompilerTasks->Submit(graph);
+            if (MEASSET_DEBUG_SINGLETHREADED_LOAD)
+            {
+                graph.Wait();
+            }
+            return graph;
 		}
 	}
 	return {};
 }
 
-meJobId meAssetRequestImport(
+meTaskGraph meAssetRequestImport(
     meSpanTyped<tuplet::tuple<OSFileReference, meAssetType>> files,
     meAssetOnImportCb onImportCb)
 {
@@ -538,7 +531,7 @@ meJobId meAssetRequestImport(
         jobData.file = tuplet::get<0>(files[i]);
         jobData.type = tuplet::get<1>(files[i]);
         jobData.cb = onImportCb;
-        auto fn = [jobData, &assetSystem]() 
+        auto fn = [jobData, &assetSystem](tf::Subflow& subflow) 
         {
             ME_PROFILE_FUNCTION();
             meAssetLoader* loader = meAssetTypeIsValid(jobData.type) ? assetSystem.assetLoaders[jobData.type] : nullptr;
@@ -552,17 +545,14 @@ meJobId meAssetRequestImport(
                 jobData.cb(jobData.file, success);
             }
         };
+        meTaskGraph graph = meTaskGraph::Create();
+        graph.emplace(fn);
+        assetSystem.assetCompilerTasks->Submit(graph);
         if (MEASSET_DEBUG_SINGLETHREADED_LOAD)
         {
-            fn();
+            graph.Wait();
         }
-        else
-        {
-            meJobId compilerJobId = assetSystem.assetCompilerJobs.Execute(fn);
-            // TODO: support multiple async jobs that are all grouped into a single "task group" id to return here.
-            ME_ASSERT(files.size == 0);
-            return compilerJobId;
-        }
+        return graph;
 	}
 	return {};
 }

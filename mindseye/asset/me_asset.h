@@ -3,12 +3,13 @@
 #include "core/me_core.h"
 #include "core/containers/me_map.h"
 #include "core/thread/me_rw_lock.h"
-#include "core/me_job_system.h"
+#include "core/thread/me_task.h"
 #include "core/me_event.h"
 #include "core/containers/me_array.h"
 #include "core/containers/dynarray.h"
 #include "core/me_ptrs.h"
 #include "core/me_resourcepool.h"
+#include "platform/me_os.h"
 
 #include "external/tuple.hpp"
 
@@ -293,7 +294,7 @@ struct meAssetSystem
 	meArray<meAssetTypeRegistry, NUM_ASSET_TYPES> registries = {};
     // meAssetType -> loader
     meArray<meAssetLoader*, NUM_ASSET_TYPES> assetLoaders = {};
-	meJobSystem assetCompilerJobs = {}; // TODO: replace this with a unified job system which should have multiple "queue" types
+	meUniquePtr<meTaskManager> assetCompilerTasks = {};
     meEvent assetBeginLoadingEvent = {};
     meEvent assetFinishedLoadingEvent = {};
 	meEvent assetBeganWritingEvent = {};
@@ -314,7 +315,7 @@ MEAPI meAsset meAssetCreateNewAsset(
 
 typedef void(*meAssetOnAssetLoadCb)(const meAsset&);
 
-MEAPI meJobId meAssetRequestLoadTemplate(
+MEAPI meTaskGraph meAssetRequestLoadTemplate(
 	MAID* assetIdents, 
 	u32 numAssets = 1,
     meAssetOnAssetLoadCb cb = nullptr);
@@ -328,14 +329,14 @@ MEAPI bool meAssetWaitUntilLoadstage(
 	meSpanTyped<MAID> assetIdents,
 	meAssetLoadStage loadStage);
 
-MEAPI meJobId meAssetRequestWriteTemplate(
+MEAPI meTaskGraph meAssetRequestWriteTemplate(
 	meSpanTyped<MAID> assetIdents,
 	meAssetOnAssetLoadCb onWriteCb = nullptr);
 
 // Called on the import worker after each attempted import, including failures.
 typedef void(*meAssetOnImportCb)(const OSFileReference& file, bool success);
 
-MEAPI meJobId meAssetRequestImport(
+MEAPI meTaskGraph meAssetRequestImport(
     meSpanTyped<tuplet::tuple<OSFileReference, meAssetType>> files,
     meAssetOnImportCb onImportCb = nullptr);
 

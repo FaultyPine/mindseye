@@ -26,7 +26,7 @@ struct meCommandQueues
 static void HandleCreateAsset(const meCmdCreateNewAsset& cmd)
 {
 	meAsset newAsset = meAssetCreateNewAsset(cmd.type, meResourceType_TemplateAsset, cmd.path);
-	meJobId writeReq = meAssetRequestWriteTemplate(meSpanTyped<MAID>(&newAsset.id, 1));
+	meTaskGraph writeReq = meAssetRequestWriteTemplate(meSpanTyped<MAID>(&newAsset.id, 1));
 	UNUSED(writeReq);
 }
 
