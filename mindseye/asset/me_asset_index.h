@@ -32,6 +32,8 @@ MEAPI MAID meAssetIndexGetMAIDFromPath(
 
 MEAPI u32 meAssetIndexGetUniqueID(MAID maid);
 
+// atomically reserves a unique asset id.
+// this id is not persisted until an asset that uses the id is persisted
 MEAPI u64 meAssetIndexReserveAssetID(meAssetType type);
 
 void meAssetIndexRegisterRelation(

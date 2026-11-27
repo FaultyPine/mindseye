@@ -13,22 +13,10 @@ run `build.bat`
 - compile-time code execution
 
 ### Current focus
-
-Finishing the asset system todo:
-- binary serialization 
-    - start on a "asset compilation" pipeline. 
-        - refactor so instead of straight loading gltf, we "import" gltf and turn it into massets, then load(/compile) those
-	- meAssetCreate would do the check for .gltf in the filename, and do it there
-
-- Implement proper job system
-    - should be lock free and use work stealing algo
-    - should be able to build & submit a "graph" of work - the dependencies of which are resolved and the work is scheduled in parallel based on that graph
-    - need "job queue types" - basically separate buckets of work that can be synchronized differently. I.E. background async work, asset compilation, frame tasks, multi-frame - async tasks, etc.
-    - A job should be able to enqueue more jobs inside itself
-    - a job should be able to enqueue child jobs from itself
-    - A job should be able to yield or return out as "suspended". I.E. if that job needs to wait for some other child job to complete before it finishes.
-    - Need to be able to wait on a job, or on a full "graph"/batch of submitted jobs
-    - a "job group"(?) should be able to set an "affinity" so that if a job is waiting on another job, it can specify if it is allowed to run other unrelated jobs while waiting or not. This is important for preventing certain deadlock situations when separate tasks might wait on something the other task is "working on". 
+asset system:
+- need binary payload sidecar files, so a mesh editor masset can have the actual mesh data next to it
+- recursive asset import (i.e. import a gltf scene also imports the meshes/textures/materials in it)
+- binary serialization consumed by the runtime. only editor tools consume the text serialization
 
 ============================
 
