@@ -43,7 +43,7 @@ struct meTaskManager : public tf::Executor
     
     // takes ownership of the passed in graph
     template <typename OnCompleteCallable>
-    void Submit(meTaskGraph& graph, OnCompleteCallable& complete)
+    void Submit(meTaskGraph& graph, OnCompleteCallable&& complete)
     {
         ME_ASSERT(!graph.complete.valid() && "Task graphs can only be submitted once");
         // Transfer the task storage to the executor so the request can outlive its handle.
