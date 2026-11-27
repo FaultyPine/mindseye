@@ -3,6 +3,7 @@
 #include "core/me_app.h"
 #include "core/me_profile.h"
 #include "me_asset.h"
+#include "core/thread/me_task.h"
 
 #include "asset/me_asset_index.h"
 #include "core/me_defines.h"

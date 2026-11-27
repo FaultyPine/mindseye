@@ -9,6 +9,7 @@
 #include "core/me_log.h"
 #include "core/me_math.h"
 #include "asset/me_asset.h"
+#include "core/thread/me_task.h"
 #include "asset/me_asset_index.h"
 #include "scene/me_scene.h"
 #include "scene/me_entity.h"

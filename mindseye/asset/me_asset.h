@@ -3,7 +3,6 @@
 #include "core/me_core.h"
 #include "core/containers/me_map.h"
 #include "core/thread/me_rw_lock.h"
-#include "core/thread/me_task.h"
 #include "core/me_event.h"
 #include "core/containers/me_array.h"
 #include "core/containers/dynarray.h"
@@ -12,6 +11,9 @@
 #include "platform/me_os.h"
 
 #include "external/tuple.hpp"
+
+struct meTaskGraph;
+struct meTaskManager;
 
 
 #ifndef ME_REFLECTING

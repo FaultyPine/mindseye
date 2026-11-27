@@ -11,6 +11,7 @@
 #undef CGLTF_MALLOC
 #undef CGLTF_FREE
 #include "asset/me_asset.h"
+#include "core/thread/me_task.h"
 #include "asset/me_asset_import_gltf.h"
 #include "asset/me_asset_index.h"
 #include "core/me_scope_exit.h"

@@ -5,6 +5,7 @@
 #include "core/me_math.h"
 #include "core/containers/dynarray.h"
 #include "asset/me_asset.h"
+#include "core/thread/me_task.h"
 #include "asset/me_asset_index.h"
 #include "core/me_chunker.h"
 #include "core/me_scope_exit.h"

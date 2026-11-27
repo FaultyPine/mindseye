@@ -11,6 +11,7 @@
 #include "core/me_command.h"
 #include "scene/me_entity.h"
 #include "asset/me_asset.h"
+#include "core/thread/me_task.h"
 #include "asset/me_asset_index.h"
 
 ME_DEFINE_LOG_CATEGORY(AssetEditor);

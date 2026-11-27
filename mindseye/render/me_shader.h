@@ -5,6 +5,8 @@
 #include "core/containers/dynarray.h"
 #include "asset/me_asset.h"
 
+struct meMaterial;
+
 typedef meResource meShaderID;
 
 enum meUniformDataType
