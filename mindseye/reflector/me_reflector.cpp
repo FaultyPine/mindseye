@@ -553,20 +553,25 @@ void StoreReflectedTypeInfo(
     {
         CXCursor fieldTypeCr = clang_getTypeDeclaration(crType);
         bool isBuiltin = IsBuiltinType(fieldTypeCr) || fieldTypeCr.kind == CXCursor_NoDeclFound;
+        bool isReflectedType = !isBuiltin && DoesDeclarationHaveReflectionAnnotation(fieldTypeCr, ctx);
+        // Unannotated template specializations use the field's byte layout directly.
+        bool isOpaqueSpecialization = !isBuiltin && !isReflectedType &&
+            !clang_Cursor_isNull(clang_getSpecializedCursorTemplate(fieldTypeCr));
         if (isBuiltin)
         {
             // primitive type. I.E. u32
             fieldTypeCr = cr;
         }
-        else
+        else if (!isOpaqueSpecialization)
         {
             // non-builtin/primitive and unknown. Likely an external type we won't include in the final generated output
             StoreReflectedTypeInfo(fieldTypeCr, ctx, {});
         }
-        // annotated fields have their parentCr as the fielddecl. Unannotated fields have their parentCr as the struct decl
-        bool isReflectedType = DoesDeclarationHaveReflectionAnnotation(fieldTypeCr, ctx);
-        meReflectedType *fieldInnerTypeRefl = GetReflectedType(fieldTypeCr, allocator, ctx);
-        SET_BIT(fieldInnerTypeRefl->flags, meTypeDescriptorFlag_Excluded, fieldInnerTypeRefl->IsExcluded() || excluded);
+        meReflectedType *fieldInnerTypeRefl = isOpaqueSpecialization ? nullptr : GetReflectedType(fieldTypeCr, allocator, ctx);
+        if (fieldInnerTypeRefl)
+        {
+            SET_BIT(fieldInnerTypeRefl->flags, meTypeDescriptorFlag_Excluded, fieldInnerTypeRefl->IsExcluded() || excluded);
+        }
 
         meReflectedType &fieldMemberRefl = *MENEW(ctx.allocator, meReflectedType, ctx.allocator); // this will contain the field's type info
         // if it's a const array, mark the field as such. It's inner type will indicate what it's an array of, and it's size / sizeof(inner type) indicates the num elements in the array
@@ -605,7 +610,7 @@ void StoreReflectedTypeInfo(
         {
             templateArgSourceType = clang_getArrayElementType(crType);
         }
-        int numTemplateArgs = clang_Type_getNumTemplateArguments(templateArgSourceType);
+        int numTemplateArgs = isOpaqueSpecialization ? -1 : clang_Type_getNumTemplateArguments(templateArgSourceType);
         if (numTemplateArgs != -1)
         {
             // The type is a template specialization  myType<something>
