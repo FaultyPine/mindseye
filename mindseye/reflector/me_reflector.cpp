@@ -127,6 +127,7 @@ struct meReflectedType
     StringView editorRenderFnName = {};
     StringView destroyFnName = {};
     StringView deepCopyFnName = {};
+    StringView descriptorFactory = {};
     // for template specializations where the typical "name" field here isn't sufficient to fully describe the type
     // Empty for non-template or builtin types where name is sufficient.
     StringView fullTemplateName = {};
@@ -581,6 +582,7 @@ void ApplyReflectionMetadata(meReflectedType& reflType, StringView macroContent)
 
         StringView deepCopyParam = GetStringParam(STRING_LIT("DeepCopy"), macroContent);
         reflType.deepCopyFnName = deepCopyParam;
+        reflType.descriptorFactory = GetStringParam(STRING_LIT("DescriptorFactory"), macroContent);
 
         SET_BIT(reflType.flags, meTypeDescriptorFlag_Excluded, reflType.IsExcluded() || FindInString(macroContent, STRING_LIT("exclude")) >= 0);
     }
@@ -1491,6 +1493,11 @@ void EmitField(StringBuilder& out, const meReflectedType& field, meAllocator* al
 
 void EmitDescriptorInitializer(StringBuilder& out, const meReflectedType& type)
 {
+    if (type.descriptorFactory)
+    {
+        out.AppendFormat(STRING_FMT "(", STRING_VAARGS(type.descriptorFactory));
+    }
+    out.Append(STRING_LIT("{\n"));
     out.AppendFormat("\t.name = STRING_LIT(\"%.*s\"),\n", STRING_VAARGS(type.name));
     if (type.editorName)
         out.AppendFormat("\t.editorName = STRING_LIT(\"%.*s\"),\n", STRING_VAARGS(type.editorName));
@@ -1538,6 +1545,12 @@ void EmitDescriptorInitializer(StringBuilder& out, const meReflectedType& type)
     {
         out.AppendFormat("\t.deepCopyFn = &meTypeDescriptorGeneratedDeepCopy<" STRING_FMT ">,\n", STRING_VAARGS(type.name));
     }
+    out.Append(STRING_LIT("}"));
+    if (type.descriptorFactory)
+    {
+        out.Append(STRING_LIT(")"));
+    }
+    out.Append(STRING_LIT(";\n"));
 }
 
 bool GenerateForwardDecls(
@@ -1765,10 +1778,8 @@ bool ProcessReflectedFile(
                     "meTypeDescriptor g_%.*s_fields[%i] = {\n%.*s\n};\n",
                     STRING_VAARGS(typeRefl.name), numChildren + numPaddingMembers, STRING_VAARGS(fieldsArrayContent));
             }
-            StringBuilder mainTypeDescriptorContent = StringBuilder(allocator);
-            EmitDescriptorInitializer(mainTypeDescriptorContent, typeRefl);
-
-            sourceContentBuilder.AppendFormat("meTypeDescriptor TD_%.*s = {\n%.*s};\n", STRING_VAARGS(uppercaseName), STRING_VAARGS(mainTypeDescriptorContent));
+            sourceContentBuilder.AppendFormat("meTypeDescriptor TD_%.*s = ", STRING_VAARGS(uppercaseName));
+            EmitDescriptorInitializer(sourceContentBuilder, typeRefl);
             sourceContentBuilder.AppendFormat(
                 "ME_REGISTER_STATIC_TYPE_DESCRIPTOR(" STRING_FMT ", TD_%.*s);\n",
                 STRING_VAARGS(typeRefl.name),
