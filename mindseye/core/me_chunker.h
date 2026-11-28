@@ -95,8 +95,6 @@ struct meChunker
             ptr = (offset >= 0) ? (T*)((const u8*)base + offset) : nullptr;
     }
 
-    // Writes a u32 cookie derived from the tag; on load asserts it matches.
-    // Accepts only string literals - w.DoMarker("Tag")
     template<u32 N>
     void DoMarker(const char (&tag)[N])
     {

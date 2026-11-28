@@ -66,7 +66,6 @@ void CopyToRenderInput(
 	renderInput.editorCtx = *engine->editor;
 }
 
-// runs on the main thread — loads new dll, swaps slot, unloads old
 static void DoUserAppDllSwap()
 {
     EngineContext* engine = GetEngineCtx();

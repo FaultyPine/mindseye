@@ -19,9 +19,6 @@ struct meAssetIndex
 // Calling multiple times with the same pair currently has no special de-duping behavior
 MEAPI void meAssetIndexRecordDependency(MAID owner, MAID dep);
 
-// Returns a read-only view of the dependencies recorded for 'owner'.
-// The span points into memory owned by the asset index — do not mutate or
-// store it past any call that could modify dependencyMap.
 MEAPI meSpanTyped<MAID> meAssetIndexGetDependencies(MAID owner);
 
 MEAPI StringView meAssetIndexGetFilesystemPath(

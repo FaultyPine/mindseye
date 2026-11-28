@@ -124,7 +124,6 @@ String& String::operator=(const StringView& other)
 		allocator = GetStringAllocator();
 	}
 
-	// Allocate and copy new data before freeing — other.data may alias our buffer
 	char* oldData = data;
 	CopyOf(other, allocator);
 
@@ -142,7 +141,6 @@ String& String::operator=(const StringBuilder& other)
 		allocator = other.allocator ? other.allocator : GetStringAllocator();
 	}
 
-	// Allocate and copy new data before freeing — other.data may alias our buffer
 	char* oldData = data;
 	CopyOf(StringView(other.data, other.len), allocator);
 

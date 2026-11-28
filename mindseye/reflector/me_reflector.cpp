@@ -18,8 +18,6 @@
 
 ME_DEFINE_LOG_CATEGORY(Reflector);
 
-// A reflection run regenerates all in-memory results; unchanged files keep their
-// timestamps so implementation-only changes do not fan out into every object.
 static bool outputFailed = false;
 static unsigned changedOutputs = 0;
 static std::vector<std::string> generatedOutputs;
@@ -27,24 +25,47 @@ static std::vector<std::string> generatedOutputs;
 static bool WriteGeneratedFile(const char* path, const char* data, size_t size)
 {
     generatedOutputs.emplace_back(path);
+
     FILE* input = fopen(path, "rb");
-    bool equal = input != nullptr;
-    size_t offset = 0;
-    char buffer[4096];
-    while (equal && offset < size)
+    if (input)
     {
-        size_t count = size - offset < sizeof(buffer) ? size - offset : sizeof(buffer);
-        equal = fread(buffer, 1, count, input) == count && memcmp(buffer, data + offset, count) == 0;
-        offset += count;
+        char buffer[4096];
+        bool matches = true;
+        size_t offset = 0;
+        while (offset < size)
+        {
+            size_t remaining = size - offset;
+            size_t count = remaining < sizeof(buffer) ? remaining : sizeof(buffer);
+            if (fread(buffer, 1, count, input) != count || memcmp(buffer, data + offset, count) != 0)
+            {
+                matches = false;
+                break;
+            }
+            offset += count;
+        }
+        matches = matches && fgetc(input) == EOF && !ferror(input);
+        fclose(input);
+        if (matches)
+        {
+            return true;
+        }
     }
-    if (input) { equal = equal && fgetc(input) == EOF && !ferror(input); fclose(input); }
-    if (equal) return true;
+
     FILE* output = fopen(path, "wb");
-    bool success = output && fwrite(data, 1, size, output) == size;
-    if (output && fclose(output) != 0) success = false;
-    if (!success) { LOG_ERROR(Reflector, "Failed to write generated file: {}", path); outputFailed = true; return false; }
-    ++changedOutputs;
-    return true;
+    if (output)
+    {
+        bool wroteAllBytes = fwrite(data, 1, size, output) == size;
+        bool closed = fclose(output) == 0;
+        if (wroteAllBytes && closed)
+        {
+            ++changedOutputs;
+            return true;
+        }
+    }
+
+    LOG_ERROR(Reflector, "Failed to write generated file: {}", path);
+    outputFailed = true;
+    return false;
 }
 
 #pragma comment(lib, "user32.lib")

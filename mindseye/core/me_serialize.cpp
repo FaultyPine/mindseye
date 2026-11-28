@@ -233,7 +233,6 @@ static void SerializeTopLevelPrologue(const SerializeContext& ctx)
 	ME_ASSERT(ctx.sourceData.data);
 	ME_ASSERT(ctx.sourceData.size == ctx.typeDesc->size);
 	ME_ASSERT(!ctx.serializedData);
-	// Top-level callers produce serializedData; field walkers use chunker/parentType instead.
 	ME_ASSERT(!ctx.chunker);
 	ME_ASSERT(!ctx.parentType);
 }
@@ -245,7 +244,6 @@ static void DeserializeTopLevelPrologue(const DeserializeContext& ctx)
 	ME_ASSERT(ctx.sourceData.data);
 	ME_ASSERT(ctx.outputData.data);
 	ME_ASSERT(ctx.outputData.size == ctx.typeDesc->size);
-	// Top-level callers read sourceData; field walkers use chunker/parentType instead.
 	ME_ASSERT(!ctx.chunker);
 	ME_ASSERT(!ctx.parentType);
 }
@@ -849,7 +847,6 @@ bool meAssetEqualsFn(const meTypeDescriptor& td, const void* a, const void* b)
         return false;
     }
 
-    // Both are plain template refs with matching IDs — equal.
     if (!aIsInstance) 
     {
         return true;

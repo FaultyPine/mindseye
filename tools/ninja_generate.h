@@ -3,7 +3,6 @@
 #include "nob.h"
 
 // ================ String and command helpers ======================
-// Own the pointer array; strings themselves live in Nob's temporary arena.
 struct Strings : Nob_Cmd
 {
     Strings() : Nob_Cmd{}

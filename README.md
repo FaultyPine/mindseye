@@ -18,6 +18,8 @@ asset system:
 - BOOKMARK: need binary child files, so a mesh editor masset can have the actual mesh data seperate from the editor data
     - where to put child files
         - inside resource/asset folder by default, overridable (if you want to move it up a level, to make it shared across multiple projects)
+        - binary child files will be content-addressed, or UUID? either way, needs deduplication.
+            - good place for a fast cache, future opportunity for virtual assets
     - idea: some game engines keep the diffable editor files (text) in VCS, and then compile it to binary when you run the engine.
             but really, the reasons for that are diffing and grepping.
             What if we only convert assets to text when you go to actually work on it? i.e. when you "check out"/open an asset in the editor
