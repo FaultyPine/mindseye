@@ -521,6 +521,70 @@ bool DoesDeclarationHaveReflectionAnnotation(
     return foundReflectionAnnotation;
 }
 
+
+void ApplyReflectionMetadata(meReflectedType& reflType, StringView macroContent)
+{
+    // if there's an annotation, parse the content
+    auto GetStringParam = [](StringView key, StringView macroContent) -> StringView
+    {
+        s32 paramContent = FindInString(macroContent, key, 0, StringOpFlags_IdxAfterNeedle | StringOpFlags_CaseInsensitive);
+        if (paramContent < 0)
+        {
+            return {};
+        }
+        StringView param = macroContent.OffsetView(paramContent);
+        param = EatChars(param, ' ');
+        param = EatChars(param, '=');
+        param = EatChars(param, ' ');
+        s32 endParamStrContent = 0;
+        // string params like Description="something"
+        if (param[0] == '"')
+        {
+            param = EatChars(param, '"');
+            endParamStrContent = EatCharsOffset(param, '"', true);
+        }
+        // non-string params like Version=1
+        else
+        {
+            endParamStrContent = MEMIN(EatCharsOffset(param, ',', true), EatCharsOffset(param, ')', true));
+        }
+        StringView paramStrContent = param.OffsetView(0, endParamStrContent);
+        return paramStrContent;
+    };
+
+    if (macroContent)
+    {
+        StringView descriptionParam = GetStringParam(STRING_LIT("Description"), macroContent);
+        reflType.editorName = descriptionParam;
+
+        StringView tooltipParam = GetStringParam(STRING_LIT("Tooltip"), macroContent);
+        reflType.tooltip = tooltipParam;
+
+        StringView versionParam = GetStringParam(STRING_LIT("Version"), macroContent);
+        if (versionParam)
+            reflType.version = StringToUint(versionParam);
+
+        StringView serializerParam = GetStringParam(STRING_LIT("Serializer"), macroContent);
+        reflType.serializerFnName = serializerParam;
+
+        StringView deserializerParam = GetStringParam(STRING_LIT("Deserializer"), macroContent);
+        reflType.deserializerFnName = deserializerParam;
+
+        StringView equalsFnParam = GetStringParam(STRING_LIT("Equals"), macroContent);
+        reflType.equalsFnName = equalsFnParam;
+
+        StringView editorRenderParam = GetStringParam(STRING_LIT("EditorRender"), macroContent);
+        reflType.editorRenderFnName = editorRenderParam;
+
+        StringView destroyParam = GetStringParam(STRING_LIT("Destroy"), macroContent);
+        reflType.destroyFnName = destroyParam;
+
+        StringView deepCopyParam = GetStringParam(STRING_LIT("DeepCopy"), macroContent);
+        reflType.deepCopyFnName = deepCopyParam;
+
+        SET_BIT(reflType.flags, meTypeDescriptorFlag_Excluded, reflType.IsExcluded() || FindInString(macroContent, STRING_LIT("exclude")) >= 0);
+    }
+}
 // when we encounter a MEREFLECT macro, the entire content inside it is passed in here
 // I.E. MEREFLECT(something, another)     "something, another" would be passed in macroContent
 // In that case ^ the cursor points to either a fielddecl or structdecl that has been annotated
@@ -758,66 +822,7 @@ void StoreReflectedTypeInfo(
     reflType.align = typeAlign;
     reflType.kind = crKind;
 
-    // if there's an annotation, parse the content
-    auto GetStringParam = [](StringView key, StringView macroContent) -> StringView
-    {
-        s32 paramContent = FindInString(macroContent, key, 0, StringOpFlags_IdxAfterNeedle | StringOpFlags_CaseInsensitive);
-        if (paramContent < 0)
-        {
-            return {};
-        }
-        StringView param = macroContent.OffsetView(paramContent);
-        param = EatChars(param, ' ');
-        param = EatChars(param, '=');
-        param = EatChars(param, ' ');
-        s32 endParamStrContent = 0;
-        // string params like Description="something"
-        if (param[0] == '"')
-        {
-            param = EatChars(param, '"');
-            endParamStrContent = EatCharsOffset(param, '"', true);
-        }
-        // non-string params like Version=1
-        else
-        {
-            endParamStrContent = MEMIN(EatCharsOffset(param, ',', true), EatCharsOffset(param, ')', true));
-        }
-        StringView paramStrContent = param.OffsetView(0, endParamStrContent);
-        return paramStrContent;
-    };
-
-    if (macroContent)
-    {
-        StringView descriptionParam = GetStringParam(STRING_LIT("Description"), macroContent);
-        reflType.editorName = descriptionParam;
-
-        StringView tooltipParam = GetStringParam(STRING_LIT("Tooltip"), macroContent);
-        reflType.tooltip = tooltipParam;
-
-        StringView versionParam = GetStringParam(STRING_LIT("Version"), macroContent);
-        if (versionParam)
-            reflType.version = StringToUint(versionParam);
-
-        StringView serializerParam = GetStringParam(STRING_LIT("Serializer"), macroContent);
-        reflType.serializerFnName = serializerParam;
-
-        StringView deserializerParam = GetStringParam(STRING_LIT("Deserializer"), macroContent);
-        reflType.deserializerFnName = deserializerParam;
-
-        StringView equalsFnParam = GetStringParam(STRING_LIT("Equals"), macroContent);
-        reflType.equalsFnName = equalsFnParam;
-
-        StringView editorRenderParam = GetStringParam(STRING_LIT("EditorRender"), macroContent);
-        reflType.editorRenderFnName = editorRenderParam;
-
-        StringView destroyParam = GetStringParam(STRING_LIT("Destroy"), macroContent);
-        reflType.destroyFnName = destroyParam;
-
-        StringView deepCopyParam = GetStringParam(STRING_LIT("DeepCopy"), macroContent);
-        reflType.deepCopyFnName = deepCopyParam;
-
-        SET_BIT(reflType.flags, meTypeDescriptorFlag_Excluded, reflType.IsExcluded() || excluded);
-    }
+    ApplyReflectionMetadata(reflType, macroContent);
 }
 
 StringView ParseReflectionMacroContent(CXCursor cr, CXTranslationUnit &tu)
