@@ -1339,6 +1339,207 @@ String SanitizeAndCopyTypeDescriptorName(
     return underlyingTD;
 }
 
+void EmitField(StringBuilder& out, const meReflectedType& field, meAllocator* allocator, StringBuilder& templateTypesContent)
+{
+    if (field.IsExcluded())
+    {
+        // excluded fields are still "there", but they have no underlying type
+        // think of it like "padding" bytes so the other field offsets make sense
+        out.AppendFormat(
+            "\t{ .name = STRING_LIT(\"%.*s\"), .flags = NTH_BIT(meTypeDescriptorFlag_Excluded), .size = %i, .align = %i, .offsetBits = %i },\n",
+            STRING_VAARGS(field.name), field.size, field.align, field.offsetBits);
+        return;
+    }
+
+    out.Append(STRING_LIT("\t{ "));
+    out.AppendFormat(".name = STRING_LIT(\"%.*s\"), ", STRING_VAARGS(field.name));
+    if (field.editorName)
+        out.AppendFormat(".editorName = STRING_LIT(\"%.*s\"), ", STRING_VAARGS(field.editorName));
+    if (field.tooltip)
+        out.AppendFormat(".tooltip = STRING_LIT(\"%.*s\"), ", STRING_VAARGS(field.tooltip));
+    if (field.flags & meTypeDescriptorFlagsSerializedBitmask)
+    {
+        out.Append(STRING_LIT(".flags = ("));
+        u32 num = 0;
+        for (u32 i = 0; i < meTypeDescriptorFlag_NonSerializedFlagsMarker; i++)
+        {
+            if (TEST_BIT(field.flags, i))
+            {
+                if (num++ != 0)
+                {
+                    out.Append(STRING_LIT(" | "));
+                }
+                StringView flagStr = meTypeDescriptorFlagToString(i);
+                out.AppendFormat("NTH_BIT(" STRING_FMT ")", STRING_VAARGS(flagStr));
+            }
+        }
+        out.Append(STRING_LIT("), "));
+    }
+    out.AppendFormat(".version = %i, ", field.version);
+    out.AppendFormat(".size = %i, ", field.size != 0 ? field.size : (field.innerType ? field.innerType->size : 0));
+    out.AppendFormat(".align = %i, ", field.align != 0 ? field.align : (field.innerType ? field.innerType->align : 0));
+    out.AppendFormat(".offsetBits = %i, ", field.offsetBits);
+    if (field.innerType && field.innerType->name && TEST_BIT(field.flags, meTypeDescriptorFlag_IncludeInGeneratedHeader))
+    {
+        String underlyingTD = SanitizeAndCopyTypeDescriptorName(field.innerType->name, allocator);
+        out.AppendFormat(".thisType = &TD_%.*s, ", STRING_VAARGS(underlyingTD));
+        if (DynArrayGetSize(field.templateTypes))
+        {
+            StringView templateArgsListVarName = StringFormatNew(allocator, "g_templateArgs_" STRING_FMT, STRING_VAARGS(field.name));
+            for (DynArray_Foreach(field.templateTypes, templateArgIdx))
+            {
+                meReflectedType *templateArgType = field.templateTypes[templateArgIdx];
+                if (TEST_BIT(templateArgType->flags, meTypeDescriptorFlag_IntegralStub))
+                {
+                    templateTypesContent.AppendFormat(
+                        "static meTypeDescriptor g_intarg_%.*s_%u = { .value = %i };\n",
+                        STRING_VAARGS(field.name), (u32)templateArgIdx, templateArgType->value);
+                }
+                else if (DynArrayGetSize(templateArgType->templateTypes))
+                {
+                    // This named type arg is itself a template specialization.
+                    // Emit its nested integral stubs, then its templateArgs array,
+                    // then the intermediate descriptor.
+                    u32 numNestedArgs = DynArrayGetSize(templateArgType->templateTypes);
+                    for (u32 nestedIdx = 0; nestedIdx < numNestedArgs; nestedIdx++)
+                    {
+                        meReflectedType *nestedArg = templateArgType->templateTypes[nestedIdx];
+                        if (TEST_BIT(nestedArg->flags, meTypeDescriptorFlag_IntegralStub))
+                        {
+                            templateTypesContent.AppendFormat(
+                                "static meTypeDescriptor g_intarg_%.*s_%u_%u = { .value = %i };\n",
+                                STRING_VAARGS(field.name), (u32)templateArgIdx, nestedIdx, nestedArg->value);
+                        }
+                    }
+                    templateTypesContent.AppendFormat(
+                        "static meTypeDescriptor* g_nestedTemplateArgs_%.*s_%u[] = {\n",
+                        STRING_VAARGS(field.name), (u32)templateArgIdx);
+                    for (u32 nestedIdx = 0; nestedIdx < numNestedArgs; nestedIdx++)
+                    {
+                        meReflectedType *nestedArg = templateArgType->templateTypes[nestedIdx];
+                        if (TEST_BIT(nestedArg->flags, meTypeDescriptorFlag_IntegralStub))
+                        {
+                            templateTypesContent.AppendFormat(
+                                "\t&g_intarg_%.*s_%u_%u,\n",
+                                STRING_VAARGS(field.name), (u32)templateArgIdx, nestedIdx);
+                        }
+                        else
+                        {
+                            String nestedTDName = SanitizeAndCopyTypeDescriptorName(nestedArg->name, allocator);
+                            templateTypesContent.AppendFormat("\t&TD_" STRING_FMT ",\n", STRING_VAARGS(nestedTDName));
+                        }
+                    }
+                    templateTypesContent.Append(STRING_LIT("};\n"));
+                    String argTDName = SanitizeAndCopyTypeDescriptorName(templateArgType->name, allocator);
+                    // Use the full template spelling so (for instance) we get meTypedAsset<MAEntity>'s ctor, not just meAsset's.
+                    StringView ctorTypeName = templateArgType->fullTemplateName
+                        ? templateArgType->fullTemplateName
+                        : templateArgType->name;
+                    templateTypesContent.AppendFormat(
+"static meTypeDescriptor g_typearg_%.*s_%u =\n"
+"{\n"
+"    .name = STRING_LIT(\"" STRING_FMT "\"),\n"
+"    .size = %u, .align = %u,\n"
+"    .thisType = &TD_" STRING_FMT ",\n"
+"    .templatedTypes = meSpanTyped<meTypeDescriptor*>(g_nestedTemplateArgs_%.*s_%u),\n"
+"    .setToDefaultsFn = &meTypeDescriptorSetToDefaults<" STRING_FMT ">,\n"
+"    .destroyFn = &meTypeDescriptorGeneratedDestroy<" STRING_FMT ">,\n"
+"    .deepCopyFn = &meTypeDescriptorGeneratedDeepCopy<" STRING_FMT ">,\n"
+"};\n",
+                        STRING_VAARGS(field.name), (u32)templateArgIdx,
+                        STRING_VAARGS(templateArgType->name),
+                        templateArgType->size, templateArgType->align,
+                        STRING_VAARGS(argTDName),
+                        STRING_VAARGS(field.name), (u32)templateArgIdx,
+                        STRING_VAARGS(ctorTypeName),
+                        STRING_VAARGS(ctorTypeName),
+                        STRING_VAARGS(ctorTypeName)
+                    );
+                }
+            }
+            templateTypesContent.AppendFormat("meTypeDescriptor* " STRING_FMT "[] = {\n", STRING_VAARGS(templateArgsListVarName));
+            for (DynArray_Foreach(field.templateTypes, templateArgIdx))
+            {
+                meReflectedType *templateArgType = field.templateTypes[templateArgIdx];
+                if (TEST_BIT(templateArgType->flags, meTypeDescriptorFlag_IntegralStub))
+                {
+                    templateTypesContent.AppendFormat(
+                        "\t&g_intarg_%.*s_%u,\n",
+                        STRING_VAARGS(field.name), (u32)templateArgIdx);
+                }
+                else if (DynArrayGetSize(templateArgType->templateTypes))
+                {
+                    // nested template descriptor (e.g. meTypedAsset<MAEntity>)
+                    templateTypesContent.AppendFormat(
+                        "\t&g_typearg_%.*s_%u,\n",
+                        STRING_VAARGS(field.name), (u32)templateArgIdx);
+                }
+                else
+                {
+                    String templateTDName = SanitizeAndCopyTypeDescriptorName(templateArgType->name, allocator);
+                    templateTypesContent.AppendFormat("\t&TD_" STRING_FMT ",\n", STRING_VAARGS(templateTDName));
+                }
+            }
+            templateTypesContent.Append(STRING_LIT("};\n"));
+            out.AppendFormat(
+                ".templatedTypes = meSpanTyped<meTypeDescriptor*>(" STRING_FMT "), ",
+                STRING_VAARGS(templateArgsListVarName));
+        }
+    }
+    out.Append(STRING_LIT("},"));
+}
+
+void EmitDescriptorInitializer(StringBuilder& out, const meReflectedType& type)
+{
+    out.AppendFormat("\t.name = STRING_LIT(\"%.*s\"),\n", STRING_VAARGS(type.name));
+    if (type.editorName)
+        out.AppendFormat("\t.editorName = STRING_LIT(\"%.*s\"),\n", STRING_VAARGS(type.editorName));
+    if (type.tooltip)
+        out.AppendFormat("\t.tooltip = STRING_LIT(\"%.*s\"),\n", STRING_VAARGS(type.tooltip));
+
+    if (DynArrayGetSize(type.children))
+    {
+        out.AppendFormat("\t.fields = {g_%.*s_fields},\n", STRING_VAARGS(type.name));
+    }
+    out.AppendFormat("\t.version = %i,\n", type.version);
+    out.AppendFormat("\t.size = %i,\n", type.size);
+    out.AppendFormat("\t.align = %i,\n", type.align);
+    if (type.serializerFnName)
+    {
+        out.AppendFormat("\t.serializerFn = " STRING_FMT ",\n", STRING_VAARGS(type.serializerFnName));
+    }
+    if (type.deserializerFnName)
+    {
+        out.AppendFormat("\t.deserializerFn = " STRING_FMT ",\n", STRING_VAARGS(type.deserializerFnName));
+    }
+    if (type.equalsFnName)
+    {
+        out.AppendFormat("\t.equalsFn = " STRING_FMT ",\n", STRING_VAARGS(type.equalsFnName));
+    }
+    if (type.editorRenderFnName)
+    {
+        out.AppendFormat("\t.editorRenderFn = " STRING_FMT ",\n", STRING_VAARGS(type.editorRenderFnName));
+    }
+
+    out.AppendFormat("\t.setToDefaultsFn = &meTypeDescriptorSetToDefaults<" STRING_FMT ">,\n", STRING_VAARGS(type.name));
+    if (type.destroyFnName)
+    {
+        out.AppendFormat("\t.destroyFn = " STRING_FMT ",\n", STRING_VAARGS(type.destroyFnName));
+    }
+    else
+    {
+        out.AppendFormat("\t.destroyFn = &meTypeDescriptorGeneratedDestroy<" STRING_FMT ">,\n", STRING_VAARGS(type.name));
+    }
+    if (type.deepCopyFnName)
+    {
+        out.AppendFormat("\t.deepCopyFn = " STRING_FMT ",\n", STRING_VAARGS(type.deepCopyFnName));
+    }
+    else
+    {
+        out.AppendFormat("\t.deepCopyFn = &meTypeDescriptorGeneratedDeepCopy<" STRING_FMT ">,\n", STRING_VAARGS(type.name));
+    }
+}
+
 bool GenerateForwardDecls(
     StringBuilder &builder,
     const meMap<u32, meReflectedType> &reflectedTypes,
@@ -1536,153 +1737,8 @@ bool ProcessReflectedFile(
                         numPaddingMembers++;
                     }
 
-                    if (childReflType.IsExcluded())
-                    {
-                        // excluded fields are still "there", but they have no underlying type
-                        // think of it like "padding" bytes so the other field offsets make sense
-                        fieldsArrayContent.AppendFormat(
-                            "\t{ .name = STRING_LIT(\"%.*s\"), .flags = NTH_BIT(meTypeDescriptorFlag_Excluded), .size = %i, .align = %i, .offsetBits = %i },\n",
-                            STRING_VAARGS(childReflType.name), childReflType.size, childReflType.align, childReflType.offsetBits);
-                        continue;
-                    }
-
-                    fieldsArrayContent.Append(STRING_LIT("\t{ "));
-                    fieldsArrayContent.AppendFormat(".name = STRING_LIT(\"%.*s\"), ", STRING_VAARGS(childReflType.name));
-                    if (childReflType.editorName)
-                        fieldsArrayContent.AppendFormat(".editorName = STRING_LIT(\"%.*s\"), ", STRING_VAARGS(childReflType.editorName));
-                    if (childReflType.tooltip)
-                        fieldsArrayContent.AppendFormat(".tooltip = STRING_LIT(\"%.*s\"), ", STRING_VAARGS(childReflType.tooltip));
-                    if (childReflType.flags & meTypeDescriptorFlagsSerializedBitmask)
-                    {
-                        fieldsArrayContent.Append(STRING_LIT(".flags = ("));
-                        u32 num = 0;
-                        for (u32 i = 0; i < meTypeDescriptorFlag_NonSerializedFlagsMarker; i++)
-                        {
-                            if (TEST_BIT(childReflType.flags, i))
-                            {
-                                if (num++ != 0)
-                                {
-                                    fieldsArrayContent.Append(STRING_LIT(" | "));
-                                }
-                                StringView flagStr = meTypeDescriptorFlagToString(i);
-                                fieldsArrayContent.AppendFormat("NTH_BIT(" STRING_FMT ")", STRING_VAARGS(flagStr));
-                            }
-                        }
-                        fieldsArrayContent.Append(STRING_LIT("), "));
-                    }
-                    fieldsArrayContent.AppendFormat(".version = %i, ", childReflType.version);
-                    fieldsArrayContent.AppendFormat(".size = %i, ", childReflType.size != 0 ? childReflType.size : (childReflType.innerType ? childReflType.innerType->size : 0));
-                    fieldsArrayContent.AppendFormat(".align = %i, ", childReflType.align != 0 ? childReflType.align : (childReflType.innerType ? childReflType.innerType->align : 0));
-                    fieldsArrayContent.AppendFormat(".offsetBits = %i, ", childReflType.offsetBits);
-                    if (childReflType.innerType && childReflType.innerType->name && TEST_BIT(childReflType.flags, meTypeDescriptorFlag_IncludeInGeneratedHeader))
-                    {
-                        String underlyingTD = SanitizeAndCopyTypeDescriptorName(childReflType.innerType->name, allocator);
-                        fieldsArrayContent.AppendFormat(".thisType = &TD_%.*s, ", STRING_VAARGS(underlyingTD));
-                        if (DynArrayGetSize(childReflType.templateTypes))
-                        {
-                            StringView templateArgsListVarName = StringFormatNew(allocator, "g_templateArgs_" STRING_FMT, STRING_VAARGS(childReflType.name));
-                            for (DynArray_Foreach(childReflType.templateTypes, templateArgIdx))
-                            {
-                                meReflectedType *templateArgType = childReflType.templateTypes[templateArgIdx];
-                                if (TEST_BIT(templateArgType->flags, meTypeDescriptorFlag_IntegralStub))
-                                {
-                                    templateTypesContent.AppendFormat(
-                                        "static meTypeDescriptor g_intarg_%.*s_%u = { .value = %i };\n",
-                                        STRING_VAARGS(childReflType.name), (u32)templateArgIdx, templateArgType->value);
-                                }
-                                else if (DynArrayGetSize(templateArgType->templateTypes))
-                                {
-                                    // This named type arg is itself a template specialization.
-                                    // Emit its nested integral stubs, then its templateArgs array,
-                                    // then the intermediate descriptor.
-                                    u32 numNestedArgs = DynArrayGetSize(templateArgType->templateTypes);
-                                    for (u32 nestedIdx = 0; nestedIdx < numNestedArgs; nestedIdx++)
-                                    {
-                                        meReflectedType *nestedArg = templateArgType->templateTypes[nestedIdx];
-                                        if (TEST_BIT(nestedArg->flags, meTypeDescriptorFlag_IntegralStub))
-                                        {
-                                            templateTypesContent.AppendFormat(
-                                                "static meTypeDescriptor g_intarg_%.*s_%u_%u = { .value = %i };\n",
-                                                STRING_VAARGS(childReflType.name), (u32)templateArgIdx, nestedIdx, nestedArg->value);
-                                        }
-                                    }
-                                    templateTypesContent.AppendFormat(
-                                        "static meTypeDescriptor* g_nestedTemplateArgs_%.*s_%u[] = {\n",
-                                        STRING_VAARGS(childReflType.name), (u32)templateArgIdx);
-                                    for (u32 nestedIdx = 0; nestedIdx < numNestedArgs; nestedIdx++)
-                                    {
-                                        meReflectedType *nestedArg = templateArgType->templateTypes[nestedIdx];
-                                        if (TEST_BIT(nestedArg->flags, meTypeDescriptorFlag_IntegralStub))
-                                        {
-                                            templateTypesContent.AppendFormat(
-                                                "\t&g_intarg_%.*s_%u_%u,\n",
-                                                STRING_VAARGS(childReflType.name), (u32)templateArgIdx, nestedIdx);
-                                        }
-                                        else
-                                        {
-                                            String nestedTDName = SanitizeAndCopyTypeDescriptorName(nestedArg->name, allocator);
-                                            templateTypesContent.AppendFormat("\t&TD_" STRING_FMT ",\n", STRING_VAARGS(nestedTDName));
-                                        }
-                                    }
-                                    templateTypesContent.Append(STRING_LIT("};\n"));
-                                    String argTDName = SanitizeAndCopyTypeDescriptorName(templateArgType->name, allocator);
-                                    // Use the full template spelling so (for instance) we get meTypedAsset<MAEntity>'s ctor, not just meAsset's.
-                                    StringView ctorTypeName = templateArgType->fullTemplateName
-                                        ? templateArgType->fullTemplateName
-                                        : templateArgType->name;
-                                    templateTypesContent.AppendFormat(
-"static meTypeDescriptor g_typearg_%.*s_%u =\n"
-"{\n"
-"    .name = STRING_LIT(\"" STRING_FMT "\"),\n"
-"    .size = %u, .align = %u,\n"
-"    .thisType = &TD_" STRING_FMT ",\n"
-"    .templatedTypes = meSpanTyped<meTypeDescriptor*>(g_nestedTemplateArgs_%.*s_%u),\n"
-"    .setToDefaultsFn = &meTypeDescriptorSetToDefaults<" STRING_FMT ">,\n"
-"    .destroyFn = &meTypeDescriptorGeneratedDestroy<" STRING_FMT ">,\n"
-"    .deepCopyFn = &meTypeDescriptorGeneratedDeepCopy<" STRING_FMT ">,\n"
-"};\n",
-                                        STRING_VAARGS(childReflType.name), (u32)templateArgIdx,
-                                        STRING_VAARGS(templateArgType->name),
-                                        templateArgType->size, templateArgType->align,
-                                        STRING_VAARGS(argTDName),
-                                        STRING_VAARGS(childReflType.name), (u32)templateArgIdx,
-                                        STRING_VAARGS(ctorTypeName),
-                                        STRING_VAARGS(ctorTypeName),
-                                        STRING_VAARGS(ctorTypeName)
-                                    );
-                                }
-                            }
-                            templateTypesContent.AppendFormat("meTypeDescriptor* " STRING_FMT "[] = {\n", STRING_VAARGS(templateArgsListVarName));
-                            for (DynArray_Foreach(childReflType.templateTypes, templateArgIdx))
-                            {
-                                meReflectedType *templateArgType = childReflType.templateTypes[templateArgIdx];
-                                if (TEST_BIT(templateArgType->flags, meTypeDescriptorFlag_IntegralStub))
-                                {
-                                    templateTypesContent.AppendFormat(
-                                        "\t&g_intarg_%.*s_%u,\n",
-                                        STRING_VAARGS(childReflType.name), (u32)templateArgIdx);
-                                }
-                                else if (DynArrayGetSize(templateArgType->templateTypes))
-                                {
-                                    // nested template descriptor (e.g. meTypedAsset<MAEntity>)
-                                    templateTypesContent.AppendFormat(
-                                        "\t&g_typearg_%.*s_%u,\n",
-                                        STRING_VAARGS(childReflType.name), (u32)templateArgIdx);
-                                }
-                                else
-                                {
-                                    String templateTDName = SanitizeAndCopyTypeDescriptorName(templateArgType->name, allocator);
-                                    templateTypesContent.AppendFormat("\t&TD_" STRING_FMT ",\n", STRING_VAARGS(templateTDName));
-                                }
-                            }
-                            templateTypesContent.Append(STRING_LIT("};\n"));
-                            fieldsArrayContent.AppendFormat(
-                                ".templatedTypes = meSpanTyped<meTypeDescriptor*>(" STRING_FMT "), ",
-                                STRING_VAARGS(templateArgsListVarName));
-                        }
-                    }
-                    fieldsArrayContent.Append(STRING_LIT("},"));
-                    if (i != numChildren - 1)
+                    EmitField(fieldsArrayContent, childReflType, allocator, templateTypesContent);
+                    if (!childReflType.IsExcluded() && i != numChildren - 1)
                     {
                         fieldsArrayContent.Append(STRING_LIT("\n"));
                     }
@@ -1710,53 +1766,7 @@ bool ProcessReflectedFile(
                     STRING_VAARGS(typeRefl.name), numChildren + numPaddingMembers, STRING_VAARGS(fieldsArrayContent));
             }
             StringBuilder mainTypeDescriptorContent = StringBuilder(allocator);
-            mainTypeDescriptorContent.AppendFormat("\t.name = STRING_LIT(\"%.*s\"),\n", STRING_VAARGS(typeRefl.name));
-            if (typeRefl.editorName)
-                mainTypeDescriptorContent.AppendFormat("\t.editorName = STRING_LIT(\"%.*s\"),\n", STRING_VAARGS(typeRefl.editorName));
-            if (typeRefl.tooltip)
-                mainTypeDescriptorContent.AppendFormat("\t.tooltip = STRING_LIT(\"%.*s\"),\n", STRING_VAARGS(typeRefl.tooltip));
-
-            if (DynArrayGetSize(typeRefl.children))
-            {
-                mainTypeDescriptorContent.AppendFormat("\t.fields = {g_%.*s_fields},\n", STRING_VAARGS(typeRefl.name));
-            }
-            mainTypeDescriptorContent.AppendFormat("\t.version = %i,\n", typeRefl.version);
-            mainTypeDescriptorContent.AppendFormat("\t.size = %i,\n", typeRefl.size);
-            mainTypeDescriptorContent.AppendFormat("\t.align = %i,\n", typeRefl.align);
-            if (typeRefl.serializerFnName)
-            {
-                mainTypeDescriptorContent.AppendFormat("\t.serializerFn = " STRING_FMT ",\n", STRING_VAARGS(typeRefl.serializerFnName));
-            }
-            if (typeRefl.deserializerFnName)
-            {
-                mainTypeDescriptorContent.AppendFormat("\t.deserializerFn = " STRING_FMT ",\n", STRING_VAARGS(typeRefl.deserializerFnName));
-            }
-            if (typeRefl.equalsFnName)
-            {
-                mainTypeDescriptorContent.AppendFormat("\t.equalsFn = " STRING_FMT ",\n", STRING_VAARGS(typeRefl.equalsFnName));
-            }
-            if (typeRefl.editorRenderFnName)
-            {
-                mainTypeDescriptorContent.AppendFormat("\t.editorRenderFn = " STRING_FMT ",\n", STRING_VAARGS(typeRefl.editorRenderFnName));
-            }
-
-            mainTypeDescriptorContent.AppendFormat("\t.setToDefaultsFn = &meTypeDescriptorSetToDefaults<" STRING_FMT ">,\n", STRING_VAARGS(typeRefl.name));
-            if (typeRefl.destroyFnName)
-            {
-                mainTypeDescriptorContent.AppendFormat("\t.destroyFn = " STRING_FMT ",\n", STRING_VAARGS(typeRefl.destroyFnName));
-            }
-            else
-            {
-                mainTypeDescriptorContent.AppendFormat("\t.destroyFn = &meTypeDescriptorGeneratedDestroy<" STRING_FMT ">,\n", STRING_VAARGS(typeRefl.name));
-            }
-            if (typeRefl.deepCopyFnName)
-            {
-                mainTypeDescriptorContent.AppendFormat("\t.deepCopyFn = " STRING_FMT ",\n", STRING_VAARGS(typeRefl.deepCopyFnName));
-            }
-            else
-            {
-                mainTypeDescriptorContent.AppendFormat("\t.deepCopyFn = &meTypeDescriptorGeneratedDeepCopy<" STRING_FMT ">,\n", STRING_VAARGS(typeRefl.name));
-            }
+            EmitDescriptorInitializer(mainTypeDescriptorContent, typeRefl);
 
             sourceContentBuilder.AppendFormat("meTypeDescriptor TD_%.*s = {\n%.*s};\n", STRING_VAARGS(uppercaseName), STRING_VAARGS(mainTypeDescriptorContent));
             sourceContentBuilder.AppendFormat(

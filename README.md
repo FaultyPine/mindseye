@@ -13,6 +13,7 @@ run `build.bat`
 - compile-time code execution
 
 ### Current focus
+Template support in reflector
 asset system:
 - BOOKMARK: need binary child files, so a mesh editor masset can have the actual mesh data seperate from the editor data
     - where to put child files
