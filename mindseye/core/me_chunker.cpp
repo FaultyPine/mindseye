@@ -296,13 +296,13 @@ void meChunker::EndObject()
     }
 }
 
-bool meChunker::Field(StringView name)
+bool meChunker::Field(const meTypeDescriptorMember& member)
 {
     if (m_serializationMode == meSerializationMode_Binary)
     {
         return true;
     }
-    return DoTextField(name);
+    return DoTextField(member.field.name);
 }
 
 void meChunker::EndField()

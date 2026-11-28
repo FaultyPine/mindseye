@@ -766,7 +766,7 @@ meSpan meSerializeTryGetSerializedHeader(
 		[&](const meTypeDescriptorMember& member)
 		{
 			// search top-level fields for the meBaseAsset serialized header
-			if (member.field.thisType == &TD_MESERIALIZEDHEADER && StringCompare(member.field.name, STRING_LIT(ME_ASSET_HEADER_FIELDNAME)))
+			if (member.field.thisType == &TD_MESERIALIZEDHEADER && StringCompare(member.field.name, meAssetGetAssetHeaderFieldName()))
 			{
 				result = serializedBuffer.Subspan(member.offsetBytes, member.field.size);
 				return false;

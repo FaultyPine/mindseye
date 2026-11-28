@@ -133,7 +133,7 @@ bool meSerializeTryReadHeader(
 static bool IsSerializedHeaderField(const meTypeDescriptor& field)
 {
 	return field.thisType == &TD_MESERIALIZEDHEADER &&
-		StringCompare(field.name, STRING_LIT(ME_ASSET_HEADER_FIELDNAME));
+		StringCompare(field.name, meAssetGetAssetHeaderFieldName());
 }
 
 static bool TypeHasSerializedHeader(const meTypeDescriptor& typeDesc)
@@ -423,7 +423,7 @@ static bool ChunkWithTypeDescriptor(
 		bool result = meTypeDescriptorWalkMembers(td, data,
 			[&](const meTypeDescriptorMember& member)
 			{
-				if (!chunker.Field(member.field.name))
+				if (!chunker.Field(member))
 				{
 					// In text mode, field presence is the "set" bit. Missing fields keep
 					// either the copied parent value or the type default.
@@ -454,7 +454,8 @@ static bool TryReadSerializedHeaderField(
 		return false;
 	}
 	ME_ON_SCOPE_EXIT([&chunker]() { chunker.EndObject(); });
-	if (!chunker.Field(STRING_LIT(ME_ASSET_HEADER_FIELDNAME)))
+    meTypeDescriptorMember assetHeaderMember = {.field = TD_MEBASEASSET.fields[0] };
+	if (!chunker.Field(assetHeaderMember))
 	{
 		return false;
 	}
@@ -528,8 +529,8 @@ static bool DeserializeChunkedBlocking(DeserializeContext& ctx)
 
 	meAllocator* chunkerAllocator = ctx.externalDataAllocator ? ctx.externalDataAllocator : GetTLScratch();
 	meSerializedHeader header = {};
-	bool hasSerializedHeader = TypeHasSerializedHeader(typeDesc);
-	bool sourceCanContainHeader = ctx.mode != meSerializationMode_Binary || SerializedBufferStartsWithBinaryHeader(ctx.sourceData);
+	bool typeHasSerializedHeader = TypeHasSerializedHeader(typeDesc);
+	bool sourceCanContainHeader = ctx.mode == meSerializationMode_Text || SerializedBufferStartsWithBinaryHeader(ctx.sourceData);
 	bool sourceHasSerializedHeader = false;
 	if (sourceCanContainHeader)
 	{
@@ -539,7 +540,7 @@ static bool DeserializeChunkedBlocking(DeserializeContext& ctx)
 			return false;
 		}
 	}
-	if (hasSerializedHeader && !sourceHasSerializedHeader)
+	if (typeHasSerializedHeader && !sourceHasSerializedHeader)
 	{
 		return false;
 	}

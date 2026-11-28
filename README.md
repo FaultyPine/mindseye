@@ -14,7 +14,18 @@ run `build.bat`
 
 ### Current focus
 asset system:
-- BOOKMARK: need binary payload sidecar files, so a mesh editor masset can have the actual mesh data next to it
+- BOOKMARK: need binary child files, so a mesh editor masset can have the actual mesh data seperate from the editor data
+    - where to put child files
+        - inside resource/asset folder by default, overridable (if you want to move it up a level, to make it shared across multiple projects)
+    - idea: some game engines keep the diffable editor files (text) in VCS, and then compile it to binary when you run the engine.
+            but really, the reasons for that are diffing and grepping.
+            What if we only convert assets to text when you go to actually work on it? i.e. when you "check out"/open an asset in the editor
+            and when you submit, it's just submitting the binary
+            so the pipeline would be: you make a new asset, it's binary, you work on it in the engine.... you submit - all binary.
+                if someone pulls your recently submitted stuff, it's still all binary in vcs
+                ONLY when you go to check out/edit an existing asset, you do your edits, and then when you go to submit, if there's an incoming change on that same file we convert your local asset to text, pull & convert the remote asset to text, do the diff/conflict resolution. Then again, when you submit it converts the now-resolved asset to binary again.
+                
+
 - recursive asset import (i.e. import a gltf scene also imports the meshes/textures/materials in it)
 - binary serialization consumed by the runtime. only editor tools consume the text serialization
 

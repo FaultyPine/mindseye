@@ -111,7 +111,7 @@ struct meChunker
 
     bool BeginObject();
     void EndObject();
-    bool Field(StringView name);
+    bool Field(const meTypeDescriptorMember& member);
     void EndField();
     bool BeginArray(u32& count);
     bool BeginFixedArray(u32& count);
@@ -150,6 +150,9 @@ private:
 
     void DoBinaryVoid(void* data, u32 size);
 
+    // TODO: nearly all the complexity in this system comes from json serialization needing to carry state around
+    // an easier to parse text format could alleviate a lot of this (and could be better for diffing)
+    // should search around for better formats, or consider making our own
     void DoTextPrimitive(void* data, u32 size, PrimitiveKind kind);
     void DoTextBytes(meSpan& span, meAllocator* readAllocator);
     bool DoTextBeginObject();

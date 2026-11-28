@@ -123,6 +123,8 @@ struct MEREFLECT(type) meSerializedHeader
 	MAID assetHeader = {};
 	MAID parentAsset = {};
 	DynArray<MAID> dependencies = {};
+    // for binary template asset inheritance. Imposes a limit of this many fields in an asset struct. 
+    meBitArray<128> isSetFields = {};
 };
 
 enum meAssetLoadStage
@@ -136,15 +138,19 @@ enum meAssetLoadStage
 	LoadStageCount
 };
 
-#define ME_ASSET_HEADER_FIELDNAME "header"
 
-struct meBaseAsset
+struct MEREFLECT(type) meBaseAsset
 {
     meSerializedHeader header = {};
     meBaseAsset() = default;
     meBaseAsset(const MAID& ident) { header.assetHeader = ident; }
 };
 
+extern meTypeDescriptor TD_MEBASEASSET;
+inline StringView meAssetGetAssetHeaderFieldName()
+{
+    return TD_MEBASEASSET.fields[0].name;
+}
 
 // storing both the "load-time" and "usage-time" information, this is meant to be
 // both serialized, and also used for loading at runtime. This is what will be in the fields
